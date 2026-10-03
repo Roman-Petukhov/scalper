@@ -48,13 +48,20 @@ def _valid(path: Path) -> bool:
     """Файл кеша существует и читается: защищает от обрезанных записей после прерывания."""
     if not path.exists():
         return False
+    import pyarrow.parquet as pq
     try:
-        import pyarrow.parquet as pq
-        pq.ParquetFile(path).metadata
+        with open(path, "rb") as fh:            # явное закрытие: на Windows открытый файл нельзя удалить
+            pq.ParquetFile(fh).metadata
         return True
     except Exception:
-        path.unlink(missing_ok=True)
-        return False
+        pass
+    for attempt in range(20):                   # битый файл (например, после аварийного выключения) — удаляем
+        try:
+            path.unlink(missing_ok=True)
+            return False
+        except PermissionError:
+            time.sleep(0.5 * (attempt + 1))
+    return False
 
 
 def _save(df: pd.DataFrame, out: Path) -> None:
