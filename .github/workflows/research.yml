@@ -2,14 +2,6 @@ name: research
 
 on:
   workflow_dispatch:
-    inputs:
-      stage:
-        description: "search | oos | all"
-        default: "all"
-      start:
-        default: "2022-01"
-      end:
-        default: "2026-09"
   push:
     branches: [main-t2qdvg]
     paths: ["scalper/research/**", ".github/workflows/research.yml"]
@@ -36,12 +28,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/rs/cache
-          key: binance-um-5m-${{ inputs.start || '2022-01' }}-${{ inputs.end || '2026-09' }}-v1
-          restore-keys: binance-um-5m-
-      - name: Download data
-        run: python -m research.data --root ~/rs --start ${{ inputs.start || '2022-01' }} --end ${{ inputs.end || '2026-09' }}
-      - name: Search (IS) -> finalists -> OOS
-        run: mkdir -p ../out && set -o pipefail && python -m research.search --root ~/rs --out ../out --stage ${{ inputs.stage || 'all' }} | tee ../out/log.txt
+          key: binance-um-${{ hashFiles('scalper/research/job.sh') }}-${{ github.run_id }}
+          restore-keys: binance-um-
+      - name: Research job
+        run: mkdir -p ../out && set -o pipefail && bash research/job.sh 2>&1 | tee ../out/log.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:

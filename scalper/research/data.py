@@ -15,6 +15,7 @@ import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 BASE = "https://data.binance.vision/data/futures/um/monthly"
@@ -102,7 +103,36 @@ def fetch_funding(symbol: str, month: str, cache: Path) -> Path | None:
     return out
 
 
-def build(symbols: list[str], interval: str, start: str, end: str, root: Path, workers: int = 12) -> None:
+DAILY = "https://data.binance.vision/data/futures/um/daily"
+
+
+def fetch_metrics(symbol: str, month: str, cache: Path) -> Path | None:
+    """Метрики позиционирования (OI, long/short ratio) с шагом 5 минут: дневные архивы, склеенные в месяц."""
+    out = cache / f"{symbol}-metrics-{month}.parquet"
+    if _valid(out):
+        return out
+    parts = []
+    for day in pd.date_range(f"{month}-01", periods=pd.Period(month).days_in_month, freq="D"):
+        d = day.strftime("%Y-%m-%d")
+        blob = _get(f"{DAILY}/metrics/{symbol}/{symbol}-metrics-{d}.zip")
+        if blob is not None:
+            parts.append(_read_zip_csv(blob, None))
+    if not parts:
+        return None
+    df = pd.concat(parts)
+    df.columns = [str(c).strip().lower() for c in df.columns]
+    ts = pd.to_datetime(df["create_time"], utc=True)
+    keep = ["sum_open_interest", "sum_open_interest_value", "count_toptrader_long_short_ratio",
+            "sum_toptrader_long_short_ratio", "count_long_short_ratio", "sum_taker_long_short_vol_ratio"]
+    m = pd.DataFrame({"ts": ts.dt.as_unit("ms").astype("int64").to_numpy()})
+    for c in keep:
+        m[c] = pd.to_numeric(df[c], errors="coerce").to_numpy() if c in df else np.nan
+    _save(m.sort_values("ts"), out)
+    return out
+
+
+def build(symbols: list[str], interval: str, start: str, end: str, root: Path, workers: int = 12,
+          metrics: bool = False) -> None:
     cache = root / "cache"
     cache.mkdir(parents=True, exist_ok=True)
     jobs = []
@@ -111,6 +141,8 @@ def build(symbols: list[str], interval: str, start: str, end: str, root: Path, w
             for m in months(start, end):
                 jobs.append(ex.submit(fetch_klines, s, interval, m, cache))
                 jobs.append(ex.submit(fetch_funding, s, m, cache))
+                if metrics:
+                    jobs.append(ex.submit(fetch_metrics, s, m, cache))
         done = 0
         for _ in as_completed(jobs):
             done += 1
@@ -125,7 +157,11 @@ def build(symbols: list[str], interval: str, start: str, end: str, root: Path, w
         if fparts:
             f = pd.concat([pd.read_parquet(p) for p in fparts]).drop_duplicates("ts").sort_values("ts")
             f.to_parquet(root / f"{s}-funding.parquet", index=False)
-        print(f"{s}: {len(parts)} мес. свечей, {len(fparts)} мес. funding")
+        mparts = sorted(cache.glob(f"{s}-metrics-*.parquet"))
+        if mparts:
+            mm = pd.concat([pd.read_parquet(p) for p in mparts]).drop_duplicates("ts").sort_values("ts")
+            mm.to_parquet(root / f"{s}-metrics.parquet", index=False)
+        print(f"{s}: {len(parts)} мес. свечей, {len(fparts)} мес. funding, {len(mparts)} мес. метрик")
 
 
 if __name__ == "__main__":
@@ -135,6 +171,8 @@ if __name__ == "__main__":
     ap.add_argument("--end", default="2026-09")
     ap.add_argument("--symbols", default=",".join(UNIVERSE))
     ap.add_argument("--root", required=True)
+    ap.add_argument("--metrics", action="store_true", help="также OI и long/short ratio (дневные архивы)")
+    ap.add_argument("--workers", type=int, default=12)
     a = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    build(a.symbols.split(","), a.interval, a.start, a.end, Path(a.root))
+    build(a.symbols.split(","), a.interval, a.start, a.end, Path(a.root), a.workers, a.metrics)
