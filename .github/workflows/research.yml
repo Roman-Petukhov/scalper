@@ -1,0 +1,48 @@
+name: research
+
+on:
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: "search | oos | all"
+        default: "all"
+      start:
+        default: "2022-01"
+      end:
+        default: "2026-09"
+  push:
+    branches: [main-t2qdvg]
+    paths: ["scalper/research/**", ".github/workflows/research.yml"]
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    defaults:
+      run:
+        working-directory: scalper
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: scalper/requirements.txt
+      - run: pip install -r requirements.txt
+      - name: Cache market data
+        uses: actions/cache@v4
+        with:
+          path: ~/rs/cache
+          key: binance-um-5m-${{ inputs.start || '2022-01' }}-${{ inputs.end || '2026-09' }}-v1
+          restore-keys: binance-um-5m-
+      - name: Download data
+        run: python -m research.data --root ~/rs --start ${{ inputs.start || '2022-01' }} --end ${{ inputs.end || '2026-09' }}
+      - name: Search (IS) -> finalists -> OOS
+        run: python -m research.search --root ~/rs --out ~/rs_out --stage ${{ inputs.stage || 'all' }} | tee ~/rs_out_log.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: research-results
+          path: |
+            ~/rs_out
+            ~/rs_out_log.txt
