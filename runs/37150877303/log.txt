@@ -1,0 +1,140 @@
+===== PROBE public.bybit.com =====
+--- https://public.bybit.com/
+ 
+ 
+ 
+ 
+ Directory listing for / 
+ 
+ 
+ Directory listing for / 
+ 
+ 
+ kline_for_metatrader4/ 
+ premium_index/ 
+ spot_index/ 
+ trading/ 
+ spot/ 
+ 
+ 
+ 
+ 
+
+--- https://public.bybit.com/premium_index/
+ 
+ 
+ 
+ 
+ Directory listing for /premium_index/ 
+ 
+ 
+ Directory listing for /premium_index/ 
+ 
+ 
+ ADAUSD/ 
+ BITUSD/ 
+ BTCUSD/ 
+ DOTUSD/ 
+ EOSUSD/ 
+ ETHUSD/ 
+ LTCUSD/ 
+ LUNAUSD/ 
+ MANAUSD/ 
+ SOLUSD/ 
+ XRPUSD/ 
+ 
+ 
+ 
+ 
+
+--- https://public.bybit.com/premium_index/BTCUSDT/
+ 
+ 404 Not Found 
+ 
+ 404 Not Found 
+ 
+ Code: NoSuchKey 
+ Message: The specified key does not exist. 
+ Key: premium_index/BTCUSDT/index.html 
+ RequestId: QFAQ5GG3362Y2W4N 
+ HostId: TTBaPZhfTvgIQDgSQimGSOHQeY1gCtlhhYFbRxJei8rEb2P0rEaxTRqsERR8+DRy4pWbnnCBzin/a81vg49nR3JwE34xkZQJ 
+ 
+ 
+ 
+ 
+
+--- https://public.bybit.com/kline_for_metatrader4/
+ 
+ 
+ 
+ 
+ Directory listing for /kline_for_metatrader4/ 
+ 
+ 
+ Directory listing for /kline_for_metatrader4/ 
+ 
+ 
+ ADAUSDT/ 
+ APEUSDT/ 
+ ATOMUSDT/ 
+ AVAXUSDT/ 
+ AXSUSDT/ 
+ BITUSDT/ 
+ BNBUSDT/ 
+ BTCUSDT/ 
+ ETCUSDT/ 
+ ETHUSDT/ 
+ FILUSDT/ 
+ FTMUSDT/ 
+ GMTUSDT/ 
+ LINKUSDT/ 
+ LTCUSDT/ 
+ LUNA2USDT/ 
+ MATICUSDT/ 
+ NEARUSDT/ 
+ SANDUSDT/ 
+ SOLUSDT/ 
+ TRBUSDT/ 
+ UNFIUSDT/ 
+ XRPUSDT/ 
+ 
+ 
+ 
+ 
+
+--- https://public.bybit.com/spot_index/
+ 
+ 
+ 
+ 
+ Directory listing for /spot_index/ 
+ 
+ 
+ Directory listing for /spot_index/ 
+ 
+ 
+ ADAUSD/ 
+ BITUSD/ 
+ BTCUSD/ 
+ DOTUSD/ 
+ EOSUSD/ 
+ ETHUSD/ 
+ LTCUSD/ 
+ LUNAUSD/ 
+ MANAUSD/ 
+ SOLUSD/ 
+ XRPUSD/ 
+ 
+ 
+ 
+ 
+
+--- trades file sample
+-rw-r--r-- 1 runner runner 67031939 Oct  3 20:16 /tmp/t.gz
+timestamp,symbol,side,size,price,tickDirection,trdMatchID,grossValue,homeNotional,foreignNotional
+1704153600.1829,BTCUSDT,Sell,0.007,44235.50,ZeroMinusTick,5053e13e-108f-5071-8e9f-861a6f7cf04e,3.096485e+10,0.007,309.6485
+1704153600.3595,BTCUSDT,Buy,0.004,44235.60,PlusTick,a051778d-c367-5384-ae39-58a192d8d438,1.769424e+10,0.004,176.9424
+
+gzip: stdout: Broken pipe
+1796208
+content-length: 95783715
