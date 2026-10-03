@@ -38,11 +38,9 @@ jobs:
       - name: Download data
         run: python -m research.data --root ~/rs --start ${{ inputs.start || '2022-01' }} --end ${{ inputs.end || '2026-09' }}
       - name: Search (IS) -> finalists -> OOS
-        run: python -m research.search --root ~/rs --out ~/rs_out --stage ${{ inputs.stage || 'all' }} | tee ~/rs_out_log.txt
+        run: mkdir -p ../out && set -o pipefail && python -m research.search --root ~/rs --out ../out --stage ${{ inputs.stage || 'all' }} | tee ../out/log.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: research-results
-          path: |
-            ~/rs_out
-            ~/rs_out_log.txt
+          path: out
