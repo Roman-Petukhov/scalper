@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 
 from . import strategies as S
+from .data import UNIVERSE
 from .engine import metrics
 from .search import COST_BPS, STRESS_COST_BPS
 from .wave2 import Data2, _cut, eval_single, oi_price
@@ -63,9 +64,10 @@ if __name__ == "__main__":
     ap.add_argument("--root")
     ap.add_argument("--out")
     ap.add_argument("--print-symbols", action="store_true")
+    ap.add_argument("--all", action="store_true", help="с --print-symbols: исходные 16 + новые")
     a = ap.parse_args()
     if a.print_symbols:
-        print(",".join(EXTRA))
+        print(",".join((UNIVERSE if a.all else []) + EXTRA))
         sys.exit(0)
     root, out = Path(a.root), Path(a.out)
     out.mkdir(parents=True, exist_ok=True)

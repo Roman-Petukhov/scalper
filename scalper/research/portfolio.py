@@ -86,3 +86,8 @@ if __name__ == "__main__":
             print("\nпо годам:")
             print(y.round(3).to_string())
             port.resample("1D").sum().to_frame("pnl").to_csv(out / "portfolio_daily.csv")
+            mon = pd.DataFrame({k: (legs[k] * lev[k]).resample("ME").sum() for k in legs})
+            mon["портфель"] = mon.sum(axis=1)
+            mon["сделок"] = ent.resample("ME").sum()
+            print("\nпо месяцам с 2025-01:")
+            print(mon[mon.index >= "2025-01-01"].round(4).to_string())
