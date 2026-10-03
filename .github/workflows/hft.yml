@@ -1,0 +1,84 @@
+name: hft-data
+
+on:
+  push:
+    branches: [main-t2qdvg]
+    paths: ["scalper/research/hft/jobs.json", ".github/workflows/hft.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: m
+        run: echo "matrix=$(jq -c . scalper/research/hft/jobs.json)" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      max-parallel: 12
+      matrix:
+        job: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    defaults:
+      run:
+        working-directory: scalper
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pandas pyarrow numpy orjson
+      - name: Skip days already published
+        working-directory: .
+        run: |
+          mkdir -p out
+          if git fetch --depth 1 origin hft-1s; then
+            git ls-tree --name-only FETCH_HEAD | grep '\.parquet$' > out/.have || true
+          fi
+      - name: Build
+        run: |
+          todo=""
+          for d in $(echo "${{ matrix.job.days }}" | tr ',' ' '); do
+            f="${{ matrix.job.symbol }}-$d.parquet"
+            grep -qx "$f" ../out/.have 2>/dev/null || todo="$todo,$d"
+          done
+          todo="${todo#,}"
+          if [ -n "$todo" ]; then python -m research.hft.build --symbol ${{ matrix.job.symbol }} --days "$todo" --out ../out; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hft-${{ matrix.job.symbol }}-${{ strategy.job-index }}
+          path: out/*.parquet
+          if-no-files-found: ignore
+
+  publish:
+    needs: build
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: new
+          merge-multiple: true
+      - name: Push to hft-1s branch
+        run: |
+          ls new 2>/dev/null | head; n=$(ls new/*.parquet 2>/dev/null | wc -l); echo "new files: $n"
+          [ "$n" -gt 0 ] || exit 0
+          git config user.name "github-actions[bot]"
+          git config user.email "41898277+github-actions[bot]@users.noreply.github.com"
+          if git fetch --depth 1 origin hft-1s; then
+            git worktree add hb FETCH_HEAD && git -C hb checkout -B hft-1s
+          else
+            git worktree add --detach hb && git -C hb checkout --orphan hft-1s && git -C hb rm -rfq .
+          fi
+          cp new/*.parquet hb/
+          git -C hb add -A && git -C hb commit -qm "hft 1s data: $n files (run ${GITHUB_RUN_ID})"
+          git -C hb push origin hft-1s
