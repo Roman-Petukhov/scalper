@@ -1,0 +1,55 @@
+===== PROBE: доступность Bybit из раннера =====
+US
+
+--- https://api.bybit.com/v5/market/time
+{
+    error:The Amazon CloudFront distribution is configured to block access from your country
+}
+HTTP 403
+
+--- https://api.bytick.com/v5/market/time
+{
+    error:The Amazon CloudFront distribution is configured to block access from your country
+}
+HTTP 403
+
+--- https://api.bybit.com/v5/market/kline?category=linear&symbol=BTCUSDT&interval=5&start=1640995200000&limit=3
+{
+    error:The Amazon CloudFront distribution is configured to block access from your country
+}
+HTTP 403
+
+--- https://api.bybit.com/v5/market/open-interest?category=linear&symbol=BTCUSDT&intervalTime=5min&startTime=1640995200000&endTime=1641081600000&limit=3
+{
+    error:The Amazon CloudFront distribution is configured to block access from your country
+}
+HTTP 403
+
+--- https://api.bybit.com/v5/market/account-ratio?category=linear&symbol=BTCUSDT&period=5min&startTime=1640995200000&endTime=1641081600000&limit=3
+{
+    error:The Amazon CloudFront distribution is configured to block access from your country
+}
+HTTP 403
+
+--- https://api.bybit.com/v5/market/funding/history?category=linear&symbol=BTCUSDT&startTime=1640995200000&endTime=1641254400000&limit=3
+{
+    error:The Amazon CloudFront distribution is configured to block access from your country
+}
+HTTP 403
+
+--- https://public.bybit.com/trading/BTCUSDT/
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>Directory listing for /trading/BTCUSDT</title>
+</head>
+<body>
+<h1>Directory listing for /trading/BTCUSDT</h1>
+<hr>
+<ul>
+<li><a href="BTCUSDT2020-03-25.csv.gz">BTCUSDT2020-03-25.csv.gz</a></li>
+<li><a href="BTCUSDT2020-03-26.csv.gz">BTCUSDT2020-03-26.csv.gz</a></li>
+<li><a href="BTCUSDT2020-03-27.csv.gz">BTCUSDT2020-03-27.csv.gz</a></li>
+<li><a href="BTCUSDT2020-03-28.csv.gz">BTCUSDT2020-03-28.csv.gz</a></li>
+<li><a h
