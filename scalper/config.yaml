@@ -1,0 +1,124 @@
+# ============================================================
+#  Flow Scalper — конфигурация
+#  Все пороги стратегии и риска здесь. Ключи API — только в .env
+# ============================================================
+
+mode: paper                 # paper | live   (live дополнительно требует флаг --live)
+
+exchange:
+  env: demo                 # demo | mainnet — куда отправлять ордера в режиме live
+  symbol: BTCUSDT
+  leverage: 5
+  margin_mode: isolated     # isolated | cross
+  # Binance разделил потоки USDⓈ-M: стакан идёт через /public, сделки/mark/ликвидации через /market.
+  ws:
+    mainnet:
+      public: wss://fstream.binance.com/public/stream
+      market: wss://fstream.binance.com/market/stream
+    demo:
+      public: wss://fstream.binancefuture.com/stream
+      market: wss://fstream.binancefuture.com/stream
+  paper_data_env: mainnet   # откуда paper-режим берёт котировки
+  reconcile_interval_s: 2.0 # live: как часто сверять позицию с биржей
+
+# Запасные параметры инструмента. Обычно берутся из exchangeInfo Binance (кеш в data_dir).
+instrument:
+  tick_size: 0.1
+  step_size: 0.001
+  min_notional: 100.0
+
+fees:                       # доли, VIP0. С BNB-скидкой: maker 0.00018, taker 0.00045
+  maker: 0.0002
+  taker: 0.0005
+
+features:
+  delta_windows_s: [5, 15, 60]   # окна агрессивной дельты
+  z_history_s: 1800              # история для нормировки дельты (z-score)
+  vol_halflife_fast_s: 60        # EWMA волатильности (быстрая)
+  vol_halflife_slow_s: 1800      # EWMA волатильности (медленная, для режима)
+  vwap_window_s: 14400           # скользящий VWAP (4 часа)
+  range_window_s: 45             # микро-диапазон для пробоя
+  range_exclude_s: 3             # последние N секунд не входят в диапазон
+  obi_levels: 10                 # уровней стакана для дисбаланса
+  obi_decay: 0.75                # вес уровня i = decay^i
+  obi_smooth_halflife_s: 1.0
+  liq_window_s: 20
+  warmup_s: 900                  # не торговать, пока признаки не прогрелись
+
+strategy:
+  eval_interval_s: 0.25          # не чаще, чем раз в N секунд
+  require_book: false            # true: без стакана сигналы не генерируются
+  filters:
+    max_spread_bps: 1.5
+    min_vol_bps_per_min: 3.0     # σ за минуту в б.п.: ниже = мёртвый рынок
+    max_vol_bps_per_min: 60.0    # выше = хаос, проскальзывания
+    max_vol_ratio: 3.0           # σ_fast/σ_slow: резкий взрыв волатильности
+    max_abs_funding: 0.0005      # |funding| выше: не торгуем в сторону толпы
+    cooldown_s: 20
+    max_trades_per_hour: 20
+  momentum:
+    enabled: true
+    entry: taker                 # maker | taker. Мейкер на пробое заливается в основном при развороте (adverse selection)
+    z_fast: 3.0                  # z дельты 5s
+    z_mid: 1.5                   # z дельты 15s, в ту же сторону
+    obi_min: 0.15                # дисбаланс стакана в сторону входа
+    max_vwap_dev_sigma: 2.5      # не догонять, если цена уже далеко от VWAP
+    min_breakout_ticks: 1
+    stop_sigma: 1.6              # стоп = k * σ_цены на горизонте
+    tp_sigma: 2.4
+    horizon_s: 60
+  fade:
+    enabled: true
+    entry: maker                 # возврат к среднему естественно ловится лимитом
+    band_sigma: 2.0              # цена за VWAP ± k·σ
+    absorb_z: 2.5                # сильная дельта против...
+    absorb_max_move_sigma: 0.35  # ...а цена почти не сдвинулась (в σ на окне 15s)
+    liq_min_notional: 500000     # или кластер ликвидаций (USDT) за liq_window_s
+    obi_flip: 0.10               # стакан развернулся в сторону входа
+    stop_sigma: 1.3
+    tp_sigma: 2.0
+    horizon_s: 60
+  min_stop_bps: 4.0
+  min_tp_bps: 7.0                # TP обязан покрывать комиссии с запасом
+
+exits:
+  time_stop_s: 90                # сделка не в плюсе через N секунд: выход
+  max_hold_s: 300                # жёсткий лимит удержания
+  breakeven_trigger: 0.8         # при прибыли ≥ 0.8·стоп стоп в безубыток (+комиссии)
+  flow_reversal_z: 3.5           # z дельты 5s против позиции: выход
+
+execution:
+  entry_offset_ticks: 0          # 0 = по лучшему биду/аску (мейкер)
+  entry_timeout_s: 4.0           # не залились: сигнал протух, отмена
+  max_reprices: 2                # перевыставлений вслед за ценой
+  reprice_threshold_ticks: 2
+  tp_post_only: true
+
+risk:
+  risk_per_trade: 0.0025         # 0.25% капитала на сделку (до стопа)
+  max_leverage_used: 3.0         # потолок номинала относительно капитала
+  max_daily_loss: 0.02           # -2% за UTC-сутки: стоп до конца суток
+  max_consecutive_losses: 5
+  pause_after_losses_s: 1800
+
+paper:
+  start_equity: 1000.0
+  latency_ms: 80                 # задержка команд
+  slippage_bps: 0.5              # для рыночных и стоп-исполнений
+  fill_on_touch: false           # false = лимит заливается, только если цена прошла сквозь него
+
+backtest:
+  data_dir: data
+  results_dir: results
+
+recorder:
+  dir: data/recorded
+  rotate_minutes: 60
+
+telegram:
+  enabled: false                 # токен и chat_id в .env
+  daily_report_utc_hour: 0
+
+logging:
+  level: INFO
+  dir: logs
