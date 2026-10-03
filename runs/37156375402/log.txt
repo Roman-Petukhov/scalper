@@ -1,0 +1,53 @@
+===== PROBE tick / orderbook archives =====
+https://quote-saver.bycsi.com/orderbook/linear/BTCUSDT/2023-06-01_BTCUSDT_ob500.data.zip                                           200 0 len=103831491
+
+https://quote-saver.bycsi.com/orderbook/linear/BTCUSDT/2023-06-01_BTCUSDT_ob200.data.zip                                           404 0 len=
+https://public.bybit.com/trading/BTCUSDT/BTCUSDT2023-06-01.csv.gz                                                                  200 0 len=28093811
+
+https://public.bybit.com/trading/SOLUSDT/SOLUSDT2023-06-01.csv.gz                                                                  200 0 len=9812177
+
+https://data.binance.vision/data/futures/um/daily/aggTrades/BTCUSDT/BTCUSDT-aggTrades-2023-06-01.zip                               200 0 len=13109066
+
+https://data.binance.vision/data/futures/um/daily/bookTicker/BTCUSDT/BTCUSDT-bookTicker-2023-06-01.zip                             200 0 len=139629837
+
+https://data.binance.vision/data/futures/um/daily/bookDepth/BTCUSDT/BTCUSDT-bookDepth-2023-06-01.zip                               200 0 len=337443
+
+https://quote-saver.bycsi.com/orderbook/linear/BTCUSDT/2025-01-01_BTCUSDT_ob500.data.zip                                           200 0 len=218095250
+
+https://quote-saver.bycsi.com/orderbook/linear/BTCUSDT/2025-01-01_BTCUSDT_ob200.data.zip                                           404 0 len=
+https://public.bybit.com/trading/BTCUSDT/BTCUSDT2025-01-01.csv.gz                                                                  200 0 len=33570891
+
+https://public.bybit.com/trading/SOLUSDT/SOLUSDT2025-01-01.csv.gz                                                                  200 0 len=20355432
+
+https://data.binance.vision/data/futures/um/daily/aggTrades/BTCUSDT/BTCUSDT-aggTrades-2025-01-01.zip                               200 0 len=9357158
+
+https://data.binance.vision/data/futures/um/daily/bookTicker/BTCUSDT/BTCUSDT-bookTicker-2025-01-01.zip                             404 0 len=
+https://data.binance.vision/data/futures/um/daily/bookDepth/BTCUSDT/BTCUSDT-bookDepth-2025-01-01.zip                               200 0 len=463389
+
+https://quote-saver.bycsi.com/orderbook/linear/BTCUSDT/2026-09-01_BTCUSDT_ob500.data.zip                                           404 0 len=
+https://quote-saver.bycsi.com/orderbook/linear/BTCUSDT/2026-09-01_BTCUSDT_ob200.data.zip                                           200 0 len=180929446
+
+https://public.bybit.com/trading/BTCUSDT/BTCUSDT2026-09-01.csv.gz                                                                  200 0 len=70145746
+
+https://public.bybit.com/trading/SOLUSDT/SOLUSDT2026-09-01.csv.gz                                                                  200 0 len=20678935
+
+https://data.binance.vision/data/futures/um/daily/aggTrades/BTCUSDT/BTCUSDT-aggTrades-2026-09-01.zip                               200 0 len=16134016
+
+https://data.binance.vision/data/futures/um/daily/bookTicker/BTCUSDT/BTCUSDT-bookTicker-2026-09-01.zip                             404 0 len=
+https://data.binance.vision/data/futures/um/daily/bookDepth/BTCUSDT/BTCUSDT-bookDepth-2026-09-01.zip                               200 0 len=564591
+
+--- ob500 sample head
+-rw-r--r-- 1 runner runner 112451707 Oct  3 21:50 /tmp/ob.zip
+{"topic":"orderbook.500.SOLUSDT","type":"snapshot","ts":1735689601459,"data":{"s":"SOLUSDT","b":[["189.210","67.6"],["189.200","93.0"],["189.190","73.2"],["189.180","84.2"],["189.170","75.7"],["189.160","293.4"],["189.150","677.2"],["189.140","333.5"],["189.130","495.5"],["189.120","200.9"],["189.110","614.1"],["189.100","739.5"],["189.090","603.2"],["189.080","280.0"],["189.070","264.5"],["189.060","835.7"],["189.050","1331.9"],["189.040","462.9"],["189.030","1023.9"],["189.020","501.6"],["189.010","3158.7"],["189.000","9414.7"],["188.990","1240.8"],["188.980","506.5"],["188.970","443.4"],["188.960","403.5"],["188.950","1069.9"],["188.940","2363.5"],["188.930","550.5"],["188.920","1125.4"],
+--- bookDepth sample head
+timestamp,percentage,depth,notional
+2025-01-01 00:00:07,-5,9445.59000000,860670550.20650000
+2025-01-01 00:00:07,-4,7939.65000000,726293373.33020000
+2025-01-01 00:00:07,-3,5058.72700000,466049399.60870000
+2025-01-01 00:00:07,-2,3229.21600000,299277473.18520000
+--- speed test (Bybit trades BTC 2025-01-02)
+
+real	0m4.763s
+user	0m0.107s
+sys	0m0.107s
+-rw-r--r-- 1 runner runner 71375339 Oct  3 21:51 /tmp/t.gz
