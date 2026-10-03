@@ -28,9 +28,16 @@ BAR_MINUTES = {"5m": 5, "15m": 15, "30m": 30, "1h": 60, "4h": 240, "1d": 1440}
 
 # ---------- данные ----------
 
+def _to_utc(ts: pd.Series) -> pd.DatetimeIndex:
+    """Эпоха в мс или мкс (Binance местами перешёл на микросекунды) -> UTC-индекс."""
+    v = ts.to_numpy(dtype="int64")
+    unit = "us" if len(v) and v.max() > 10**14 else "ms"
+    return pd.DatetimeIndex(pd.to_datetime(v, unit=unit, utc=True), name=ts.name)
+
+
 def load(symbol: str, root: Path, interval: str = "5m") -> pd.DataFrame:
     df = pd.read_parquet(Path(root) / f"{symbol}-5m.parquet")
-    df.index = pd.to_datetime(df["open_time"], unit="ms", utc=True)
+    df.index = _to_utc(df["open_time"])
     df = df.drop(columns=["open_time"])
     df = df[~df.index.duplicated()].sort_index()
     if interval != "5m":
@@ -54,7 +61,7 @@ def funding_on_bars(symbol: str, root: Path, index: pd.DatetimeIndex, bar_min: i
     if not p.exists():
         return out
     f = pd.read_parquet(p)
-    ts = pd.to_datetime(f["ts"], unit="ms", utc=True).dt.floor(f"{bar_min}min")
+    ts = _to_utc(f["ts"]).floor(f"{bar_min}min")
     s = pd.Series(f["rate"].to_numpy(), index=ts).groupby(level=0).sum()
     return s.reindex(index).fillna(0.0).to_numpy()
 
