@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import io
 import sys
+import time
 import urllib.error
 import urllib.request
 import zipfile
@@ -60,6 +61,12 @@ def _save(df: pd.DataFrame, out: Path) -> None:
     """Атомарная запись: сначала во временный файл, затем переименование."""
     tmp = out.with_suffix(".tmp")
     df.to_parquet(tmp, index=False)
+    for attempt in range(20):
+        try:
+            tmp.replace(out)
+            return
+        except PermissionError:          # Windows: файл держит антивирус или индексатор — ждём и повторяем
+            time.sleep(0.5 * (attempt + 1))
     tmp.replace(out)
 
 
