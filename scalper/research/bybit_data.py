@@ -28,7 +28,7 @@ import pandas as pd
 
 from .data import UNIVERSE, _save, _valid, months
 
-API = "https://api.bybit.com"
+API = "https://api.bybit.com"         # переопределяется --api (например, https://api.bytick.com)
 BRANCH = "data-bybit"
 KLINE_MIN = 5
 OI_INTERVAL, OI_MIN = "15min", 15
@@ -186,6 +186,12 @@ def build(symbols: list[str], start: str, end: str, root: Path, workers: int) ->
                 fut.result()
             except Exception as e:
                 failed.append((jobs[fut], str(e)))
+                if len(failed) == 1:
+                    print(f"  первая ошибка: {jobs[fut]}: {e}", flush=True)
+                if len(failed) >= 20 and len(failed) == done:
+                    for f in jobs:
+                        f.cancel()
+                    raise SystemExit(f"Все первые {done} запросов неудачны — API недоступен. Причина: {e}")
             if done % 100 == 0 or done == len(jobs):
                 print(f"  {done}/{len(jobs)} частей, ошибок: {len(failed)}", flush=True)
     if failed:
@@ -253,7 +259,13 @@ if __name__ == "__main__":
     ap.add_argument("--symbols", default=",".join(UNIVERSE))
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--publish", action="store_true", help="после загрузки запушить в ветку data-bybit")
+    ap.add_argument("--api", default=API, help="адрес API Bybit")
     a = ap.parse_args()
+    API = a.api.rstrip("/")
+    try:
+        print("Bybit время сервера:", _call("/v5/market/time").get("timeSecond"), flush=True)
+    except Exception as e:
+        raise SystemExit(f"Нет доступа к {API}: {e}")
     root = Path(a.root)
     build(a.symbols.split(","), a.start, a.end, root, a.workers)
     if a.publish:
