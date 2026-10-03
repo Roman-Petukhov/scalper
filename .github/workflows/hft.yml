@@ -47,8 +47,8 @@ jobs:
         run: |
           todo=""
           for d in $(echo "${{ matrix.job.days }}" | tr ',' ' '); do
-            f="${{ matrix.job.symbol }}-$d.parquet"
-            grep -qx "$f" ../out/.have 2>/dev/null || todo="$todo,$d"
+            f="${{ matrix.job.symbol }}-$d.parquet"; e="ev-${{ matrix.job.symbol }}-$d.parquet"
+            (grep -qx "$f" ../out/.have && grep -qx "$e" ../out/.have) 2>/dev/null || todo="$todo,$d"
           done
           todo="${todo#,}"
           if [ -n "$todo" ]; then python -m research.hft.build --symbol ${{ matrix.job.symbol }} --days "$todo" --out ../out; fi

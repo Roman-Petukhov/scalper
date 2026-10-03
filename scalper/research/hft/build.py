@@ -72,18 +72,22 @@ BOOK_COLS = (["bid", "ask", "bid_sz1", "ask_sz1"] + [f"{s}_dep{n}" for n in LEVE
              + [f"{s}_band{bp}" for bp in BAND_BPS for s in ("bid", "ask")])
 
 
-def book_seconds(blob: bytes, day: str) -> pd.DataFrame:
-    """Восстанавливает стакан по снапшотам/дельтам и снимает состояние на конец каждой секунды."""
+def book_seconds(blob: bytes, day: str) -> tuple[pd.DataFrame, np.ndarray]:
+    """Восстанавливает стакан по снапшотам/дельтам. Возвращает состояние на конец каждой секунды и ленту
+    лучших цен (ts_ms, bid, ask) после каждого сообщения — для событийных тестов с миллисекундами."""
     t0 = int(pd.Timestamp(day, tz="UTC").timestamp())
     bids: dict[float, float] = {}
     asks: dict[float, float] = {}
+    bb, ba = -np.inf, np.inf
     secs, rows = [], []
+    tob_ts, tob_b, tob_a = [], [], []
     cur_sec = None
     with zipfile.ZipFile(io.BytesIO(blob)) as z:
         with z.open(z.namelist()[0]) as fh:
             for line in fh:
                 m = orjson.loads(line)
-                sec = m["ts"] // 1000
+                ts = m["ts"]
+                sec = ts // 1000
                 if cur_sec is not None and sec != cur_sec:
                     secs.append(cur_sec)
                     rows.append(_book_row(bids, asks))
@@ -92,32 +96,47 @@ def book_seconds(blob: bytes, day: str) -> pd.DataFrame:
                 if m["type"] == "snapshot":
                     bids = {float(p): float(q) for p, q in d["b"]}
                     asks = {float(p): float(q) for p, q in d["a"]}
-                    continue
-                for p, q in d["b"]:
-                    fp, fq = float(p), float(q)
-                    if fq == 0.0:
-                        bids.pop(fp, None)
-                    else:
-                        bids[fp] = fq
-                for p, q in d["a"]:
-                    fp, fq = float(p), float(q)
-                    if fq == 0.0:
-                        asks.pop(fp, None)
-                    else:
-                        asks[fp] = fq
+                    bb = max(bids) if bids else -np.inf
+                    ba = min(asks) if asks else np.inf
+                else:
+                    for p, q in d["b"]:
+                        fp, fq = float(p), float(q)
+                        if fq == 0.0:
+                            if bids.pop(fp, None) is not None and fp == bb:
+                                bb = max(bids) if bids else -np.inf
+                        else:
+                            bids[fp] = fq
+                            if fp > bb:
+                                bb = fp
+                    for p, q in d["a"]:
+                        fp, fq = float(p), float(q)
+                        if fq == 0.0:
+                            if asks.pop(fp, None) is not None and fp == ba:
+                                ba = min(asks) if asks else np.inf
+                        else:
+                            asks[fp] = fq
+                            if fp < ba:
+                                ba = fp
+                tob_ts.append(ts)
+                tob_b.append(bb)
+                tob_a.append(ba)
     if cur_sec is not None:
         secs.append(cur_sec)
         rows.append(_book_row(bids, asks))
     df = pd.DataFrame(rows, index=pd.Index(secs, name="sec"), columns=BOOK_COLS)
     grid = pd.RangeIndex(t0, t0 + 86400, name="sec")
-    return df[~df.index.duplicated(keep="last")].reindex(grid).ffill()
+    tob = np.column_stack([np.asarray(tob_ts, dtype="float64"), np.asarray(tob_b), np.asarray(tob_a)])
+    return df[~df.index.duplicated(keep="last")].reindex(grid).ffill(), tob
 
 
 # ---------- сделки ----------
 
-def bybit_trades_seconds(blob: bytes, day: str) -> pd.DataFrame:
+def read_bybit_trades(blob: bytes) -> pd.DataFrame:
+    return pd.read_csv(io.BytesIO(gzip.decompress(blob)), usecols=["timestamp", "side", "size", "price"])
+
+
+def bybit_trades_seconds(t: pd.DataFrame, day: str) -> pd.DataFrame:
     t0 = int(pd.Timestamp(day, tz="UTC").timestamp())
-    t = pd.read_csv(io.BytesIO(gzip.decompress(blob)), usecols=["timestamp", "side", "size", "price"])
     sec = np.floor(t["timestamp"].to_numpy()).astype("int64")
     buy = t["side"].to_numpy() == "Buy"
     q = t["size"].to_numpy(dtype="float64")
@@ -138,8 +157,7 @@ def bybit_trades_seconds(blob: bytes, day: str) -> pd.DataFrame:
     return a
 
 
-def binance_seconds(blob: bytes, day: str) -> pd.DataFrame:
-    t0 = int(pd.Timestamp(day, tz="UTC").timestamp())
+def read_binance(blob: bytes) -> pd.DataFrame:
     with zipfile.ZipFile(io.BytesIO(blob)) as z:
         raw = z.read(z.namelist()[0])
     header = not raw[:1].isdigit()
@@ -148,7 +166,13 @@ def binance_seconds(blob: bytes, day: str) -> pd.DataFrame:
     ts = t["time"].to_numpy(dtype="int64")
     if ts.max() > 10**14:                      # микросекунды
         ts = ts // 1000
-    sec = ts // 1000
+    t["ts_ms"] = ts
+    return t
+
+
+def binance_seconds(t: pd.DataFrame, day: str) -> pd.DataFrame:
+    t0 = int(pd.Timestamp(day, tz="UTC").timestamp())
+    sec = t["ts_ms"].to_numpy() // 1000
     bm = t["is_buyer_maker"].astype(str).str.lower().isin(["true", "1"]).to_numpy()
     q = t["qty"].to_numpy(dtype="float64")
     g = pd.DataFrame({"sec": sec, "bn_buy": np.where(bm, 0.0, q), "bn_sell": np.where(bm, q, 0.0),
@@ -161,7 +185,82 @@ def binance_seconds(blob: bytes, day: str) -> pd.DataFrame:
     return a
 
 
-def build_day(symbol: str, day: str) -> pd.DataFrame | None:
+# ---------- события «Binance сдвинулся, Bybit ещё нет» с миллисекундами ----------
+
+LATENCIES_MS = (0, 50, 100, 200, 500, 1000)
+EXIT_S = (1, 5, 30, 60, 300)
+GAP_MIN_BPS = 3.0
+COOLDOWN_MS = 2000
+
+
+def _asof(ts_sorted: np.ndarray, vals: np.ndarray, q: np.ndarray) -> np.ndarray:
+    i = np.searchsorted(ts_sorted, q, side="right") - 1
+    out = np.where(i >= 0, vals[np.clip(i, 0, None)], np.nan)
+    return out
+
+
+def leadlag_events(bn: pd.DataFrame, tob: np.ndarray, bt: pd.DataFrame) -> pd.DataFrame:
+    """Событие: за последнюю секунду Binance сдвинулся сильнее Bybit на >= GAP_MIN_BPS.
+    Для каждой задержки L записываем цены, по которым реально торговали на Bybit после tau+L:
+    первая покупка агрессора (для входа в лонг) и первая продажа (для шорта) в течение секунды,
+    а также bid/ask по стакану. Выход — bid/ask стакана через h секунд."""
+    tb = bn["ts_ms"].to_numpy(dtype="float64")
+    pb = bn["price"].to_numpy(dtype="float64")
+    order = np.argsort(tb, kind="stable")
+    tb, pb = tb[order], pb[order]
+    tt, bbid, bask = tob[:, 0], tob[:, 1], tob[:, 2]
+    ok = np.isfinite(bbid) & np.isfinite(bask)
+    tt, bbid, bask = tt[ok], bbid[ok], bask[ok]
+    bmid = (bbid + bask) / 2
+    # Binance и Bybit доходности за последнюю секунду на моменте каждой сделки Binance
+    j = np.searchsorted(tb, tb - 1000.0, side="right") - 1
+    valid = j >= 0
+    bn_ret = np.where(valid, (pb / pb[np.clip(j, 0, None)] - 1) * 1e4, np.nan)
+    by_now = _asof(tt, bmid, tb)
+    by_then = _asof(tt, bmid, tb - 1000.0)
+    by_ret = (by_now / by_then - 1) * 1e4
+    gap = bn_ret - by_ret
+    cand = np.flatnonzero(np.isfinite(gap) & (np.abs(gap) >= GAP_MIN_BPS) & (np.sign(gap) == np.sign(bn_ret)))
+    keep, last = [], -np.inf
+    for i in cand:                                   # не чаще одного события в COOLDOWN_MS
+        if tb[i] - last >= COOLDOWN_MS:
+            keep.append(i)
+            last = tb[i]
+    if not keep:
+        return pd.DataFrame()
+    k = np.asarray(keep)
+    tau = tb[k]
+    ev = pd.DataFrame({"ts_ms": tau, "side": np.sign(gap[k]), "gap_bps": gap[k], "bn_ret_bps": bn_ret[k],
+                       "by_ret_bps": by_ret[k], "spread_bps": (_asof(tt, bask, tau) / _asof(tt, bbid, tau) - 1) * 1e4})
+    # сделки Bybit: первые покупка/продажа агрессора после tau+L (в пределах секунды)
+    ts_t = (bt["timestamp"].to_numpy(dtype="float64") * 1000.0)
+    o = np.argsort(ts_t, kind="stable")
+    ts_t, px_t = ts_t[o], bt["price"].to_numpy(dtype="float64")[o]
+    buy_t = (bt["side"].to_numpy()[o] == "Buy")
+    tb_buy, pb_buy = ts_t[buy_t], px_t[buy_t]
+    tb_sell, pb_sell = ts_t[~buy_t], px_t[~buy_t]
+
+    def first_after(ts_arr, px_arr, q):
+        i = np.searchsorted(ts_arr, q, side="left")
+        hit = (i < len(ts_arr))
+        i2 = np.clip(i, 0, len(ts_arr) - 1)
+        okk = hit & (ts_arr[i2] - q <= 1000.0)
+        return np.where(okk, px_arr[i2], np.nan)
+
+    for L in LATENCIES_MS:
+        q = tau + L
+        ev[f"ask_{L}"] = _asof(tt, bask, q)
+        ev[f"bid_{L}"] = _asof(tt, bbid, q)
+        ev[f"tbuy_{L}"] = first_after(tb_buy, pb_buy, q)
+        ev[f"tsell_{L}"] = first_after(tb_sell, pb_sell, q)
+    for h in EXIT_S:
+        q = tau + h * 1000.0
+        ev[f"xbid_{h}"] = _asof(tt, bbid, q)
+        ev[f"xask_{h}"] = _asof(tt, bask, q)
+    return ev
+
+
+def build_day(symbol: str, day: str) -> tuple[pd.DataFrame, pd.DataFrame] | None:
     t_start = time.time()
     ob = None
     for n in (500, 200):
@@ -174,16 +273,22 @@ def build_day(symbol: str, day: str) -> pd.DataFrame | None:
         print(f"  {symbol} {day}: нет данных (стакан={ob is not None}, сделки={tr is not None})", flush=True)
         return None
     t_dl = time.time() - t_start
-    df = pd.concat([book_seconds(ob, day), bybit_trades_seconds(tr, day)], axis=1)
+    book, tob = book_seconds(ob, day)
+    trades = read_bybit_trades(tr)
+    df = pd.concat([book, bybit_trades_seconds(trades, day)], axis=1)
+    events = pd.DataFrame()
     if bn is not None:
-        df = df.join(binance_seconds(bn, day))
+        bnt = read_binance(bn)
+        df = df.join(binance_seconds(bnt, day))
+        events = leadlag_events(bnt, tob, trades)
+        events.insert(0, "symbol", symbol)
     df.insert(0, "symbol", symbol)
     f32 = [c for c in df.columns if c not in ("symbol", "bid", "ask", "last_px", "max_px", "min_px", "bn_px")]
     df[f32] = df[f32].astype("float32")
     print(f"  {symbol} {day}: ok, загрузка {t_dl:.0f}s, всего {time.time() - t_start:.0f}s, "
-          f"стакан {len(ob) / 1e6:.0f} МБ, спред медиана {((df.ask - df.bid) / df.bid * 1e4).median():.2f} б.п.",
+          f"событий опережения {len(events)}, стакан {len(ob) / 1e6:.0f} МБ, спред медиана {((df.ask - df.bid) / df.bid * 1e4).median():.2f} б.п.",
           flush=True)
-    return df
+    return df, events
 
 
 if __name__ == "__main__":
@@ -199,6 +304,8 @@ if __name__ == "__main__":
         p = out / f"{a.symbol}-{day}.parquet"
         if p.exists():
             continue
-        df = build_day(a.symbol, day)
-        if df is not None:
-            df.to_parquet(p)
+        res = build_day(a.symbol, day)
+        if res is not None:
+            res[0].to_parquet(p)
+            if len(res[1]):
+                res[1].to_parquet(out / f"ev-{a.symbol}-{day}.parquet")
