@@ -24,6 +24,10 @@ jobs:
           cache: pip
           cache-dependency-path: scalper/requirements.txt
       - run: pip install -r requirements.txt
+      - name: Bybit data snapshot (branch data-bybit, if published)
+        working-directory: .
+        run: |
+          if git fetch --depth 1 origin data-bybit; then git worktree add "$HOME/rs_bybit" FETCH_HEAD; else echo "data-bybit not published yet"; fi
       - name: Cache market data
         uses: actions/cache@v4
         with:
@@ -54,7 +58,7 @@ jobs:
             git -C rr rm -rfq .
           fi
           mkdir -p "rr/$dest"
-          cp out/*.csv out/log.txt "rr/$dest/" 2>/dev/null || true
+          cp -r out/. "rr/$dest/" 2>/dev/null || true
           echo "${GITHUB_SHA}" > "rr/$dest/commit.txt"
           git -C rr add runs
           git -C rr commit -qm "research results run ${GITHUB_RUN_ID} (${GITHUB_SHA::7})"
