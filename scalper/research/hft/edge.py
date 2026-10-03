@@ -82,7 +82,9 @@ FEATS = ["obi1", "obi5", "obi20", "obi_band10", "obi_band50", "micro_dev", "tfi1
 
 def load(root: Path) -> dict[str, pd.DataFrame]:
     by_sym: dict[str, list[pd.DataFrame]] = {}
-    for p in sorted(root.glob("*.parquet")):
+    for p in sorted(root.glob("*USDT-*.parquet")):
+        if p.name.startswith("ev-"):
+            continue
         sym, day = p.stem.split("-", 1)
         f = features(pd.read_parquet(p))
         f["day"], f["period"] = day, period_of(day)
