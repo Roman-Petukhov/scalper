@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main-t2qdvg]
-    paths: ["scalper/research/**", ".github/workflows/research.yml"]
+    paths: ["scalper/research/*.py", "scalper/research/job.sh", ".github/workflows/research.yml"]
 
 permissions:
   contents: write
