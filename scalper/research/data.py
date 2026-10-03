@@ -73,11 +73,13 @@ def _read_zip_csv(blob: bytes, cols: list[str] | None) -> pd.DataFrame:
     return df
 
 
-def fetch_klines(symbol: str, interval: str, month: str, cache: Path) -> Path | None:
-    out = cache / f"{symbol}-{interval}-{month}.parquet"
+def fetch_klines(symbol: str, interval: str, month: str, cache: Path, kind: str = "klines") -> Path | None:
+    """kind: klines | premiumIndexKlines (премия perp к индексу, те же колонки)."""
+    tag = interval if kind == "klines" else f"{kind}-{interval}"
+    out = cache / f"{symbol}-{tag}-{month}.parquet"
     if _valid(out):
         return out
-    blob = _get(f"{BASE}/klines/{symbol}/{interval}/{symbol}-{interval}-{month}.zip")
+    blob = _get(f"{BASE}/{kind}/{symbol}/{interval}/{symbol}-{interval}-{month}.zip")
     if blob is None:
         return None
     df = _read_zip_csv(blob, KCOLS)
@@ -132,7 +134,7 @@ def fetch_metrics(symbol: str, month: str, cache: Path) -> Path | None:
 
 
 def build(symbols: list[str], interval: str, start: str, end: str, root: Path, workers: int = 12,
-          metrics: bool = False) -> None:
+          metrics: bool = False, premium: bool = False) -> None:
     cache = root / "cache"
     cache.mkdir(parents=True, exist_ok=True)
     jobs = []
@@ -143,6 +145,8 @@ def build(symbols: list[str], interval: str, start: str, end: str, root: Path, w
                 jobs.append(ex.submit(fetch_funding, s, m, cache))
                 if metrics:
                     jobs.append(ex.submit(fetch_metrics, s, m, cache))
+                if premium:
+                    jobs.append(ex.submit(fetch_klines, s, interval, m, cache, "premiumIndexKlines"))
         done = 0
         for _ in as_completed(jobs):
             done += 1
@@ -157,6 +161,10 @@ def build(symbols: list[str], interval: str, start: str, end: str, root: Path, w
         if fparts:
             f = pd.concat([pd.read_parquet(p) for p in fparts]).drop_duplicates("ts").sort_values("ts")
             f.to_parquet(root / f"{s}-funding.parquet", index=False)
+        pparts = sorted(cache.glob(f"{s}-premiumIndexKlines-{interval}-*.parquet"))
+        if pparts:
+            pk = pd.concat([pd.read_parquet(p) for p in pparts]).drop_duplicates("open_time").sort_values("open_time")
+            pk.to_parquet(root / f"{s}-premium-{interval}.parquet", index=False)
         mparts = sorted(cache.glob(f"{s}-metrics-*.parquet"))
         if mparts:
             mm = pd.concat([pd.read_parquet(p) for p in mparts]).drop_duplicates("ts").sort_values("ts")
@@ -172,7 +180,8 @@ if __name__ == "__main__":
     ap.add_argument("--symbols", default=",".join(UNIVERSE))
     ap.add_argument("--root", required=True)
     ap.add_argument("--metrics", action="store_true", help="также OI и long/short ratio (дневные архивы)")
+    ap.add_argument("--premium", action="store_true", help="также premium index klines")
     ap.add_argument("--workers", type=int, default=12)
     a = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    build(a.symbols.split(","), a.interval, a.start, a.end, Path(a.root), a.workers, a.metrics)
+    build(a.symbols.split(","), a.interval, a.start, a.end, Path(a.root), a.workers, a.metrics, a.premium)

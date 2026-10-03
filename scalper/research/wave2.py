@@ -200,12 +200,16 @@ def panel_configs():
 
 # ---------- оценка ----------
 
-def eval_single(data: Data2, tf: str, fn, params: dict, period: str, cost: float):
+def eval_single(data: Data2, tf: str, fn, params: dict, period: str, cost: float, delay: int = 0):
+    """delay: вход/выход на delay баров позже сигнала (проверка чувствительности к исполнению)."""
     pnls, poss = {}, {}
     for s in data.symbols:
         df = data.get(s, tf, "is" if period == "is" else "full")
         pos, ex = fn(df, **params)
-        res = run(df, np.asarray(pos, dtype=float), cost, BAR_MINUTES[tf], ex)
+        pos = np.asarray(pos, dtype=float)
+        if delay:
+            pos, ex = np.concatenate([np.zeros(delay), pos[:-delay]]), None
+        res = run(df, pos, cost, BAR_MINUTES[tf], ex)
         pnls[s], poss[s] = _cut(res.pnl, period), _cut(res.pos, period)
     port = pd.DataFrame(pnls).fillna(0.0).mean(axis=1)
     per_sym = {s: metrics(p)["sharpe"] for s, p in pnls.items() if len(p)}
@@ -236,12 +240,14 @@ def summarize(port: pd.Series, trades: int, per_sym: dict | None, gross: pd.Seri
     return out
 
 
-def evaluate(data: Data2, family: str, tf: str, params: dict, period: str, cost: float):
-    if family in SINGLE:
-        fn = next(fn for t, fn, _ in SINGLE[family] if t == tf)
-        port, per_sym, trades, gross = eval_single(data, tf, fn, params, period, cost)
+def evaluate(data: Data2, family: str, tf: str, params: dict, period: str, cost: float,
+             families: dict | None = None, delay: int = 0):
+    fams = families if families is not None else SINGLE
+    if family in fams:
+        fn = next(fn for t, fn, _ in fams[family] if t == tf)
+        port, per_sym, trades, gross = eval_single(data, tf, fn, params, period, cost, delay)
     elif family == "funding_extreme":
-        port, per_sym, trades, gross = eval_single(data, tf, S.funding_extreme, params, period, cost)
+        port, per_sym, trades, gross = eval_single(data, tf, S.funding_extreme, params, period, cost, delay)
     else:
         port, trades, gross = eval_panel_period(data, family, tf, params, period, cost)
         per_sym = None
@@ -250,20 +256,22 @@ def evaluate(data: Data2, family: str, tf: str, params: dict, period: str, cost:
 
 # ---------- этапы ----------
 
-def search(data: Data2, out: Path) -> pd.DataFrame:
+def search(data: Data2, out: Path, families: dict | None = None, panel=None, tag: str = "wave2") -> pd.DataFrame:
+    fams = families if families is not None else SINGLE
+    panel = panel if panel is not None else panel_configs
     rows, t0 = [], time.time()
-    for fam, specs in SINGLE.items():
+    for fam, specs in fams.items():
         for tf, _, g in specs:
             for p in g:
-                _, summ, _ = evaluate(data, fam, tf, p, "is", COST_BPS)
+                _, summ, _ = evaluate(data, fam, tf, p, "is", COST_BPS, fams)
                 rows.append({"family": fam, "tf": tf, "params": json.dumps(p), **summ})
         print(f"  {fam}: готово ({time.time() - t0:.0f}s)", flush=True)
-    for fam, tf, p in panel_configs():
-        _, summ, _ = evaluate(data, fam, tf, p, "is", COST_BPS)
+    for fam, tf, p in panel():
+        _, summ, _ = evaluate(data, fam, tf, p, "is", COST_BPS, fams)
         rows.append({"family": fam, "tf": tf, "params": json.dumps(p), **summ})
     print(f"  панельные: готово ({time.time() - t0:.0f}s)", flush=True)
     df = pd.DataFrame(rows)
-    df.to_csv(out / "wave2_is.csv", index=False)
+    df.to_csv(out / f"{tag}_is.csv", index=False)
     return df
 
 
@@ -274,33 +282,34 @@ def select(df: pd.DataFrame) -> pd.DataFrame:
     return best.sort_values("sharpe", ascending=False)
 
 
-def gate(data: Data2, fin: pd.DataFrame, out: Path) -> pd.DataFrame:
+def gate(data: Data2, fin: pd.DataFrame, out: Path, families: dict | None = None, tag: str = "wave2") -> pd.DataFrame:
     rows = []
     for _, f in fin.iterrows():
         p = json.loads(f["params"])
         r = {"family": f["family"], "tf": f["tf"], "params": f["params"], "is_sharpe": f["sharpe"]}
         for cost in (COST_BPS, STRESS_COST_BPS):
-            _, s, _ = evaluate(data, f["family"], f["tf"], p, "val", cost)
+            _, s, _ = evaluate(data, f["family"], f["tf"], p, "val", cost, families)
             r[f"val_sharpe_{int(cost)}"] = s["sharpe"]
             r[f"val_ret_{int(cost)}"] = s["ann_ret"]
             r[f"val_dd_{int(cost)}"] = s["max_dd"]
         r["passed"] = bool(r["val_sharpe_6"] >= VAL_MIN_SHARPE and r["val_sharpe_10"] > 0)
         rows.append(r)
     res = pd.DataFrame(rows)
-    res.to_csv(out / "wave2_val.csv", index=False)
+    res.to_csv(out / f"{tag}_val.csv", index=False)
     return res
 
 
-def holdout(data: Data2, passed: pd.DataFrame, out: Path) -> pd.DataFrame:
+def holdout(data: Data2, passed: pd.DataFrame, out: Path, families: dict | None = None,
+            tag: str = "wave2") -> pd.DataFrame:
     rows = []
     for _, f in passed.iterrows():
         p = json.loads(f["params"])
         for cost in (COST_BPS, STRESS_COST_BPS):
-            port, s, _ = evaluate(data, f["family"], f["tf"], p, "ho", cost)
+            port, s, _ = evaluate(data, f["family"], f["tf"], p, "ho", cost, families)
             rows.append({"family": f["family"], "params": f["params"], "cost_bps": cost, **s,
                          "monthly_pos_frac": float((port.resample("ME").sum() > 0).mean())})
     res = pd.DataFrame(rows)
-    res.to_csv(out / "wave2_holdout.csv", index=False)
+    res.to_csv(out / f"{tag}_holdout.csv", index=False)
     return res
 
 
