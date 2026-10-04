@@ -63,6 +63,42 @@ def fetch_announcements() -> pd.DataFrame:
     return df
 
 
+OKX = "https://www.okx.com/api/v5/support/announcements?annType={t}&page={p}"
+OKX_TYPES = {"announcements-new-listings": "listing", "announcements-delistings": "delisting"}
+
+
+def fetch_okx() -> pd.DataFrame:
+    rows = []
+    for ann_type, cat in OKX_TYPES.items():
+        p, total = 1, 1
+        while p <= total:
+            js = _get_json(OKX.format(t=ann_type, p=p))
+            data = (js or {}).get("data") or [{}]
+            total = int(data[0].get("totalPage") or 0)
+            for a in data[0].get("details") or []:
+                rows.append({"id": "okx:" + a["url"], "catalog": cat, "title": a["title"], "ts_ms": int(a["pTime"])})
+            p += 1
+            time.sleep(0.5)                                  # лимит OKX: 5 запросов за 2 с
+    df = pd.DataFrame(rows).drop_duplicates("id").sort_values("ts_ms")
+    df["time"] = pd.to_datetime(df["ts_ms"], unit="ms", utc=True)
+    df["source"] = "okx"
+    return df
+
+
+def classify_okx(title: str, catalog: str) -> tuple[str, list[str], int]:
+    t = title
+    ticks = re.findall(r"\(([A-Z0-9]{2,15})\)", t) + re.findall(r"\b([A-Z0-9]{2,15})USDT\b", t)
+    ticks = [x for x in dict.fromkeys(ticks) if x not in ("USDT", "USDC", "USD")]
+    if catalog == "delisting":
+        typ = "futures_delist" if re.search(r"perpetual|futures|swap", t, re.I) else "spot_delist"
+        return typ, ticks, -1
+    if re.search(r"perpetual|futures|swap", t, re.I):
+        return "futures_launch", ticks, 1
+    if re.search(r"\blist\b|launch", t, re.I):
+        return "spot_listing", ticks, 1
+    return "other", [], 0
+
+
 TICK = r"[A-Z0-9]{2,15}"
 
 
@@ -98,11 +134,11 @@ def _trades(sym: str, day: str) -> pd.DataFrame | None:
             with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=120) as r:
                 raw = r.read()
             # потоковая распаковка и компактные типы: суточные файлы крупных монет — сотни МБ в CSV
-            t = pd.read_csv(io.BytesIO(raw), compression="gzip", usecols=["timestamp", "side", "price"],
-                            dtype={"timestamp": "float64", "side": "category", "price": "float64"})
+            t = pd.read_csv(io.BytesIO(raw), compression="gzip", usecols=["timestamp", "side", "size", "price"],
+                            dtype={"timestamp": "float64", "side": "category", "size": "float64", "price": "float64"})
             del raw
             t["ts"] = (t["timestamp"] * 1000).astype("int64")
-            return t[["ts", "side", "price"]].sort_values("ts", kind="stable")
+            return t[["ts", "side", "size", "price"]].sort_values("ts", kind="stable")
         except urllib.error.HTTPError as e:
             if e.code in (403, 404):
                 return None
@@ -122,6 +158,7 @@ def event_paths(ev: dict) -> dict | None:
         return None
     t = pd.concat(parts).drop_duplicates().sort_values("ts", kind="stable")
     ts, px = t["ts"].to_numpy(), t["price"].to_numpy(dtype="float64")
+    qv = t["size"].to_numpy(dtype="float64") * px
     buy = (t["side"].to_numpy() == "Buy")
     if len(ts) < 50 or ts[0] > tau - 600_000:        # монета должна торговаться до объявления
         return None
@@ -135,13 +172,20 @@ def event_paths(ev: dict) -> dict | None:
         i = np.searchsorted(sel_ts, q, side="left")
         return sel_px[i] if i < len(sel_ts) and sel_ts[i] - q <= 60_000 else np.nan
 
+    def vwap_aggr(q, want_buy, win_ms=5000):
+        """Средняя цена сделок агрессоров нужной стороны за окно — оценка исполнения заявки среднего размера."""
+        m = (ts >= q) & (ts < q + win_ms) & (buy if want_buy else ~buy)
+        return float((px[m] * qv[m]).sum() / qv[m].sum()) if m.any() else np.nan
+
     out = {"symbol": sym, "p_pre1h": last_before(tau - 3600_000), "p_pre5m": last_before(tau - 300_000),
            "p0": last_before(tau)}
     d = ev["direction"]
     for L in LAT_S:
         out[f"entry_{L}"] = first_aggr_after(tau + L * 1000, want_buy=(d > 0))
+        out[f"ventry_{L}"] = vwap_aggr(tau + L * 1000, want_buy=(d > 0))
     for H in HOR_S:
         out[f"exit_{H}"] = last_before(tau + H * 1000)
+        out[f"vexit_{H}"] = vwap_aggr(tau + H * 1000, want_buy=(d < 0))   # закрытие: шорт откупаем у продавцов
     return out
 
 
@@ -165,6 +209,33 @@ def study(events: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+CONFIGS = ((10, 3600), (10, 14400), (30, 3600), (30, 14400), (60, 14400))
+
+
+def report_announcements(r: pd.DataFrame) -> None:
+    """Сводка, где несколько монет одного объявления — одно событие. Вход/выход — VWAP агрессоров за 5 с,
+    при отсутствии — по первой сделке / последней цене. Стресс: +100 б.п. на круг."""
+    r = r.copy()
+    r["year"] = pd.to_datetime(r["ts_ms"], unit="ms", utc=True).dt.year
+    d = r["direction"].to_numpy()
+    print("\nПО ОБЪЯВЛЕНИЯМ (VWAP 5 с на входе и выходе), б.п. после 21 б.п. издержек; [стресс +100 б.п.]")
+    for (src, typ), g in r.groupby(["source", "type"]):
+        if g["id"].nunique() < 8:
+            continue
+        print(f"\n[{src}] {typ}: монето-событий {len(g)}, объявлений {g['id'].nunique()}")
+        for L, H in CONFIGS:
+            ent = g[f"ventry_{L}"].fillna(g[f"entry_{L}"])
+            ext = g[f"vexit_{H}"].fillna(g[f"exit_{H}"])
+            v = (ext / ent - 1) * 1e4 * g["direction"] - COST_BPS
+            a = pd.DataFrame({"v": v, "id": g["id"], "year": g["year"]}).groupby("id").agg(v=("v", "mean"),
+                                                                                          year=("year", "first")).dropna()
+            yrs = "; ".join(f"{y}: {int(c)} шт, мед {m:+.0f}, плюс {p:.0%}" for y, (c, m, p) in
+                            a.groupby("year")["v"].agg(["count", "median", lambda x: (x > 0).mean()]).iterrows())
+            print(f"  вход {L:>2}с, держать {H // 3600}ч: n={len(a)}, среднее {a['v'].mean():+.0f} "
+                  f"[{a['v'].mean() - 100:+.0f}], медиана {a['v'].median():+.0f} [{a['v'].median() - 100:+.0f}], "
+                  f"плюс {(a['v'] > 0).mean():.0%} | {yrs}")
+
+
 def report(r: pd.DataFrame) -> None:
     d = r["direction"].to_numpy()
     r = r.copy()
@@ -176,7 +247,7 @@ def report(r: pd.DataFrame) -> None:
             r[f"net_{L}_{H}"] = (r[f"exit_{H}"] / r[f"entry_{L}"] - 1) * 1e4 * d - COST_BPS
     r["year"] = pd.to_datetime(r["ts_ms"], unit="ms", utc=True).dt.year
     print(f"\nсобытий с данными Bybit: {len(r)}")
-    print(r.groupby("type").size().to_string())
+    print(r.groupby(["source", "type"]).size().to_string())
     print("\nДвижение ДО объявления (в ожидаемую сторону, б.п.; медиана) и «уехало» к моменту входа:")
     g = r.groupby("type")
     print(pd.DataFrame({"n": g.size(), "pre1h": g["pre1h_bps"].median(), "pre5m": g["pre5m_bps"].median(),
@@ -208,15 +279,19 @@ if __name__ == "__main__":
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     ann = fetch_announcements()
-    ann.to_csv(out / "binance_announcements.csv", index=False)
-    print(f"объявлений: {len(ann)} ({ann['time'].min():%Y-%m-%d} … {ann['time'].max():%Y-%m-%d})")
+    ann["source"] = "binance"
+    okx = fetch_okx()
+    print(f"объявлений: Binance {len(ann)}, OKX {len(okx)}")
+    ann = pd.concat([ann, okx], ignore_index=True)
+    ann.to_csv(out / "announcements.csv", index=False)
     ev = []
     for row in ann.itertuples():
-        typ, ticks, d = classify(row.title, row.catalog)
+        typ, ticks, d = (classify if row.source == "binance" else classify_okx)(row.title, row.catalog)
         if d == 0 or row.time < pd.Timestamp("2022-01-01", tz="UTC"):
             continue
         for tk in dict.fromkeys(ticks):
-            ev.append({"id": row.id, "type": typ, "ticker": tk, "direction": d, "ts_ms": row.ts_ms, "title": row.title})
+            ev.append({"id": row.id, "source": row.source, "type": typ, "ticker": tk, "direction": d,
+                       "ts_ms": row.ts_ms, "title": row.title})
     ev = pd.DataFrame(ev)
     print(f"событий (тикер × объявление) с 2022 года: {len(ev)}")
     print(ev.groupby("type").size().to_string())
@@ -225,5 +300,6 @@ if __name__ == "__main__":
     res.to_csv(out / "news_events.csv", index=False)
     if len(res):
         report(res)
+        report_announcements(res)
     else:
         print("ни одно событие не нашлось в данных Bybit")
