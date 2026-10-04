@@ -22,8 +22,5 @@ print(len(allsyms), "USDT-перпетуалов в архиве, догружа
 D.build(extra, "1h", "2022-01", "2026-09", pathlib.Path.home() / "bn", 64, metrics=False)
 pathlib.Path("/tmp/all_symbols.txt").write_text(",".join(s for s in allsyms if (pathlib.Path.home() / "bn" / f"{s}-1h.parquet").exists()))
 PY2
-QSYMS=$(python -c 'import json; print(",".join(json.load(open("research/symbols_qualified.json"))))')
 echo "===== LISTINGS: анонсы Binance (листинги, делистинги, Monitoring Tag) и реакция перпетуала ====="
 python -m research.listings --root ~/bn --symbols "$(cat /tmp/all_symbols.txt)" 2>&1 | grep -v "Pandas4Warning\|pd.concat" || echo "listings: ошибка"
-echo "===== MOONSHOTS: признаки монет перед +50% / +100% за сутки (все перпетуалы Binance) ====="
-pip install -q lightgbm && python -m research.moonshots --root ~/bn --symbols "$(cat /tmp/all_symbols.txt)" --metrics-symbols "$QSYMS" 2>&1 | grep -v "Pandas4Warning\|pd.concat"

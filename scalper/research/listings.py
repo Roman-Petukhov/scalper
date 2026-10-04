@@ -70,9 +70,10 @@ def fetch_announcements() -> pd.DataFrame:
     for c in CATALOGS:
         p = 1
         while True:
-            d = _json(CMS.format(c=c, p=p))["data"]["catalogs"][0]
-            arts = d["articles"]
+            cats = (_json(CMS.format(c=c, p=p)).get("data") or {}).get("catalogs") or []
+            arts = cats[0]["articles"] if cats else []
             if not arts:
+                print(f"  каталог {c}: страниц {p - 1}", flush=True)
                 break
             rows += [{"catalog": c, "id": a["id"], "title": a["title"], "ts": a["releaseDate"]} for a in arts]
             if pd.Timestamp(min(a["releaseDate"] for a in arts), unit="ms", tz="UTC") < SINCE:
