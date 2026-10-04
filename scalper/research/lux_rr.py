@@ -104,8 +104,8 @@ def simulate(side, lv, ls, allow, o, h, l, c, atr, length, retest, swing, tp_r, 
     busy = -1
     for t in range(m):
         s = side[t]
-        if s == 0 or not allow[t] or t <= busy or not (atr[t] > 0) or t + 2 >= m:
-            continue
+        if s == 0 or not allow[t] or t <= busy or not (atr[t] > 1e-4 * c[t]) or t + 2 >= m:
+            continue                                   # ATR около нуля — замершая цена (делистинг, пустые бары)
         # вход
         fill = -1
         entry = 0.0
@@ -134,8 +134,7 @@ def simulate(side, lv, ls, allow, o, h, l, c, atr, length, retest, swing, tp_r, 
             dist = min(max(dist, 0.5 * atr[t]), 3.0 * atr[t])
         else:
             dist = atr[t]
-        if dist <= 0:
-            continue
+        dist = max(dist, 1e-3 * entry)                 # риск не меньше 0.1% цены: иначе R взрывается на шуме
         stop = entry - s * dist
         tp = entry + s * tp_r * dist
         exit_px = np.nan

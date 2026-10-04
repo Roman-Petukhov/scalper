@@ -48,3 +48,13 @@ def test_retest_fills_at_line_and_needs_trade_through():
     i, r, s = _sim([100, 100, 99.5, 101, 104], [100, 100.5, 99.8, 103, 105], [100, 99.0, 98.9, 100.5, 103],
                    [100, 99.6, 99.4, 102, 104.5], retest=True)
     assert np.isclose(r[0], 5.0)
+
+
+def test_frozen_price_with_zero_atr_is_skipped():
+    n = 5
+    side = np.zeros(n, np.int8); side[0] = 1
+    lv = np.full(n, 99.0); ls = np.zeros(n)
+    p = np.array([100, 100, 100, 150, 150], float)
+    i, r, s = simulate(side, lv, ls, np.ones(n, np.bool_), p, p, p, p, np.zeros(n), 14, False, False, 5.0, 8, 50,
+                       0.0, 0.0)
+    assert len(i) == 0
