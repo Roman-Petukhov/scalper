@@ -207,19 +207,20 @@ def trade_stats(x: pd.DataFrame, nm: str) -> dict:
             "шорт": f"{r[sd == -1].mean():+.1%} n={int((sd == -1).sum())}"}
 
 
-def account(x: pd.DataFrame, nm: str, stop: float, risk: float) -> dict:
-    """Риск `risk` капитала на сделку (номинал = риск / стоп), не больше MAX_OPEN позиций; прибыль зачисляется
-    на выходе, размер — от капитала на момент входа."""
+def account(x: pd.DataFrame, nm: str, stop: float | str, risk: float) -> dict:
+    """Риск `risk` капитала на сделку (номинал = риск / стоп, не больше капитала), не больше MAX_OPEN позиций;
+    прибыль зачисляется на выходе, размер — от капитала на момент входа. stop — доля или имя колонки со стопом сделки."""
     tr = x[x[f"r_{nm}"].notna()].sort_values("t")
+    stops = tr[stop].to_numpy(dtype="float64") if isinstance(stop, str) else np.full(len(tr), stop)
     eq, open_, curve = 1.0, [], []
-    for t, end, r in zip(tr["t"], tr[f"end_{nm}"], tr[f"r_{nm}"]):
+    for t, end, r, st in zip(tr["t"], tr[f"end_{nm}"], tr[f"r_{nm}"], stops):
         while open_ and open_[0][0] <= t:
             e_, pnl = heapq.heappop(open_)
             eq += pnl
             curve.append((e_, eq))
         if len(open_) >= MAX_OPEN or eq <= 0.05:
             continue
-        heapq.heappush(open_, (pd.Timestamp(end), eq * risk / stop * float(r)))
+        heapq.heappush(open_, (pd.Timestamp(end), eq * min(1.0, risk / max(st, 1e-3)) * float(r)))
     while open_:
         e_, pnl = heapq.heappop(open_)
         eq += pnl
@@ -235,11 +236,11 @@ def account(x: pd.DataFrame, nm: str, stop: float, risk: float) -> dict:
             "макс. просадка": f"{(s / s.cummax().clip(lower=1.0) - 1).min():.0%}"}
 
 
-def report() -> None:
-    parts = all_parts("moonbracket")
+def load(name: str) -> pd.DataFrame | None:
+    """Части collect с общими полями срезов: «жар рынка» по всем монетам, цели up50 / up100."""
+    parts = all_parts(name)
     if not parts:
-        print("частей нет")
-        return
+        return None
     df = pd.concat([pd.read_parquet(p) for p in parts], ignore_index=True)
     df["t"] = pd.to_datetime(df["t"], utc=True)
     for c_ in [c_ for c_ in df.columns if c_.startswith("end_")]:
@@ -248,11 +249,13 @@ def report() -> None:
     df["heat"] = df["t"].map(hot.rolling("7D").sum()).astype("float32")
     df["up50"] = (df["up24"] >= 0.5).astype("int8")
     df["up100"] = (df["up24"] >= 1.0).astype("int8")
-    print(f"===== MOONBRACKET: срезов {len(df):,}, монет {df['symbol'].nunique()}, частей {len(parts)} =====")
-    print(f"вилка: ±b от цены на {WINDOW} ч; стоп s, трейлинг t от лучшей цены, до {MAX_HOLD // 24} дней; "
-          f"издержки {COST * 1e4:.0f} б.п. + проскальзывание {SLIP:.2%} x2")
-
     df["symbol"] = df["symbol"].astype("category")
+    df.attrs["parts"] = len(parts)
+    return df
+
+
+def selectors(df: pd.DataFrame) -> dict[str, pd.Series]:
+    """Модель up50 (обучение на IS, для IS — внефолдовые прогнозы), правило vol_ratio и случайные срезы."""
     is_ = df[(df.t >= PER["is"][0]) & (df.t < PER["is"][1])].sort_values("t")
     folds = np.array_split(np.arange(len(is_)), 4)
     oof = np.full(len(is_), np.nan)
@@ -264,17 +267,28 @@ def report() -> None:
     df.loc[df.t < PER["is"][1], "p"] = np.nan
     df.loc[is_.index, "p"] = oof                           # IS — только внефолдовые прогнозы
     thr = {q: np.nanquantile(oof, 1 - q) for q in TOPS}
-    vr_thr = is_["vol_ratio"].quantile(0.99)
-    selectors = {f"модель, верх {q:.1%}": df["p"] >= thr[q] for q in TOPS}
-    selectors["vol_ratio, верх 1%"] = df["vol_ratio"] >= vr_thr
+    sel = {f"модель, верх {q:.1%}": df["p"] >= thr[q] for q in TOPS}
+    sel["vol_ratio, верх 1%"] = df["vol_ratio"] >= is_["vol_ratio"].quantile(0.99)
     rng = np.random.default_rng(0)
-    selectors["все срезы (5% случайных)"] = pd.Series(rng.random(len(df)) < 0.05, index=df.index)
+    sel["все срезы (5% случайных)"] = pd.Series(rng.random(len(df)) < 0.05, index=df.index)
+    return sel
+
+
+def report() -> None:
+    df = load("moonbracket")
+    if df is None:
+        print("частей нет")
+        return
+    print(f"===== MOONBRACKET: срезов {len(df):,}, монет {df['symbol'].nunique()}, частей {df.attrs['parts']} =====")
+    print(f"вилка: ±b от цены на {WINDOW} ч; стоп s, трейлинг t от лучшей цены, до {MAX_HOLD // 24} дней; "
+          f"издержки {COST * 1e4:.0f} б.п. + проскальзывание {SLIP:.2%} x2")
+    selectors_ = selectors(df)
 
     for b, s_, tr in CONFIGS:
         nm = cfg_name(b, s_, tr)
         print(f"\n=== вилка ±{b:.0%}, стоп {s_:.0%}, трейлинг {tr:.0%} ===")
         rows = []
-        for sname, mask in selectors.items():
+        for sname, mask in selectors_.items():
             for p, (a, z) in PER.items():
                 x = dedupe(df[mask & (df.t >= a) & (df.t < z)], nm)
                 rows.append({"отбор": sname, "период": p, **trade_stats(x, nm)})
@@ -284,7 +298,7 @@ def report() -> None:
     nm_main = cfg_name(0.05, 0.10, 0.30)
     print(f"\n=== Настоящие +100% за сутки среди отобранных срезов (модель, верх 1%, {nm_main}) ===")
     for p, (a, z) in PER.items():
-        x = dedupe(df[selectors["модель, верх 1.0%"] & (df.t >= a) & (df.t < z)], nm_main)
+        x = dedupe(df[selectors_["модель, верх 1.0%"] & (df.t >= a) & (df.t < z)], nm_main)
         u = x[x["up100"] == 1]
         r = u[f"r_{nm_main}"]
         print(f"  {p}: срезов перед +100% {len(u)}, вилка сработала {int(r.notna().sum())}, из них в лонг "
@@ -297,7 +311,7 @@ def report() -> None:
         for b, s_, tr in CONFIGS:
             nm = cfg_name(b, s_, tr)
             for lab, a in (("VAL+HO", PER["val"][0]), ("HO", PER["ho"][0])):
-                x = dedupe(df[selectors[sname] & (df.t >= a) & (df.t < PER["ho"][1])], nm)
+                x = dedupe(df[selectors_[sname] & (df.t >= a) & (df.t < PER["ho"][1])], nm)
                 for risk in (0.01, 0.02):
                     rows.append({"отбор": sname, "вилка": nm, "период": lab, "риск": f"{risk:.0%}",
                                  **account(x, nm, s_, risk)})
