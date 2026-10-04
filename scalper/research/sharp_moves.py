@@ -143,8 +143,12 @@ def report_buckets(ev: pd.DataFrame) -> None:
 
 def model(ev: pd.DataFrame) -> None:
     import lightgbm as lgb
-    params = {"n_estimators": 300, "learning_rate": 0.03, "num_leaves": 15, "min_child_samples": 200,
-              "subsample": 0.8, "subsample_freq": 1, "colsample_bytree": 0.8, "verbose": -1}
+    params = {"objective": "regression", "learning_rate": 0.03, "num_leaves": 15, "min_data_in_leaf": 200,
+              "bagging_fraction": 0.8, "bagging_freq": 1, "feature_fraction": 0.8, "verbose": -1}
+
+    def fit(x: pd.DataFrame, t: pd.Series) -> "lgb.Booster":       # нативный API: без зависимости от scikit-learn
+        return lgb.train(params, lgb.Dataset(x, t), num_boost_round=300)
+
     is_ = period(ev, "is").sort_values("t")
     lo, hi = is_["fwd4"].quantile([0.01, 0.99])
     y = is_["fwd4"].clip(lo, hi)
@@ -152,11 +156,11 @@ def model(ev: pd.DataFrame) -> None:
     folds = np.array_split(np.arange(len(is_)), 4)
     for k in range(1, 4):                                       # предсказываем фолд k по фолдам до него
         tr = np.concatenate(folds[:k])
-        m = lgb.LGBMRegressor(**params).fit(is_[FEATS].iloc[tr], y.iloc[tr])
+        m = fit(is_[FEATS].iloc[tr], y.iloc[tr])
         oof[folds[k]] = m.predict(is_[FEATS].iloc[folds[k]])
     q_lo, q_hi = np.nanquantile(oof, [0.1, 0.9])
-    m = lgb.LGBMRegressor(**params).fit(is_[FEATS], y)
-    imp = pd.Series(m.booster_.feature_importance("gain"), index=FEATS).sort_values(ascending=False)
+    m = fit(is_[FEATS], y)
+    imp = pd.Series(m.feature_importance("gain"), index=FEATS).sort_values(ascending=False)
     print("\nВажность признаков (gain): " + ", ".join(f"{k} {v / imp.sum():.0%}" for k, v in imp.head(8).items()))
     print(f"Пороги по внефолдовым прогнозам IS: нижние 10% < {q_lo:+.1f} б.п., верхние 10% > {q_hi:+.1f} б.п.")
     rows = []

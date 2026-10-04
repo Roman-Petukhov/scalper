@@ -11,5 +11,7 @@ print(len(q), "монет", flush=True)
 D.build(q, "1h", "2022-01", "2026-09", pathlib.Path.home() / "bn", 64, metrics=True)
 PY
 SYMS=$(python -c 'import json; print(",".join(json.load(open("research/symbols_qualified.json"))))')
+echo "===== COIL CHECK: устойчивость coil (сжатие + набор OI -> пробой против толпы) ====="
+python -m research.coil_check --root ~/bn --symbols "$SYMS" 2>&1 | grep -v "Pandas4Warning\|pd.concat"
 echo "===== SHARP MOVES: резкие часовые движения — продолжение или разворот (725 монет Binance) ====="
 pip install -q lightgbm && python -m research.sharp_moves --root ~/bn --symbols "$SYMS" 2>&1 | grep -v "Pandas4Warning\|pd.concat"
