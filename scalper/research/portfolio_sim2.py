@@ -50,6 +50,8 @@ class Mode:
     ann_frac: float
     unl_frac: float
     lev_cap: float
+    exch_lev: float = 0.0          # плечо на бирже: 0 — резерв под лимитки вычитается из lev_cap (номиналом);
+                                   # > 0 — маржа (позиции + стоящие лимитки) / exch_lev <= капитала, позиции <= lev_cap
 
 
 MODES = [Mode("умеренный", 0.3, 3, 0.05, 1.0, 0.01, 0.3, 0.1, 2.0),
@@ -172,9 +174,15 @@ def simulate(ev: pd.DataFrame, mode: Mode) -> tuple[pd.Series, bool, int]:
         else:
             notional = max(MIN_ORDER, mode.ann_frac * eq)
             pnl = notional * R[i]
-        used = sum(p[1] for p in pos if p[3] != "spikes")
-        if used + notional > (mode.lev_cap - reserve) * eq:
-            continue
+        if mode.exch_lev > 0:
+            used = sum(p[1] for p in pos)
+            if used + notional > mode.lev_cap * eq or \
+                    (used + notional + reserve * eq) / mode.exch_lev > eq:
+                continue
+        else:
+            used = sum(p[1] for p in pos if p[3] != "spikes")
+            if used + notional > (mode.lev_cap - reserve) * eq:
+                continue
         pos.append((E[i], notional, pnl, kind, sym))
         done += 1
     eq += sum(p[2] for p in pos)

@@ -30,3 +30,16 @@ def test_spike_fills_ignore_leverage_cap_and_others_get_cap_minus_reserve():
     # 10 монет под лимитками (1.0 x 100 / 10), все исполнились сразу, хотя номинал 1.0 + 0.1 > свободного места
     assert done == 11 and not ruined
     assert np.isclose(eq.iloc[-1], CAPITAL + 10 * 10 * 0.01 + 10 * 0.10)
+
+
+def test_exchange_leverage_frees_margin_for_other_strategies():
+    rows = [("2025-03-01 00:01", "2025-03-02 00:00", "X", 0.10, np.nan, "announce", np.inf),
+            ("2025-03-01 00:02", "2025-03-02 00:00", "S0", 0.01, np.nan, "spikes", 0.0)]
+    base = dict(oi_frac=0.3, oi_max=3, sp_frac=0.1, sp_reserve=4.0, coil_risk=0.01, ann_frac=3.0, unl_frac=0.1,
+                lev_cap=5.0)
+    # без плеча биржи резерв 4 съедает место: анонсу с номиналом 3 остаётся 1 — сделка пропущена
+    _, _, done = simulate(_ev(rows), Mode("a", **base))
+    assert done == 1
+    # плечо 10: маржа (3 + 4) / 10 = 0.7 капитала, позиции 3 <= 5 — сделка проходит
+    _, _, done = simulate(_ev(rows), Mode("b", **base, exch_lev=10.0))
+    assert done == 2
