@@ -1,0 +1,223 @@
+"""
+«Настоящие» и «ложные» участники по историческому стакану Bybit (дельты L2) и тиковым сделкам.
+
+Стена — уровень, объём которого не меньше WALL_MULT медиан объёма уровней в топ-20 своей стороны и который стоит
+не дальше MAX_DIST_BPS от средней цены. Её жизнь прослеживается до «смерти» (объём упал ниже половины порога):
+    pulled_near  — сняли, когда цена подходила ближе NEAR_BPS (кандидат в спуфинг: «не пускали», а потом убрали)
+    pulled_far   — сняли, когда цена была далеко
+    consumed     — объём ушёл в сделки агрессоров (настоящая ликвидность, уровень пробит)
+    absorbed     — через уровень прошло >= ABSORB_X видимого объёма, а он всё стоит (айсберг/поглощение)
+Для каждого события: движение средней цены через 10с..60мин в б.п. Знак «ожидания» задаётся заранее:
+    pulled_near bid  -> вниз (сняли фальшивую поддержку),  ask -> вверх
+    consumed    bid  -> вниз (поддержку пробили),          ask -> вверх
+    absorbed    bid  -> вверх (крупный покупатель держит),  ask -> вниз
+    pulled_far       -> без ожидания (контроль)
+
+    python -m research.hft.walls --symbols A,B --days 2024-01-08,... --out <dir>
+"""
+from __future__ import annotations
+
+import argparse
+import gzip
+import io
+import sys
+import zipfile
+from concurrent.futures import ProcessPoolExecutor
+from pathlib import Path
+
+import numpy as np
+import orjson
+import pandas as pd
+
+from .build import BYBIT_TRADES, OB_URL, _asof, _get
+
+WALL_MULT = 5.0
+MAX_DIST_BPS = 30.0
+NEAR_BPS = 10.0
+ABSORB_X = 2.0
+HORIZONS_S = (10, 60, 300, 900, 3600)
+EXPECT = {("pulled_near", 1): -1, ("pulled_near", -1): 1, ("consumed", 1): -1, ("consumed", -1): 1,
+          ("absorbed", 1): 1, ("absorbed", -1): -1, ("pulled_far", 1): 0, ("pulled_far", -1): 0}
+
+
+def _ref_size(book: dict, best: float, side: int) -> float:
+    """Медиана объёма уровней в топ-20 стороны (без самой крупной стены, чтобы она не задирала порог)."""
+    if not book:
+        return np.inf
+    prices = sorted(book, reverse=(side == 1))[:20]
+    sz = np.array([book[p] for p in prices])
+    return float(np.median(sz)) if len(sz) >= 5 else np.inf
+
+
+def detect(ob_blob: bytes, trades: pd.DataFrame) -> pd.DataFrame:
+    t_ts = (trades["timestamp"].to_numpy(dtype="float64") * 1000.0)
+    o = np.argsort(t_ts, kind="stable")
+    t_ts = t_ts[o]
+    t_buy = (trades["side"].to_numpy() == "Buy")[o]
+    t_sz = trades["size"].to_numpy(dtype="float64")[o]
+    t_px = trades["price"].to_numpy(dtype="float64")[o]
+    book = {1: {}, -1: {}}
+    best = {1: -np.inf, -1: np.inf}
+    ref = {1: np.inf, -1: np.inf}
+    walls: dict = {}                       # (side, price) -> state
+    events = []
+    tob_ts, tob_mid = [], []
+    i_tr, n_tr = 0, len(t_ts)
+    last_ref_sec = -1
+
+    def mid():
+        return (best[1] + best[-1]) / 2
+
+    with zipfile.ZipFile(io.BytesIO(ob_blob)) as z, z.open(z.namelist()[0]) as fh:
+        for line in fh:
+            m = orjson.loads(line)
+            ts = m["ts"]
+            while i_tr < n_tr and t_ts[i_tr] <= ts:                 # сделки до обновления стакана
+                side_hit = -1 if t_buy[i_tr] else 1                   # покупатель бьёт в ask (-1), продавец в bid (1)
+                w = walls.get((side_hit, t_px[i_tr]))
+                if w is not None:
+                    w["traded"] += t_sz[i_tr]
+                    if not w["absorbed"] and w["traded"] >= ABSORB_X * w["max"] and \
+                            book[side_hit].get(t_px[i_tr], 0.0) >= 0.5 * w["thr"]:
+                        w["absorbed"] = True
+                        events.append((t_ts[i_tr], "absorbed", side_hit, w["max"] / w["ref"], t_ts[i_tr] - w["born"],
+                                       abs(t_px[i_tr] / mid() - 1) * 1e4 if np.isfinite(mid()) else np.nan))
+                i_tr += 1
+            d = m["data"]
+            if m["type"] == "snapshot":
+                book[1] = {float(p): float(q) for p, q in d["b"]}
+                book[-1] = {float(p): float(q) for p, q in d["a"]}
+                best[1] = max(book[1]) if book[1] else -np.inf
+                best[-1] = min(book[-1]) if book[-1] else np.inf
+                walls.clear()
+                continue
+            for side, key in ((1, "b"), (-1, "a")):
+                bk = book[side]
+                for p, q in d[key]:
+                    fp, fq = float(p), float(q)
+                    prev = bk.get(fp, 0.0)
+                    if fq == 0.0:
+                        bk.pop(fp, None)
+                        if fp == best[side]:
+                            best[side] = (max(bk) if side == 1 else min(bk)) if bk else (-np.inf if side == 1 else np.inf)
+                    else:
+                        bk[fp] = fq
+                        if (side == 1 and fp > best[side]) or (side == -1 and fp < best[side]):
+                            best[side] = fp
+                    mm = mid()
+                    if not np.isfinite(mm):
+                        continue
+                    k = (side, fp)
+                    w = walls.get(k)
+                    thr = WALL_MULT * ref[side]
+                    if w is None and fq >= thr and prev < thr and abs(fp / mm - 1) * 1e4 <= MAX_DIST_BPS:
+                        walls[k] = {"born": ts, "max": fq, "thr": thr, "ref": ref[side], "traded": 0.0,
+                                    "min_dist": abs(fp / mm - 1) * 1e4, "absorbed": False}
+                    elif w is not None:
+                        w["max"] = max(w["max"], fq)
+                        if fq < 0.5 * w["thr"]:
+                            drop = max(w["max"] - fq, 1e-12)
+                            kind = "consumed" if w["traded"] >= 0.5 * drop else \
+                                ("pulled_near" if w["min_dist"] <= NEAR_BPS else "pulled_far")
+                            events.append((ts, kind, side, w["max"] / w["ref"], ts - w["born"], w["min_dist"]))
+                            del walls[k]
+            mm = mid()
+            if np.isfinite(mm) and best[1] < best[-1]:
+                tob_ts.append(ts)
+                tob_mid.append(mm)
+                sec = ts // 1000
+                if sec != last_ref_sec:                             # пороги и дистанции — раз в секунду
+                    last_ref_sec = sec
+                    ref[1] = _ref_size(book[1], best[1], 1)
+                    ref[-1] = _ref_size(book[-1], best[-1], -1)
+                    for (sd, pr), w in walls.items():
+                        w["min_dist"] = min(w["min_dist"], abs(pr / mm - 1) * 1e4)
+    if not events:
+        return pd.DataFrame()
+    ev = pd.DataFrame(events, columns=["ts", "kind", "side", "size_x", "life_ms", "dist_bps"])
+    tt, tm = np.asarray(tob_ts, dtype="float64"), np.asarray(tob_mid, dtype="float64")
+    m0 = _asof(tt, tm, ev["ts"].to_numpy(dtype="float64"))
+    exp = np.array([EXPECT[(k, s)] for k, s in zip(ev["kind"], ev["side"])], dtype="float64")
+    ev["expect"] = exp
+    for h in HORIZONS_S:
+        mh = _asof(tt, tm, ev["ts"].to_numpy(dtype="float64") + h * 1000.0)
+        ev[f"fwd{h}"] = (mh / m0 - 1) * 1e4
+    return ev
+
+
+def run_symbol_day(args) -> pd.DataFrame:
+    sym, day = args
+    ob = None
+    for n in (500, 200):
+        ob = _get(OB_URL.format(s=sym, d=day, n=n))
+        if ob is not None:
+            break
+    tr = _get(BYBIT_TRADES.format(s=sym, d=day))
+    if ob is None or tr is None:
+        return pd.DataFrame()
+    trades = pd.read_csv(io.BytesIO(gzip.decompress(tr)), usecols=["timestamp", "side", "size", "price"])
+    ev = detect(ob, trades)
+    if len(ev):
+        ev.insert(0, "day", day)
+        ev.insert(0, "symbol", sym)
+    print(f"  {sym} {day}: событий {len(ev)}", flush=True)
+    return ev
+
+
+def period_of(day: str) -> str:
+    return "is" if day < "2024-07-01" else "val" if day < "2025-07-01" else "ho"
+
+
+def report(ev: pd.DataFrame) -> None:
+    ev = ev.copy()
+    ev["period"] = ev["day"].map(period_of)
+    days = ev.groupby(["symbol", "period"])["day"].nunique()
+    print(f"\nсобытий: {len(ev)}; монет {ev['symbol'].nunique()}, дней {ev['day'].nunique()}")
+    rows = []
+    for (kind, per), g in ev.groupby(["kind", "period"]):
+        sgn = g["expect"].where(g["expect"] != 0, 1.0)            # для контроля — просто «вверх»
+        r = {"kind": kind, "period": per, "n": len(g),
+             "per_coin_day": len(g) / days.xs(per, level="period").sum()}
+        for h in HORIZONS_S:
+            x = (g[f"fwd{h}"] * sgn).dropna()
+            r[f"{h}s"] = x.mean()
+            r[f"t{h}"] = x.mean() / (x.std(ddof=1) / np.sqrt(len(x))) if len(x) > 30 else np.nan
+        rows.append(r)
+    t = pd.DataFrame(rows)
+    print("\nДвижение средней цены в ожидаемую сторону, б.п. (t — статистика); издержки круга: maker 4, taker 11")
+    print(t.round(2).to_string(index=False))
+    # сильные стены (крупнее 15x) — отдельно
+    big = ev[ev["size_x"] >= 15]
+    if len(big):
+        print("\nТолько крупные стены (>= 15 медиан):")
+        rows = []
+        for (kind, per), g in big.groupby(["kind", "period"]):
+            sgn = g["expect"].where(g["expect"] != 0, 1.0)
+            rows.append({"kind": kind, "period": per, "n": len(g),
+                         **{f"{h}s": (g[f"fwd{h}"] * sgn).mean() for h in HORIZONS_S}})
+        print(pd.DataFrame(rows).round(2).to_string(index=False))
+
+
+if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    pd.set_option("display.width", 250)
+    pd.set_option("display.max_rows", 200)
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--report", default=None, help="папка с walls_*.parquet: только сводка")
+    ap.add_argument("--symbols", default="")
+    ap.add_argument("--days", default="")
+    ap.add_argument("--out", default=".")
+    ap.add_argument("--workers", type=int, default=4)
+    a = ap.parse_args()
+    if a.report:
+        report(pd.concat([pd.read_parquet(p) for p in sorted(Path(a.report).rglob("walls_*.parquet"))]))
+        sys.exit(0)
+    out = Path(a.out)
+    out.mkdir(parents=True, exist_ok=True)
+    jobs = [(s, d) for s in a.symbols.split(",") for d in a.days.split(",")]
+    with ProcessPoolExecutor(a.workers) as ex:
+        parts = [p for p in ex.map(run_symbol_day, jobs) if len(p)]
+    ev = pd.concat(parts) if parts else pd.DataFrame()
+    if len(ev):
+        ev.to_parquet(out / f"walls_{abs(hash(a.symbols + a.days)) % 10**8}.parquet")
+        report(ev)

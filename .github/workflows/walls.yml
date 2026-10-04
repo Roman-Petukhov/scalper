@@ -1,0 +1,71 @@
+name: walls
+
+on:
+  push:
+    branches: [main-t2qdvg]
+    paths: ["scalper/research/hft/walls_jobs.json", "scalper/research/hft/walls.py", ".github/workflows/walls.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: m
+        run: echo "matrix=$(jq -c . scalper/research/hft/walls_jobs.json)" >> "$GITHUB_OUTPUT"
+
+  sim:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      max-parallel: 15
+      matrix:
+        job: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    defaults:
+      run:
+        working-directory: scalper
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pandas pyarrow numpy orjson numba
+      - run: python -m research.hft.walls --symbols "${{ matrix.job.symbols }}" --days "${{ matrix.job.days }}" --out ../out --workers 4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: walls-${{ strategy.job-index }}
+          path: out/*.parquet
+
+  report:
+    needs: sim
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pandas pyarrow numpy orjson numba
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - name: Report
+        working-directory: scalper
+        run: python -m research.hft.walls --report ../out | tee ../out/log.txt
+      - name: Publish results to research-results branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898277+github-actions[bot]@users.noreply.github.com"
+          dest="runs/${GITHUB_RUN_ID}"
+          git fetch origin research-results
+          git worktree add rr origin/research-results && git -C rr checkout -B research-results
+          mkdir -p "rr/$dest" && cp out/log.txt "rr/$dest/" && echo "${GITHUB_SHA}" > "rr/$dest/commit.txt"
+          git -C rr add runs && git -C rr commit -qm "walls results run ${GITHUB_RUN_ID}" && git -C rr push origin research-results
