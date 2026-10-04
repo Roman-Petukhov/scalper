@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"prepall spikesfull unlocks2"}
+TASKS=${TASKS:-"prepall moonbracket"}
 MODE=${1:-collect}
 FILTER="Pandas4Warning\|pd.concat\|файлов$\|мес. свечей"
 
@@ -70,6 +70,11 @@ unlocks2_report() {
   python -m research.unlocks2 report
 }
 
+moonbracket_collect() { python -m research.moonbracket collect --symbols "$(cat /tmp/syms_1h-all.txt)"; }
+moonbracket_report() {
+  echo "===== MOONBRACKET: ловля иксов вилкой стоп-ордеров ====="
+  python -m research.moonbracket report
+}
 spikesfull_collect() { python -m research.spikes_full collect --symbols "$(cat /tmp/syms_1h-all.txt)"; }
 spikesfull_report() {
   echo "===== SPIKES FULL: прострелы по всему рынку и счёт \$100 ====="
