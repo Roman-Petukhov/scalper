@@ -48,5 +48,5 @@ case "$MODE" in
 esac
 for t in $TASKS; do
   echo "----- $t $MODE (часть ${SHARD:-0}/${NSHARDS:-1}) -----"
-  "${t}_${MODE}" 2>&1 | grep -v "$FILTER"
+  "${t}_${MODE}" 2>&1 | { grep -v "$FILTER" || true; }
 done
