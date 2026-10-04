@@ -10,6 +10,8 @@
     coil     риск 1% / 2% капитала на сделку (номинал = риск / (1.5 ATR / цена)), до 10 дней
     announce шорт после Monitoring Tag (вход через 5 мин, 24 ч) и после делистинга (вход через 5 мин, 4 ч) — только
              события, где монета была на Bybit, результат по ценам Bybit с funding; номинал 0.3 / 0.6 капитала
+    unlock   шорт перпетуала от T-7 до T+1 вокруг разлока >= 1% (research.unlocks2; только монеты, торговавшиеся на
+             Bybit в день входа); номинал 0.1 / 0.2 капитала
 Сценарий «с поправкой»: из каждой сделки вычитается 30% среднего преимущества её стратегии.
 Монте-Карло: 12 случайных месяцев истории (с возвращением) × N путей.
 
@@ -41,11 +43,12 @@ class Mode:
     sp_reserve: float
     coil_risk: float
     ann_frac: float
+    unl_frac: float
     lev_cap: float
 
 
-MODES = [Mode("умеренный", 0.3, 3, 0.05, 1.0, 0.01, 0.3, 2.0),
-         Mode("агрессивный", 0.6, 5, 0.10, 3.0, 0.02, 0.6, 5.0)]
+MODES = [Mode("умеренный", 0.3, 3, 0.05, 1.0, 0.01, 0.3, 0.1, 2.0),
+         Mode("агрессивный", 0.6, 5, 0.10, 3.0, 0.02, 0.6, 0.2, 5.0)]
 
 
 def load_events(a: argparse.Namespace) -> pd.DataFrame:
@@ -71,7 +74,14 @@ def load_events(a: argparse.Namespace) -> pd.DataFrame:
         rows.append(pd.DataFrame({"t": g["t"] + pd.Timedelta(minutes=5), "end": g["t"] + pd.Timedelta(hours=hold, minutes=5),
                                   "symbol": g["symbol"], "r": g[col] / 1e4, "risk": np.nan, "kind": "announce"}))
     e_an = pd.concat(rows, ignore_index=True).drop_duplicates(["symbol", "t"])
-    ev = pd.concat([e_oi, e_sp, e_co, e_an], ignore_index=True)
+    parts = [e_oi, e_sp, e_co, e_an]
+    if getattr(a, "unlock", None):
+        un = pd.read_csv(a.unlock)
+        un["t"] = pd.to_datetime(un["t"], utc=True, format="ISO8601")
+        un = un[un["bybit"].fillna(False).astype(bool) & un["s7_1"].notna()]
+        parts.append(pd.DataFrame({"t": un["t"] - pd.Timedelta(days=7), "end": un["t"] + pd.Timedelta(days=1),
+                                   "symbol": un["symbol"], "r": un["s7_1"] / 1e4, "risk": np.nan, "kind": "unlock"}))
+    ev = pd.concat(parts, ignore_index=True)
     ev["t"] = pd.to_datetime(ev["t"], utc=True)
     ev["end"] = pd.to_datetime(ev["end"], utc=True)
     return ev[(ev["t"] >= START) & (ev["t"] < END)].sort_values("t").reset_index(drop=True)
@@ -127,6 +137,9 @@ def simulate(ev: pd.DataFrame, mode: Mode, coins: list[str]) -> tuple[pd.Series,
             risk_usd = mode.coil_risk * eq
             notional = max(MIN_ORDER, risk_usd / K[i])
             pnl = notional * K[i] * R[i]
+        elif kind == "unlock":
+            notional = max(MIN_ORDER, mode.unl_frac * eq)
+            pnl = notional * R[i]
         else:
             notional = max(MIN_ORDER, mode.ann_frac * eq)
             pnl = notional * R[i]
@@ -181,6 +194,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     for k in ("oi", "spikes", "coil", "announce"):
         ap.add_argument(f"--{k}", required=True)
+    ap.add_argument("--unlock", default="")
     ap.add_argument("--paths", type=int, default=300)
     a = ap.parse_args()
     ev_all = load_events(a)
@@ -190,8 +204,8 @@ if __name__ == "__main__":
         x = g["r"] * (g["risk"] if k == "coil" else 1.0)
         print(f"  {k}: средняя сделка {x.mean():+.2%} номинала" + (" (R x риск)" if k == "coil" else "") +
               f", прибыльных {np.mean(g['r'] > 0):.0%}")
-    sets = {"oi_liq": ["oi_liq"], "spikes": ["spikes"], "coil": ["coil"], "announce": ["announce"],
-            "ВСЕ ЧЕТЫРЕ": ["oi_liq", "spikes", "coil", "announce"]}
+    sets = {k: [k] for k in ("oi_liq", "spikes", "coil", "announce", "unlock") if (ev_all["kind"] == k).any()}
+    sets["ВСЕ ВМЕСТЕ"] = list(sets)
     for label, adj in (("КАК В БЭКТЕСТЕ", False), ("С ПОПРАВКОЙ −30% преимущества", True)):
         ev = haircut(ev_all) if adj else ev_all
         print(f"\n========== {label}, старт ${CAPITAL:.0f} ==========")
