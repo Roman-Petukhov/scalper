@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # Задание для GitHub Actions (.github/workflows/research.yml); запускается из папки scalper/.
 set -euo pipefail
-pip install -q lightgbm scikit-learn
-ALL=$(python -m research.universe --print-symbols --all)
-python -m research.data --root ~/rs --start 2022-01 --end 2026-09 --metrics --workers 48 --symbols "$ALL" | grep -v "файлов$" | tail -1
-for DET in luxalgo two_pivot; do
-  echo "===== BREAKOUT [$DET]: события пробоев (5m, 70 монет) ====="
-  python -m research.breakout.dataset --root ~/rs --out ~/bo_$DET --symbols "$ALL" --workers 4 --detector $DET 2>/dev/null | tail -2
-  echo "===== BREAKOUT [$DET]: мета-разметка, варианты входа: рынок / ретест (maker) / 50 на 50 ====="
-  python -m research.breakout.model --events ~/bo_$DET --out ../out/$DET
-done
+echo "===== BROAD: все USDT-перпетуалы Binance, хоть раз прошедшие порог ликвидности (список зафиксирован заранее) ====="
+python - <<'PY'
+import json, pathlib
+import research.data as D
+D.set_host("cdn")
+D.METRICS_FREQ = "1h"
+q = json.load(open("research/symbols_qualified.json"))
+print(len(q), "монет", flush=True)
+D.build(q, "1h", "2022-01", "2026-09", pathlib.Path.home() / "bn", 64, metrics=True)
+PY
+python -m research.broad --root ~/bn --out ../out --stage eval --host cdn 2>&1 | grep -v "Pandas4Warning\|pd.concat\|port = \|P = pd"

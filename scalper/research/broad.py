@@ -165,11 +165,12 @@ if __name__ == "__main__":
     ap.add_argument("--out", required=True)
     ap.add_argument("--stage", required=True, choices=["list", "klines", "metrics", "eval"])
     ap.add_argument("--workers", type=int, default=48)
+    ap.add_argument("--host", default="s3", choices=["s3", "cdn"])
     a = ap.parse_args()
     root, out = Path(a.root), Path(a.out)
     root.mkdir(parents=True, exist_ok=True)
     out.mkdir(parents=True, exist_ok=True)
-    D.set_host("s3")
+    D.set_host(a.host)
     if a.stage == "list":
         syms = list_symbols()
         (out / "symbols_all.json").write_text(json.dumps(syms))
@@ -181,9 +182,11 @@ if __name__ == "__main__":
         (out / "symbols_qualified.json").write_text(json.dumps(q))
         print(f"монет, хоть раз проходивших порог ${ADV_MIN / 1e6:.0f}M/день: {len(q)} из {len(syms)}")
     elif a.stage == "metrics":
-        q = json.loads((out / "symbols_qualified.json").read_text())
+        qf = out / "symbols_qualified.json"
+        q = json.loads((qf if qf.exists() else Path(__file__).with_name("symbols_qualified.json")).read_text())
         D.METRICS_FREQ = "1h"
         D.build(q, "1h", "2022-01", "2026-09", root, a.workers, metrics=True)
     else:
-        q = json.loads((out / "symbols_qualified.json").read_text())
+        qf = out / "symbols_qualified.json"
+        q = json.loads((qf if qf.exists() else Path(__file__).with_name("symbols_qualified.json")).read_text())
         evaluate(root, q, out)
