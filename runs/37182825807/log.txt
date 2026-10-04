@@ -1,0 +1,69 @@
+GMTUSDT: 55 мес. свечей, 55 мес. funding, 55 мес. метрик
+===== BREAKOUT: события пробоев линий тренда (5m, 70 монет) =====
+/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/pandas/core/arraylike.py:402: RuntimeWarning: divide by zero encountered in log
+  result = getattr(ufunc, method)(*inputs, **kwargs)
+/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/pandas/core/arraylike.py:402: RuntimeWarning: divide by zero encountered in log
+  result = getattr(ufunc, method)(*inputs, **kwargs)
+/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/pandas/core/arraylike.py:402: RuntimeWarning: divide by zero encountered in log
+  result = getattr(ufunc, method)(*inputs, **kwargs)
+/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/pandas/core/arraylike.py:402: RuntimeWarning: divide by zero encountered in log
+  result = getattr(ufunc, method)(*inputs, **kwargs)
+/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/pandas/core/arraylike.py:402: RuntimeWarning: divide by zero encountered in log
+  result = getattr(ufunc, method)(*inputs, **kwargs)
+  STXUSDT: 28344 событий
+  IMXUSDT: 36007 событий
+  GMTUSDT: 35762 событий
+===== BREAKOUT: мета-разметка (LightGBM) =====
+событий: исходные монеты 591976, новые 1820170
+обучение: 311100 событий IS; средний исход без отбора -11.91 б.п., доля плюсовых 0.329
+
+OOF внутри IS (выбор доли лучших прогнозов):
+  топ 2%: порог -0.42, сделок/день 5.2, -8.18 б.п./сделку, Sharpe -2.46
+  топ 5%: порог -5.16, сделок/день 13.0, -9.40 б.п./сделку, Sharpe -5.08
+  топ 10%: порог -7.87, сделок/день 26.1, -9.43 б.п./сделку, Sharpe -7.86
+  топ 20%: порог -9.94, сделок/день 51.8, -9.89 б.п./сделку, Sharpe -12.45
+выбрано: топ 2% (порог прогноза -0.42 б.п.)
+
+важность признаков (gain), топ-15:
+atr_bps          0.197
+vol_regime       0.048
+btc_ret12_z      0.046
+btc_ret48_z      0.046
+btc_ret1_z       0.043
+volume_z         0.028
+ahead288_dist    0.028
+behind72_dist    0.027
+bar_close_pos    0.027
+ret288_z         0.026
+volume12_z       0.026
+ret12_z          0.026
+hour_cos         0.025
+ahead72_dist     0.023
+ret1_z           0.023
+
+РЕЗУЛЬТАТЫ (IS для core16 — обучающий, остальное — вне выборки):
+universe period       rule    cost  trades  trades_per_day  bps_per_trade   hit  ann_ret  sharpe  max_dd
+  core16     is     модель  6 б.п.    4330           4.753         72.444 0.733    0.628   8.306  -0.004
+  core16     is     модель 10 б.п.    4330           4.753         64.444 0.731    0.558   7.935  -0.005
+  core16     is все пробои  6 б.п.  217314         238.544        -12.012 0.328   -5.224 -35.703 -13.034
+  core16     is все пробои 10 б.п.  217314         238.544        -20.012 0.310   -8.703 -56.992 -21.719
+  core16    val     модель  6 б.п.    1381           3.794         -5.545 0.369   -0.038  -1.397  -0.047
+  core16    val     модель 10 б.п.    1381           3.794        -13.545 0.367   -0.094  -3.335  -0.098
+  core16    val все пробои  6 б.п.   87110         239.313        -11.576 0.337   -5.042 -31.448  -5.023
+  core16    val все пробои 10 б.п.   87110         239.313        -19.576 0.324   -8.526 -51.630  -8.498
+  core16     ho     модель  6 б.п.     997           2.186         -6.563 0.358   -0.026  -1.183  -0.053
+  core16     ho     модель 10 б.п.     997           2.186        -14.563 0.356   -0.058  -2.609  -0.081
+  core16     ho все пробои  6 б.п.  110113         241.476        -12.242 0.321   -5.383 -42.521  -6.716
+  core16     ho все пробои 10 б.п.  110113         241.476        -20.242 0.297   -8.901 -67.124 -11.110
+   new54     is     модель  6 б.п.   17665          19.391         12.585 0.449    0.445   3.297  -0.104
+   new54     is     модель 10 б.п.   17665          19.391          4.585 0.448    0.162   1.273  -0.255
+   new54     is все пробои  6 б.п.  655027         719.020        -12.496 0.328  -16.380 -33.297 -40.874
+   new54     is все пробои 10 б.п.  655027         719.020        -20.496 0.325  -26.866 -50.974 -67.056
+   new54    val     модель  6 б.п.    7724          21.220         -6.872 0.359   -0.265  -2.471  -0.288
+   new54    val     модель 10 б.п.    7724          21.220        -14.872 0.358   -0.574  -5.123  -0.592
+   new54    val все пробои  6 б.п.  280483         770.558        -12.243 0.333  -17.168 -26.377 -17.137
+   new54    val все пробои 10 б.п.  280483         770.558        -20.243 0.332  -28.387 -42.626 -28.326
+   new54     ho     модель  6 б.п.    6163          13.515        -13.478 0.330   -0.332  -3.862  -0.419
+   new54     ho     модель 10 б.п.    6163          13.515        -21.478 0.329   -0.529  -5.874  -0.665
+   new54     ho все пробои  6 б.п.  335353         735.423        -13.310 0.324  -17.825 -38.521 -22.253
+   new54     ho все пробои 10 б.п.  335353         735.423        -21.310 0.322  -28.539 -59.458 -35.636
