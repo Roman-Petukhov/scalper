@@ -3,7 +3,9 @@ name: hft-scan
 on:
   push:
     branches: [main-t2qdvg]
-    paths: ["scalper/research/hft/scan.py", "scalper/research/hft/adhoc.sh", ".github/workflows/hft-scan.yml"]
+    paths: ["scalper/research/hft/scan.py", "scalper/research/hft/adhoc.sh", "scalper/research/news/**",
+            ".github/workflows/hft-scan.yml"]
+  workflow_dispatch:
 
 permissions:
   contents: write
