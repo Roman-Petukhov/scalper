@@ -152,3 +152,151 @@ def triple_barrier(idx, side, open_, high, low, close, atr, tp_mult, sl_mult, ma
         ret[e] = s * (exit_px / entry - 1.0) - 2 * cost_bps * 1e-4
         bars[e] = j - t
     return ret, bars
+
+
+@njit(cache=True)
+def retest_barrier(idx, side, line_val, slope, open_, high, low, close, atr, wait, tp_mult, sl_mult, max_hold,
+                   maker_bps, taker_bps, through):
+    """Вход лимитом на ретесте пробитой линии: после пробоя на баре t ставим заявку по цене линии
+    (линия продолжается со своим наклоном) на wait баров. Исполнение — только если цена прошла СКВОЗЬ уровень.
+    Стоп sl_mult*ATR за уровнем входа (рыночный), тейк tp_mult*ATR (лимит), иначе выход по close через max_hold.
+    В баре исполнения тейк не проверяется, стоп — проверяется (худший порядок).
+    Возвращает чистую доходность (NaN — не исполнилось) и число баров от пробоя до выхода/снятия заявки."""
+    k = len(idx)
+    ret = np.full(k, np.nan)
+    bars = np.zeros(k, np.int32)
+    m = len(close)
+    mk, tk = maker_bps * 1e-4, taker_bps * 1e-4
+    for e in range(k):
+        t = idx[e]
+        s = side[e]
+        a = atr[t]
+        bars[e] = min(wait, m - 1 - t)
+        if not (a > 0) or not np.isfinite(line_val[e]):
+            continue
+        fill_j = -1
+        entry = 0.0
+        for j in range(t + 1, min(t + wait, m - 1) + 1):
+            lv = line_val[e] + slope[e] * (j - t)
+            if (s > 0 and low[j] < lv * (1 - through)) or (s < 0 and high[j] > lv * (1 + through)):
+                fill_j = j
+                entry = lv
+                break
+        if fill_j < 0:
+            continue
+        tp = entry + s * tp_mult * a
+        sl = entry - s * sl_mult * a
+        if (s > 0 and low[fill_j] <= sl) or (s < 0 and high[fill_j] >= sl):
+            ret[e] = s * (sl / entry - 1.0) - mk - tk
+            bars[e] = fill_j - t
+            continue
+        exit_px = np.nan
+        fee = tk
+        j = fill_j + 1
+        end = min(fill_j + max_hold, m - 1)
+        while j <= end:
+            if s > 0:
+                if low[j] <= sl:
+                    exit_px = min(sl, open_[j])
+                    break
+                if high[j] > tp * (1 + through):
+                    exit_px = tp
+                    fee = mk
+                    break
+            else:
+                if high[j] >= sl:
+                    exit_px = max(sl, open_[j])
+                    break
+                if low[j] < tp * (1 - through):
+                    exit_px = tp
+                    fee = mk
+                    break
+            j += 1
+        if np.isnan(exit_px):
+            j = end
+            exit_px = close[end]
+        ret[e] = s * (exit_px / entry - 1.0) - mk - fee
+        bars[e] = j - t
+    return ret, bars
+
+
+@njit(cache=True)
+def luxalgo_breaks(high, low, close, atr, length, mult, touch_tol=0.25):
+    """Метод «Trendlines with Breaks» (идея — LuxAlgo, CC BY-NC-SA 4.0; здесь собственная реализация метода, не кода):
+    от каждой подтверждённой вершины (pivot high, подтверждение через length баров) линия опускается с наклоном
+    ATR(length)/length*mult за бар, от впадины — поднимается. Пробой — первое закрытие за линией после её построения.
+    Отличие от оригинала: до первой вершины линии нет (в оригинале upper=0 даёт ложные ранние сигналы).
+    Возвращает то же, что trend_breaks: event, feats (LINE_FEATS), текущие значения верхней и нижней линий."""
+    m = len(close)
+    event = np.zeros(m, np.int8)
+    feats = np.full((m, 6), np.nan)
+    up_line = np.full(m, np.nan)
+    lo_line = np.full(m, np.nan)
+    upper = np.nan
+    lower = np.nan
+    slope_ph = 0.0
+    slope_pl = 0.0
+    ph_bar, pl_bar = -1, -1
+    upos, dnos = 0, 0
+    up_touch, dn_touch, up_last, dn_last = 0, 0, -10, -10
+    for t in range(m):
+        c = t - length
+        ph = c >= length and _is_pivot(high, c, length, True)
+        pl = c >= length and _is_pivot(low, c, length, False)
+        slope = atr[t] / length * mult
+        if ph:
+            slope_ph = slope
+            upper = high[c]
+            ph_bar = c
+            upos = 0
+            up_touch, up_last = 0, -10
+        elif not np.isnan(upper):
+            upper -= slope_ph
+        if pl:
+            slope_pl = slope
+            lower = low[c]
+            pl_bar = c
+            dnos = 0
+            dn_touch, dn_last = 0, -10
+        elif not np.isnan(lower):
+            lower += slope_pl
+        a = atr[t]
+        up_ev = False
+        dn_ev = False
+        if not np.isnan(upper):
+            uv = upper - slope_ph * length            # значение линии на текущем баре
+            up_line[t] = uv
+            if not ph and upos == 0:
+                if close[t] > uv:
+                    upos = 1
+                    up_ev = True
+                elif a > 0 and high[t] >= uv - touch_tol * a and t - up_last > 2:
+                    up_touch += 1
+                    up_last = t
+        if not np.isnan(lower):
+            lv = lower + slope_pl * length
+            lo_line[t] = lv
+            if not pl and dnos == 0:
+                if close[t] < lv:
+                    dnos = 1
+                    dn_ev = True
+                elif a > 0 and low[t] <= lv + touch_tol * a and t - dn_last > 2:
+                    dn_touch += 1
+                    dn_last = t
+        if up_ev and not dn_ev and a > 0:
+            event[t] = 1
+            feats[t, 0] = -slope_ph / a
+            feats[t, 1] = length
+            feats[t, 2] = t - ph_bar
+            feats[t, 3] = up_touch
+            feats[t, 4] = (close[t] - up_line[t]) / a
+            feats[t, 5] = (high[ph_bar] - up_line[t]) / a
+        elif dn_ev and not up_ev and a > 0:
+            event[t] = -1
+            feats[t, 0] = slope_pl / a
+            feats[t, 1] = length
+            feats[t, 2] = t - pl_bar
+            feats[t, 3] = dn_touch
+            feats[t, 4] = (lo_line[t] - close[t]) / a
+            feats[t, 5] = (lo_line[t] - low[pl_bar]) / a
+    return event, feats, up_line, lo_line

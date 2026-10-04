@@ -15,17 +15,26 @@ import numpy as np
 import pandas as pd
 
 from ..wave2 import Data2
-from .lines import LINE_FEATS, trend_breaks, triple_barrier
+from .lines import LINE_FEATS, luxalgo_breaks, retest_barrier, trend_breaks, triple_barrier
 
 SCALES = (6, 12, 24)                 # полуширина фрактала в 5m-барах: 30 мин, 1 ч, 2 ч
+LUX_LENGTHS, LUX_MULT = (7, 14, 28), 1.0   # метод LuxAlgo: length (по умолчанию 14) и множитель наклона
 CONTEXT_SCALES = (72, 288)           # «старшие» линии: 6 ч и сутки — их положение относительно цены
 TP_MULT, SL_MULT, MAX_HOLD, COST_BPS = 2.0, 1.0, 48, 6.0
+RETEST_WAIT, MAKER_BPS, TAKER_BPS, THROUGH = 12, 2.0, 7.0, 1e-4     # ретест: заявка живёт 1 час
 
 
 def _atr(df: pd.DataFrame, n: int = 14) -> pd.Series:
     pc = df["close"].shift(1)
     tr = pd.concat([df["high"] - df["low"], (df["high"] - pc).abs(), (df["low"] - pc).abs()], axis=1).max(axis=1)
     return tr.rolling(n, min_periods=n).mean()
+
+
+def _atr_rma(df: pd.DataFrame, n: int) -> pd.Series:
+    """ATR по Уайлдеру (RMA), как ta.atr в Pine."""
+    pc = df["close"].shift(1)
+    tr = pd.concat([df["high"] - df["low"], (df["high"] - pc).abs(), (df["low"] - pc).abs()], axis=1).max(axis=1)
+    return tr.ewm(alpha=1.0 / n, adjust=False, min_periods=n).mean()
 
 
 def _zs(x: pd.Series, w: int) -> pd.Series:
@@ -85,7 +94,7 @@ SIGNED = ("ret1_z", "ret12_z", "ret48_z", "ret288_z", "tfi1", "tfi3", "tfi12", "
           "btc_ret1_z", "btc_ret12_z", "btc_ret48_z", "doi12_z", "doi48_z")
 
 
-def build_symbol(root: str, sym: str, start: str | None = None) -> pd.DataFrame:
+def build_symbol(root: str, sym: str, detector: str = "two_pivot") -> pd.DataFrame:
     data = Data2(Path(root), [sym, "BTCUSDT"] if sym != "BTCUSDT" else [sym])
     df = data.get(sym, "5m", "full").copy()
     btc = data.get("BTCUSDT", "5m", "full") if sym != "BTCUSDT" else df
@@ -93,13 +102,25 @@ def build_symbol(root: str, sym: str, start: str | None = None) -> pd.DataFrame:
     o, hh, ll, cc = (df[x].to_numpy(np.float64) for x in ("open", "high", "low", "close"))
     ctx = context(df, btc)
     parts = []
-    for n in SCALES:
-        ev, lf, _, _ = trend_breaks(hh, ll, cc, atr, n)
+    scales = SCALES if detector == "two_pivot" else LUX_LENGTHS
+    for n in scales:
+        if detector == "two_pivot":
+            ev, lf, _, _ = trend_breaks(hh, ll, cc, atr, n)
+        else:
+            ev, lf, _, _ = luxalgo_breaks(hh, ll, cc, _atr_rma(df, n).to_numpy(np.float64), n, LUX_MULT)
+            # признаки линии нормируем на общий ATR(14), как у второго детектора
+            r14 = _atr_rma(df, n).to_numpy(np.float64) / np.where(atr > 0, atr, np.nan)
+            lf[:, [0, 4, 5]] = lf[:, [0, 4, 5]] * r14[:, None]
         idx = np.flatnonzero(ev != 0)
         if len(idx) == 0:
             continue
         side = ev[idx].astype(np.int64)
         ret, bars = triple_barrier(idx, side, o, hh, ll, cc, atr, TP_MULT, SL_MULT, MAX_HOLD, COST_BPS)
+        # уровень и наклон пробитой линии на баре пробоя (из признаков линии)
+        lv = cc[idx] - side * lf[idx, 4] * atr[idx]            # уровень линии на баре пробоя
+        slope = lf[idx, 0] * atr[idx]
+        r_ret, r_bars = retest_barrier(idx, side, lv, slope, o, hh, ll, cc, atr, RETEST_WAIT, TP_MULT, SL_MULT,
+                                       MAX_HOLD, MAKER_BPS, TAKER_BPS, THROUGH)
         e = pd.DataFrame(lf[idx], columns=list(LINE_FEATS), index=df.index[idx])
         e["scale"] = n
         e["side"] = side
@@ -116,23 +137,25 @@ def build_symbol(root: str, sym: str, start: str | None = None) -> pd.DataFrame:
         e["pos24h"] = np.where(side > 0, e["pos24h"], 1 - e["pos24h"])
         e["ret"] = ret
         e["bars"] = bars
+        e["ret_retest"] = r_ret
+        e["bars_retest"] = r_bars
         e["bar_idx"] = idx
         parts.append(e)
     if not parts:
         return pd.DataFrame()
     out = pd.concat(parts).sort_index()
     out.insert(0, "symbol", sym)
-    f32 = [c for c in out.columns if c not in ("symbol", "ret")]
+    f32 = [c for c in out.columns if c not in ("symbol", "ret", "ret_retest")]
     out[f32] = out[f32].astype("float32")
     return out
 
 
 def _job(args):
-    root, sym, out = args
+    root, sym, out, detector = args
     p = Path(out) / f"{sym}.parquet"
     if p.exists():
         return sym, -1
-    e = build_symbol(root, sym)
+    e = build_symbol(root, sym, detector)
     if len(e):
         e.to_parquet(p)
     return sym, len(e)
@@ -145,9 +168,10 @@ if __name__ == "__main__":
     ap.add_argument("--out", required=True)
     ap.add_argument("--symbols", required=True)
     ap.add_argument("--workers", type=int, default=4)
+    ap.add_argument("--detector", default="two_pivot", choices=["two_pivot", "luxalgo"])
     a = ap.parse_args()
     Path(a.out).mkdir(parents=True, exist_ok=True)
     syms = [s for s in a.symbols.split(",") if (Path(a.root) / f"{s}-5m.parquet").exists()]
     with ProcessPoolExecutor(a.workers) as ex:
-        for sym, n in ex.map(_job, [(a.root, s, a.out) for s in syms]):
+        for sym, n in ex.map(_job, [(a.root, s, a.out, a.detector) for s in syms]):
             print(f"  {sym}: {n} событий", flush=True)
