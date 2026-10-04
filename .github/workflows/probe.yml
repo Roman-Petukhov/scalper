@@ -1,0 +1,26 @@
+name: probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      urls:
+        description: "URLs separated by spaces; first 1500 bytes of each response go to the job log"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fetch
+        env:
+          URLS: ${{ inputs.urls }}
+        run: |
+          for u in $URLS; do
+            echo "===== $u"
+            curl -sS -m 30 -A "Mozilla/5.0" -H "Accept: application/json" "$u" | head -c 1500 || echo "FAILED"
+            echo
+          done
