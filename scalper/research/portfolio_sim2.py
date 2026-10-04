@@ -5,8 +5,12 @@
 Стратегии и размер позиции (доля ТЕКУЩЕГО капитала; режимы «умеренный» / «агрессивный»):
     oi_liq   лесенка 5 лимитов (research.export_trades: доходность на номинал сигнала, удержание 4 ч после бара);
              номинал 0.3 / 0.6 капитала, не меньше $25, не больше 3 / 5 позиций одновременно
-    spikes   лимит на прострел 6σ (лонг, сделки Bybit; выборка 25 монет — частота занижена/смещена, см. отчёт);
-             номинал 0.05 / 0.10 капитала (не меньше $5), в лимитках держим 1 / 3 капитала
+    spikes   лимит на прострел 6σ (лонг, сделки Bybit; выборка 25 монет — частота занижена/смещена, см. отчёт)
+             или, с --spikes-full, весь рынок (research.spikes_full, только монеты Bybit); номинал 0.05 / 0.10
+             капитала (не меньше $5), в лимитках держим 1 / 3 капитала номинала. Лимитки стоят заранее, поэтому
+             исполняются все (их не отменить в обвал) и не проверяются лимитом плеча; остальным стратегиям
+             достаётся lev_cap минус резерв под лимитки. Монеты под лимитками — с наибольшим числом прострелов за
+             прошлые 90 дней (весь рынок) или фиксированная случайная очередь (выборка 25 монет).
     coil     риск 1% / 2% капитала на сделку (номинал = риск / (1.5 ATR / цена)), до 10 дней
     announce шорт после Monitoring Tag (вход через 5 мин, 24 ч) и после делистинга (вход через 5 мин, 4 ч) — только
              события, где монета была на Bybit, результат по ценам Bybit с funding; номинал 0.3 / 0.6 капитала
@@ -16,7 +20,8 @@
 Монте-Карло: 12 случайных месяцев истории (с возвращением) × N путей.
 
     python -m research.portfolio_sim2 --oi oi_liq_trades.csv --spikes spikes_bybit_trades.csv \\
-        --coil coil_trades.csv --announce announce_trades.csv
+        --coil coil_trades.csv --announce announce_trades.csv [--unlock unlock_trades.csv]
+        [--spikes-full spikes_full_trades.csv --spikes-cfg "6σ прокол 0.2%"] [--start 2025-07-01] [--drop-day 2025-10-10]
 """
 from __future__ import annotations
 
@@ -51,16 +56,35 @@ MODES = [Mode("умеренный", 0.3, 3, 0.05, 1.0, 0.01, 0.3, 0.1, 2.0),
          Mode("агрессивный", 0.6, 5, 0.10, 3.0, 0.02, 0.6, 0.2, 5.0)]
 
 
+def watch_rank(sp: pd.DataFrame) -> np.ndarray:
+    """Место монеты в очереди под лимитки на момент сделки: по числу прострелов за прошлые 90 дней (до начала месяца)."""
+    month = sp["t"].dt.tz_localize(None).dt.to_period("M").dt.start_time.dt.tz_localize("UTC")
+    rank = np.empty(len(sp))
+    for m0, idx in sp.groupby(month).groups.items():
+        past = sp[(sp["t"] < m0) & (sp["t"] >= m0 - pd.Timedelta(days=90))]["symbol"].value_counts()
+        order = {s: i for i, s in enumerate(past.index)}
+        rank[sp.index.get_indexer(idx)] = [order.get(s, np.inf) for s in sp.loc[idx, "symbol"]]
+    return rank
+
+
 def load_events(a: argparse.Namespace) -> pd.DataFrame:
     oi = pd.read_csv(a.oi)
     oi["t"] = pd.to_datetime(oi["t"], utc=True, format="ISO8601")
     e_oi = pd.DataFrame({"t": oi["t"] + pd.Timedelta(hours=1), "end": oi["t"] + pd.Timedelta(hours=5),
                          "symbol": oi["symbol"], "r": oi["L5x0.5"], "risk": np.nan, "kind": "oi_liq"})
-    sp = pd.read_csv(a.spikes)
-    sp = sp[(sp["m"] == 6.0) & sp["t"].notna()]
-    sp["t"] = pd.to_datetime(sp["t"], utc=True, format="ISO8601")
+    if getattr(a, "spikes_full", ""):
+        sp = pd.read_csv(a.spikes_full)
+        sp = sp[(sp["cfg"] == a.spikes_cfg) & sp["bybit"].astype(bool)].reset_index(drop=True)
+        sp["t"] = pd.to_datetime(sp["t"], utc=True, format="ISO8601")
+        rank = watch_rank(sp)
+    else:
+        sp = pd.read_csv(a.spikes)
+        sp = sp[(sp["m"] == 6.0) & sp["t"].notna()].reset_index(drop=True)
+        sp["t"] = pd.to_datetime(sp["t"], utc=True, format="ISO8601")
+        queue = list(pd.Series(sp["symbol"].unique()).sample(frac=1.0, random_state=1))
+        rank = sp["symbol"].map({s: i for i, s in enumerate(queue)}).to_numpy(dtype=float)
     e_sp = pd.DataFrame({"t": sp["t"], "end": sp["t"] + pd.Timedelta(minutes=60), "symbol": sp["symbol"],
-                         "r": sp["r"], "risk": np.nan, "kind": "spikes"})
+                         "r": sp["r"], "risk": np.nan, "kind": "spikes", "wrank": rank})
     co = pd.read_csv(a.coil)
     co["t"] = pd.to_datetime(co["t"], utc=True, format="ISO8601")
     e_co = pd.DataFrame({"t": co["t"] + pd.Timedelta(hours=4), "end": co["t"] + pd.Timedelta(hours=4) * (co["bars"] + 1),
@@ -84,7 +108,10 @@ def load_events(a: argparse.Namespace) -> pd.DataFrame:
     ev = pd.concat(parts, ignore_index=True)
     ev["t"] = pd.to_datetime(ev["t"], utc=True)
     ev["end"] = pd.to_datetime(ev["end"], utc=True)
-    return ev[(ev["t"] >= START) & (ev["t"] < END)].sort_values("t").reset_index(drop=True)
+    ev = ev[(ev["t"] >= (getattr(a, "start", "") or START)) & (ev["t"] < END)]
+    if getattr(a, "drop_day", ""):
+        ev = ev[ev["t"].dt.strftime("%Y-%m-%d") != a.drop_day]
+    return ev.sort_values("t").reset_index(drop=True)
 
 
 def haircut(ev: pd.DataFrame) -> pd.DataFrame:
@@ -94,12 +121,14 @@ def haircut(ev: pd.DataFrame) -> pd.DataFrame:
     return ev
 
 
-def simulate(ev: pd.DataFrame, mode: Mode, coins: list[str]) -> tuple[pd.Series, bool, int]:
+def simulate(ev: pd.DataFrame, mode: Mode) -> tuple[pd.Series, bool, int]:
     """Капитал на конец месяцев, флаг разорения, число исполненных сделок."""
     eq = CAPITAL
     pos: list[tuple] = []                     # (конец, номинал, pnl при закрытии, вид, монета)
-    month_eq, cur, watched, done = {}, None, set(), 0
+    month_eq, cur, n_watch, done = {}, None, 0, 0
     T, E, S, R, K, RK = (ev[c].to_numpy() for c in ("t", "end", "symbol", "r", "risk", "kind"))
+    W = ev["wrank"].to_numpy() if "wrank" in ev else np.full(len(ev), np.inf)
+    reserve = mode.sp_reserve if (RK == "spikes").any() else 0.0
     for i in range(len(ev)):
         t = T[i]
         keep = []
@@ -114,24 +143,24 @@ def simulate(ev: pd.DataFrame, mode: Mode, coins: list[str]) -> tuple[pd.Series,
             if cur is not None:
                 month_eq[cur] = eq
             cur = m
-            order = max(MIN_ORDER, mode.sp_frac * eq)
-            watched = set(coins[: int(mode.sp_reserve * eq // order)])
+            n_watch = int(mode.sp_reserve * eq // max(MIN_ORDER, mode.sp_frac * eq))
         if eq < RUIN:
             month_eq[cur] = eq
             return pd.Series(month_eq), True, done
-        used = sum(p[1] for p in pos)
         kind, sym = RK[i], S[i]
         if any(p[4] == sym and p[3] == kind for p in pos):
+            continue
+        if kind == "spikes":                  # лимитка стояла заранее: исполняется всегда, маржа зарезервирована
+            if not W[i] < n_watch:
+                continue
+            notional = max(MIN_ORDER, mode.sp_frac * eq)
+            pos.append((E[i], notional, notional * R[i], kind, sym))
+            done += 1
             continue
         if kind == "oi_liq":
             if sum(p[3] == "oi_liq" for p in pos) >= mode.oi_max:
                 continue
             notional = max(5 * MIN_ORDER, mode.oi_frac * eq)
-            pnl = notional * R[i]
-        elif kind == "spikes":
-            if sym not in watched:
-                continue
-            notional = max(MIN_ORDER, mode.sp_frac * eq)
             pnl = notional * R[i]
         elif kind == "coil":
             risk_usd = mode.coil_risk * eq
@@ -143,7 +172,8 @@ def simulate(ev: pd.DataFrame, mode: Mode, coins: list[str]) -> tuple[pd.Series,
         else:
             notional = max(MIN_ORDER, mode.ann_frac * eq)
             pnl = notional * R[i]
-        if used + notional > mode.lev_cap * eq:
+        used = sum(p[1] for p in pos if p[3] != "spikes")
+        if used + notional > (mode.lev_cap - reserve) * eq:
             continue
         pos.append((E[i], notional, pnl, kind, sym))
         done += 1
@@ -152,8 +182,8 @@ def simulate(ev: pd.DataFrame, mode: Mode, coins: list[str]) -> tuple[pd.Series,
     return pd.Series(month_eq), eq < RUIN, done
 
 
-def history(ev: pd.DataFrame, mode: Mode, coins: list[str]) -> dict:
-    s, ruined, n = simulate(ev, mode, coins)
+def history(ev: pd.DataFrame, mode: Mode) -> dict:
+    s, ruined, n = simulate(ev, mode)
     eq = pd.concat([pd.Series({"start": CAPITAL}), s])
     mret = eq.pct_change().dropna()
     months = len(mret)
@@ -163,7 +193,7 @@ def history(ev: pd.DataFrame, mode: Mode, coins: list[str]) -> dict:
             "разорён": ruined}
 
 
-def monte_carlo(ev: pd.DataFrame, mode: Mode, coins: list[str], paths: int, seed: int) -> dict:
+def monte_carlo(ev: pd.DataFrame, mode: Mode, paths: int, seed: int) -> dict:
     rng = np.random.default_rng(seed)
     ev = ev.assign(month=ev["t"].dt.tz_localize(None).dt.to_period("M"))
     months = sorted(ev["month"].unique())
@@ -176,7 +206,7 @@ def monte_carlo(ev: pd.DataFrame, mode: Mode, coins: list[str], paths: int, seed
             g = groups[months[k]]
             shift = base + pd.DateOffset(months=j) - months[k].start_time.tz_localize("UTC")
             parts.append(g.assign(t=g["t"] + shift, end=g["end"] + shift))
-        s, ruined, _ = simulate(pd.concat(parts, ignore_index=True).sort_values("t"), mode, coins)
+        s, ruined, _ = simulate(pd.concat(parts, ignore_index=True).sort_values("t"), mode)
         eq = pd.concat([pd.Series({"start": CAPITAL}), s])
         finals.append(eq.iloc[-1] / CAPITAL)
         dd50 += (eq / eq.cummax() - 1).min() <= -0.5
@@ -195,11 +225,15 @@ if __name__ == "__main__":
     for k in ("oi", "spikes", "coil", "announce"):
         ap.add_argument(f"--{k}", required=True)
     ap.add_argument("--unlock", default="")
+    ap.add_argument("--spikes-full", default="")
+    ap.add_argument("--spikes-cfg", default="6σ прокол 0.2%")
+    ap.add_argument("--start", default="")
+    ap.add_argument("--drop-day", default="")
     ap.add_argument("--paths", type=int, default=300)
     a = ap.parse_args()
     ev_all = load_events(a)
-    coins = list(pd.Series(ev_all.loc[ev_all.kind == "spikes", "symbol"].unique()).sample(frac=1.0, random_state=1))
-    print(f"сделок 2023-01…2026-09: " + ", ".join(f"{k} {v}" for k, v in ev_all["kind"].value_counts().items()))
+    n_months = ev_all["t"].dt.tz_localize(None).dt.to_period("M").nunique()
+    print(f"сделок {ev_all['t'].min():%Y-%m}…{ev_all['t'].max():%Y-%m} ({n_months} мес.): " + ", ".join(f"{k} {v}" for k, v in ev_all["kind"].value_counts().items()))
     for k, g in ev_all.groupby("kind"):
         x = g["r"] * (g["risk"] if k == "coil" else 1.0)
         print(f"  {k}: средняя сделка {x.mean():+.2%} номинала" + (" (R x риск)" if k == "coil" else "") +
@@ -213,9 +247,9 @@ if __name__ == "__main__":
             hist, mc = [], []
             for name, kinds in sets.items():
                 sub = ev[ev["kind"].isin(kinds)]
-                hist.append({"стратегия": name, **history(sub, mode, coins)})
-                mc.append({"стратегия": name, **monte_carlo(sub, mode, coins, a.paths, 7)})
-            print(f"\n--- режим «{mode.name}»: история 45 месяцев ---")
+                hist.append({"стратегия": name, **history(sub, mode)})
+                mc.append({"стратегия": name, **monte_carlo(sub, mode, a.paths, 7)})
+            print(f"\n--- режим «{mode.name}»: история {n_months} месяцев ---")
             print(pd.DataFrame(hist).to_string(index=False))
             print(f"--- режим «{mode.name}»: Монте-Карло, 12 случайных месяцев × {a.paths} ---")
             print(pd.DataFrame(mc).to_string(index=False))
