@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"prepall moonshake"}
+TASKS=${TASKS:-"prepall precursors"}
 MODE=${1:-collect}
 FILTER="Pandas4Warning\|pd.concat\|файлов$\|мес. свечей"
 

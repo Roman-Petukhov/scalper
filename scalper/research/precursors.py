@@ -90,31 +90,44 @@ def book_day(sym: str, day: str, cache: Path) -> pd.DataFrame | None:
 
 
 def flow_day(sym: str, day: str, rel_big: float, cache: Path) -> pd.DataFrame | None:
-    """Часовые суммы: рыночные покупки / продажи ($), число сделок, крупные покупки / продажи по порогам."""
+    """Часовые суммы: рыночные покупки / продажи ($), число сделок, крупные покупки / продажи по порогам.
+    Архив читается потоком по кускам: в дни пампов файл сделок может весить гигабайты."""
     out = cache / f"{sym}-flow-{day}.parquet"
     if out.exists():
         return pd.read_parquet(out)
     if out.with_suffix(".missing").exists():
         return None
-    df = _zip_csv(f"{D.DAILY}/aggTrades/{sym}/{sym}-aggTrades-{day}.zip")
-    if df is None or df.shape[1] < 7:
+    try:
+        blob = D._get(f"{D.DAILY}/aggTrades/{sym}/{sym}-aggTrades-{day}.zip", strict=True)
+    except D.NotFound:
         out.with_suffix(".missing").touch()
         return None
-    px = pd.to_numeric(df.iloc[:, 1], errors="coerce").to_numpy()
-    qty = pd.to_numeric(df.iloc[:, 2], errors="coerce").to_numpy()
-    ts = pd.to_numeric(df.iloc[:, 5], errors="coerce").to_numpy(dtype="float64")
-    ts = np.where(ts > 1e14, ts / 1000, ts)                    # микросекунды в новых архивах
-    maker = df.iloc[:, 6].astype(str).str.lower().isin(["true", "1"]).to_numpy()
-    notional = px * qty
-    hour = pd.to_datetime(ts, unit="ms", utc=True).floor("h")
-    buy = np.where(~maker, notional, 0.0)
-    sell = np.where(maker, notional, 0.0)
-    cols = {"buy": buy, "sell": sell, "cnt": np.ones(len(notional))}
-    for lim, nm in ((BIG[0], "10"), (BIG[1], "50"), (rel_big, "r")):
-        big = notional >= lim
-        cols[f"bb{nm}"] = np.where(big, buy, 0.0)
-        cols[f"bs{nm}"] = np.where(big, sell, 0.0)
-    agg = pd.DataFrame(cols, index=hour).groupby(level=0).sum()
+    if blob is None:
+        return None
+    parts = []
+    with zipfile.ZipFile(io.BytesIO(blob)) as z, z.open(z.namelist()[0]) as fh:
+        header = not fh.peek(1)[:1].isdigit()
+        for ch in pd.read_csv(fh, header=0 if header else None, usecols=[1, 2, 5, 6], chunksize=1_000_000):
+            ch.columns = ["price", "qty", "ts", "maker"]
+            px = pd.to_numeric(ch["price"], errors="coerce").to_numpy()
+            notional = px * pd.to_numeric(ch["qty"], errors="coerce").to_numpy()
+            ts = pd.to_numeric(ch["ts"], errors="coerce").to_numpy(dtype="float64")
+            ts = np.where(ts > 1e14, ts / 1000, ts)            # микросекунды в новых архивах
+            maker = ch["maker"].astype(str).str.lower().isin(["true", "1"]).to_numpy()
+            buy = np.where(~maker, notional, 0.0)
+            sell = np.where(maker, notional, 0.0)
+            cols = {"buy": buy, "sell": sell, "cnt": np.ones(len(notional))}
+            for lim, nm in ((BIG[0], "10"), (BIG[1], "50"), (rel_big, "r")):
+                big = notional >= lim
+                cols[f"bb{nm}"] = np.where(big, buy, 0.0)
+                cols[f"bs{nm}"] = np.where(big, sell, 0.0)
+            hour = pd.to_datetime(ts, unit="ms", utc=True).floor("h")
+            parts.append(pd.DataFrame(cols, index=hour).groupby(level=0).sum())
+    del blob
+    if not parts:
+        out.with_suffix(".missing").touch()
+        return None
+    agg = pd.concat(parts).groupby(level=0).sum()
     agg.to_parquet(out)
     return agg
 
@@ -252,7 +265,7 @@ def collect(root: Path, syms: list[str]) -> None:
             return job, None
 
     got = {}
-    with ThreadPoolExecutor(16) as ex:
+    with ThreadPoolExecutor(6) as ex:
         for job, df in ex.map(run, sorted(jobs)):
             got[job] = df
     print(f"  файлов: стакан {sum(1 for j in got if j[0] == 'book' and got[j] is not None)} из "
