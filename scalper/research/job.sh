@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"prepall unlocks2"}
+TASKS=${TASKS:-"prepall spikesfull"}
 MODE=${1:-collect}
 FILTER="Pandas4Warning\|pd.concat\|файлов$\|мес. свечей"
 
@@ -68,6 +68,12 @@ unlocks2_collect() { python -m research.unlocks2 collect --symbols "$(cat /tmp/s
 unlocks2_report() {
   echo "===== UNLOCKS2: устойчивость шорта перед разлоком ====="
   python -m research.unlocks2 report
+}
+
+spikesfull_collect() { python -m research.spikes_full collect --symbols "$(cat /tmp/syms_1h-all.txt)"; }
+spikesfull_report() {
+  echo "===== SPIKES FULL: прострелы по всему рынку и счёт \$100 ====="
+  python -m research.spikes_full report
 }
 
 case "$MODE" in
