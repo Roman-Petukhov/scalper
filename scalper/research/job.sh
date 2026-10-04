@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Задание для GitHub Actions (.github/workflows/research.yml); запускается из папки scalper/.
 set -euo pipefail
-echo "===== SWEEP FILTER: oi_liq только после выноса уровня (725 монет Binance; правило зафиксировано на 16 монетах Bybit) ====="
+echo "===== LADDER EXAM: oi_liq, лесенка лимитов против рыночного входа (725 монет Binance; основной вариант L5x0.5 зафиксирован по IS/VAL Bybit) ====="
 python - <<'PY'
 import json, pathlib
 import research.data as D
@@ -12,4 +12,4 @@ print(len(q), "монет", flush=True)
 D.build(q, "1h", "2022-01", "2026-09", pathlib.Path.home() / "bn", 64, metrics=True)
 PY
 SYMS=$(python -c 'import json; print(",".join(json.load(open("research/symbols_qualified.json"))))')
-python -m research.sweepfilter --root ~/bn --symbols "$SYMS" --exam 2>&1 | grep -v "Pandas4Warning\|pd.concat"
+python -m research.ladder_exam --root ~/bn --symbols "$SYMS" 2>&1 | grep -v "Pandas4Warning\|pd.concat"
