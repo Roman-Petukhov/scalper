@@ -36,3 +36,16 @@ def test_unlock_short_with_funding_and_btc():
     assert np.isclose(m["short7"], (0.1 - 12e-4) * 1e4)
     assert np.isclose(m["short7_f"], (0.1 - 12e-4 + 0.008) * 1e4)
     assert np.isclose(m["pre7"], -1000)
+
+
+def test_unlock_grid_short_and_btc_hedge():
+    from research.unlocks2 import grid
+    days = pd.date_range("2024-01-01", periods=60, freq="1D", tz="UTC")
+    c = pd.Series(100.0, index=days)
+    c[days >= "2024-02-03"] = 90.0
+    btc = pd.Series(100.0, index=days)
+    btc[days >= "2024-02-03"] = 95.0
+    fund = pd.Series(0.0, index=days)
+    g = grid(c, btc, fund, pd.Timestamp("2024-02-05", tz="UTC"))
+    assert np.isclose(g["s7_1"], (0.1 - 12e-4) * 1e4)
+    assert np.isclose(g["h7_1"], (0.1 - 12e-4 - 0.05 - 12e-4) * 1e4)

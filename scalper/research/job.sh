@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"prepall upbit"}
+TASKS=${TASKS:-"prepall unlocks2"}
 MODE=${1:-collect}
 FILTER="Pandas4Warning\|pd.concat\|файлов$\|мес. свечей"
 
@@ -62,6 +62,12 @@ upbit_collect() { python -m research.upbit collect --symbols "$(cat /tmp/syms_1h
 upbit_report() {
   echo "===== UPBIT: листинги на Upbit и перпетуал Binance ====="
   python -m research.upbit report
+}
+
+unlocks2_collect() { python -m research.unlocks2 collect --symbols "$(cat /tmp/syms_1h-all.txt)"; }
+unlocks2_report() {
+  echo "===== UNLOCKS2: устойчивость шорта перед разлоком ====="
+  python -m research.unlocks2 report
 }
 
 case "$MODE" in
