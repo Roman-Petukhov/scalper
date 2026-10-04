@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"prep listings2 trail mom"}
+TASKS=${TASKS:-"prep listings2 export"}
 MODE=${1:-collect}
 FILTER="Pandas4Warning\|pd.concat\|файлов$\|мес. свечей"
 
@@ -22,7 +22,7 @@ lux_report() {
   python -m research.lux_rr report
 }
 
-prep_collect() { python -m research.prepare 1h-qualified 15m-core70 1h-all; }
+prep_collect() { python -m research.prepare 1h-qualified 1h-all; }
 prep_report() { :; }
 listings2_collect() { python -m research.listings2 collect --symbols "$(cat /tmp/syms_1h-all.txt)"; }
 listings2_report() {
@@ -41,6 +41,9 @@ mom_report() {
   echo "===== MOMENTUM: межмонетный (неделя) и по времени (CTA, день) ====="
   python -m research.momentum report
 }
+
+export_collect() { python -m research.export_more collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
+export_report() { python -m research.export_more report; }
 
 case "$MODE" in
   collect|report) ;;
