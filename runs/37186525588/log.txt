@@ -1,0 +1,97 @@
+===== PROBE: источники объявлений и новостей =====
+--- https://www.binance.com/bapi/composite/v1/public/cms/article/list/query?type=1&catalogId=48&pageNo=1&pageSize=3
+{"code":"000000","message":null,"messageDetail":null,"data":{"catalogs":[{"catalogId":48,"parentCatalogId":null,"icon":"https://public.bnbstatic.com/image/cms/content/body/202505/d3201bf0be35bb246b65a767221410e0.png","catalogName":"New Cryptocurrency Listing","description":null,"catalogType":1,"total":2276,"articles":[{"id":286040,"code":"6bd26adeb6f742fe88eb72faca183566","title":"Binance Futures Will Launch USDⓈ-Margined CTUSDT Perpetual Contract (2026-10-01)","type":1,"releaseDate":1790836201040},{"id":285916,"code":"1a94597986cf476f939609c02b87ee79","title":"Binance Will Add 7 bStocks Tokenized Securities as Collateral Asset - 2026-09-30","type":1,"releaseDate":1790739001555},{"id":285915,"code":"172e44302d6143578e40acc48570a2e5","title":"Binance Exchange Adds Adobe (ADBEB), Forward Industries (FWDIB), Hewlett Packard (HPEB), PDD Holdings (PDDB), SharonAI (SHAZB), Wendy's (WENB) and Zoom (ZMB) bStocks Trading Pairs on Binance Spot/Convert - 2026-09-30","type":1,"releaseDate":1790737204692},{"id":285781,"code":"0c6ea14ba89b451db6ec9ec364045d22","title":"Binance Futures Will Launch Multiple TradFi USDⓈ-Margined Perpetual Contracts (2026-09-29)","type":1,"releaseDate":179065710
+--- https://www.binance.com/bapi/composite/v1/public/cms/article/list/query?type=1&catalogId=161&pageNo=1&pageSize=3
+{"code":"000000","message":null,"messageDetail":null,"data":{"catalogs":[{"catalogId":161,"parentCatalogId":null,"icon":"https://public.bnbstatic.com/image/cms/content/body/202505/a6322b2e7d81faf3f65a6d14c372995e.png","catalogName":"Delisting","description":null,"catalogType":1,"total":439,"articles":[{"id":286016,"code":"2f1a743334f044abbd82e34093c7b771","title":"Binance Futures Will Delist Multiple USDⓈ-M Perpetual Contracts (2026-10-05)","type":1,"releaseDate":1790822713435},{"id":285827,"code":"63415de54a164619aaaf245850349654","title":"Notice of Removal of Spot Trading Pairs - 2026-10-02","type":1,"releaseDate":1790673300000},{"id":285823,"code":"55310e70fc4b4d7c9fc4aa133700a958","title":"Binance Margin And Loans Token Delist on 2026-10-02","type":1,"releaseDate":1790668801341},{"id":285338,"code":"7d17add1ffe6416391f65a001734e1c7","title":"Binance Will Close UAH Deposits and Withdrawals via Fiat Trade UAH and Delist USDT/UAH Spot Trading Pair","type":1,"releaseDate":1790146800000},{"id":285188,"code":"262bbb7dcdc243b09e854742e57e1e8e","title":"Notice of Removal of Margin Trading Pairs - 2026-09-25","type":1,"releaseDate":1790064001264},{"id":285157,"code":"545ca5ad28254999b
+--- https://api-manager.upbit.com/api/v1/announcements?os=web&page=1&per_page=3&category=trade
+<!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!--<![endif]-->
+<head>
+<title>Attention Required! | Cloudflare</title>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+<meta name="robots" content="noindex, nofollow" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<link rel="stylesheet" id="cf_styles-css" href="/cdn-cgi/styles/cf.errors.css" />
+<!--[if lt IE 9]><link rel="stylesheet" id='cf_styles-ie-css' href="/cdn-cgi/styles/cf.errors.ie.css" /><![endif]-->
+<style>body{margin:0;padding:0}</style>
+
+
+<!--[if gte IE 10]><!-->
+<script>
+  if (!navigator.cookieEnabled) {
+    window.addEventListener('DOMContentLoaded', function () {
+      var cookieEl = document.getElementById('cookie-alert');
+      cookieEl.style.display = 'block';
+    })
+  }
+</script>
+<!--<![endif]-->
+
+</head>
+<body>
+  <div id="cf-wrapper">
+    <di
+--- https://api-manager.upbit.com/api/v1/announcements?os=web&page=300&per_page=3&category=trade
+<!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!--<![endif]-->
+<head>
+<title>Attention Required! | Cloudflare</title>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+<meta name="robots" content="noindex, nofollow" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<link rel="stylesheet" id="cf_styles-css" href="/cdn-cgi/styles/cf.errors.css" />
+<!--[if lt IE 9]><link rel="stylesheet" id='cf_styles-ie-css' href="/cdn-cgi/styles/cf.errors.ie.css" /><![endif]-->
+<style>body{margin:0;padding:0}</style>
+
+
+<!--[if gte IE 10]><!-->
+<script>
+  if (!navigator.cookieEnabled) {
+    window.addEventListener('DOMContentLoaded', function () {
+      var cookieEl = document.getElementById('cookie-alert');
+      cookieEl.style.display = 'block';
+    })
+  }
+</script>
+<!--<![endif]-->
+
+</head>
+<body>
+  <div id="cf-wrapper">
+    <di
+--- https://api.bybit.com/v5/announcements/index?locale=en-US&limit=3
+{
+    error:The Amazon CloudFront distribution is configured to block access from your country
+}
+HTTP 403
+
+--- https://api.gdeltproject.org/api/v2/doc/doc?query=%22will%20list%22%20binance&mode=artlist&format=json&maxrecords=3&startdatetime=20240101000000&enddatetime=20240201000000
+Please limit requests to one every 5 seconds or contact kalev.leetaru5@gmail.com for larger queries. All high-traffic users should switch to our ngrams dataset: https://blog.gdeltproject.org/using-the-new-web-ngrams-dataset-to-find-relevant-coverage/. For trend analysis, please see our daily newsletter briefings: https://blog.gdeltproject.org/announcing-our-new-daily-todays-trends-on-capitol-hill-todays-media-trends-newsletter-briefings/.
+
+
+HTTP 429
+
+--- https://www.okx.com/api/v5/support/announcements?annType=announcements-new-listings&page=1
+{"code":"0","msg":"","data":[{"details":[{"annType":"announcements-new-listings","title":"OKX will launch GRVT/USD for spot trading","url":"https://www.okx.com/en-us/help/okx-will-launch-grvt-usd-for-spot-trading","pTime":"1785380409238","businessPTime":"1785380400000"},{"annType":"announcements-new-listings","title":"OKX will launch AEON/USD for spot trading","url":"https://www.okx.com/en-us/help/okx-will-launch-aeon-usd-for-spot-trading","pTime":"1785121210459","businessPTime":"1785121200000"},{"annType":"announcements-new-listings","title":"OKX will launch CARDS/USD for spot trading","url":"https://www.okx.com/en-us/help/okx-will-launch-cards-usd-for-spot-trading","pTime":"1782352809690","businessPTime":"1782352800000"},{"annType":"announcements-new-listings","title":"OKX to list CARDS/USDT (Collector Crypt) for spot trading","url":"https://www.okx.com/en-us/help/okx-to-list-cards-usdt-collector-crypt-for-spot-trading","pTime":"1782352806026","businessPTime":"1782352800000"},{"annType":"announcements-new-listings","title":"OKX will launch RE/USD for spot trading","url":"https://www.okx.com/en-us/help/okx-will-launch-re-usd-for-spot-trading","pTime":"1781748010357","businessPTime
+--- https://api.coinbase.com/api/v3/brokerage/market/products?limit=1
+{"products":[{"product_id":"BTC-USD","price":"84947.21","price_percentage_change_24h":"0.41158874081387","volume_24h":"1863.51036338","volume_percentage_change_24h":"-73.39912808879318","base_increment":"0.00000001","quote_increment":"0.01","quote_min_size":"1","quote_max_size":"150000000","base_min_size":"0.00000001","base_max_size":"3400","base_name":"Bitcoin","quote_name":"US Dollar","watched":false,"is_disabled":false,"new":false,"status":"online","cancel_only":false,"limit_only":false,"post_only":false,"trading_disabled":false,"auction_mode":false,"product_type":"SPOT","quote_currency_id":"USD","base_currency_id":"BTC","fcm_trading_session_details":null,"mid_market_price":"","alias":"","alias_to":["BTC-USDC"],"base_display_symbol":"BTC","quote_display_symbol":"USD","view_only":false,"price_increment":"0.01","display_name":"BTC-USD","product_venue":"CBE","approximate_quote_24h_volume":"158300006.18","new_at":"2023-01-01T00:00:00Z","market_cap":"","base_cbrn":"","quote_cbrn":"","product_cbrn":"","icon_color":"","icon_url":"","display_name_overwrite":"","is_alpha_testing":false,"about_description":"","best_bid_price":"","best_ask_price":"","high_24h":"85064.7","low_24h":"84528.01
+--- https://api.bithumb.com/v1/notices
+<html>
+<head><title>302 Found</title></head>
+<body>
+<center><h1>302 Found</h1></center>
+</body>
+</html>
+
+HTTP 302
+
