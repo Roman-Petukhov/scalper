@@ -1,11 +1,12 @@
 """
 Частота oi_liq: более мягкие пороги каскада + фильтр выноса уровня (725 монет Binance, 1h, оборот >= $20 млн/день).
 
-Сетка: окно каскада k = 4/6/12 ч × порог z = 1.5/2.0/2.5 (цена и OI), выход через 4 ч. Вынос уровня — как в
+Сетка: окно каскада k = 1/2/4/6/12 ч (1–2 ч — часовой масштаб) × порог z = 1.5/2.0/2.5 (цена и OI) × выход через
+1/2/4 ч. Вынос уровня — как в
 research.sweepfilter (последняя подтверждённая впадина/вершина n=10), но известная до начала каскада: за k часов
 до входа, проверка выноса — за эти k часов. Сделка берётся только при выносе.
 Выбор — ТОЛЬКО по IS (все монеты): наибольшая t-статистика среди вариантов, дающих сделок в день не меньше
-двойной базовой (k=12, z=2.5). VAL и HOLDOUT печатаются для всех вариантов, вердикт — по выбранному.
+двойной базовой (k=12, z=2.5, 4 ч). VAL и HOLDOUT печатаются для всех вариантов, вердикт — по выбранному.
 Издержки 12 б.п. на круг. Плюс распределение числа сделок по дням и Sharpe дневного портфеля (2% на сделку).
 
     python -m research.oi_variants --root <binance 1h data with metrics> --symbols ...
@@ -27,10 +28,10 @@ from .levels import sr_levels
 from .sweepfilter import PER
 from .wave2 import Data2, oi_price
 
-KS = (4, 6, 12)
+KS = (1, 2, 4, 6, 12)
 THRS = (1.5, 2.0, 2.5)
-HOLD = 4
-BASE = (12, 2.5)
+HOLDS = (1, 2, 4)
+BASE = (12, 2.5, 4)
 COST_RT = 12e-4
 
 
@@ -49,19 +50,19 @@ def collect(root: Path, syms: list[str]) -> pd.DataFrame:
         hi, lo, c = h["high"].to_numpy(), h["low"].to_numpy(), h["close"].to_numpy()
         res, sup = sr_levels(hi, lo, 10)
         g = group_of(s)
-        for k, thr in itertools.product(KS, THRS):
-            pos, _ = oi_price(h, k=k, thr=thr, hold=HOLD, mode="liq", sign=1)
+        for k, thr, hold in itertools.product(KS, THRS, HOLDS):
+            pos, _ = oi_price(h, k=k, thr=thr, hold=hold, mode="liq", sign=1)
             pos = np.where(allowed, np.asarray(pos, float), 0.0)
             prev = np.concatenate([[0.0], pos[:-1]])
             for e in np.flatnonzero((pos != 0) & (prev == 0)):
-                if e + HOLD >= len(c) or e < k:
+                if e + hold >= len(c) or e < k:
                     continue
                 dirn = pos[e]
                 lvl = sup[e - k] if dirn > 0 else res[e - k]
                 w = slice(e - k + 1, e + 1)
                 swept = (not np.isnan(lvl)) and ((lo[w].min() < lvl) if dirn > 0 else (hi[w].max() > lvl))
-                rows.append({"k": k, "thr": thr, "symbol": s, "group": g, "t": h.index[e], "sweep": bool(swept),
-                             "r": dirn * (c[e + HOLD] / c[e] - 1) - COST_RT})
+                rows.append({"k": k, "thr": thr, "hold": hold, "symbol": s, "group": g, "t": h.index[e],
+                             "sweep": bool(swept), "r": dirn * (c[e + hold] / c[e] - 1) - COST_RT})
     return pd.DataFrame(rows)
 
 
@@ -93,8 +94,8 @@ if __name__ == "__main__":
     days = {p: (pd.Timestamp(b_) - pd.Timestamp(a_)).days for p, (a_, b_) in PER.items()}
     print(f"===== OI VARIANTS: частота oi_liq с фильтром выноса уровня (сделок всего {len(r)}) =====")
     rows = []
-    for (k, thr), g in sw.groupby(["k", "thr"]):
-        row = {"k": k, "thr": thr}
+    for (k, thr, hold), g in sw.groupby(["k", "thr", "hold"]):
+        row = {"k": k, "thr": thr, "hold": hold}
         for p, (a_, b_) in PER.items():
             st = stats(g[(g.t >= a_) & (g.t < b_)], days[p])
             row.update({f"{p}_{key}": v for key, v in st.items() if key != "n"})
@@ -102,25 +103,25 @@ if __name__ == "__main__":
     t = pd.DataFrame(rows)
     print("\nС фильтром выноса, все монеты (сделок в день, б.п. на сделку, t, доля прибыльных):")
     print(t.round(2).to_string(index=False))
-    base = t[(t["k"] == BASE[0]) & (t["thr"] == BASE[1])].iloc[0]
+    base = t[(t["k"] == BASE[0]) & (t["thr"] == BASE[1]) & (t["hold"] == BASE[2])].iloc[0]
     cand = t[t["is_per_day"] >= 2 * base["is_per_day"]]
     if not len(cand):
         print("\nНи один вариант не даёт вдвое больше сделок на IS.")
         sys.exit(0)
     pick = cand.sort_values("is_t", ascending=False).iloc[0]
-    k_, thr_ = int(pick["k"]), float(pick["thr"])
-    print(f"\nВЫБРАН ПО IS: k={k_}, z={thr_} (база k={BASE[0]}, z={BASE[1]})")
+    k_, thr_, hold_ = int(pick["k"]), float(pick["thr"]), int(pick["hold"])
+    print(f"\nВЫБРАН ПО IS: k={k_} ч, z={thr_}, выход {hold_} ч (база k={BASE[0]}, z={BASE[1]}, {BASE[2]} ч)")
     print("Экзамен на монетах вне подбора (ext54 + fresh), с фильтром выноса:")
     rows = []
-    for name, (kk, tt) in (("база", BASE), ("выбранный", (k_, thr_))):
-        g = sw[(sw["k"] == kk) & (sw["thr"] == tt) & sw["group"].isin(["ext54", "fresh"])]
+    for name, (kk, tt, hh) in (("база", BASE), ("выбранный", (k_, thr_, hold_))):
+        g = sw[(sw["k"] == kk) & (sw["thr"] == tt) & (sw["hold"] == hh) & sw["group"].isin(["ext54", "fresh"])]
         for p, (a_, b_) in PER.items():
             rows.append({"variant": name, "period": p, **stats(g[(g.t >= a_) & (g.t < b_)], days[p])})
     print(pd.DataFrame(rows).round(2).to_string(index=False))
     print("\nСделок в день (все монеты, с фильтром выноса) — доля дней:")
     rows = []
-    for name, (kk, tt) in (("база", BASE), ("выбранный", (k_, thr_))):
-        g = sw[(sw["k"] == kk) & (sw["thr"] == tt)]
+    for name, (kk, tt, hh) in (("база", BASE), ("выбранный", (k_, thr_, hold_))):
+        g = sw[(sw["k"] == kk) & (sw["thr"] == tt) & (sw["hold"] == hh)]
         for p, (a_, b_) in PER.items():
             cnt = g[(g.t >= a_) & (g.t < b_)].set_index("t")["r"].resample("1D").size()
             cnt = cnt.reindex(pd.date_range(a_, b_, freq="1D", tz="UTC", inclusive="left"), fill_value=0)
