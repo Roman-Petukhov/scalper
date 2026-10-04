@@ -116,6 +116,8 @@ def evaluate(root: Path, syms: list[str], out: Path) -> None:
                 lambda x: pd.Series({"монет": len(x), "в плюсе": float((x["total_ret"] > 0).mean())}),
                 include_groups=False).round(2).to_string())
             for k in CANDIDATES:
+                if not pos_all[k]:
+                    continue
                 P = pd.concat(pos_all[k], axis=1).fillna(0.0)
                 ent = ((P != 0) & (P != P.shift(1).fillna(0.0))).sum(axis=1).resample("1D").sum()
                 conc = (P != 0).sum(axis=1)
@@ -137,6 +139,8 @@ def evaluate(root: Path, syms: list[str], out: Path) -> None:
         if cost == 6.0:
             for k in CANDIDATES:
                 for i, (lo, hi) in enumerate(TIERS):
+                    if not tier_pnl[k][i]:
+                        continue
                     port = pd.concat(tier_pnl[k][i], axis=1).fillna(0.0).sum(axis=1)
                     for per in ("val", "ho"):
                         tier_rows.append({"strategy": k, "tier": f"${lo / 1e6:.0f}M-{hi / 1e6:.0f}M",
