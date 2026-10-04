@@ -259,19 +259,25 @@ def _table(ev: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def report(ev: pd.DataFrame) -> None:
-    ev = ev.copy()
-    ev["period"] = ev["day"].map(period_of)
-    print(f"\nсобытий (сырых): {len(ev)}; монет {ev['symbol'].nunique()}, дней {ev['day'].nunique()}")
-    diag = ev.groupby(["symbol", "period"]).agg(
-        coin_days=("day", "nunique"), events=("kind", "size"), med_size_x=("size_x", "median"),
-        life_lt_1s=("life_ms", lambda x: float((x < 1000).mean())))
-    diag["per_day"] = diag["events"] / diag["coin_days"]
-    print("\nДиагностика сырых событий (сколько, насколько крупные, доля живших < 1 с):")
+def diagnostics(ev: pd.DataFrame) -> pd.DataFrame:
+    """Сырые события по монете и периоду: сколько в день и насколько крупные."""
+    ev = ev.assign(period=ev["day"].map(period_of))
+    d = ev.groupby(["symbol", "period"]).agg(coin_days=("day", "nunique"), events=("kind", "size"),
+                                             med_size_x=("size_x", "median"), med_life_s=("life_ms", "median"))
+    d["med_life_s"] /= 1000
+    d["per_day"] = d["events"] / d["coin_days"]
+    return d
+
+
+def report(ev: pd.DataFrame, diag: pd.DataFrame | None = None) -> None:
+    """ev — сырые события (diag=None) или уже прошедшие clean() вместе с готовой диагностикой."""
+    if diag is None:
+        diag, ev = diagnostics(ev), clean(ev)
+    ev = ev.assign(period=ev["day"].map(period_of))
+    print(f"\nмонет {ev['symbol'].nunique()}, дней {ev['day'].nunique()}; сырых событий {int(diag['events'].sum())}")
+    print("\nДиагностика сырых событий (стены >= 10 медиан, простоявшие >= 5 с):")
     print(diag.round(2).to_string())
-    ev = clean(ev)
-    print(f"\nПосле отбора (>= {MIN_SIZE_X:.0f} медиан, жила >= {MIN_LIFE_MS // 1000} с, "
-          f"одно событие типа/стороны в минуту): {len(ev)}")
+    print(f"\nПосле отбора (одно событие типа/стороны в минуту): {len(ev)}")
     print("Движение средней цены в ожидаемую сторону, б.п.: среднее по монето-дням, t — по монето-дням; "
           "издержки круга: maker 4, taker 11")
     print(_table(ev).round(2).to_string(index=False))
@@ -296,7 +302,14 @@ if __name__ == "__main__":
     if a.report:
         walls_files = sorted(Path(a.report).rglob("walls_*.parquet"))
         if walls_files:
-            report(pd.concat([pd.read_parquet(p) for p in walls_files]))
+            # по одному файлу: сырые события BTC/ETH не помещаются в память раннера все сразу
+            parts, diags = [], []
+            for f in walls_files:
+                e = pd.read_parquet(f)
+                diags.append(diagnostics(e))
+                parts.append(clean(e))
+                del e
+            report(pd.concat(parts), pd.concat(diags))
         lux_files = sorted(Path(a.report).rglob("luxbook_*.parquet"))
         if lux_files:
             luxbook.report(pd.concat([pd.read_parquet(p) for p in lux_files], ignore_index=True))
