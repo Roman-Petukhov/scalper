@@ -1,6 +1,5 @@
-https://api.upbit.com/v1/market/all?isDetails=true
-https://api.upbit.com/v1/candles/minutes/1?market=KRW-SOL&count=2&to=2021-10-07T00:00:00Z
-https://upbit.com/service_center/notice
-https://api.bithumb.com/v1/market/all
-https://www.binance.com/bapi/composite/v1/public/cms/article/list/query?type=1&catalogId=48&pageNo=2&pageSize=50
-https://www.binance.com/bapi/composite/v1/public/cms/article/list/query?type=1&catalogId=161&pageNo=1&pageSize=5
+https://stats-data.hyperliquid.xyz/Mainnet/leaderboard
+POST https://api.hyperliquid.xyz/info {"type":"meta"}
+POST https://api.hyperliquid.xyz/info {"type":"userFillsByTime","user":"0x5b5d51203a0f9079f8aeb098a6523a13f298c060","startTime":1700000000000,"aggregateByTime":true}
+POST https://api.hyperliquid.xyz/info {"type":"clearinghouseState","user":"0x5b5d51203a0f9079f8aeb098a6523a13f298c060"}
+https://hyperliquid-archive.s3.amazonaws.com/?list-type=2&max-keys=5

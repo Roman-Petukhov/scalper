@@ -17,9 +17,15 @@ jobs:
       - name: Fetch
         # first 1500 bytes of each response go to the job log
         run: |
-          while read -r u; do
-            [ -z "$u" ] && continue
-            echo "===== $u"
-            curl -sS -m 30 -A "Mozilla/5.0" -H "Accept: application/json" "$u" | head -c 1500 || echo "FAILED"
+          # line format: "<url>" (GET) or "POST <url> <json body>"
+          while read -r m u b; do
+            [ -z "$m" ] && continue
+            if [ "$m" != "POST" ]; then u="$m"; m=GET; fi
+            echo "===== $m $u $b"
+            if [ "$m" = POST ]; then
+              curl -sS -m 30 -X POST -H "Content-Type: application/json" -d "$b" "$u" | head -c 1500 || echo "FAILED"
+            else
+              curl -sS -m 30 -A "Mozilla/5.0" -H "Accept: application/json" "$u" | head -c 1500 || echo "FAILED"
+            fi
             echo
           done < .github/probe_urls.txt
