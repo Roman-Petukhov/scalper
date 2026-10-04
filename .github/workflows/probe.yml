@@ -1,11 +1,9 @@
 name: probe
 
 on:
-  workflow_dispatch:
-    inputs:
-      urls:
-        description: "URLs separated by spaces; first 1500 bytes of each response go to the job log"
-        required: true
+  push:
+    branches: [main-t2qdvg]
+    paths: [".github/probe_urls.txt"]
 
 permissions:
   contents: read
@@ -15,12 +13,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - uses: actions/checkout@v4
       - name: Fetch
-        env:
-          URLS: ${{ inputs.urls }}
+        # first 1500 bytes of each response go to the job log
         run: |
-          for u in $URLS; do
+          while read -r u; do
+            [ -z "$u" ] && continue
             echo "===== $u"
             curl -sS -m 30 -A "Mozilla/5.0" -H "Accept: application/json" "$u" | head -c 1500 || echo "FAILED"
             echo
-          done
+          done < .github/probe_urls.txt
