@@ -39,7 +39,12 @@ def set_host(name: str) -> None:
     DAILY = f"{HOSTS[name]}/data/futures/um/daily"
 
 
-def _get(url: str) -> bytes | None:
+class NotFound(Exception):
+    """Архив точно отсутствует (HTTP 404), в отличие от сетевой ошибки."""
+
+
+def _get(url: str, strict: bool = False) -> bytes | None:
+    """strict=True: при 404 бросает NotFound (чтобы запомнить отсутствие в кеше), при сетевых ошибках — None."""
     url = urllib.parse.quote(url, safe=":/?=&%")          # символы с не-ASCII именами
     for attempt in range(4):
         try:
@@ -48,10 +53,26 @@ def _get(url: str) -> bytes | None:
                 return r.read()
         except urllib.error.HTTPError as e:
             if e.code == 404:
+                if strict:
+                    raise NotFound(url) from e
                 return None
         except Exception:
             pass
     return None
+
+
+def _closed_month(month: str) -> bool:
+    """Месяц закончился хотя бы месяц назад: архивы за него уже опубликованы и больше не появятся."""
+    return pd.Period(month, "M") < pd.Timestamp.now(tz="UTC").tz_localize(None).to_period("M") - 1
+
+
+def _missing(out: Path) -> Path:
+    return out.with_suffix(".missing")
+
+
+def _mark_missing(out: Path, month: str) -> None:
+    if _closed_month(month):
+        _missing(out).touch()
 
 
 def _valid(path: Path) -> bool:
@@ -103,11 +124,17 @@ def fetch_klines(symbol: str, interval: str, month: str, cache: Path, kind: str 
     out = cache / f"{symbol}-{tag}-{month}.parquet"
     if _valid(out):
         return out
+    if _missing(out).exists():                     # месяц до листинга / после делистинга — не перезапрашиваем
+        return None
     if kind == "spot":
         url = f"{BASE.replace('/futures/um/', '/spot/')}/klines/{symbol}/{interval}/{symbol}-{interval}-{month}.zip"
     else:
         url = f"{BASE}/{kind}/{symbol}/{interval}/{symbol}-{interval}-{month}.zip"
-    blob = _get(url)
+    try:
+        blob = _get(url, strict=True)
+    except NotFound:
+        _mark_missing(out, month)
+        return None
     if blob is None:
         return None
     df = _read_zip_csv(blob, KCOLS)
@@ -124,7 +151,13 @@ def fetch_funding(symbol: str, month: str, cache: Path) -> Path | None:
     out = cache / f"{symbol}-funding-{month}.parquet"
     if _valid(out):
         return out
-    blob = _get(f"{BASE}/fundingRate/{symbol}/{symbol}-fundingRate-{month}.zip")
+    if _missing(out).exists():
+        return None
+    try:
+        blob = _get(f"{BASE}/fundingRate/{symbol}/{symbol}-fundingRate-{month}.zip", strict=True)
+    except NotFound:
+        _mark_missing(out, month)
+        return None
     if blob is None:
         return None
     df = _read_zip_csv(blob, None)
@@ -144,13 +177,22 @@ def fetch_metrics(symbol: str, month: str, cache: Path) -> Path | None:
     out = cache / f"{symbol}-metrics-{month}.parquet"
     if _valid(out):
         return out
-    parts = []
-    for day in pd.date_range(f"{month}-01", periods=pd.Period(month).days_in_month, freq="D"):
+    if _missing(out).exists():
+        return None
+    parts, not_found = [], 0
+    days = pd.date_range(f"{month}-01", periods=pd.Period(month).days_in_month, freq="D")
+    for day in days:
         d = day.strftime("%Y-%m-%d")
-        blob = _get(f"{DAILY}/metrics/{symbol}/{symbol}-metrics-{d}.zip")
+        try:
+            blob = _get(f"{DAILY}/metrics/{symbol}/{symbol}-metrics-{d}.zip", strict=True)
+        except NotFound:
+            not_found += 1
+            continue
         if blob is not None:
             parts.append(_read_zip_csv(blob, None))
     if not parts:
+        if not_found == len(days):                  # весь месяц точно пуст, а не сетевой сбой
+            _mark_missing(out, month)
         return None
     df = pd.concat(parts)
     df.columns = [str(c).strip().lower() for c in df.columns]
