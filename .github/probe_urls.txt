@@ -1,7 +1,4 @@
-https://api.llama.fi/emissions
-https://defillama-datasets.llama.fi/emissionsProtocolsList
-https://defillama-datasets.llama.fi/emissions/arbitrum
-https://api.llama.fi/emission/arbitrum
-https://api.upbit.com/v1/candles/days?market=KRW-SOL&count=3&to=2021-12-01T00:00:00Z
-https://api.upbit.com/v1/candles/minutes/1?market=KRW-SOL&count=3&to=2025-06-01T00:00:00Z
-https://api.upbit.com/v1/candles/minutes/1?market=KRW-SOL&count=3&to=2026-09-20T00:00:00Z
+https://public.bybit.com/
+https://public.bybit.com/kline_for_metatrader4/
+https://public.bybit.com/kline_for_metatrader4/ARBUSDT/
+https://public.bybit.com/kline_for_metatrader4/ARBUSDT/2024/
