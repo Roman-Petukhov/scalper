@@ -98,18 +98,24 @@ def _read_zip_csv(blob: bytes, cols: list[str] | None) -> pd.DataFrame:
 
 
 def fetch_klines(symbol: str, interval: str, month: str, cache: Path, kind: str = "klines") -> Path | None:
-    """kind: klines | premiumIndexKlines (премия perp к индексу, те же колонки)."""
+    """kind: klines | premiumIndexKlines (премия perp к индексу) | spot (свечи спота, те же колонки)."""
     tag = interval if kind == "klines" else f"{kind}-{interval}"
     out = cache / f"{symbol}-{tag}-{month}.parquet"
     if _valid(out):
         return out
-    blob = _get(f"{BASE}/{kind}/{symbol}/{interval}/{symbol}-{interval}-{month}.zip")
+    if kind == "spot":
+        url = f"{BASE.replace('/futures/um/', '/spot/')}/klines/{symbol}/{interval}/{symbol}-{interval}-{month}.zip"
+    else:
+        url = f"{BASE}/{kind}/{symbol}/{interval}/{symbol}-{interval}-{month}.zip"
+    blob = _get(url)
     if blob is None:
         return None
     df = _read_zip_csv(blob, KCOLS)
     df = df[["open_time", "open", "high", "low", "close", "volume", "quote_volume", "count",
              "taker_buy_volume", "taker_buy_quote_volume"]].astype("float64")
     df["open_time"] = df["open_time"].astype("int64")
+    big = df["open_time"] > 10**14                     # спотовые архивы с 2025 года — в микросекундах
+    df.loc[big, "open_time"] = df.loc[big, "open_time"] // 1000
     _save(df, out)
     return out
 
@@ -163,7 +169,7 @@ def fetch_metrics(symbol: str, month: str, cache: Path) -> Path | None:
 
 
 def build(symbols: list[str], interval: str, start: str, end: str, root: Path, workers: int = 12,
-          metrics: bool = False, premium: bool = False) -> None:
+          metrics: bool = False, premium: bool = False, spot: bool = False) -> None:
     cache = root / "cache"
     cache.mkdir(parents=True, exist_ok=True)
     jobs = []
@@ -176,6 +182,8 @@ def build(symbols: list[str], interval: str, start: str, end: str, root: Path, w
                     jobs.append(ex.submit(fetch_metrics, s, m, cache))
                 if premium:
                     jobs.append(ex.submit(fetch_klines, s, interval, m, cache, "premiumIndexKlines"))
+                if spot:
+                    jobs.append(ex.submit(fetch_klines, s, interval, m, cache, "spot"))
         done = 0
         for _ in as_completed(jobs):
             done += 1
@@ -190,6 +198,10 @@ def build(symbols: list[str], interval: str, start: str, end: str, root: Path, w
         if fparts:
             f = pd.concat([pd.read_parquet(p) for p in fparts]).drop_duplicates("ts").sort_values("ts")
             f.to_parquet(root / f"{s}-funding.parquet", index=False)
+        sparts = sorted(cache.glob(f"{s}-spot-{interval}-*.parquet"))
+        if sparts:
+            sk = pd.concat([pd.read_parquet(p) for p in sparts]).drop_duplicates("open_time").sort_values("open_time")
+            sk.to_parquet(root / f"{s}-spot-{interval}.parquet", index=False)
         pparts = sorted(cache.glob(f"{s}-premiumIndexKlines-{interval}-*.parquet"))
         if pparts:
             pk = pd.concat([pd.read_parquet(p) for p in pparts]).drop_duplicates("open_time").sort_values("open_time")
@@ -210,6 +222,7 @@ if __name__ == "__main__":
     ap.add_argument("--root", required=True)
     ap.add_argument("--metrics", action="store_true", help="также OI и long/short ratio (дневные архивы)")
     ap.add_argument("--premium", action="store_true", help="также premium index klines")
+    ap.add_argument("--spot", action="store_true", help="также свечи спота (тот же символ)")
     ap.add_argument("--host", default="cdn", choices=list(HOSTS))
     ap.add_argument("--metrics-freq", default=None, help="прореживание метрик, например 1h")
     ap.add_argument("--workers", type=int, default=12)
@@ -217,4 +230,4 @@ if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     set_host(a.host)
     METRICS_FREQ = a.metrics_freq
-    build(a.symbols.split(","), a.interval, a.start, a.end, Path(a.root), a.workers, a.metrics, a.premium)
+    build(a.symbols.split(","), a.interval, a.start, a.end, Path(a.root), a.workers, a.metrics, a.premium, a.spot)
