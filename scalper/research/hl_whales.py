@@ -66,7 +66,7 @@ class Limiter:
 LIM = Limiter(WEIGHT_PER_MIN)
 
 
-def _post(body: dict, weight: int) -> list | dict:
+def _post(body: dict, weight: int) -> list | dict | None:
     LIM.take(weight)
     data = json.dumps(body).encode()
     for attempt in range(6):
@@ -78,6 +78,8 @@ def _post(body: dict, weight: int) -> list | dict:
             if e.code == 429:
                 time.sleep(15 * (attempt + 1))
                 continue
+            if 400 <= e.code < 500:
+                return None                                    # монеты/кошелька нет (например, делистинг)
             time.sleep(2 ** attempt)
         except Exception:
             time.sleep(2 ** attempt)
@@ -180,8 +182,12 @@ def candles(coin: str, cache: Path) -> pd.DataFrame | None:
         df = pd.read_parquet(p)
         return df if len(df) else None
     end = int(pd.Timestamp("2026-10-01", tz="UTC").timestamp() * 1000)
-    raw = _post({"type": "candleSnapshot", "req": {"coin": coin, "interval": "1h", "startTime": end - 5000 * 3_600_000,
-                                                   "endTime": end}}, 20 + 84)
+    try:
+        raw = _post({"type": "candleSnapshot", "req": {"coin": coin, "interval": "1h",
+                                                       "startTime": end - 5000 * 3_600_000, "endTime": end}}, 20 + 84)
+    except RuntimeError as e:
+        print(f"  свечи {coin}: пропуск ({e})", flush=True)
+        return None
     df = pd.DataFrame([{"t": c["t"], "o": float(c["o"])} for c in raw]) if raw else pd.DataFrame(columns=["t", "o"])
     df.to_parquet(p, index=False)
     return df if len(df) else None

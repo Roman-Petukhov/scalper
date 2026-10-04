@@ -28,8 +28,8 @@ jobs:
         working-directory: .
         run: |
           if git fetch --depth 1 origin data-bybit; then git worktree add "$HOME/rs_bybit" FETCH_HEAD; else echo "data-bybit not published yet"; fi
-      - name: Cache market data
-        uses: actions/cache@v4
+      - name: Restore market data cache
+        uses: actions/cache/restore@v4
         with:
           path: |
             ~/rs/cache
@@ -38,6 +38,14 @@ jobs:
           restore-keys: binance-um-
       - name: Research job
         run: mkdir -p ../out && set -o pipefail && bash research/job.sh 2>&1 | tee ../out/log.txt
+      - name: Save market data cache (also when the job failed, downloads are kept)
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/rs/cache
+            ~/bn/cache
+          key: binance-um-${{ hashFiles('scalper/research/job.sh') }}-${{ github.run_id }}-${{ github.run_attempt }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
