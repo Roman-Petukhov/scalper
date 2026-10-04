@@ -44,6 +44,9 @@ MAX_DIST_BPS = 30.0
 NEAR_BPS = 10.0
 ABSORB_X = 2.0
 BANDS_BPS = luxbook.BANDS_BPS
+MIN_SIZE_X = 10.0          # «настоящая» стена — не меньше 10 медиан уровня
+MIN_LIFE_MS = 5_000        # и простояла хотя бы 5 с (мерцание котировок HFT не пишем: на BTC его ~10 млн событий/день)
+DEDUP_MS = 60_000          # отчёт: одно событие одного типа на стороне за минуту
 HORIZONS_S = (10, 60, 300, 900, 3600)
 EXPECT = {("pulled_near", 1): -1, ("pulled_near", -1): 1, ("consumed", 1): -1, ("consumed", -1): 1,
           ("absorbed", 1): 1, ("absorbed", -1): -1, ("pulled_far", 1): 0, ("pulled_far", -1): 0}
@@ -133,8 +136,10 @@ def replay(ob_src: bytes | str, trades: pd.DataFrame, probes: np.ndarray | None 
                     if not w["absorbed"] and w["traded"] >= ABSORB_X * w["max"] and \
                             book[side_hit].get(t_px[i_tr], 0.0) >= 0.5 * w["thr"]:
                         w["absorbed"] = True
-                        events.append((t_ts[i_tr], "absorbed", side_hit, w["max"] / w["ref"], t_ts[i_tr] - w["born"],
-                                       abs(t_px[i_tr] / mid() - 1) * 1e4 if np.isfinite(mid()) else np.nan))
+                        if w["max"] >= MIN_SIZE_X * w["ref"] and t_ts[i_tr] - w["born"] >= MIN_LIFE_MS:
+                            events.append((t_ts[i_tr], "absorbed", side_hit, w["max"] / w["ref"],
+                                           t_ts[i_tr] - w["born"],
+                                           abs(t_px[i_tr] / mid() - 1) * 1e4 if np.isfinite(mid()) else np.nan))
                 i_tr += 1
             d = m["data"]
             if m["type"] == "snapshot":
@@ -172,7 +177,8 @@ def replay(ob_src: bytes | str, trades: pd.DataFrame, probes: np.ndarray | None 
                             drop = max(w["max"] - fq, 1e-12)
                             kind = "consumed" if w["traded"] >= 0.5 * drop else \
                                 ("pulled_near" if w["min_dist"] <= NEAR_BPS else "pulled_far")
-                            events.append((ts, kind, side, w["max"] / w["ref"], ts - w["born"], w["min_dist"]))
+                            if w["max"] >= MIN_SIZE_X * w["ref"] and ts - w["born"] >= MIN_LIFE_MS:
+                                events.append((ts, kind, side, w["max"] / w["ref"], ts - w["born"], w["min_dist"]))
                             del walls[k]
             mm = mid()
             if np.isfinite(mm) and best[1] < best[-1]:
@@ -231,11 +237,6 @@ def run_symbol_day(args) -> tuple[pd.DataFrame, pd.DataFrame]:
 
 def period_of(day: str) -> str:
     return "is" if day < "2024-07-01" else "val" if day < "2025-07-01" else "ho"
-
-
-MIN_SIZE_X = 10.0          # отчёт: «настоящая» стена — не меньше 10 медиан уровня
-MIN_LIFE_MS = 5_000        # и простояла хотя бы 5 с (отсекаем мерцание котировок HFT)
-DEDUP_MS = 60_000          # одно событие одного типа на стороне за минуту
 
 
 def clean(ev: pd.DataFrame) -> pd.DataFrame:

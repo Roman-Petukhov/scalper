@@ -43,8 +43,18 @@ def test_wall_eaten_by_aggressors_is_consumed():
     msgs = [_base_book()]
     msgs += [{"type": "delta", "ts": T0 + 1000 + i * 100, "data": {"b": [], "a": []}} for i in range(15)]
     msgs.append({"type": "delta", "ts": T0 + 3000, "data": {"b": [["99.99", "500"]], "a": []}})
-    msgs.append({"type": "delta", "ts": T0 + 5000, "data": {"b": [["99.99", "0"]], "a": []}})
-    msgs += [{"type": "delta", "ts": T0 + 6000 + i * 1000, "data": {"b": [], "a": []}} for i in range(10)]
-    trades = pd.DataFrame({"timestamp": [(T0 + 4000) / 1000], "side": ["Sell"], "size": [500.0], "price": [99.99]})
+    msgs.append({"type": "delta", "ts": T0 + 9000, "data": {"b": [["99.99", "0"]], "a": []}})
+    msgs += [{"type": "delta", "ts": T0 + 10000 + i * 1000, "data": {"b": [], "a": []}} for i in range(10)]
+    trades = pd.DataFrame({"timestamp": [(T0 + 8000) / 1000], "side": ["Sell"], "size": [500.0], "price": [99.99]})
     ev = detect(_blob(msgs), trades)
     assert (ev["kind"] == "consumed").any()
+
+
+def test_short_lived_wall_is_not_recorded():
+    msgs = [_base_book()]
+    msgs += [{"type": "delta", "ts": T0 + 1000 + i * 100, "data": {"b": [], "a": []}} for i in range(15)]
+    msgs.append({"type": "delta", "ts": T0 + 3000, "data": {"b": [["99.99", "500"]], "a": []}})
+    msgs.append({"type": "delta", "ts": T0 + 3500, "data": {"b": [["99.99", "0"]], "a": []}})   # мерцание 0.5 с
+    msgs += [{"type": "delta", "ts": T0 + 4000 + i * 1000, "data": {"b": [], "a": []}} for i in range(10)]
+    trades = pd.DataFrame({"timestamp": [(T0 + 500) / 1000], "side": ["Buy"], "size": [1.0], "price": [100.01]})
+    assert len(detect(_blob(msgs), trades)) == 0
