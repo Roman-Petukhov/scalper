@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"prep unlocks fundarb"}
+TASKS=${TASKS:-"prepall upbit"}
 MODE=${1:-collect}
 FILTER="Pandas4Warning\|pd.concat\|файлов$\|мес. свечей"
 
@@ -54,6 +54,14 @@ fundarb_collect() { python -m research.fundarb collect --symbols "$(cat /tmp/sym
 fundarb_report() {
   echo "===== FUND ARB: спот + шорт перпа при высоком funding ====="
   python -m research.fundarb report
+}
+
+prepall_collect() { python -m research.prepare 1h-all; }
+prepall_report() { :; }
+upbit_collect() { python -m research.upbit collect --symbols "$(cat /tmp/syms_1h-all.txt)"; }
+upbit_report() {
+  echo "===== UPBIT: листинги на Upbit и перпетуал Binance ====="
+  python -m research.upbit report
 }
 
 case "$MODE" in
