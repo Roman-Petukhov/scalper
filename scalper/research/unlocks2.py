@@ -28,7 +28,7 @@ import pandas as pd
 
 from . import unlocks as U
 from .listings2 import _cell
-from .shard import all_parts, mine, part_path
+from .shard import all_parts, mine, part_path, smoke
 
 ENTRIES = (-10, -7, -5, -3)
 EXITS = (0, 1, 3)
@@ -57,7 +57,7 @@ def on_bybit(sym: str, day: pd.Timestamp, cache: Path) -> bool:
         try:
             req = urllib.request.Request(BYBIT_FILE.format(s=sym, d=f"{day:%Y-%m-%d}"), method="HEAD",
                                          headers={"User-Agent": "flow-scalper-research/1.0"})
-            with urllib.request.urlopen(req, timeout=30) as r:
+            with urllib.request.urlopen(req, timeout=10) as r:
                 ok = r.status == 200
             break
         except urllib.error.HTTPError as e:
@@ -93,7 +93,7 @@ def collect(root: Path, syms: list[str]) -> None:
     have = set(syms)
     btc = U.daily_close(root, "BTCUSDT")
     rows = []
-    for md, cx in DEFS:
+    for md, cx in ([PRIMARY_DEF] if smoke() else DEFS):
         ev = events(cache, md, cx)
         if not len(ev):
             continue

@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import sys
 import time
@@ -63,9 +64,12 @@ def _get_json(url: str, cache: Path) -> object | None:
     return None
 
 
-def unlock_events(cache: Path) -> pd.DataFrame:
+@functools.lru_cache(maxsize=4)
+def _schedules(cache_dir: str) -> tuple[list[tuple[str, str, pd.Series]], dict[str, str]]:
+    """Накопленный разлок по дням для каждого протокола и тикеры токенов — разбираются один раз на процесс."""
+    cache = Path(cache_dir)
     protos = _get_json(LIST_URL, cache) or []
-    rows, ids = [], {}
+    out = []
     for p in protos:
         d = _get_json(EMIS_URL.format(p=p), cache)
         if not isinstance(d, dict):
@@ -82,23 +86,29 @@ def unlock_events(cache: Path) -> pd.DataFrame:
         if not series or not token:
             continue
         cum = pd.concat(series, axis=1).sort_index().ffill().fillna(0.0).sum(axis=1)
-        cum = cum[~cum.index.duplicated()].asfreq("D").ffill()
+        out.append((p, token, cum[~cum.index.duplicated()].asfreq("D").ffill()))
+    sym = {}
+    tok = sorted({t for _, t, _ in out if isinstance(t, str) and ":" in t})
+    for i in range(0, len(tok), 50):
+        d = _get_json(COINS_URL.format(ids=",".join(tok[i:i + 50])), cache) or {}
+        for k, v in (d.get("coins") or {}).items():
+            sym[k] = str(v.get("symbol", "")).upper()
+    return out, sym
+
+
+def unlock_events(cache: Path) -> pd.DataFrame:
+    sched, sym = _schedules(str(cache))
+    rows = []
+    for p, token, cum in sched:
         inc = cum.diff()
         med = inc.rolling(30, min_periods=10).median().shift(1)
         prev = cum.shift(1)
         ok = (inc >= MIN_SIZE * prev) & (inc >= CLIFF_X * med.clip(lower=1e-12)) & (prev > 0)
         for t in inc.index[ok.fillna(False).to_numpy()]:
             rows.append({"protocol": p, "token": token, "t": t, "size": inc[t] / prev[t]})
-        ids[token] = None
     ev = pd.DataFrame(rows)
     if not len(ev):
         return ev
-    sym = {}
-    tok = [t for t in ids if isinstance(t, str) and ":" in t]
-    for i in range(0, len(tok), 50):
-        d = _get_json(COINS_URL.format(ids=",".join(tok[i:i + 50])), cache) or {}
-        for k, v in (d.get("coins") or {}).items():
-            sym[k] = str(v.get("symbol", "")).upper()
     ev["ticker"] = ev["token"].map(sym)
     return ev[(ev["t"] >= SINCE) & (ev["t"] < UNTIL) & ev["ticker"].notna()].reset_index(drop=True)
 
