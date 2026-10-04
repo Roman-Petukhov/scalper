@@ -3,11 +3,19 @@ name: walls
 on:
   push:
     branches: [main-t2qdvg]
-    paths: ["scalper/research/hft/walls_jobs.json", "scalper/research/hft/walls.py", ".github/workflows/walls.yml"]
+    paths: ["scalper/research/hft/walls_jobs.json"]
   workflow_dispatch:
+    inputs:
+      jobs_file:
+        description: "JSON со списком задач (symbols, days, workers)"
+        default: "scalper/research/hft/walls_jobs.json"
+      prev_run:
+        description: "id прошлого запуска: его готовые результаты войдут в отчёт (для дозапуска упавших задач)"
+        default: ""
 
 permissions:
   contents: write
+  actions: read
 
 jobs:
   plan:
@@ -17,7 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - id: m
-        run: echo "matrix=$(jq -c . scalper/research/hft/walls_jobs.json)" >> "$GITHUB_OUTPUT"
+        run: echo "matrix=$(jq -c . '${{ inputs.jobs_file || 'scalper/research/hft/walls_jobs.json' }}')" >> "$GITHUB_OUTPUT"
 
   sim:
     needs: plan
@@ -37,7 +45,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install pandas pyarrow numpy orjson numba
-      - run: python -m research.hft.walls --symbols "${{ matrix.job.symbols }}" --days "${{ matrix.job.days }}" --out ../out --workers 4
+      - run: python -m research.hft.walls --symbols "${{ matrix.job.symbols }}" --days "${{ matrix.job.days }}" --out ../out --workers ${{ matrix.job.workers || 2 }}
       - uses: actions/upload-artifact@v4
         with:
           name: walls-${{ strategy.job-index }}
@@ -57,6 +65,15 @@ jobs:
         with:
           path: out
           merge-multiple: true
+      - if: inputs.prev_run != ''
+        uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+          pattern: walls-*
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.prev_run }}
       - name: Report
         working-directory: scalper
         run: python -m research.hft.walls --report ../out | tee ../out/log.txt

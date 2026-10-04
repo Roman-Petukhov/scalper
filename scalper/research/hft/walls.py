@@ -20,8 +20,15 @@ from __future__ import annotations
 import argparse
 import gzip
 import io
+import os
+import shutil
 import sys
+import tempfile
+import time
+import urllib.error
+import urllib.request
 import zipfile
+from array import array
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
@@ -49,7 +56,27 @@ def _ref_size(book: dict, best: float, side: int) -> float:
     return float(np.median(sz)) if len(sz) >= 5 else np.inf
 
 
-def detect(ob_blob: bytes, trades: pd.DataFrame) -> pd.DataFrame:
+def _fetch_to_file(url: str, tries: int = 4) -> str | None:
+    """Стакан BTC/ETH за день — сотни мегабайт: качаем на диск, а не в память (раннер private-репо — 7 ГБ)."""
+    for k in range(tries):
+        fd, path = tempfile.mkstemp(suffix=".zip")
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "flow-scalper-research/1.0"})
+            with os.fdopen(fd, "wb") as fh, urllib.request.urlopen(req, timeout=300) as r:
+                shutil.copyfileobj(r, fh, 1 << 20)
+            return path
+        except urllib.error.HTTPError as e:
+            os.unlink(path)
+            if e.code in (403, 404):
+                return None
+        except Exception:
+            if os.path.exists(path):
+                os.unlink(path)
+        time.sleep(2 ** k)
+    return None
+
+
+def detect(ob_src: bytes | str, trades: pd.DataFrame) -> pd.DataFrame:
     t_ts = (trades["timestamp"].to_numpy(dtype="float64") * 1000.0)
     o = np.argsort(t_ts, kind="stable")
     t_ts = t_ts[o]
@@ -61,14 +88,15 @@ def detect(ob_blob: bytes, trades: pd.DataFrame) -> pd.DataFrame:
     ref = {1: np.inf, -1: np.inf}
     walls: dict = {}                       # (side, price) -> state
     events = []
-    tob_ts, tob_mid = [], []
+    tob_ts, tob_mid = array("d"), array("d")                  # только смены mid: asof по ним даёт тот же ответ
     i_tr, n_tr = 0, len(t_ts)
     last_ref_sec = -1
 
     def mid():
         return (best[1] + best[-1]) / 2
 
-    with zipfile.ZipFile(io.BytesIO(ob_blob)) as z, z.open(z.namelist()[0]) as fh:
+    src = io.BytesIO(ob_src) if isinstance(ob_src, bytes) else ob_src
+    with zipfile.ZipFile(src) as z, z.open(z.namelist()[0]) as fh:
         for line in fh:
             m = orjson.loads(line)
             ts = m["ts"]
@@ -123,8 +151,9 @@ def detect(ob_blob: bytes, trades: pd.DataFrame) -> pd.DataFrame:
                             del walls[k]
             mm = mid()
             if np.isfinite(mm) and best[1] < best[-1]:
-                tob_ts.append(ts)
-                tob_mid.append(mm)
+                if not tob_mid or tob_mid[-1] != mm:
+                    tob_ts.append(ts)
+                    tob_mid.append(mm)
                 sec = ts // 1000
                 if sec != last_ref_sec:                             # пороги и дистанции — раз в секунду
                     last_ref_sec = sec
@@ -135,7 +164,7 @@ def detect(ob_blob: bytes, trades: pd.DataFrame) -> pd.DataFrame:
     if not events:
         return pd.DataFrame()
     ev = pd.DataFrame(events, columns=["ts", "kind", "side", "size_x", "life_ms", "dist_bps"])
-    tt, tm = np.asarray(tob_ts, dtype="float64"), np.asarray(tob_mid, dtype="float64")
+    tt, tm = np.frombuffer(tob_ts, dtype="float64"), np.frombuffer(tob_mid, dtype="float64")
     m0 = _asof(tt, tm, ev["ts"].to_numpy(dtype="float64"))
     exp = np.array([EXPECT[(k, s)] for k, s in zip(ev["kind"], ev["side"])], dtype="float64")
     ev["expect"] = exp
@@ -149,14 +178,20 @@ def run_symbol_day(args) -> pd.DataFrame:
     sym, day = args
     ob = None
     for n in (500, 200):
-        ob = _get(OB_URL.format(s=sym, d=day, n=n))
+        ob = _fetch_to_file(OB_URL.format(s=sym, d=day, n=n))
         if ob is not None:
             break
     tr = _get(BYBIT_TRADES.format(s=sym, d=day))
     if ob is None or tr is None:
+        if ob is not None:
+            os.unlink(ob)
         return pd.DataFrame()
     trades = pd.read_csv(io.BytesIO(gzip.decompress(tr)), usecols=["timestamp", "side", "size", "price"])
-    ev = detect(ob, trades)
+    del tr
+    try:
+        ev = detect(ob, trades)
+    finally:
+        os.unlink(ob)
     if len(ev):
         ev.insert(0, "day", day)
         ev.insert(0, "symbol", sym)
@@ -207,7 +242,7 @@ if __name__ == "__main__":
     ap.add_argument("--symbols", default="")
     ap.add_argument("--days", default="")
     ap.add_argument("--out", default=".")
-    ap.add_argument("--workers", type=int, default=4)
+    ap.add_argument("--workers", type=int, default=2)
     a = ap.parse_args()
     if a.report:
         report(pd.concat([pd.read_parquet(p) for p in sorted(Path(a.report).rglob("walls_*.parquet"))]))
