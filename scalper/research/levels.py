@@ -140,10 +140,12 @@ def run_symbol(df5: pd.DataFrame, cache: dict, sym: str, n, thr, sig_tf, mode, f
     return run(df5, pos, cost, 5, None)
 
 
-def evaluate(dfs: dict, cache: dict, cfg: dict, per: str, cost: float) -> dict:
+def evaluate(dfs: dict, cache: dict, cfg: dict, per: str, cost: float, runner=None) -> dict:
+    """Портфель — среднее по монетам; runner(df5, cache, sym, cost=..., **cfg) -> Result (по умолчанию — уровни LuxAlgo)."""
+    runner = runner or run_symbol
     pnls, trades = [], 0
     for sym, df5 in dfs.items():
-        r = run_symbol(df5, cache, sym, cost=cost, **cfg)
+        r = runner(df5, cache, sym, cost=cost, **cfg)
         p, ps = cut(r.pnl, per), cut(r.pos, per)
         pnls.append(p)
         prev = ps.shift(1).fillna(0.0)
@@ -153,6 +155,25 @@ def evaluate(dfs: dict, cache: dict, cfg: dict, per: str, cost: float) -> dict:
     return {"sharpe": m["sharpe"], "ann_ret": m["ann_ret"], "max_dd": m["max_dd"], "trades": trades,
             "trades_per_day": trades / max(m["days"], 1),
             "bps_per_trade": float(port.sum() * len(dfs) / max(trades, 1) * 1e4)}
+
+
+def gate(top: pd.DataFrame, keys: list[str], full: dict, cache: dict, runner, casts: dict) -> pd.DataFrame:
+    """Финалисты IS -> ворота VAL (Sharpe >= 0.5 при 6 б.п. и > 0 при 10) -> HOLDOUT для прошедших."""
+    rows = []
+    for _, f in top.iterrows():
+        cfg = {k: casts.get(k, lambda x: x)(f[k]) for k in keys}
+        v6 = evaluate(full, cache, cfg, "val", COST, runner)
+        v10 = evaluate(full, cache, cfg, "val", STRESS, runner)
+        row = {**cfg, "is": f["sharpe"], "val_6": v6["sharpe"], "val_10": v10["sharpe"],
+               "val_bps": v6["bps_per_trade"], "val_tpd": v6["trades_per_day"]}
+        row["passed"] = bool(v6["sharpe"] >= VAL_MIN and v10["sharpe"] > 0)
+        if row["passed"]:
+            h6 = evaluate(full, cache, cfg, "ho", COST, runner)
+            h10 = evaluate(full, cache, cfg, "ho", STRESS, runner)
+            row.update({"ho_6": h6["sharpe"], "ho_10": h10["sharpe"], "ho_ret": h6["ann_ret"], "ho_dd": h6["max_dd"],
+                        "ho_bps": h6["bps_per_trade"]})
+        rows.append(row)
+    return pd.DataFrame(rows)
 
 
 def grid():
@@ -201,22 +222,8 @@ if __name__ == "__main__":
     top = res[res["trades_per_day"] >= MIN_TRADES_PER_DAY].sort_values("sharpe", ascending=False).head(10)
     print("\nТОП-10 по IS (не менее 0.5 сделки в день на портфель):")
     print(top.round(3).to_string(index=False))
-    gate = []
-    for _, f in top.iterrows():
-        cfg = {k: f[k] for k in ("n", "thr", "sig_tf", "mode", "filt", "exit_mode")}
-        cfg["n"], cfg["thr"] = int(cfg["n"]), float(cfg["thr"])
-        v6 = evaluate(full, cache_full, cfg, "val", COST)
-        v10 = evaluate(full, cache_full, cfg, "val", STRESS)
-        row = {**cfg, "is": f["sharpe"], "val_6": v6["sharpe"], "val_10": v10["sharpe"],
-               "val_bps": v6["bps_per_trade"], "val_tpd": v6["trades_per_day"]}
-        row["passed"] = bool(v6["sharpe"] >= VAL_MIN and v10["sharpe"] > 0)
-        if row["passed"]:
-            h6 = evaluate(full, cache_full, cfg, "ho", COST)
-            h10 = evaluate(full, cache_full, cfg, "ho", STRESS)
-            row.update({"ho_6": h6["sharpe"], "ho_10": h10["sharpe"], "ho_ret": h6["ann_ret"], "ho_dd": h6["max_dd"],
-                        "ho_bps": h6["bps_per_trade"]})
-        gate.append(row)
-    g = pd.DataFrame(gate)
+    g = gate(top, ["n", "thr", "sig_tf", "mode", "filt", "exit_mode"], full, cache_full, run_symbol,
+             {"n": int, "thr": float})
     g.to_csv(out / "levels_gates.csv", index=False)
     print("\nВОРОТА VAL (Sharpe >= 0.5 при 6 б.п. и > 0 при 10 б.п.) -> HOLDOUT:")
     print(g.round(3).to_string(index=False))
