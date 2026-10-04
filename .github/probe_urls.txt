@@ -1,5 +1,7 @@
-https://stats-data.hyperliquid.xyz/Mainnet/leaderboard
-POST https://api.hyperliquid.xyz/info {"type":"meta"}
-POST https://api.hyperliquid.xyz/info {"type":"userFillsByTime","user":"0x5b5d51203a0f9079f8aeb098a6523a13f298c060","startTime":1700000000000,"aggregateByTime":true}
-POST https://api.hyperliquid.xyz/info {"type":"clearinghouseState","user":"0x5b5d51203a0f9079f8aeb098a6523a13f298c060"}
-https://hyperliquid-archive.s3.amazonaws.com/?list-type=2&max-keys=5
+https://api.llama.fi/emissions
+https://defillama-datasets.llama.fi/emissionsProtocolsList
+https://defillama-datasets.llama.fi/emissions/arbitrum
+https://api.llama.fi/emission/arbitrum
+https://api.upbit.com/v1/candles/days?market=KRW-SOL&count=3&to=2021-12-01T00:00:00Z
+https://api.upbit.com/v1/candles/minutes/1?market=KRW-SOL&count=3&to=2025-06-01T00:00:00Z
+https://api.upbit.com/v1/candles/minutes/1?market=KRW-SOL&count=3&to=2026-09-20T00:00:00Z
