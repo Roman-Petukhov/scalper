@@ -240,6 +240,23 @@ def run_symbol_day(args) -> list[dict]:
     return out
 
 
+
+def report(res: pd.DataFrame) -> None:
+    ok = res[res["variant"] != "n/a"]
+    agg = ok.groupby(["variant", "symbol"]).agg(days=("day", "nunique"), pnl_usd=("pnl_usd", "sum"),
+                                                 fills=("fills", "sum"), volume=("maker_volume_usd", "sum"),
+                                                 forced=("forced_exits", "sum"),
+                                                 pos_days=("pnl_usd", lambda x: float((x > 0).mean())))
+    agg["bps_of_volume"] = agg["pnl_usd"] / agg["volume"] * 1e4
+    agg["pnl_per_day"] = agg["pnl_usd"] / agg["days"]
+    print("\nИтог по монетам (сумма за дни):")
+    print(agg.round(2).sort_values(["variant", "pnl_usd"], ascending=[True, False]).to_string())
+    tot = ok.groupby(["variant", "day"])["pnl_usd"].sum().unstack(0)
+    print("\nПо дням (сумма по всем монетам, $):")
+    print(tot.round(2).to_string())
+    print("\nВсего по вариантам: $" + ", ".join(f"{k}: {v:.2f}" for k, v in ok.groupby("variant")["pnl_usd"].sum().items()))
+
+
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     pd.set_option("display.width", 250)
@@ -265,18 +282,3 @@ if __name__ == "__main__":
     res.to_csv(out / f"mm_results_{abs(hash(a.symbols)) % 10**8}.csv", index=False)
     report(res)
 
-
-def report(res: pd.DataFrame) -> None:
-    ok = res[res["variant"] != "n/a"]
-    agg = ok.groupby(["variant", "symbol"]).agg(days=("day", "nunique"), pnl_usd=("pnl_usd", "sum"),
-                                                 fills=("fills", "sum"), volume=("maker_volume_usd", "sum"),
-                                                 forced=("forced_exits", "sum"),
-                                                 pos_days=("pnl_usd", lambda x: float((x > 0).mean())))
-    agg["bps_of_volume"] = agg["pnl_usd"] / agg["volume"] * 1e4
-    agg["pnl_per_day"] = agg["pnl_usd"] / agg["days"]
-    print("\nИтог по монетам (сумма за дни):")
-    print(agg.round(2).sort_values(["variant", "pnl_usd"], ascending=[True, False]).to_string())
-    tot = ok.groupby(["variant", "day"])["pnl_usd"].sum().unstack(0)
-    print("\nПо дням (сумма по всем монетам, $):")
-    print(tot.round(2).to_string())
-    print("\nВсего по вариантам: $" + ", ".join(f"{k}: {v:.2f}" for k, v in ok.groupby("variant")["pnl_usd"].sum().items()))
