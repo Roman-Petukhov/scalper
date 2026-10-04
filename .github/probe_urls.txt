@@ -1,4 +1,8 @@
-https://public.bybit.com/
-https://public.bybit.com/kline_for_metatrader4/
-https://public.bybit.com/kline_for_metatrader4/ARBUSDT/
-https://public.bybit.com/kline_for_metatrader4/ARBUSDT/2024/
+https://s3-ap-northeast-1.amazonaws.com/data.binance.vision?delimiter=/&prefix=data/futures/um/daily/bookDepth/BTCUSDT/
+https://s3-ap-northeast-1.amazonaws.com/data.binance.vision?delimiter=/&prefix=data/futures/um/daily/bookDepth/PEPEUSDT/&marker=data/futures/um/daily/bookDepth/PEPEUSDT/PEPEUSDT-bookDepth-2025-01-01.zip
+https://s3-ap-northeast-1.amazonaws.com/data.binance.vision?delimiter=/&prefix=data/futures/um/daily/bookTicker/BTCUSDT/
+https://s3-ap-northeast-1.amazonaws.com/data.binance.vision?delimiter=/&prefix=data/futures/um/daily/aggTrades/BTCUSDT/
+https://api.bithumb.com/v1/notices?count=5
+https://feed.bithumb.com/notice
+https://api-manager.upbit.com/api/v1/announcements?os=web&page=1&per_page=5&category=trade
+https://api-manager.upbit.com/api/v1/notices?page=1&per_page=5&thread_name=general
