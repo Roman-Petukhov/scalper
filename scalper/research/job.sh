@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"prep listings2 export"}
+TASKS=${TASKS:-"prep unlocks fundarb"}
 MODE=${1:-collect}
 FILTER="Pandas4Warning\|pd.concat\|файлов$\|мес. свечей"
 
@@ -22,7 +22,7 @@ lux_report() {
   python -m research.lux_rr report
 }
 
-prep_collect() { python -m research.prepare 1h-qualified 1h-all; }
+prep_collect() { python -m research.prepare 1h-qualified 1h-all 1h-spot; }
 prep_report() { :; }
 listings2_collect() { python -m research.listings2 collect --symbols "$(cat /tmp/syms_1h-all.txt)"; }
 listings2_report() {
@@ -44,6 +44,17 @@ mom_report() {
 
 export_collect() { python -m research.export_more collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
 export_report() { python -m research.export_more report; }
+
+unlocks_collect() { python -m research.unlocks collect --symbols "$(cat /tmp/syms_1h-all.txt)"; }
+unlocks_report() {
+  echo "===== UNLOCKS: разлоки токенов (DefiLlama) и цена перпетуала до и после ====="
+  python -m research.unlocks report
+}
+fundarb_collect() { python -m research.fundarb collect --symbols "$(cat /tmp/syms_1h-spot.txt)"; }
+fundarb_report() {
+  echo "===== FUND ARB: спот + шорт перпа при высоком funding ====="
+  python -m research.fundarb report
+}
 
 case "$MODE" in
   collect|report) ;;
