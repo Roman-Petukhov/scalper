@@ -73,7 +73,7 @@ unlocks2_report() {
 moonbracket_collect() { python -m research.moonbracket collect --symbols "$(cat /tmp/syms_1h-all.txt)"; }
 moonbracket_report() {
   echo "===== MOONBRACKET: ловля иксов вилкой стоп-ордеров ====="
-  python -m research.moonbracket report
+  pip install -q lightgbm && python -m research.moonbracket report
 }
 spikesfull_collect() { python -m research.spikes_full collect --symbols "$(cat /tmp/syms_1h-all.txt)"; }
 spikesfull_report() {
