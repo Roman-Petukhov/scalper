@@ -97,9 +97,12 @@ def _trades(sym: str, day: str) -> pd.DataFrame | None:
         try:
             with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=120) as r:
                 raw = r.read()
-            t = pd.read_csv(io.BytesIO(gzip.decompress(raw)), usecols=["timestamp", "side", "price"])
+            # потоковая распаковка и компактные типы: суточные файлы крупных монет — сотни МБ в CSV
+            t = pd.read_csv(io.BytesIO(raw), compression="gzip", usecols=["timestamp", "side", "price"],
+                            dtype={"timestamp": "float64", "side": "category", "price": "float64"})
+            del raw
             t["ts"] = (t["timestamp"] * 1000).astype("int64")
-            return t.sort_values("ts", kind="stable")
+            return t[["ts", "side", "price"]].sort_values("ts", kind="stable")
         except urllib.error.HTTPError as e:
             if e.code in (403, 404):
                 return None
@@ -142,12 +145,23 @@ def event_paths(ev: dict) -> dict | None:
     return out
 
 
+def _safe_paths(ev: dict) -> dict | None:
+    try:
+        return event_paths(ev)
+    except Exception as e:                                   # одно битое событие не должно ронять исследование
+        print(f"  {ev['ticker']} {ev['ts_ms']}: ошибка {e!r}", flush=True)
+        return None
+
+
 def study(events: pd.DataFrame) -> pd.DataFrame:
     rows = []
-    with ThreadPoolExecutor(8) as ex:
-        for ev, res in zip(events.to_dict("records"), ex.map(event_paths, events.to_dict("records"))):
+    recs = events.to_dict("records")
+    with ThreadPoolExecutor(4) as ex:
+        for i, (ev, res) in enumerate(zip(recs, ex.map(_safe_paths, recs)), 1):
             if res:
                 rows.append({**ev, **res})
+            if i % 100 == 0:
+                print(f"  обработано {i}/{len(recs)}, с данными Bybit {len(rows)}", flush=True)
     return pd.DataFrame(rows)
 
 
@@ -206,6 +220,10 @@ if __name__ == "__main__":
     ev = pd.DataFrame(ev)
     print(f"событий (тикер × объявление) с 2022 года: {len(ev)}")
     print(ev.groupby("type").size().to_string())
+    ev.to_csv(out / "news_event_list.csv", index=False)
     res = study(ev)
     res.to_csv(out / "news_events.csv", index=False)
-    report(res)
+    if len(res):
+        report(res)
+    else:
+        print("ни одно событие не нашлось в данных Bybit")
