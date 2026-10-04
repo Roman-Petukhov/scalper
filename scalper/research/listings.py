@@ -27,6 +27,7 @@ import io
 import json
 import re
 import sys
+import threading
 import time
 import urllib.request
 import warnings
@@ -128,7 +129,10 @@ def _day_1m(sym: str, day: str, cache: Path) -> pd.DataFrame | None:
     out = cache / f"{sym}-1m-{day}.parquet"
     miss = out.with_suffix(".missing")
     if out.exists():
-        return pd.read_parquet(out)
+        try:
+            return pd.read_parquet(out)
+        except Exception:
+            out.unlink(missing_ok=True)                       # битый файл (например, прерванная запись)
     if miss.exists():
         return None
     try:
@@ -144,7 +148,9 @@ def _day_1m(sym: str, day: str, cache: Path) -> pd.DataFrame | None:
     df = pd.read_csv(io.StringIO(raw), header=0 if first.startswith("open_time") else None, usecols=range(6))
     df.columns = ["open_time", "open", "high", "low", "close", "volume"]
     df = df.astype({"open_time": "int64", "open": "float64", "high": "float64", "low": "float64", "close": "float64"})
-    df.to_parquet(out, index=False)
+    tmp = out.with_suffix(f".{threading.get_ident()}.tmp")    # атомарная запись: события делят файлы дней
+    df.to_parquet(tmp, index=False)
+    tmp.replace(out)
     return df
 
 
