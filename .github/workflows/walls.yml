@@ -45,7 +45,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install pandas pyarrow numpy orjson numba
-      - run: python -m research.hft.walls --symbols "${{ matrix.job.symbols }}" --days "${{ matrix.job.days }}" --out ../out --workers ${{ matrix.job.workers || 2 }}
+      - run: python -m research.hft.walls --symbols "${{ matrix.job.symbols }}" --days "${{ matrix.job.days }}" --out ../out --workers ${{ matrix.job.workers || 2 }} --lux
       - uses: actions/upload-artifact@v4
         with:
           name: walls-${{ strategy.job-index }}

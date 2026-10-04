@@ -36,12 +36,14 @@ import numpy as np
 import orjson
 import pandas as pd
 
+from . import luxbook
 from .build import BYBIT_TRADES, OB_URL, _asof, _get
 
 WALL_MULT = 5.0
 MAX_DIST_BPS = 30.0
 NEAR_BPS = 10.0
 ABSORB_X = 2.0
+BANDS_BPS = luxbook.BANDS_BPS
 HORIZONS_S = (10, 60, 300, 900, 3600)
 EXPECT = {("pulled_near", 1): -1, ("pulled_near", -1): 1, ("consumed", 1): -1, ("consumed", -1): 1,
           ("absorbed", 1): 1, ("absorbed", -1): -1, ("pulled_far", 1): 0, ("pulled_far", -1): 0}
@@ -76,7 +78,25 @@ def _fetch_to_file(url: str, tries: int = 4) -> str | None:
     return None
 
 
+def _band_depth(book: dict, mm: float) -> list[float]:
+    """Объём лимитных заявок каждой стороны в пределах BANDS_BPS от mid: [bid10, ask10, bid25, ask25]."""
+    res = []
+    for b in BANDS_BPS:
+        lo, hi = mm * (1 - b / 1e4), mm * (1 + b / 1e4)
+        res += [sum(q for p, q in book[1].items() if p >= lo), sum(q for p, q in book[-1].items() if p <= hi)]
+    return res
+
+
 def detect(ob_src: bytes | str, trades: pd.DataFrame) -> pd.DataFrame:
+    return replay(ob_src, trades)[0]
+
+
+def replay(ob_src: bytes | str, trades: pd.DataFrame, probes: np.ndarray | None = None
+           ) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """События стен и (если заданы probes — отсортированные ms) снимки глубины на эти моменты."""
+    probes = np.empty(0, dtype=np.int64) if probes is None else np.asarray(probes, dtype=np.int64)
+    snaps = []
+    i_pr = 0
     t_ts = (trades["timestamp"].to_numpy(dtype="float64") * 1000.0)
     o = np.argsort(t_ts, kind="stable")
     t_ts = t_ts[o]
@@ -100,6 +120,11 @@ def detect(ob_src: bytes | str, trades: pd.DataFrame) -> pd.DataFrame:
         for line in fh:
             m = orjson.loads(line)
             ts = m["ts"]
+            while i_pr < len(probes) and probes[i_pr] < ts:          # состояние после всех обновлений <= probe
+                mm = mid()
+                if np.isfinite(mm) and best[1] < best[-1]:
+                    snaps.append([int(probes[i_pr]), mm, (best[-1] - best[1]) / mm * 1e4, *_band_depth(book, mm)])
+                i_pr += 1
             while i_tr < n_tr and t_ts[i_tr] <= ts:                 # сделки до обновления стакана
                 side_hit = -1 if t_buy[i_tr] else 1                   # покупатель бьёт в ask (-1), продавец в bid (1)
                 w = walls.get((side_hit, t_px[i_tr]))
@@ -161,8 +186,10 @@ def detect(ob_src: bytes | str, trades: pd.DataFrame) -> pd.DataFrame:
                     ref[-1] = _ref_size(book[-1], best[-1], -1)
                     for (sd, pr), w in walls.items():
                         w["min_dist"] = min(w["min_dist"], abs(pr / mm - 1) * 1e4)
+    snap_cols = ["t_ms", "mid", "spread_bps"] + [f"{s}{b}" for b in BANDS_BPS for s in ("bid", "ask")]
+    snaps_df = pd.DataFrame(snaps, columns=snap_cols)
     if not events:
-        return pd.DataFrame()
+        return pd.DataFrame(), snaps_df
     ev = pd.DataFrame(events, columns=["ts", "kind", "side", "size_x", "life_ms", "dist_bps"])
     tt, tm = np.frombuffer(tob_ts, dtype="float64"), np.frombuffer(tob_mid, dtype="float64")
     m0 = _asof(tt, tm, ev["ts"].to_numpy(dtype="float64"))
@@ -171,11 +198,11 @@ def detect(ob_src: bytes | str, trades: pd.DataFrame) -> pd.DataFrame:
     for h in HORIZONS_S:
         mh = _asof(tt, tm, ev["ts"].to_numpy(dtype="float64") + h * 1000.0)
         ev[f"fwd{h}"] = (mh / m0 - 1) * 1e4
-    return ev
+    return ev, snaps_df
 
 
-def run_symbol_day(args) -> pd.DataFrame:
-    sym, day = args
+def run_symbol_day(args) -> tuple[pd.DataFrame, pd.DataFrame]:
+    sym, day, sig = args
     ob = None
     for n in (500, 200):
         ob = _fetch_to_file(OB_URL.format(s=sym, d=day, n=n))
@@ -185,18 +212,21 @@ def run_symbol_day(args) -> pd.DataFrame:
     if ob is None or tr is None:
         if ob is not None:
             os.unlink(ob)
-        return pd.DataFrame()
+        return pd.DataFrame(), pd.DataFrame()
     trades = pd.read_csv(io.BytesIO(gzip.decompress(tr)), usecols=["timestamp", "side", "size", "price"])
     del tr
+    probes = sig["t_ms"].to_numpy(dtype="int64") if sig is not None and len(sig) else None
     try:
-        ev = detect(ob, trades)
+        ev, snaps = replay(ob, trades, probes)
     finally:
         os.unlink(ob)
-    if len(ev):
-        ev.insert(0, "day", day)
-        ev.insert(0, "symbol", sym)
-    print(f"  {sym} {day}: событий {len(ev)}", flush=True)
-    return ev
+    lx = luxbook.features(sig, snaps, ev, trades) if probes is not None else pd.DataFrame()
+    for df in (ev, lx):
+        if len(df):
+            df.insert(0, "day", day)
+            df.insert(0, "symbol", sym)
+    print(f"  {sym} {day}: событий {len(ev)}, пробоев LuxAlgo {len(lx)}", flush=True)
+    return ev, lx
 
 
 def period_of(day: str) -> str:
@@ -243,16 +273,37 @@ if __name__ == "__main__":
     ap.add_argument("--days", default="")
     ap.add_argument("--out", default=".")
     ap.add_argument("--workers", type=int, default=2)
+    ap.add_argument("--lux", action="store_true", help="также пробои LuxAlgo с признаками стакана (luxbook)")
     a = ap.parse_args()
     if a.report:
-        report(pd.concat([pd.read_parquet(p) for p in sorted(Path(a.report).rglob("walls_*.parquet"))]))
+        walls_files = sorted(Path(a.report).rglob("walls_*.parquet"))
+        if walls_files:
+            report(pd.concat([pd.read_parquet(p) for p in walls_files]))
+        lux_files = sorted(Path(a.report).rglob("luxbook_*.parquet"))
+        if lux_files:
+            luxbook.report(pd.concat([pd.read_parquet(p) for p in lux_files], ignore_index=True))
         sys.exit(0)
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
-    jobs = [(s, d) for s in a.symbols.split(",") for d in a.days.split(",")]
+    days = a.days.split(",")
+    jobs = []
+    for s in a.symbols.split(","):
+        by_day: dict = {}
+        if a.lux:
+            k = luxbook.load_klines(s, days, out / "kcache")
+            by_day = luxbook.probes_by_day(luxbook.signals(k), days) if k is not None else {}
+            print(f"{s}: пробоев LuxAlgo в днях реплея {sum(len(v) for v in by_day.values())}", flush=True)
+        jobs += [(s, d, by_day.get(d)) for d in days]
     with ProcessPoolExecutor(a.workers) as ex:
-        parts = [p for p in ex.map(run_symbol_day, jobs) if len(p)]
-    ev = pd.concat(parts) if parts else pd.DataFrame()
-    if len(ev):
-        ev.to_parquet(out / f"walls_{abs(hash(a.symbols + a.days)) % 10**8}.parquet")
+        res = list(ex.map(run_symbol_day, jobs))
+    tag = abs(hash(a.symbols + a.days)) % 10**8
+    ev_parts = [e for e, _ in res if len(e)]
+    lx_parts = [x for _, x in res if len(x)]
+    if ev_parts:
+        ev = pd.concat(ev_parts)
+        ev.to_parquet(out / f"walls_{tag}.parquet")
         report(ev)
+    if lx_parts:
+        lx = pd.concat(lx_parts, ignore_index=True)
+        lx.to_parquet(out / f"luxbook_{tag}.parquet")
+        luxbook.report(lx)
