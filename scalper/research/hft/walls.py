@@ -233,34 +233,51 @@ def period_of(day: str) -> str:
     return "is" if day < "2024-07-01" else "val" if day < "2025-07-01" else "ho"
 
 
-def report(ev: pd.DataFrame) -> None:
-    ev = ev.copy()
-    ev["period"] = ev["day"].map(period_of)
-    days = ev.groupby(["symbol", "period"])["day"].nunique()
-    print(f"\nсобытий: {len(ev)}; монет {ev['symbol'].nunique()}, дней {ev['day'].nunique()}")
+MIN_SIZE_X = 10.0          # отчёт: «настоящая» стена — не меньше 10 медиан уровня
+MIN_LIFE_MS = 5_000        # и простояла хотя бы 5 с (отсекаем мерцание котировок HFT)
+DEDUP_MS = 60_000          # одно событие одного типа на стороне за минуту
+
+
+def clean(ev: pd.DataFrame) -> pd.DataFrame:
+    e = ev[(ev["size_x"] >= MIN_SIZE_X) & (ev["life_ms"] >= MIN_LIFE_MS)].copy()
+    e["bucket"] = (e["ts"] // DEDUP_MS).astype("int64")
+    return e.sort_values("ts").drop_duplicates(["symbol", "day", "kind", "side", "bucket"])
+
+
+def _table(ev: pd.DataFrame) -> pd.DataFrame:
+    """Среднее движение в ожидаемую сторону: по монето-дням (события внутри дня зависимы), t — по ним же."""
     rows = []
     for (kind, per), g in ev.groupby(["kind", "period"]):
         sgn = g["expect"].where(g["expect"] != 0, 1.0)            # для контроля — просто «вверх»
-        r = {"kind": kind, "period": per, "n": len(g),
-             "per_coin_day": len(g) / days.xs(per, level="period").sum()}
+        r = {"kind": kind, "period": per, "n": len(g), "coin_days": g.groupby(["symbol", "day"]).ngroups}
         for h in HORIZONS_S:
-            x = (g[f"fwd{h}"] * sgn).dropna()
-            r[f"{h}s"] = x.mean()
-            r[f"t{h}"] = x.mean() / (x.std(ddof=1) / np.sqrt(len(x))) if len(x) > 30 else np.nan
+            cd = (g[f"fwd{h}"] * sgn).groupby([g["symbol"], g["day"]]).mean().dropna()
+            r[f"{h}s"] = cd.mean()
+            r[f"t{h}"] = cd.mean() / (cd.std(ddof=1) / np.sqrt(len(cd))) if len(cd) > 5 else np.nan
         rows.append(r)
-    t = pd.DataFrame(rows)
-    print("\nДвижение средней цены в ожидаемую сторону, б.п. (t — статистика); издержки круга: maker 4, taker 11")
-    print(t.round(2).to_string(index=False))
-    # сильные стены (крупнее 15x) — отдельно
-    big = ev[ev["size_x"] >= 15]
+    return pd.DataFrame(rows)
+
+
+def report(ev: pd.DataFrame) -> None:
+    ev = ev.copy()
+    ev["period"] = ev["day"].map(period_of)
+    print(f"\nсобытий (сырых): {len(ev)}; монет {ev['symbol'].nunique()}, дней {ev['day'].nunique()}")
+    diag = ev.groupby(["symbol", "period"]).agg(
+        coin_days=("day", "nunique"), events=("kind", "size"), med_size_x=("size_x", "median"),
+        life_lt_1s=("life_ms", lambda x: float((x < 1000).mean())))
+    diag["per_day"] = diag["events"] / diag["coin_days"]
+    print("\nДиагностика сырых событий (сколько, насколько крупные, доля живших < 1 с):")
+    print(diag.round(2).to_string())
+    ev = clean(ev)
+    print(f"\nПосле отбора (>= {MIN_SIZE_X:.0f} медиан, жила >= {MIN_LIFE_MS // 1000} с, "
+          f"одно событие типа/стороны в минуту): {len(ev)}")
+    print("Движение средней цены в ожидаемую сторону, б.п.: среднее по монето-дням, t — по монето-дням; "
+          "издержки круга: maker 4, taker 11")
+    print(_table(ev).round(2).to_string(index=False))
+    big = ev[ev["size_x"] >= 30]
     if len(big):
-        print("\nТолько крупные стены (>= 15 медиан):")
-        rows = []
-        for (kind, per), g in big.groupby(["kind", "period"]):
-            sgn = g["expect"].where(g["expect"] != 0, 1.0)
-            rows.append({"kind": kind, "period": per, "n": len(g),
-                         **{f"{h}s": (g[f"fwd{h}"] * sgn).mean() for h in HORIZONS_S}})
-        print(pd.DataFrame(rows).round(2).to_string(index=False))
+        print("\nТолько очень крупные стены (>= 30 медиан):")
+        print(_table(big).round(2).to_string(index=False))
 
 
 if __name__ == "__main__":

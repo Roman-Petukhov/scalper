@@ -139,11 +139,13 @@ def classify(df: pd.DataFrame) -> pd.Series:
     return pd.Series(np.select([fake, conf], ["fake", "confirmed"], "other"), index=df.index)
 
 
-def _stats(x: pd.Series) -> tuple[int, float, float]:
-    x = x.dropna()
-    if len(x) < 2:
-        return len(x), np.nan, np.nan
-    return len(x), float(x.mean()), float(x.mean() / (x.std(ddof=1) / np.sqrt(len(x))))
+def _stats(g: pd.DataFrame, col: str) -> tuple[int, float, float]:
+    """Среднее по событиям; t — по средним монето-дней (несколько пробоев одного дня зависимы)."""
+    x = g[col].dropna()
+    cd = g[col].groupby([g["symbol"], g["day"]]).mean().dropna()
+    if len(cd) < 6:
+        return len(x), float(x.mean()) if len(x) else np.nan, np.nan
+    return len(x), float(x.mean()), float(cd.mean() / (cd.std(ddof=1) / np.sqrt(len(cd))))
 
 
 def report(df: pd.DataFrame) -> None:
@@ -155,13 +157,13 @@ def report(df: pd.DataFrame) -> None:
         df[r + "_d"] = df[r] * df["dir"]
     print(f"\n==== LuxAlgo + стакан: пробоев {len(df)}, монет {df['symbol'].nunique()}, дней {df['day'].nunique()}; "
           f"средний срок до переворота {df.loc[df['hold_bars'] > 0, 'hold_bars'].mean() * 5:.0f} мин")
-    print("Доходность ПО пробою (ret*d), б.п.; t — статистика. Круг taker = 11 б.п.: confirmed нужно > +11, "
+    print("Доходность ПО пробою (ret*d), б.п.; t — по монето-дням. Круг taker = 11 б.п.: confirmed нужно > +11, "
           "fake нужно < -11 (тогда торговля против пробоя в плюсе)")
     rows = []
     for cls, g in [("ALL", df)] + list(df.groupby("cls")):
         r = {"class": cls, "n": len(g), "share": len(g) / len(df)}
         for col in rets:
-            n, m, tt = _stats(g[col + "_d"])
+            n, m, tt = _stats(g, col + "_d")
             r[col[4:]], r["t_" + col[4:]] = m, tt
         rows.append(r)
     print(pd.DataFrame(rows).round(2).to_string(index=False))

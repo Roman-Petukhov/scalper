@@ -12,6 +12,9 @@ on:
       prev_run:
         description: "id прошлого запуска: его готовые результаты войдут в отчёт (для дозапуска упавших задач)"
         default: ""
+      report_only:
+        description: "true — без пересчёта: только отчёт по результатам prev_run"
+        default: "false"
 
 permissions:
   contents: write
@@ -19,6 +22,7 @@ permissions:
 
 jobs:
   plan:
+    if: inputs.report_only != 'true'
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.m.outputs.matrix }}
@@ -29,6 +33,7 @@ jobs:
 
   sim:
     needs: plan
+    if: inputs.report_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 300
     strategy:
@@ -61,7 +66,8 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install pandas pyarrow numpy orjson numba
-      - uses: actions/download-artifact@v4
+      - if: inputs.report_only != 'true'
+        uses: actions/download-artifact@v4
         with:
           path: out
           merge-multiple: true
