@@ -10,6 +10,8 @@
 Протокол: IS 2023-01..2024-06 — отбор по t-статистике, VAL 2024-07..2025-06 — ворота, HOLDOUT 2025-07..2026-09.
 
     python -m research.spikes --root <1m data> --symbols ...
+    python -m research.spikes --root <1m data> --symbols ... --exam --dead A,B   # фиксированные настройки,
+        независимая выборка (с делистингованными монетами), хвосты и разбивка по годам
 """
 from __future__ import annotations
 
@@ -30,14 +32,23 @@ STOPS = (np.inf, 1.0)
 MAKER, TAKER = 2e-4, 5.5e-4
 PER = {"is": ("2023-01-01", "2024-07-01"), "val": ("2024-07-01", "2025-07-01"), "ho": ("2025-07-01", "2026-10-01")}
 MIN_IS = 500
+# зафиксировано по IS выборки A (60 живых монет): преимущество — в покупке прострелов вниз (лонг: +115 б.п.,
+# t=12; шорт: +27, t=1.1, и все худшие хвосты); аварийный стоп 5D сохраняет большую часть дохода и режет хвост.
+# Основная настройка — первая; остальные — для сравнения на независимой выборке B (с делистингованными монетами).
+EXAM = [{"m": 4.0, "f": 0.5, "T": 60, "stop": 5.0, "long_only": True},
+        {"m": 4.0, "f": 0.5, "T": 60, "stop": np.inf, "long_only": True},
+        {"m": 4.0, "f": 0.5, "T": 60, "stop": np.inf, "long_only": False},
+        {"m": 6.0, "f": 0.5, "T": 60, "stop": 5.0, "long_only": True},
+        {"m": 3.0, "f": 0.5, "T": 60, "stop": 5.0, "long_only": True}]
 
 
 @njit(cache=True)
-def spike_machine(o, h, lo, c, sig, m, f, T, stop_s, maker, taker):
-    """Возвращает индексы минут входа и чистые доходности сделок (доли)."""
+def spike_machine(o, h, lo, c, sig, m, f, T, stop_s, maker, taker, long_only=False):
+    """Возвращает индексы минут входа, чистые доходности сделок (доли) и сторону (+1 покупка прострела вниз)."""
     n = len(c)
     idx = np.empty(n, np.int64)
     ret = np.empty(n)
+    sd = np.empty(n, np.int8)
     k = 0
     side = 0
     entry = tp = sl = 0.0
@@ -50,7 +61,7 @@ def spike_machine(o, h, lo, c, sig, m, f, T, stop_s, maker, taker):
             d = m * s_
             ref = c[t - 1]
             buy_px, sell_px = ref * (1 - d), ref * (1 + d)
-            hb, hs = lo[t] < buy_px, h[t] > sell_px
+            hb, hs = lo[t] < buy_px, h[t] > sell_px and not long_only
             if hb and hs:
                 if c[t] - lo[t] < h[t] - c[t]:
                     hs = False
@@ -64,7 +75,7 @@ def spike_machine(o, h, lo, c, sig, m, f, T, stop_s, maker, taker):
             sl = entry * (1 - side * stop_s * d)
             t_in = t
             if (side > 0 and lo[t] <= sl) or (side < 0 and h[t] >= sl):     # стоп в минуте входа
-                idx[k], ret[k] = t, side * (sl / entry - 1) - maker - taker
+                idx[k], ret[k], sd[k] = t, side * (sl / entry - 1) - maker - taker, side
                 k += 1
                 side = 0
             continue
@@ -77,10 +88,10 @@ def spike_machine(o, h, lo, c, sig, m, f, T, stop_s, maker, taker):
         elif t - t_in >= T:
             xp, fee = c[t], taker
         if not np.isnan(xp):
-            idx[k], ret[k] = t_in, side * (xp / entry - 1) - maker - fee
+            idx[k], ret[k], sd[k] = t_in, side * (xp / entry - 1) - maker - fee, side
             k += 1
             side = 0
-    return idx[:k], ret[:k]
+    return idx[:k], ret[:k], sd[:k]
 
 
 def load(root: Path, sym: str) -> pd.DataFrame | None:
@@ -98,9 +109,10 @@ def load(root: Path, sym: str) -> pd.DataFrame | None:
 def trades(frames: dict, cfg: dict) -> pd.DataFrame:
     out = []
     for s, k in frames.items():
-        i, r = spike_machine(k["open"].to_numpy(), k["high"].to_numpy(), k["low"].to_numpy(), k["close"].to_numpy(),
-                             k["sig"].to_numpy(), cfg["m"], cfg["f"], cfg["T"], cfg["stop"], MAKER, TAKER)
-        out.append(pd.DataFrame({"symbol": s, "t": k.index[i], "r": r}))
+        i, r, sd = spike_machine(k["open"].to_numpy(), k["high"].to_numpy(), k["low"].to_numpy(), k["close"].to_numpy(),
+                             k["sig"].to_numpy(), cfg["m"], cfg["f"], cfg["T"], cfg["stop"], MAKER, TAKER,
+                             cfg.get("long_only", False))
+        out.append(pd.DataFrame({"symbol": s, "t": k.index[i], "r": r, "side": sd}))
     return pd.concat(out, ignore_index=True)
 
 
@@ -117,6 +129,35 @@ def stats(tr: pd.DataFrame, n_coins: int) -> dict:
     return res
 
 
+def exam(frames: dict, dead: set[str]) -> None:
+    print(f"ЭКЗАМЕН фиксированных настроек: {len(frames)} монет, из них делистингованных {len(dead & set(frames))}")
+    for i, cfg in enumerate(EXAM):
+        tr = trades(frames, cfg)
+        stop = "none" if not np.isfinite(cfg["stop"]) else f"{cfg['stop']:g}D"
+        side = "только лонг" if cfg.get("long_only") else "обе стороны"
+        print(f"\n[{'основная' if i == 0 else 'сравнение'}] m={cfg['m']}, f={cfg['f']}, T={cfg['T']}, стоп={stop}, "
+              f"{side}")
+        st = stats(tr, len(frames))
+        print("  " + " | ".join(f"{p}: n={st[p + '_n']}, {st[p + '_bps']:+.1f} б.п., win {st[p + '_win']:.0%}, "
+                                f"t={st[p + '_t']:.2f}" for p in PER))
+        r = tr["r"] * 1e4
+        print(f"  хвосты: 1% худших {r.quantile(0.01):+.0f} б.п., 0.1% {r.quantile(0.001):+.0f}, худшая {r.min():+.0f}; "
+              f"доля сделок хуже -500 б.п.: {(r < -500).mean():.2%}")
+        tr["year"] = tr["t"].dt.year
+        tr["dead"] = tr["symbol"].isin(dead)
+        by = tr.groupby("year")["r"].agg(["size", "mean"])
+        print("  по годам (n, б.п.): " + ", ".join(f"{y}: {int(n)}, {m * 1e4:+.0f}" for y, (n, m) in by.iterrows()))
+        bd = tr.groupby("dead")["r"].agg(["size", "mean", "min"])
+        for flag, (n, m, mn) in bd.iterrows():
+            print(f"  {'делистингованные' if flag else 'живые'}: n={int(n)}, {m * 1e4:+.1f} б.п., худшая {mn * 1e4:+.0f}")
+        pc = tr.groupby("symbol")["r"].sum()
+        print(f"  монет в плюсе: {(pc > 0).mean():.0%} из {len(pc)}; худшие монеты: "
+              + ", ".join(f"{k} {v * 1e4:+.0f}" for k, v in pc.nsmallest(3).items()))
+        worst = tr.nsmallest(5, "r")
+        print("  5 худших сделок: " + "; ".join(f"{w.symbol} {w.t:%Y-%m-%d %H:%M} {w.r * 1e4:+.0f}"
+                                                 for w in worst.itertuples()))
+
+
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     warnings.filterwarnings("ignore")
@@ -124,8 +165,13 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", required=True)
     ap.add_argument("--symbols", required=True)
+    ap.add_argument("--exam", action="store_true")
+    ap.add_argument("--dead", default="")
     a = ap.parse_args()
     frames = {s: f for s in a.symbols.split(",") if (f := load(Path(a.root), s)) is not None}
+    if a.exam:
+        exam(frames, set(a.dead.split(",")) - {""})
+        sys.exit(0)
     print(f"===== SPIKES: ловля прострелов, {len(frames)} монет, 1m =====")
     rows = []
     for m, f, T, st in itertools.product(MS, FS, TS, STOPS):
