@@ -1,0 +1,180 @@
+----- prepall collect (часть 0/10) -----
+часть 0/10, набор 1h-all: монет 76
+----- spikesfull collect (часть 0/10) -----
+монет в диапазоне оборота: 61
+  1INCHUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  BANANAS31USDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  BIGTIMEUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  BMTUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  FORMUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  FUNUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  GMXUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  HEIUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  JOEUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  MASKUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  OGUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  POWRUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  RAYSOLUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  SOPHUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  SXPUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  TONUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  VINEUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  ZECUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  ZEREBROUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+----- prepall collect (часть 1/10) -----
+часть 1/10, набор 1h-all: монет 84
+----- spikesfull collect (часть 1/10) -----
+монет в диапазоне оборота: 59
+  ATHUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  BUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  DEGOUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  GMTUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  HOTUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  MILKUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  MOCAUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  NFPUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  OMUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  PORT3USDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  PROMPTUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  RLCUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  SANTOSUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  TRUMPUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  TWTUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+----- prepall collect (часть 2/10) -----
+часть 2/10, набор 1h-all: монет 93
+----- spikesfull collect (часть 2/10) -----
+монет в диапазоне оборота: 72
+  API3USDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  ARUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  BELUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  CFXUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  CHZUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  DUSKUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  FHEUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  HMSTRUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  NEOUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  OPUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  SKYAIUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+----- prepall collect (часть 3/10) -----
+часть 3/10, набор 1h-all: монет 94
+----- spikesfull collect (часть 3/10) -----
+монет в диапазоне оборота: 72
+  ASTRUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  BROCCOLIF3BUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  CKBUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  COWUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  GRASSUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  JELLYJELLYUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  MLNUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  NEIROETHUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  PROMUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  SHELLUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  UXLINKUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+----- prepall collect (часть 4/10) -----
+часть 4/10, набор 1h-all: монет 86
+----- spikesfull collect (часть 4/10) -----
+монет в диапазоне оборота: 66
+  ACHUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  ACXUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  ALCHUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  ALPHAUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  DODOXUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  LOKAUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  MAVIAUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  MEMEFIUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  OBOLUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  QUICKUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  RUNEUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  STOUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  XAIUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+----- prepall collect (часть 5/10) -----
+часть 5/10, набор 1h-all: монет 98
+----- spikesfull collect (часть 5/10) -----
+монет в диапазоне оборота: 84
+  1000PEPEUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  ARCUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  BSWUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  COTIUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  DEEPUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  EPICUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  HIFIUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  KAVAUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  MINAUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  MTLUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  PUMPUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  SIRENUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  SOLVUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  SWARMSUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  VANAUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  WCTUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+----- prepall collect (часть 6/10) -----
+часть 6/10, набор 1h-all: монет 90
+----- spikesfull collect (часть 6/10) -----
+монет в диапазоне оборота: 66
+  1000LUNCUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  BRUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  DEXEUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  JSTUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  KERNELUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  LEVERUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  LINKUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  OMNIUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  REIUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  SOONUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  STORJUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  TUTUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  VANRYUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  ZRXUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+----- prepall collect (часть 7/10) -----
+часть 7/10, набор 1h-all: монет 79
+----- spikesfull collect (часть 7/10) -----
+монет в диапазоне оборота: 56
+  1000RATSUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  ADAUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  AIOTUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  BAKEUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  DASHUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  DOTUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  FLUXUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  LAYERUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  ORDIUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  SPELLUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  SUNUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  ZKJUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+----- prepall collect (часть 8/10) -----
+часть 8/10, набор 1h-all: монет 90
+----- spikesfull collect (часть 8/10) -----
+монет в диапазоне оборота: 69
+  AKTUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  BDXNUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  CVCUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  FORTHUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  IOSTUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  ONGUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  RONINUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  SYNUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  TRBUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+----- prepall collect (часть 9/10) -----
+часть 9/10, набор 1h-all: монет 107
+----- spikesfull collect (часть 9/10) -----
+монет в диапазоне оборота: 78
+  1MBABYDOGEUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  ACTUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  AGTUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  AUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  CHESSUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  DFUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  FISUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  HAEDALUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  INITUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  IOTXUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  IPUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  LRCUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  LSKUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  NILUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  PEOPLEUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  PUMPBTCUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  TSTUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  UNIUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  USDCUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
+  VOXELUSDT: пропуск (arrays used as indices must be of integer (or boolean) type)
