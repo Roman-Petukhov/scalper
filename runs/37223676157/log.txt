@@ -1,0 +1,25 @@
+===== HL WHALES: копирование сделок кошельков Hyperliquid (отбор до T, проверка после T) =====
+leaderboard: 47201 кошельков, активных с оборотом $20M–$5B: 9854, берём случайные 200
+  0/200 кошельков
+  25/200 кошельков
+  50/200 кошельков
+  75/200 кошельков
+  100/200 кошельков
+  125/200 кошельков
+  150/200 кошельков
+  175/200 кошельков
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/runner/work/scalper/scalper/scalper/research/hl_whales.py", line 299, in <module>
+    all_ep.loc[post, "copy_1h"] = copy_returns(all_ep[post], cache)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/scalper/scalper/scalper/research/hl_whales.py", line 193, in copy_returns
+    c = candles(coin, cache)
+        ^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/scalper/scalper/scalper/research/hl_whales.py", line 183, in candles
+    raw = _post({"type": "candleSnapshot", "req": {"coin": coin, "interval": "1h", "startTime": end - 5000 * 3_600_000,
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/scalper/scalper/scalper/research/hl_whales.py", line 84, in _post
+    raise RuntimeError(f"HL info: не удалось выполнить {body.get('type')}")
+RuntimeError: HL info: не удалось выполнить candleSnapshot
