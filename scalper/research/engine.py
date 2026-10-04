@@ -36,11 +36,15 @@ def _to_utc(ts: pd.Series) -> pd.DatetimeIndex:
 
 
 def load(symbol: str, root: Path, interval: str = "5m") -> pd.DataFrame:
-    df = pd.read_parquet(Path(root) / f"{symbol}-5m.parquet")
+    src = "5m"
+    p = Path(root) / f"{symbol}-5m.parquet"
+    if not p.exists() and BAR_MINUTES[interval] >= 60 and (Path(root) / f"{symbol}-1h.parquet").exists():
+        src, p = "1h", Path(root) / f"{symbol}-1h.parquet"       # для часовых стратегий хватает часовых свечей
+    df = pd.read_parquet(p)
     df.index = _to_utc(df["open_time"])
     df = df.drop(columns=["open_time"])
     df = df[~df.index.duplicated()].sort_index()
-    if interval != "5m":
+    if interval != src:
         df = resample(df, interval)
     df["funding"] = funding_on_bars(symbol, root, df.index, BAR_MINUTES[interval])
     return df

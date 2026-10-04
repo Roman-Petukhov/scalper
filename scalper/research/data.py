@@ -11,6 +11,7 @@ import io
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -19,7 +20,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-BASE = "https://data.binance.vision/data/futures/um/monthly"
+HOSTS = {"cdn": "https://data.binance.vision",
+         "s3": "https://s3-ap-northeast-1.amazonaws.com/data.binance.vision"}   # тот же архив напрямую из S3
+BASE = f"{HOSTS['cdn']}/data/futures/um/monthly"
 UNIVERSE = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "AVAXUSDT",
             "LINKUSDT", "LTCUSDT", "DOTUSDT", "TRXUSDT", "BCHUSDT", "ATOMUSDT", "NEARUSDT", "ETCUSDT"]
 KCOLS = ["open_time", "open", "high", "low", "close", "volume", "close_time", "quote_volume",
@@ -30,7 +33,14 @@ def months(start: str, end: str) -> list[str]:
     return [p.strftime("%Y-%m") for p in pd.period_range(start, end, freq="M")]
 
 
+def set_host(name: str) -> None:
+    global BASE, DAILY
+    BASE = f"{HOSTS[name]}/data/futures/um/monthly"
+    DAILY = f"{HOSTS[name]}/data/futures/um/daily"
+
+
 def _get(url: str) -> bytes | None:
+    url = urllib.parse.quote(url, safe=":/?=&%")          # символы с не-ASCII именами
     for attempt in range(4):
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "flow-scalper-research/1.0"})
@@ -119,7 +129,8 @@ def fetch_funding(symbol: str, month: str, cache: Path) -> Path | None:
     return out
 
 
-DAILY = "https://data.binance.vision/data/futures/um/daily"
+DAILY = f"{HOSTS['cdn']}/data/futures/um/daily"
+METRICS_FREQ: str | None = None      # например "1h": хранить последний снимок метрик в каждом часе
 
 
 def fetch_metrics(symbol: str, month: str, cache: Path) -> Path | None:
@@ -143,7 +154,11 @@ def fetch_metrics(symbol: str, month: str, cache: Path) -> Path | None:
     m = pd.DataFrame({"ts": ts.dt.as_unit("ms").astype("int64").to_numpy()})
     for c in keep:
         m[c] = pd.to_numeric(df[c], errors="coerce").to_numpy() if c in df else np.nan
-    _save(m.sort_values("ts"), out)
+    m = m.sort_values("ts")
+    if METRICS_FREQ:
+        hour = pd.to_datetime(m["ts"], unit="ms").dt.floor(METRICS_FREQ)
+        m = m.groupby(hour.to_numpy(), sort=True).tail(1)
+    _save(m, out)
     return out
 
 
@@ -195,7 +210,11 @@ if __name__ == "__main__":
     ap.add_argument("--root", required=True)
     ap.add_argument("--metrics", action="store_true", help="также OI и long/short ratio (дневные архивы)")
     ap.add_argument("--premium", action="store_true", help="также premium index klines")
+    ap.add_argument("--host", default="cdn", choices=list(HOSTS))
+    ap.add_argument("--metrics-freq", default=None, help="прореживание метрик, например 1h")
     ap.add_argument("--workers", type=int, default=12)
     a = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    set_host(a.host)
+    METRICS_FREQ = a.metrics_freq
     build(a.symbols.split(","), a.interval, a.start, a.end, Path(a.root), a.workers, a.metrics, a.premium)
