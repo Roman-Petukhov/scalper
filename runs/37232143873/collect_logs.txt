@@ -1,0 +1,70 @@
+----- prep collect (часть 0/10) -----
+часть 0/10, набор 1h-qualified: монет 63
+часть 0/10, набор 1h-all: монет 76
+----- listings2 collect (часть 0/10) -----
+  каталог 161: страниц 9
+анонсов 4499, событий в части 30: monitoring 13, spot_list 6, spot_fade 6, delist 5
+----- export collect (часть 0/10) -----
+----- prep collect (часть 1/10) -----
+часть 1/10, набор 1h-qualified: монет 66
+часть 1/10, набор 1h-all: монет 84
+----- listings2 collect (часть 1/10) -----
+  каталог 161: страниц 9
+анонсов 4499, событий в части 35: delist 10, monitoring 9, spot_list 8, spot_fade 8
+----- export collect (часть 1/10) -----
+----- prep collect (часть 2/10) -----
+часть 2/10, набор 1h-qualified: монет 78
+часть 2/10, набор 1h-all: монет 93
+----- listings2 collect (часть 2/10) -----
+  каталог 161: страниц 9
+анонсов 4499, событий в части 24: delist 8, monitoring 8, spot_list 4, spot_fade 4
+----- export collect (часть 2/10) -----
+----- prep collect (часть 3/10) -----
+часть 3/10, набор 1h-qualified: монет 73
+часть 3/10, набор 1h-all: монет 94
+----- listings2 collect (часть 3/10) -----
+  каталог 161: страниц 9
+анонсов 4499, событий в части 32: monitoring 13, delist 7, spot_list 6, spot_fade 6
+----- export collect (часть 3/10) -----
+----- prep collect (часть 4/10) -----
+часть 4/10, набор 1h-qualified: монет 72
+часть 4/10, набор 1h-all: монет 86
+----- listings2 collect (часть 4/10) -----
+  каталог 161: страниц 9
+анонсов 4499, событий в части 35: monitoring 10, delist 9, spot_list 8, spot_fade 8
+----- export collect (часть 4/10) -----
+----- prep collect (часть 5/10) -----
+часть 5/10, набор 1h-qualified: монет 83
+часть 5/10, набор 1h-all: монет 98
+----- listings2 collect (часть 5/10) -----
+  каталог 161: страниц 9
+анонсов 4499, событий в части 30: monitoring 12, spot_list 6, delist 6, spot_fade 6
+----- export collect (часть 5/10) -----
+----- prep collect (часть 6/10) -----
+часть 6/10, набор 1h-qualified: монет 71
+часть 6/10, набор 1h-all: монет 90
+----- listings2 collect (часть 6/10) -----
+  каталог 161: страниц 9
+анонсов 4499, событий в части 37: monitoring 13, delist 12, spot_list 6, spot_fade 6
+----- export collect (часть 6/10) -----
+----- prep collect (часть 7/10) -----
+часть 7/10, набор 1h-qualified: монет 61
+часть 7/10, набор 1h-all: монет 79
+----- listings2 collect (часть 7/10) -----
+  каталог 161: страниц 9
+анонсов 4499, событий в части 34: monitoring 12, spot_list 9, spot_fade 9, delist 4
+----- export collect (часть 7/10) -----
+----- prep collect (часть 8/10) -----
+часть 8/10, набор 1h-qualified: монет 75
+часть 8/10, набор 1h-all: монет 90
+----- listings2 collect (часть 8/10) -----
+  каталог 161: страниц 9
+анонсов 4499, событий в части 28: monitoring 14, spot_list 5, spot_fade 5, delist 4
+----- export collect (часть 8/10) -----
+----- prep collect (часть 9/10) -----
+часть 9/10, набор 1h-qualified: монет 83
+часть 9/10, набор 1h-all: монет 107
+----- listings2 collect (часть 9/10) -----
+  каталог 161: страниц 9
+анонсов 4499, событий в части 44: monitoring 18, delist 12, spot_list 7, spot_fade 7
+----- export collect (часть 9/10) -----
