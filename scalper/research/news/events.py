@@ -87,7 +87,7 @@ def fetch_okx() -> pd.DataFrame:
 
 def classify_okx(title: str, catalog: str) -> tuple[str, list[str], int]:
     t = title
-    ticks = re.findall(r"\(([A-Z0-9]{2,15})\)", t) + re.findall(r"\b([A-Z0-9]{2,15})USDT\b", t)
+    ticks = re.findall(r"\(([A-Z0-9]{2,15})\)", t) + re.findall(r"\b([A-Z0-9]{2,15})[ -/]?USDT\b", t)
     ticks = [x for x in dict.fromkeys(ticks) if x not in ("USDT", "USDC", "USD")]
     if catalog == "delisting":
         typ = "futures_delist" if re.search(r"perpetual|futures|swap", t, re.I) else "spot_delist"
