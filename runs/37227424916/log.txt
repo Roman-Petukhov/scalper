@@ -1,0 +1,46 @@
+===== HL WHALES: копирование кошельков Hyperliquid (отбор до T, проверка после T) =====
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/runner/work/scalper/scalper/scalper/research/hl_whales.py", line 334, in <module>
+    final_report()
+  File "/home/runner/work/scalper/scalper/scalper/research/hl_whales.py", line 316, in final_report
+    report(all_ep, wal)
+  File "/home/runner/work/scalper/scalper/scalper/research/hl_whales.py", line 265, in report
+    print(f"  кошельков {len(j)}: Spearman(mean_is, mean_oos) = {j['mean_is'].corr(j['mean_oos'], method='spearman'):+.3f}; "
+                                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/pandas/core/series.py", line 2774, in corr
+    result = nanops.nancorr(
+             ^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/pandas/core/nanops.py", line 87, in _f
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/pandas/core/nanops.py", line 1655, in nancorr
+    f = get_corr_func(method)
+        ^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/pandas/core/nanops.py", line 1670, in get_corr_func
+    from scipy.stats import spearmanr
+ModuleNotFoundError: No module named 'scipy'
+===== HL WHALES: частей 10, кошельков 500, эпизодов 53314, кошельков с эпизодами 442, монет 200 =====
+  медиана удержания 0 days 02:32:51.940000, медиана позиции $54,964; история с 2025-07-01
+
+=== После T (2026-04-01): эпизодов 22865, кошельков 374 ===
+                 группа  кошельков результат     n    mean  median    win   t_day
+            S_all (все)        500       own 22846  0.0016  0.0002 0.5144  4.3888
+            S_all (все)        500   copy_1h 22362  0.0007 -0.0012 0.3548  1.2972
+     S_skill (t>2 до T)         19       own   817  0.0056  0.0024 0.6487  2.2016
+     S_skill (t>2 до T)         19   copy_1h   809  0.0004 -0.0012 0.4425  0.1380
+S_pnl (PnL до T >= $1M)          0       own     0     NaN     NaN    NaN     NaN
+S_pnl (PnL до T >= $1M)          0   copy_1h     0     NaN     NaN    NaN     NaN
+   S_losers (t<-2 до T)         16       own  1322 -0.0012 -0.0016 0.4402 -0.9445
+   S_losers (t<-2 до T)         16   copy_1h  1305  0.0015 -0.0012 0.3893  0.7932
+
+=== copy_1h по длительности удержания (все кошельки / S_skill) ===
+удержание  все_n  все_mean  все_median  все_win  все_t_day  skill_n  skill_mean  skill_median  skill_win  skill_t_day
+      <1ч   7869   -0.0018     -0.0012   0.1437   -15.0859      182      0.0006       -0.0012     0.1868       0.3547
+     1-4ч   4925   -0.0028     -0.0021   0.3978    -7.8558      141     -0.0038       -0.0005     0.4823      -1.5039
+    4-24ч   5709    0.0003     -0.0006   0.4870     0.4363      215     -0.0022       -0.0007     0.4791      -0.5831
+     1-7д   3187    0.0074      0.0022   0.5293     3.4750      206      0.0115        0.0085     0.5922       1.7991
+      >7д    672    0.0259      0.0139   0.5595     2.6133       65     -0.0171       -0.0135     0.4769      -0.5927
+
+=== Устойчивость навыка: корреляция среднего результата кошелька до и после T (own) ===
