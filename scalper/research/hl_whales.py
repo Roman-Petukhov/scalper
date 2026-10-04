@@ -233,8 +233,13 @@ def wallet_is(ep: pd.DataFrame) -> dict:
 
 
 def report(all_ep: pd.DataFrame, wal: pd.DataFrame) -> None:
+    pre = all_ep[all_ep["t_close"] < T_SPLIT]
+    hold = ((pre["t_close"] - pre["t_open"]).dt.total_seconds() / 3600).groupby(pre["user"]).median()
+    wal = wal.assign(hold_is=wal["user"].map(hold))
     groups = {
         "S_all (все)": wal["user"],
+        "S_swing (медиана удержания до T >= 24ч)": wal.query("n_is >= 10 and hold_is >= 24")["user"],
+        "S_swing_skill (swing и средний результат до T > 0)": wal.query("n_is >= 10 and hold_is >= 24 and mean_is > 0")["user"],
         "S_skill (t>2 до T)": wal.query("n_is >= 15 and mean_is > 0 and t_is > 2")["user"],
         "S_pnl (PnL до T >= $1M)": wal.query("n_is >= 10 and pnl_is >= 1e6")["user"],
         "S_losers (t<-2 до T)": wal.query("n_is >= 15 and t_is < -2")["user"],
@@ -262,7 +267,7 @@ def report(all_ep: pd.DataFrame, wal: pd.DataFrame) -> None:
     per = post.groupby("user")["own"].agg(["mean", "size"]).rename(columns={"mean": "mean_oos", "size": "n_oos"})
     j = wal.set_index("user").join(per, how="inner").query("n_is >= 10 and n_oos >= 10")
     if len(j) > 5:
-        print(f"  кошельков {len(j)}: Spearman(mean_is, mean_oos) = {j['mean_is'].corr(j['mean_oos'], method='spearman'):+.3f}; "
+        print(f"  кошельков {len(j)}: Spearman(mean_is, mean_oos) = {j['mean_is'].rank().corr(j['mean_oos'].rank()):+.3f}; "
               f"из прибыльных до T прибыльны и после: {((j.mean_is > 0) & (j.mean_oos > 0)).sum()} из {(j.mean_is > 0).sum()}")
     print(f"  S_skill: {len(sk)} кошельков; примеры: " +
           ", ".join(f"{u[:8]}… n={int(n)} t={t:.1f}" for u, n, t in sk[["user", "n_is", "t_is"]].head(8).itertuples(index=False)))
