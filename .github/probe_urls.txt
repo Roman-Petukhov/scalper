@@ -1,6 +1,6 @@
-https://api-manager.upbit.com/api/v1/announcements?os=web&page=1&per_page=3&category=trade
-https://api-manager.upbit.com/api/v1/announcements?os=web&page=150&per_page=3&category=trade
-https://www.binance.com/bapi/composite/v1/public/cms/article/list/query?type=1&catalogId=48&pageNo=1&pageSize=3
-https://www.binance.com/bapi/composite/v1/public/cms/article/list/query?type=1&catalogId=48&pageNo=80&pageSize=3
-https://api.bybit.com/v5/announcements/index?locale=en-US&type=new_crypto&limit=3
-https://api.bybit.com/v5/announcements/index?locale=en-US&type=new_crypto&limit=3&page=100
+https://api.upbit.com/v1/market/all?isDetails=true
+https://api.upbit.com/v1/candles/minutes/1?market=KRW-SOL&count=2&to=2021-10-07T00:00:00Z
+https://upbit.com/service_center/notice
+https://api.bithumb.com/v1/market/all
+https://www.binance.com/bapi/composite/v1/public/cms/article/list/query?type=1&catalogId=48&pageNo=2&pageSize=50
+https://www.binance.com/bapi/composite/v1/public/cms/article/list/query?type=1&catalogId=161&pageNo=1&pageSize=5
