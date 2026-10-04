@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"hl"}
+TASKS=${TASKS:-"prep listings2 trail mom"}
 MODE=${1:-collect}
 FILTER="Pandas4Warning\|pd.concat\|файлов$\|мес. свечей"
 
@@ -20,6 +20,26 @@ lux_collect() {
 lux_report() {
   echo "===== LUX R:R: LuxAlgo Trendlines with Breaks, выход 1:3 / 1:5, вход по пробою и на ретесте ====="
   python -m research.lux_rr report
+}
+
+prep_collect() { python -m research.prepare 1h-qualified 15m-core70 1h-all; }
+prep_report() { :; }
+listings2_collect() { python -m research.listings2 collect --symbols "$(cat /tmp/syms_1h-all.txt)"; }
+listings2_report() {
+  echo "===== LISTINGS2: шорты по анонсам Binance — funding, цены Bybit, шорт после листинга ====="
+  python -m research.listings2 report
+}
+trail_collect() {
+  python -m research.trend_trail collect --symbols15 "$(cat /tmp/syms_15m-core70.txt)" --symbols1h "$(cat /tmp/syms_1h-qualified.txt)"
+}
+trail_report() {
+  echo "===== TREND TRAIL: пробои LuxAlgo и Дончиана с подтягиванием стопа (15m / 1h / 4h) ====="
+  python -m research.trend_trail report
+}
+mom_collect() { python -m research.momentum collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
+mom_report() {
+  echo "===== MOMENTUM: межмонетный (неделя) и по времени (CTA, день) ====="
+  python -m research.momentum report
 }
 
 case "$MODE" in
