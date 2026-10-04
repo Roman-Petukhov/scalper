@@ -18,7 +18,8 @@ LuxAlgo «Trendlines with Breaks» (length 14, Slope 1, Atr — как на гр
 Монеты: оборот за 30 прошлых дней >= $20M. Протокол IS -> VAL -> HOLDOUT, t — кластеризованный по дням.
 Плюс разбор примера с графика: SOLUSDT 15m, 29.09–04.10.2026, базовая настройка.
 
-    python -m research.lux_rr --root <binance data> --symbols15 ... --symbols1h ...
+    python -m research.lux_rr collect --root <binance data> --symbols15 ... --symbols1h ...   (по частям)
+    python -m research.lux_rr report
 """
 from __future__ import annotations
 
@@ -37,6 +38,7 @@ from numba import njit
 from . import data as D
 from .broad import ADV_MIN, adv30, group_of
 from .lux import _pivot, slope_series
+from .shard import all_parts, mine, part_path, shard_id
 
 PER = {"is": ("2022-01-01", "2024-07-01"), "val": ("2024-07-01", "2025-07-01"), "ho": ("2025-07-01", "2026-10-01")}
 LENGTHS = (14, 28)
@@ -206,7 +208,11 @@ def run_tf(root: Path, syms: list[str], tf: str) -> pd.DataFrame:
         df = load(root, s, tf)
         if df is None or len(df) < 500:
             continue
-        a = prepare(df, adv30(root, s))
+        try:
+            a = prepare(df, adv30(root, s))
+        except Exception as e:
+            print(f"  {s} {tf}: пропуск ({e})", flush=True)
+            continue
         for L in LENGTHS:
             side, lv, ls = lux_breaks(a["h"], a["l"], a["c"], slope_series(df, L, 1.0, "atr"), L)
             for k, (L2, entry, stop, tp, filt) in enumerate(cfgs):
@@ -221,6 +227,8 @@ def run_tf(root: Path, syms: list[str], tf: str) -> pd.DataFrame:
                                     entry == "retest", stop == "swing", tp, WAIT, hold, TAKER, MAKER)
                 if len(i):
                     parts.append(pd.DataFrame({"cfg": k, "t": a["ts"][i], "R": r, "side": sd, "symbol": s}))
+    if not parts:
+        return pd.DataFrame()
     out = pd.concat(parts, ignore_index=True)
     meta = pd.DataFrame(cfgs, columns=["length", "entry", "stop", "tp", "filter"])
     return out.join(meta, on="cfg")
@@ -312,14 +320,28 @@ if __name__ == "__main__":
     pd.set_option("display.max_columns", 40)
     pd.set_option("display.max_colwidth", 400)
     ap = argparse.ArgumentParser()
-    ap.add_argument("--root", required=True)
-    ap.add_argument("--symbols15", required=True)
-    ap.add_argument("--symbols1h", required=True)
+    ap.add_argument("mode", choices=["collect", "report"])
+    ap.add_argument("--root", default="~/bn")
+    ap.add_argument("--symbols15", default="")
+    ap.add_argument("--symbols1h", default="")
     a = ap.parse_args()
-    root = Path(a.root)
+    root = Path(a.root).expanduser()
     D.set_host("cdn")
-    example(root)
-    for tf, syms in (("15m", a.symbols15.split(",")), ("1h", a.symbols1h.split(","))):
-        tr = run_tf(root, syms, tf)
-        print(f"\n===== LUX R:R {tf}: сделок {len(tr):,}, монет {tr.symbol.nunique()} =====", flush=True)
-        report(tr, tf, tr.symbol.nunique())
+    if a.mode == "collect":
+        if shard_id()[0] == 0:
+            example(root)
+        for tf, syms in (("15m", a.symbols15.split(",")), ("1h", a.symbols1h.split(","))):
+            mine_syms = mine([x for x in syms if x])
+            tr = run_tf(root, mine_syms, tf) if mine_syms else pd.DataFrame()
+            print(f"  {tf}: монет в части {len(mine_syms)}, сделок {len(tr):,}", flush=True)
+            if len(tr):
+                tr.to_parquet(part_path(f"lux_{tf}"), index=False)
+    else:
+        for tf in ("15m", "1h"):
+            parts = all_parts(f"lux_{tf}")
+            if not parts:
+                print(f"\n{tf}: частей нет")
+                continue
+            tr = pd.concat([pd.read_parquet(x) for x in parts], ignore_index=True)
+            print(f"\n===== LUX R:R {tf}: частей {len(parts)}, сделок {len(tr):,}, монет {tr.symbol.nunique()} =====")
+            report(tr, tf, tr.symbol.nunique())

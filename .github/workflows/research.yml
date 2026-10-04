@@ -1,5 +1,9 @@
 name: research
 
+# Тяжёлые прогоны по частям (research/shard.py): smoke — тот же job.sh на 3 элементах части 0 и сразу отчёт
+# (падение стоит минуты, а не часа); collect — 10 параллельных частей со своим кешем данных; report — сборка итогов
+# и публикация в ветку research-results.
+
 on:
   workflow_dispatch:
   push:
@@ -9,10 +13,57 @@ on:
 permissions:
   contents: write
 
+env:
+  NSHARDS: "10"
+
 jobs:
-  run:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: scalper
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: scalper/requirements.txt
+      - run: pip install -r requirements.txt
+      - name: Restore data cache of shard 0
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/rs/cache
+            ~/bn/cache
+          key: binance-um-s0of10-${{ github.run_id }}
+          restore-keys: |
+            binance-um-s0of10-
+            binance-um-
+      - name: Smoke run (3 items of shard 0, collect + report)
+        env:
+          SHARD: "0"
+          SMOKE: "1"
+          PARTS: ../smoke/parts
+        run: |
+          mkdir -p ../smoke
+          set -o pipefail
+          { bash research/job.sh collect && bash research/job.sh report; } 2>&1 | tee ../smoke/log.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke
+          path: smoke
+
+  collect:
+    needs: smoke
     runs-on: ubuntu-latest
     timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     defaults:
       run:
         working-directory: scalper
@@ -28,24 +79,70 @@ jobs:
         working-directory: .
         run: |
           if git fetch --depth 1 origin data-bybit; then git worktree add "$HOME/rs_bybit" FETCH_HEAD; else echo "data-bybit not published yet"; fi
-      - name: Restore market data cache
+      - name: Restore data cache of this shard
         uses: actions/cache/restore@v4
         with:
           path: |
             ~/rs/cache
             ~/bn/cache
-          key: binance-um-${{ hashFiles('scalper/research/job.sh') }}-${{ github.run_id }}
-          restore-keys: binance-um-
-      - name: Research job
-        run: mkdir -p ../out && set -o pipefail && bash research/job.sh 2>&1 | tee ../out/log.txt
-      - name: Save market data cache (also when the job failed, downloads are kept)
+          key: binance-um-s${{ matrix.shard }}of10-${{ github.run_id }}
+          restore-keys: |
+            binance-um-s${{ matrix.shard }}of10-
+            binance-um-
+      - name: Collect
+        env:
+          SHARD: ${{ matrix.shard }}
+          PARTS: ../out/parts
+        run: mkdir -p ../out/parts && set -o pipefail && bash research/job.sh collect 2>&1 | tee ../out/log-${{ matrix.shard }}.txt
+      - name: Keep only this shard's files in the cache
+        if: always()
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: python -m research.shard prune ~/bn/cache
+      - name: Save data cache (also when the job failed, downloads are kept)
         if: always()
         uses: actions/cache/save@v4
         with:
           path: |
             ~/rs/cache
             ~/bn/cache
-          key: binance-um-${{ hashFiles('scalper/research/job.sh') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: binance-um-s${{ matrix.shard }}of10-${{ github.run_id }}-${{ github.run_attempt }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: parts-${{ matrix.shard }}
+          path: out
+
+  report:
+    needs: [smoke, collect]
+    if: always() && needs.smoke.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: scalper
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: scalper/requirements.txt
+      - run: pip install -r requirements.txt
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: parts-*
+          merge-multiple: true
+          path: parts
+      - name: Report
+        env:
+          PARTS: ../parts/parts
+        run: |
+          mkdir -p ../out
+          set -o pipefail
+          bash research/job.sh report 2>&1 | tee ../out/log.txt
+          cat ../parts/log-*.txt > ../out/collect_logs.txt 2>/dev/null || true
+          echo "частей с результатами: $(ls ../parts/parts | wc -l) файлов; collect: ${{ needs.collect.result }}" | tee -a ../out/log.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -58,18 +155,15 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898277+github-actions[bot]@users.noreply.github.com"
           dest="runs/${GITHUB_RUN_ID}"
-          git fetch origin research-results || true
-          if git rev-parse --verify -q origin/research-results; then
-            git worktree add rr origin/research-results
-            git -C rr checkout -B research-results
-          else
-            git worktree add --detach rr
-            git -C rr checkout --orphan research-results
-            git -C rr rm -rfq .
-          fi
+          git fetch origin research-results
+          git worktree add rr origin/research-results
+          git -C rr checkout -B research-results
           mkdir -p "rr/$dest"
           cp -r out/. "rr/$dest/" 2>/dev/null || true
           echo "${GITHUB_SHA}" > "rr/$dest/commit.txt"
           git -C rr add runs
           git -C rr commit -qm "research results run ${GITHUB_RUN_ID} (${GITHUB_SHA::7})"
-          git -C rr push origin research-results
+          for i in 1 2 3 4; do
+            git -C rr push origin research-results && break
+            git -C rr pull --rebase -q origin research-results
+          done

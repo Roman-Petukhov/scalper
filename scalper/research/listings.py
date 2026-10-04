@@ -269,10 +269,14 @@ if __name__ == "__main__":
     cache.mkdir(parents=True, exist_ok=True)
 
     def one(r) -> dict | None:
-        m = minutes(r.symbol, r.t, cache)
-        if m is None:
+        try:
+            m = minutes(r.symbol, r.t, cache)
+            if m is None:
+                return None
+            x = measure(m, r.t, SIDE[r.cls])
+        except Exception as e:                                  # одно событие не должно ронять весь прогон
+            print(f"  {r.symbol} {r.t}: пропуск ({e})", flush=True)
             return None
-        x = measure(m, r.t, SIDE[r.cls])
         return None if x is None else {"t": r.t, "cls": r.cls, "symbol": r.symbol, "title": r.title, **x}
 
     with ThreadPoolExecutor(a.workers) as ex:

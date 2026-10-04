@@ -21,7 +21,8 @@ Hyperliquid: можно ли зарабатывать, повторяя сдел
                закрытия ими позиции; издержки 12 б.п. (Bybit тейкер туда-обратно)
 t — кластеризованный по дням открытия; также разбивка по длительности удержания.
 
-    python -m research.hl_whales --cache <dir> [--wallets 200]
+    python -m research.hl_whales collect [--cache <dir>] [--wallets 500]   (по частям, см. research.shard)
+    python -m research.hl_whales report
 """
 from __future__ import annotations
 
@@ -35,6 +36,8 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+from .shard import all_parts, mine, part_path
 
 INFO = "https://api.hyperliquid.xyz/info"
 LEADERBOARD = "https://stats-data.hyperliquid.xyz/Mainnet/leaderboard"
@@ -265,24 +268,14 @@ def report(all_ep: pd.DataFrame, wal: pd.DataFrame) -> None:
           ", ".join(f"{u[:8]}… n={int(n)} t={t:.1f}" for u, n, t in sk[["user", "n_is", "t_is"]].head(8).itertuples(index=False)))
 
 
-if __name__ == "__main__":
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    warnings.filterwarnings("ignore")
-    pd.set_option("display.width", 260)
-    pd.set_option("display.max_columns", 30)
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--cache", required=True)
-    ap.add_argument("--wallets", type=int, default=200)
-    a = ap.parse_args()
-    cache = Path(a.cache)
-    cache.mkdir(parents=True, exist_ok=True)
+def collect(cache: Path, n_wallets: int) -> None:
     lb = leaderboard(cache)
     active = lb[(lb.vlm_all >= 2e7) & (lb.vlm_all <= 5e9) & (lb.vlm_month > 0)]
-    pick = active.sample(min(a.wallets, len(active)), random_state=7)
-    print(f"leaderboard: {len(lb)} кошельков, активных с оборотом $20M–$5B: {len(active)}, берём случайные {len(pick)}",
-          flush=True)
+    pick = mine(active.sample(min(n_wallets, len(active)), random_state=7)["user"])
+    print(f"leaderboard: {len(lb)} кошельков, активных с оборотом $20M–$5B: {len(active)}, "
+          f"случайных {n_wallets}, в этой части {len(pick)}", flush=True)
     eps, wal = [], []
-    for k, u in enumerate(pick["user"]):
+    for k, u in enumerate(pick):
         try:
             ep = episodes(fills(u, cache))
         except Exception as e:
@@ -292,19 +285,50 @@ if __name__ == "__main__":
             ep["user"] = u
             eps.append(ep)
         wal.append({"user": u, **wallet_is(ep if len(ep) else pd.DataFrame(columns=["t_close", "own", "pnl"]))})
-        if k % 25 == 0:
+        if k % 10 == 0:
             print(f"  {k}/{len(pick)} кошельков", flush=True)
-    all_ep = pd.concat(eps, ignore_index=True)
     wal = pd.DataFrame(wal)
     for c in ("n_is", "mean_is", "t_is", "pnl_is"):
         if c not in wal:
             wal[c] = np.nan
     wal["n_is"] = wal["n_is"].fillna(0)
+    wal.to_parquet(part_path("hl_wallets"), index=False)
+    if not eps:
+        return
+    all_ep = pd.concat(eps, ignore_index=True)
     post = all_ep["t_open"] >= T_SPLIT
     all_ep["copy_1h"] = np.nan
     all_ep.loc[post, "copy_1h"] = copy_returns(all_ep[post], cache)
-    print(f"===== HL WHALES: эпизодов {len(all_ep)}, кошельков с эпизодами {all_ep.user.nunique()}, "
-          f"монет {all_ep.coin.nunique()} =====")
+    all_ep.to_parquet(part_path("hl_episodes"), index=False)
+
+
+def final_report() -> None:
+    wal = pd.concat([pd.read_parquet(p) for p in all_parts("hl_wallets")], ignore_index=True)
+    eps = [pd.read_parquet(p) for p in all_parts("hl_episodes")]
+    if not eps:
+        print("эпизодов нет")
+        return
+    all_ep = pd.concat(eps, ignore_index=True)
+    print(f"===== HL WHALES: частей {len(all_parts('hl_wallets'))}, кошельков {len(wal)}, эпизодов {len(all_ep)}, "
+          f"кошельков с эпизодами {all_ep.user.nunique()}, монет {all_ep.coin.nunique()} =====")
     print(f"  медиана удержания {(all_ep.t_close - all_ep.t_open).median()}, медиана позиции ${all_ep.peak.median():,.0f}; "
           f"история с {all_ep.t_open.min().date()}")
     report(all_ep, wal)
+
+
+if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    warnings.filterwarnings("ignore")
+    pd.set_option("display.width", 260)
+    pd.set_option("display.max_columns", 30)
+    ap = argparse.ArgumentParser()
+    ap.add_argument("mode", choices=["collect", "report"])
+    ap.add_argument("--cache", default="~/bn/cache/hl")
+    ap.add_argument("--wallets", type=int, default=500)
+    a = ap.parse_args()
+    if a.mode == "collect":
+        cache = Path(a.cache).expanduser()
+        cache.mkdir(parents=True, exist_ok=True)
+        collect(cache, a.wallets)
+    else:
+        final_report()
