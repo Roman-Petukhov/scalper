@@ -78,14 +78,14 @@ precursors_report() {
 }
 prepq_collect() { python -m research.prepare 1h-qualified; }
 prepq_report() { :; }
-prept_collect() { python -m research.prepare 1h-qualified 15m-core70; }
+prept_collect() { python -m research.prepare 1h-qualified 1h-spot 15m-core70; }
 prept_report() { :; }
 tline_collect() {
   python -m research.tline collect --symbols "$(cat /tmp/syms_1h-qualified.txt)" --symbols15 "$(cat /tmp/syms_15m-core70.txt)"
 }
 tline_report() {
   echo "===== TLINE: линия тренда по закрытиям, пробой с закреплением, ретест, лесенка 3R / 5R ====="
-  python -m research.tline report
+  pip install -q lightgbm && python -m research.tline report
 }
 smc2_collect() { python -m research.smc2 collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
 smc2_report() {

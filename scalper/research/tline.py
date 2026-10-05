@@ -88,6 +88,29 @@ def two_targets(o, h, lo, c, fund, e, side, entry, stop, k1, k2, be, max_hold, e
 
 
 @njit(cache=True)
+def target_exit(o, h, lo, c, fund, e, side, entry, stop, k, max_hold, entry_fee, line0, i0, slope, buf):
+    """Вся позиция на k·R; ранний выход по закрытию, если свеча закрылась обратно за линию пробоя дальше buf
+    (в цене): линия на баре j = line0 + slope·(j − i0). Стоп проверяется раньше тейка. Результат в R."""
+    n = len(c)
+    risk = side * (entry - stop)
+    if not (risk > 0):
+        return np.nan, e
+    tp = entry + side * k * risk
+    paid = 0.0
+    for j in range(e + 1, n):
+        paid += fund[j]
+        if (side > 0 and lo[j] <= stop) or (side < 0 and h[j] >= stop):
+            ex = min(stop, o[j]) if side > 0 else max(stop, o[j])
+            return (side * (ex - entry) - (entry_fee + TAKER) * entry) / risk - side * paid * entry / risk, j
+        if (side > 0 and h[j] >= tp) or (side < 0 and lo[j] <= tp):
+            return (side * (tp - entry) - (entry_fee + MAKER) * entry) / risk - side * paid * entry / risk, j
+        back = side * (c[j] - (line0 + slope * (j - i0))) < -buf
+        if back or j - e >= max_hold or j == n - 1:
+            return (side * (c[j] - entry) - (entry_fee + TAKER) * entry) / risk - side * paid * entry / risk, j
+    return np.nan, n - 1
+
+
+@njit(cache=True)
 def retest_fill(h, lo, e, side, level, tp1_dist, valid):
     """Бар исполнения лимитки на линии (−1 — не исполнилась или цена ушла к первой цели раньше)."""
     n = len(h)
@@ -508,6 +531,75 @@ def strength_row(st: dict[str, np.ndarray], tb: int, tc: int, side: int, entry: 
     return out
 
 
+def filter_inputs(root: Path, sym: str, tf: str, d: pd.DataFrame, atr: np.ndarray) -> dict[str, np.ndarray]:
+    """Ряды для признаков «настоящий / ложный пробой» (каждый известен на закрытии своего бара)."""
+    c = d["close"].to_numpy(dtype="float64")
+    per_day = 24 * 60 // BAR_MIN[tf]
+    atr_s = pd.Series(atr)
+    cs = pd.Series(c)
+    out = {"atr_ratio": (atr_s / atr_s.rolling(100, min_periods=50).mean()).to_numpy(),
+           "range10": ((cs.rolling(10).max() - cs.rolling(10).min()) / atr_s).to_numpy(),
+           "move10": ((cs - cs.shift(10)) / atr_s).to_numpy(),
+           "ret7": (cs / cs.shift(7 * per_day) - 1).to_numpy()}
+    f = pd.Series(d["funding"].to_numpy(dtype="float64"))
+    out["fund8"] = f.rolling(max(1, 8 * 60 // BAR_MIN[tf]), min_periods=1).sum().to_numpy()
+    z = lambda x: ((x - x.rolling(30 * per_day, min_periods=10 * per_day).mean())
+                   / x.rolling(30 * per_day, min_periods=10 * per_day).std()).to_numpy()
+    if tf != "15m":
+        m = metrics_on_bars(sym, root, d.index, BAR_MIN[tf])
+        out["lsr_z"] = z(np.log(m["lsr"].replace(0, np.nan)).reset_index(drop=True))
+        out["top_z"] = z(np.log(m["top_lsr"].replace(0, np.nan)).reset_index(drop=True))
+    else:
+        out["lsr_z"] = out["top_z"] = np.full(len(c), np.nan)
+    out["spot_aggr"] = out["spot_share_z"] = np.full(len(c), np.nan)
+    ps = root / f"{sym}-spot-1h.parquet"
+    if tf in ("1h", "4h") and ps.exists():
+        sp = pd.read_parquet(ps, columns=["open_time", "quote_volume", "taker_buy_volume", "volume"])
+        sp.index = pd.to_datetime(sp["open_time"], unit="ms", utc=True)
+        sp = sp[~sp.index.duplicated()].sort_index()
+        if tf == "4h":
+            sp = sp[["quote_volume", "taker_buy_volume", "volume"]].resample("4h").sum(min_count=1)
+        sp = sp.reindex(d.index)
+        out["spot_aggr"] = (sp["taker_buy_volume"] / sp["volume"].replace(0, np.nan)).to_numpy(dtype="float64")
+        share = np.log(sp["quote_volume"].replace(0, np.nan) / d["quote_volume"].replace(0, np.nan))
+        out["spot_share_z"] = z(share.reset_index(drop=True))
+    return out
+
+
+def filter_row(fx: dict[str, np.ndarray], tb: int, e: int, fill: int, side: int, hi: np.ndarray, lo: np.ndarray,
+               c: np.ndarray, sw_hi: np.ndarray, sw_lo: np.ndarray, vol_ratio: np.ndarray, buy_share: np.ndarray,
+               btc_ret7: np.ndarray) -> dict[str, float]:
+    """Признаки на сторону сделки (для лонга как есть, для шорта зеркально):
+    atr_ratio   ATR перед пробоем / средний ATR за 100 свечей (< 1 — сжатие)
+    range10     диапазон закрытий 10 свечей до пробоя, ATR (меньше — цена прижата к линии)
+    approach    ход за 10 свечей до пробоя в сторону пробоя, ATR (плюс — подходит снизу к нисходящей линии)
+    hbreak      закрытие входной свечи за последним свингом (горизонтальный уровень пробит вместе с линией)
+    crowd_fund  funding за 8 ч против нас (плюс — толпа платит, стоя против пробоя)
+    crowd_lsr / crowd_top  z-оценка соотношения лонгов / шортов (всех / топ-трейдеров) против нас
+    rs7         доходность монеты за 7 дней минус BTC, в сторону сделки
+    spot_aggr   доля агрессоров нашей стороны на споте в свече пробоя; spot_share_z — доля спота в обороте, z
+    wait_*      ретест: свечей до исполнения, средний объём и доля агрессоров против нас, пока ждали (без свечи
+                исполнения — её объём к моменту входа ещё не известен)"""
+    pre = tb - 1
+    lvl_i = sw_hi[e] if side > 0 else sw_lo[e]
+    lvl = (hi[lvl_i] if side > 0 else lo[lvl_i]) if lvl_i >= 0 else np.nan
+    sa = fx["spot_aggr"][tb]
+    row = {"atr_ratio": fx["atr_ratio"][pre], "range10": fx["range10"][pre], "approach": side * fx["move10"][pre],
+           "hbreak": bool(side * (c[e] - lvl) > 0) if lvl == lvl else False,
+           "crowd_fund": -side * fx["fund8"][tb], "crowd_lsr": -side * fx["lsr_z"][tb],
+           "crowd_top": -side * fx["top_z"][tb], "rs7": side * (fx["ret7"][e] - btc_ret7[e]),
+           "spot_aggr": sa if side > 0 else 1 - sa, "spot_share_z": fx["spot_share_z"][tb],
+           "wait_bars": float(fill - e)}
+    w = slice(e + 1, fill)
+    if fill > e + 1:
+        row["wait_vol"] = float(np.nanmean(vol_ratio[w]))
+        bs = buy_share[w]
+        row["wait_against"] = float(np.nanmean(1 - bs if side > 0 else bs))
+    else:
+        row["wait_vol"] = row["wait_against"] = np.nan
+    return row
+
+
 def coin_trades(root: Path, sym: str, tf: str, ctx: pd.DataFrame | None = None) -> pd.DataFrame:
     d = tf_frame(root, sym, tf)
     if d is None or len(d) < 500:
@@ -544,6 +636,7 @@ def coin_trades(root: Path, sym: str, tf: str, ctx: pd.DataFrame | None = None) 
         oi = np.log(m["oi"].replace(0, np.nan))
         oi_chg = (oi - oi.shift(4)).to_numpy()
     st = strength_inputs(root, sym, tf, d, a)
+    fx = filter_inputs(root, sym, tf, d, a)
     zh, zl = zigzag(c, a, ZZ_K)
     for mode, (tb, tc, side, line_b, line_c, _, _) in ((m_, sg) for m_ in LINES for sg in signals(d, m_)):
         for confirm in (False, True):
@@ -573,17 +666,24 @@ def coin_trades(root: Path, sym: str, tf: str, ctx: pd.DataFrame | None = None) 
                 for be in (False,):
                     r, ex = two_targets(o, hi, lo, c, f, fill, side, px, stop, 3.0, 5.0, be, HOLD[tf], fee)
                     r3, _ = two_targets(o, hi, lo, c, f, fill, side, px, stop, 3.0, 3.0, be, HOLD[tf], fee)
+                    slope_l = line_c - line_b
+                    r3x0, _ = target_exit(o, hi, lo, c, f, fill, side, px, stop, 3.0, HOLD[tf], fee, line_b, tb,
+                                          slope_l, 0.0)
+                    r3x25, _ = target_exit(o, hi, lo, c, f, fill, side, px, stop, 3.0, HOLD[tf], fee, line_b, tb,
+                                           slope_l, 0.25 * a[e])
                     rows.append({"symbol": sym, "tf": tf, "line": mode, "t": d.index[e], "side": side, "confirm": confirm,
                                  "risk_pct": side * (px - stop) / px,
                                  "entry": entry_kind, "be": be, "with_trend": trend[e] == side, "with_trend2": trend2[e] == side,
-                                 "with_struct": struct[e] == side, "R": r, "R3": r3,
+                                 "with_struct": struct[e] == side, "R": r, "R3": r3, "R3x0": r3x0, "R3x25": r3x25,
                                  "vol_ratio": vol_ratio[tb], "oi_chg": oi_chg[tb], "body": body[tb],
                                  "close_loc": loc[tb] if side > 0 else 1 - loc[tb],
                                  "aggr": buy_share[tb] if side > 0 else 1 - buy_share[tb],
                                  "brk_atr": side * (c[tb] - line_b) / a[tb],
                                  "stop_atr": dist_atr, "ret30": ret30[e], "btc_trend": btc_trend[e],
                                  "btc_ret7": btc_ret7[e], "hold_bars": ex - fill,
-                                 **strength_row(st, tb, tc, side, px, stop, zl if side > 0 else zh, c)})
+                                 **strength_row(st, tb, tc, side, px, stop, zl if side > 0 else zh, c),
+                                 **filter_row(fx, tb, e, fill, side, hi, lo, c, sw_hi, sw_lo, vol_ratio, buy_share,
+                                              btc_ret7)})
     return pd.DataFrame(rows)
 
 
@@ -837,6 +937,101 @@ def target_report(df: pd.DataFrame, line_name: dict) -> None:
                   ", ".join(f"{k}: {v['mean']:+.2f}R ({int(v['size'])})" for k, v in yy.iterrows()))
 
 
+FILTERS = {"atr_ratio": "1 сжатие: ATR / средний за 100", "range10": "1 сжатие: диапазон 10 свечей, ATR",
+           "approach": "2 подход к линии: ход 10 свечей, ATR", "crowd_fund": "4 толпа: funding против нас",
+           "crowd_lsr": "4 толпа: long/short против нас, z", "crowd_top": "4 толпа: топ-трейдеры против нас, z",
+           "oi_chg": "4 толпа: OI за 4 свечи", "spot_aggr": "5 спот: агрессоры нашей стороны",
+           "spot_share_z": "5 спот: доля спота в обороте, z", "breadth": "6 ширина: пробоев в ту же сторону − в обратную",
+           "rs7": "6 сила к BTC за 7 дней", "wait_bars": "7 ретест: свечей до исполнения",
+           "wait_vol": "7 ретест: объём, пока ждали", "wait_against": "7 ретест: агрессоры против нас, пока ждали",
+           "cvd20": "сила: дельта за 20 свечей до пробоя"}
+MODEL_FEATS = ["aggr", "vol_ratio", "oi_chg", "body", "close_loc", "brk_atr", "stop_atr", "ret30", "effort", "cvd20",
+               "atr_ratio", "range10", "approach", "hbreak", "crowd_fund", "crowd_lsr", "crowd_top", "rs7", "spot_aggr",
+               "spot_share_z", "breadth", "wait_bars", "wait_vol", "wait_against", "with_trend", "with_trend2"]
+
+
+def add_breadth(df: pd.DataFrame) -> pd.DataFrame:
+    """Ширина рынка на баре пробоя: сколько монет в тот же бар пробили линию («по значимым точкам», «веер» или «чистую»)
+    в нашу сторону минус в обратную (без самой монеты)."""
+    sig = df[~df.confirm & df.line.isin(["clean", "zz", "fan", "fan2"])][["tf", "t", "symbol", "side"]]
+    sig = sig.drop_duplicates()
+    cnt = sig.groupby(["tf", "t", "side"]).size().unstack("side", fill_value=0)
+    cnt = cnt.reindex(columns=[-1, 1], fill_value=0)
+    x = df[["tf", "t", "side"]].join(cnt, on=["tf", "t"])
+    up, dn = x[1].fillna(0).to_numpy(), x[-1].fillna(0).to_numpy()
+    side = df["side"].to_numpy()
+    own = df[["tf", "t", "symbol", "side"]].merge(sig.assign(_own=1.0), how="left",
+                                                  on=["tf", "t", "symbol", "side"])["_own"].fillna(0.0).to_numpy()
+    return df.assign(breadth=np.where(side > 0, up - own - dn, dn - own - up))
+
+
+def _years(g: pd.DataFrame, col: str = "R3") -> str:
+    yy = g.groupby(g.t.dt.year)[col].agg(["size", "mean"])
+    return ", ".join(f"{k}: {v['mean']:+.2f} ({int(v['size'])})" for k, v in yy.iterrows())
+
+
+def filters_report(df: pd.DataFrame, line_name: dict) -> None:
+    """Настоящий или ложный пробой: каждый признак по квинтилям (границы по IS) на базе «4h, ретест пробоя, агрессоры
+    >= 55%, тренд 1D», цель — всё на 3R; ранний выход по возврату за линию; модель LightGBM на всех признаках
+    (обучение — IS, отбор — верхние 40% прогноза по порогу IS)."""
+    df = add_breadth(df)
+    base_all = df[(df.tf == "4h") & (df.entry == "retest") & ~df.confirm]
+    print("\n=== Настоящий / ложный пробой: 4h, ретест пробоя; ячейка — средний R при цели 3R (t, прибыльных, в месяц) ===")
+    for ln in ("zz", "fan", "fan2"):
+        g = base_all[(base_all.line == ln) & (base_all.aggr >= 0.55) & base_all.with_trend]
+        if g.per.eq("is").sum() < 100:
+            continue
+        print(f"\n  линия: {line_name[ln]}; база: {_cell(g.assign(R=g.R3))}")
+        print(f"  по годам: {_years(g)}")
+        rows = []
+        for f, nm in FILTERS.items():
+            if f not in g.columns or g[f].notna().mean() < 0.3:
+                continue
+            gi = g[g.per == "is"]
+            edges = np.unique(gi[f].quantile([0.2, 0.4, 0.6, 0.8]).to_numpy())
+            qq = np.where(g[f].notna(), np.digitize(g[f], edges) + 1, 0)
+            for q in sorted(set(qq) - {0}):
+                gg = g[qq == q].assign(R=lambda x: x.R3)
+                rows.append({"признак": nm, "кв.": q, **{p: _cell(gg[gg.per == p]) for p in PER},
+                             "2026": _cell(gg[gg.t.dt.year == 2026])})
+        for f, nm in (("hbreak", "3 двойной пробой: свинг тоже пробит"),):
+            for v in (True, False):
+                gg = g[g[f] == v].assign(R=lambda x: x.R3)
+                rows.append({"признак": nm, "кв.": "да" if v else "нет", **{p: _cell(gg[gg.per == p]) for p in PER},
+                             "2026": _cell(gg[gg.t.dt.year == 2026])})
+        print(pd.DataFrame(rows).to_string(index=False))
+        print("  8 ранний выход (закрытие обратно за линией), цель 3R:")
+        for col, nm in (("R3", "без раннего выхода"), ("R3x0", "выход, если закрытие за линией"),
+                        ("R3x25", "выход, если закрытие за линией дальше 0.25 ATR")):
+            gg = g.assign(R=g[col])
+            print(f"    {nm}: " + ", ".join(f"{p} {_cell(gg[gg.per == p])}" for p in PER) + f"; по годам: {_years(g, col)}")
+    try:
+        import lightgbm as lgb
+    except ImportError:
+        print("  lightgbm не установлен — модель пропущена")
+        return
+    print("\n  9 модель LightGBM (все признаки; обучение на IS: 4h, ретест пробоя, все линии кроме last2, цель 3R):")
+    tr_all = base_all[base_all.line.isin(["clean", "zz", "fan", "fan2"])].copy()
+    feats = [f for f in MODEL_FEATS if f in tr_all.columns]
+    X = tr_all[feats].astype("float64")
+    is_m = (tr_all.per == "is").to_numpy()
+    model = lgb.LGBMRegressor(n_estimators=300, learning_rate=0.03, num_leaves=15, min_child_samples=200,
+                              subsample=0.8, subsample_freq=1, colsample_bytree=0.8, reg_lambda=5.0, verbose=-1)
+    model.fit(X[is_m], tr_all.loc[is_m, "R3"].clip(-1.5, 3.5))
+    tr_all["score"] = model.predict(X)
+    imp = pd.Series(model.feature_importances_, index=feats).sort_values(ascending=False)
+    print("    важность: " + ", ".join(f"{k} {v}" for k, v in imp.head(12).items()))
+    for ln in ("zz", "fan", "fan2", "clean"):
+        g = tr_all[tr_all.line == ln]
+        thr = g.loc[g.per == "is", "score"].quantile(0.6)
+        for nm, z in (("все пробои линии", g), ("верх 40% модели", g[g.score >= thr]),
+                      ("агрессоры >= 55% + тренд", g[(g.aggr >= 0.55) & g.with_trend]),
+                      ("агр. + тренд + верх 40% модели", g[(g.aggr >= 0.55) & g.with_trend & (g.score >= thr)])):
+            zz = z.assign(R=z.R3)
+            print(f"    {line_name[ln]}, {nm}: " + ", ".join(f"{p} {_cell(zz[zz.per == p])}" for p in PER) +
+                  f"; по годам: {_years(z)}")
+
+
 def report() -> None:
     parts = all_parts("tline")
     if not parts:
@@ -896,6 +1091,8 @@ def report() -> None:
         diagnose_2026(df, line_name)
     if "R3" in df.columns:
         target_report(df, line_name)
+    if "R3x0" in df.columns:
+        filters_report(df, line_name)
     if "effort" in df.columns:
         strength_report(df, line_name)
         ev = df[df.confirm & (df.entry == "market") & (df.tf == "4h") & df.line.isin(["clean", "zz", "fan", "fan2"])]

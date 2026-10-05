@@ -77,3 +77,26 @@ def test_higher_tf_trend_and_structure_use_only_closed_bars():
     for f, args in ((htf_trend, ("1h", "1D")), (htf_structure, ("1h",)), (htf_trend, ("1h",))):
         full, part = f(d, *args), f(d.iloc[:cut], *args)
         assert np.array_equal(full[:cut], part, equal_nan=True)     # будущее не меняет прошлые значения
+
+
+def test_target_exit_leaves_when_close_returns_behind_line():
+    from research.tline import target_exit
+    # лонг от 100, стоп 98; линия горизонтальная 99.5; бар 2 закрылся на 99 — обратно за линией
+    o = np.array([100, 100.5, 100.2, 99.0])
+    h = np.array([100, 101.0, 100.4, 99.5])
+    lo = np.array([100, 100.0, 98.9, 98.5])
+    c = np.array([100, 100.6, 99.0, 99.2])
+    r, ex = target_exit(o, h, lo, c, np.zeros(4), 0, 1, 100.0, 98.0, 3.0, 100, 0.0, 99.5, 0, 0.0, 0.0)
+    assert ex == 2 and np.isclose(r, (99.0 - 100 - 5.5e-4 * 100) / 2)
+    # с буфером 1.0 возврат на 0.5 не выход — держим до конца данных
+    r2, ex2 = target_exit(o, h, lo, c, np.zeros(4), 0, 1, 100.0, 98.0, 3.0, 100, 0.0, 99.5, 0, 0.0, 1.0)
+    assert ex2 == 3
+
+
+def test_breadth_counts_other_coins_same_bar():
+    from research.tline import add_breadth
+    t = pd.to_datetime(["2025-01-01 04:00"] * 4, utc=True)
+    df = pd.DataFrame({"tf": "4h", "t": t, "symbol": ["A", "B", "C", "D"], "side": [1, 1, 1, -1],
+                       "confirm": False, "entry": "market", "line": "zz"})
+    b = add_breadth(df)["breadth"].tolist()
+    assert b == [1.0, 1.0, 1.0, -3.0]                               # A: B, C в ту же сторону, D против
