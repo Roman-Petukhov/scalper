@@ -119,9 +119,13 @@ def last_confirmed(piv: np.ndarray, m: int) -> np.ndarray:
     return out
 
 
-LINES = ("last2", "clean", "clean3", "major")
+LINES = ("last2", "clean", "clean3", "major", "zz")
 MAJOR_L = 12          # главный экстремум: тень выше (ниже) 12 свечей с каждой стороны
 MINOR_N = 3           # точки касания: фрактал 3 свечи
+ZZ_K = 3.0            # зигзаг по закрытиям: разворот >= 3 ATR
+ZZ_ANCHOR = 60        # опорная вершина — самое высокое закрытие за 60 свечей до неё
+ZZ_SPAN = 20          # между точками линии не меньше 20 свечей
+ZZ_LIFE = 300         # линия живёт не дольше 300 свечей от опорной вершины
 
 
 def _lines(c: np.ndarray, atr: np.ndarray, piv: np.ndarray, side: int, mode: str) -> list[tuple | None]:
@@ -196,12 +200,89 @@ def major_lines(d: pd.DataFrame) -> list[dict]:
     return out
 
 
+def zigzag(c: np.ndarray, atr: np.ndarray, k: float) -> tuple[np.ndarray, np.ndarray]:
+    """Вершины и впадины зигзага по закрытиям: экстремум подтверждается, когда закрытие ушло от него на k ATR
+    (ATR на баре подтверждения). Возвращает (вершины, впадины) как массивы (индекс, бар подтверждения)."""
+    highs, lows = [], []
+    m = len(c)
+    if m == 0:
+        return np.zeros((0, 2), np.int64), np.zeros((0, 2), np.int64)
+    up = 0                                                  # 0 — направление ещё не задано
+    hi_i = lo_i = 0
+    for t in range(1, m):
+        if c[t] > c[hi_i]:
+            hi_i = t
+        if c[t] < c[lo_i]:
+            lo_i = t
+        th = k * atr[t] if atr[t] > 0 else np.inf
+        if up >= 0 and c[hi_i] - c[t] >= th and hi_i < t:
+            highs.append((hi_i, t))
+            up, lo_i = -1, t
+        elif up <= 0 and c[t] - c[lo_i] >= th and lo_i < t:
+            lows.append((lo_i, t))
+            up, hi_i = 1, t
+    return (np.array(highs, np.int64).reshape(-1, 2), np.array(lows, np.int64).reshape(-1, 2))
+
+
+def zz_lines(d: pd.DataFrame) -> list[dict]:
+    """Линии по значимым точкам: обе точки — вершины зигзага по закрытиям (разворот >= ZZ_K ATR), первая — самое
+    высокое закрытие за ZZ_ANCHOR свечей до неё, между точками >= ZZ_SPAN свечей; из таких вторых точек берётся та,
+    что даёт самую пологую касательную (ни одна вершина зигзага после первой не выше линии). Линия живёт до пробоя,
+    но не дольше ZZ_LIFE свечей от первой точки; пробой, совпавший по бару с пробоем линии от более ранней опоры,
+    не дублируется. Для восходящей линии — зеркально по впадинам. Формат — как у major_lines."""
+    c = d["close"].to_numpy(dtype="float64")
+    atr = _atr(d).to_numpy() if {"high", "low"} <= set(d.columns) else np.full(len(c), np.inf)
+    m = len(c)
+    hs, ls = zigzag(c, atr, ZZ_K)
+    out = []
+    for side, piv in ((1, hs), (-1, ls)):
+        seen = set()
+        for a, conf_a in piv:
+            w = c[max(0, a - ZZ_ANCHOR): a]
+            if len(w) < ZZ_ANCHOR or side * (c[a] - (w.max() if side > 0 else w.min())) <= 0:
+                continue
+            cand = piv[(piv[:, 0] >= a + ZZ_SPAN) & (side * (c[a] - c[piv[:, 0]]) > 0)]
+            later = piv[piv[:, 0] > a]
+            best, b_best, rec, ci, li = None, -1, None, 0, 0
+            for t in range(conf_a + 1, min(a + ZZ_LIFE, m - 1)):
+                changed = False
+                while li < len(later) and later[li][1] <= t - 1:
+                    li += 1
+                    changed = True
+                while ci < len(cand) and cand[ci][1] <= t - 1:
+                    ci += 1
+                    changed = True
+                if changed:
+                    best, b_best = None, -1                 # самая пологая из известных точек, без вершин над линией
+                    pts = later[:li, 0]
+                    for b in cand[:ci, 0]:
+                        sl = (c[b] - c[a]) / (b - a)
+                        if np.all(side * (c[pts] - (c[a] + sl * (pts - a))) <= 1e-12):
+                            if best is None or side * sl > side * best:
+                                best, b_best = sl, int(b)
+                if best is None or not (side * best < 0):
+                    continue
+                lt, lp = c[a] + best * (t - a), c[a] + best * (t - 1 - a)
+                if side * (c[t] - lt) > 0 and side * (c[t - 1] - lp) <= 0:
+                    ln = c[a] + best * (t + 1 - a)
+                    rec = {"side": side, "a": int(a), "b": b_best, "slope": best, "t": t,
+                           "tc": t + 1 if side * (c[t + 1] - ln) > 0 else -1, "line_t": lt, "line_n": ln}
+                    break
+            if rec is None and best is not None and side * best < 0:
+                rec = {"side": side, "a": int(a), "b": b_best, "slope": best, "t": -1, "tc": -1,
+                       "line_t": np.nan, "line_n": np.nan}
+            if rec is not None and (rec["t"] < 0 or rec["t"] not in seen):
+                seen.add(rec["t"])
+                out.append(rec)
+    return out
+
+
 def signals(d: pd.DataFrame, mode: str = "last2") -> list[tuple[int, int, int, float, float, int, int]]:
     """(бар пробоя, бар закрепления или −1, сторона, линия на баре пробоя, линия на баре закрепления,
     индексы двух точек линии)."""
-    if mode == "major":
-        return [(r["t"], r["tc"], r["side"], r["line_t"], r["line_n"], r["a"], r["b"]) for r in major_lines(d)
-                if r["t"] > 0]
+    if mode in ("major", "zz"):
+        recs = major_lines(d) if mode == "major" else zz_lines(d)
+        return [(r["t"], r["tc"], r["side"], r["line_t"], r["line_n"], r["a"], r["b"]) for r in recs if r["t"] > 0]
     c = d["close"].to_numpy(dtype="float64")
     atr = _atr(d).to_numpy() if {"high", "low"} <= set(d.columns) else np.full(len(c), np.inf)
     m = len(c)
@@ -384,19 +465,19 @@ def chart(root: Path, sym: str, tf: str, bars: int, out: Path) -> None:
         col = "#26a69a" if c[i] >= o[i] else "#ef5350"
         ax.vlines(i, lo[i], hi[i], color=col, linewidth=0.8)
         ax.add_patch(plt.Rectangle((i - 0.35, min(o[i], c[i])), 0.7, max(abs(c[i] - o[i]), 1e-12), color=col))
-    for side, mk, col in ((1, "v", "#c62828"), (-1, "^", "#2e7d32")):
-        pv = pivots(c, MAJOR_L, high=side > 0)
+    zh, zl = zigzag(c, a, ZZ_K)
+    for side, mk, col, pv in ((1, "v", "#c62828", zh), (-1, "^", "#2e7d32", zl)):
         pv = pv[pv[:, 0] >= w0]
         ax.scatter(pv[:, 0], c[pv[:, 0]] * (1 + side * 0.004), marker=mk, color=col, s=36,
-                   zorder=5, label="главные вершины" if side > 0 else "главные впадины")
-    for tb, tc, side, line_b, line_c, i1, i2 in signals(d, "clean"):
+                   zorder=5, label="вершины зигзага" if side > 0 else "впадины зигзага")
+    for tb, tc, side, line_b, line_c, i1, i2 in signals(d, "major"):
         if tb < w0 or i1 < w0 - 200:
             continue
         slope = (c[i2] - c[i1]) / (i2 - i1)
         xs = np.arange(max(i1, w0), tb + 2)
         ax.plot(xs, c[i2] + slope * (xs - i2), color="#9e9e9e", linewidth=0.8, linestyle="--")
     n_tr = 0
-    for rec in major_lines(d):
+    for rec in zz_lines(d):
         i1, i2, side, tb, tc = rec["a"], rec["b"], rec["side"], rec["t"], rec["tc"]
         if i1 < w0 - 300 or (tb > 0 and tb < w0):
             continue
@@ -435,8 +516,9 @@ def chart(root: Path, sym: str, tf: str, bars: int, out: Path) -> None:
     ax.set_ylim(lo[vis].min() * 0.985, hi[vis].max() * 1.015)
     ticks = np.linspace(w0, len(c) - 1, 8).astype(int)
     ax.set_xticks(ticks, [d.index[i].strftime("%m-%d %H:%M") for i in ticks])
-    ax.set_title(f"{sym} {tf}: синие / оранжевые — касательные по закрытиям от главного экстремума ({MAJOR_L} "
-                 f"свечей с каждой стороны) через точку касания; серый пунктир — прежние «чистые» линии по закрытиям;\n"
+    ax.set_title(f"{sym} {tf}: синие / оранжевые — линии по закрытиям через вершины зигзага (разворот >= {ZZ_K:g} ATR, "
+                 f"опора — экстремум {ZZ_ANCHOR} свечей, точки >= {ZZ_SPAN} свечей друг от друга); серый пунктир — "
+                 f"прежние линии от экстремума {MAJOR_L} свечей;\n"
                  f"○ точки линии, ★ пробой (закрытие за линией), вход — закрытие свечи закрепления; — вход, -- стоп за "
                  f"свингом (×), ··· цели 3R / 5R; сделок {n_tr}")
     ax.legend(loc="upper left")
@@ -475,7 +557,7 @@ def collect(root: Path, syms: list[str], syms15: list[str]) -> None:
 def diagnose_2026(df: pd.DataFrame, line_name: dict) -> None:
     """Почему шорт на 4h с перевесом продавцов ослаб в 2026: рынок, состояние монеты, исход сделок, помесячно."""
     base = df[(df.tf == "4h") & (df.side == -1) & df.confirm & (df.entry == "market") & (df.aggr >= 0.55)
-              & df.line.isin(["clean", "major"])].copy()
+              & df.line.isin(["clean", "major", "zz"])].copy()
     if not len(base):
         return
     base["year"] = base.t.dt.year
@@ -524,7 +606,7 @@ def report() -> None:
         shutil.copy(png, out / png.name)
     print(f"===== TLINE: сделок {len(df):,}, монет {df.symbol.nunique()}, частей {len(parts)} =====")
     print("ячейка: средний R на сделку (t по дням, прибыльных, сделок в месяц на весь набор монет); выход 1/2 на 3R + 1/2 на 5R")
-    line_name = {"last2": "2 последние", "clean": "чистая", "clean3": "чистая, 3 касания", "major": "от главного экстремума"}
+    line_name = {"last2": "2 последние", "clean": "чистая", "clean3": "чистая, 3 касания", "major": "от главного экстремума", "zz": "по значимым точкам"}
     filters = lambda g: (("все", g), ("по тренду старшего ТФ", g[g.with_trend]),
                          ("объём пробоя >= 1.5x", g[g.vol_ratio >= 1.5]), ("OI рос 4 бара", g[g.oi_chg > 0]),
                          ("сильная свеча", g[(g.body >= 0.6) & (g.close_loc >= 0.75) & (g.brk_atr >= 0.3)]),

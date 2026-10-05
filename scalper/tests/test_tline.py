@@ -25,3 +25,30 @@ def test_signal_on_descending_line_of_closes():
     # линия через закрытия 15 (бар 7) и 13 (бар 14): наклон −2/7; пробой на баре 22, закрепление на 23
     assert (t, tc) == (22, 23)
     assert np.isclose(line_b, 13 - 2 / 7 * 8) and c[t] > line_b and c[t - 1] <= 13 - 2 / 7 * 7
+
+
+def test_zigzag_confirms_on_k_atr_reversal():
+    from research.tline import zigzag
+    c = np.array([10, 11, 12, 13, 12.5, 11, 9, 9.5, 10, 12, 13, 14.0])
+    hs, ls = zigzag(c, np.ones(len(c)), 2.0)
+    # стартовая впадина 10 (бар 0) подтверждена закрытием 12 (бар 2); вершина 13 (бар 3) — закрытием 11 (бар 5);
+    # впадина 9 (бар 6) — закрытием 12 (бар 9); откат 12.5 от 13 меньше 2 ATR — не вершина
+    assert hs.tolist() == [[3, 5]] and ls.tolist() == [[0, 2], [6, 9]]
+
+
+def test_zz_line_skips_nearby_minor_touch():
+    from research import tline
+    from research.tline import zz_lines
+    rng = np.random.default_rng(0)
+    base = np.concatenate([np.linspace(50, 100, 80), np.linspace(100, 80, 15), np.linspace(80, 95, 10),   # A = 100 (бар 79), рядом мелкий откат до 95
+                           np.linspace(95, 70, 30), np.linspace(70, 90, 20),                               # B = 90 (бар 154): далеко от A
+                           np.linspace(90, 72, 20), np.linspace(72, 95, 25)])
+    c = base + rng.normal(0, 0.01, len(base))
+    d = pd.DataFrame({"open": c, "high": c + 0.5, "low": c - 0.5, "close": c})
+    old = tline.ZZ_ANCHOR
+    tline.ZZ_ANCHOR = 30
+    try:
+        recs = [r for r in zz_lines(d) if r["side"] == 1 and r["a"] == 79]
+    finally:
+        tline.ZZ_ANCHOR = old
+    assert recs and recs[0]["b"] >= 79 + tline.ZZ_SPAN and recs[0]["t"] > recs[0]["b"]
