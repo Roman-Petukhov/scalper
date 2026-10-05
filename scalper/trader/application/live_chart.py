@@ -10,7 +10,6 @@ from ..domain.execution import Trade
 from ..domain.models import Signal
 
 AHEAD_BARS = 6              # линию продлеваем на несколько свечей вперёд
-LINE_POINTS = 64            # точек на линии: прямая остаётся прямой на любой шкале графика
 
 
 def _ts(t: datetime | pd.Timestamp) -> int:
@@ -30,7 +29,11 @@ def chart_payload(signal: Signal, bars: pd.DataFrame, trade: Trade | None = None
     start = max(s1, candles[0]["time"]) if candles else s1
     line = []
     if end > start and s2 != s1:
-        ts = np.unique(np.linspace(start, end, LINE_POINTS).round().astype(np.int64))
+        # точки линии — ровно на свечах (и на будущих свечах): ось времени графика идёт по свечам, точка между
+        # свечами добавила бы на ось лишнее деление и изогнула линию
+        last = candles[-1]["time"] if candles else _ts(signal.bar_time)
+        ts = np.array([c["time"] for c in candles if c["time"] >= start]
+                      + [last + k * step for k in range(1, AHEAD_BARS + 1)], dtype=np.int64)
         frac = (ts - s1) / (s2 - s1)
         vals = v1 * (v2 / v1) ** frac if log else v1 + (v2 - v1) * frac
         line = [{"time": int(t), "value": float(v)} for t, v in zip(ts, vals)]
