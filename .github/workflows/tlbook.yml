@@ -1,0 +1,76 @@
+name: tlbook
+
+# Стакан Bybit (L2) в моменты входа по пробоям трендовых 4h: research/hft/tlbook.py.
+# Выборка и задачи — research/hft/tlbook_events.csv и tlbook_jobs.json (python -m research.hft.tlbook --sample).
+
+on:
+  push:
+    branches: [main-t2qdvg]
+    paths: ["scalper/research/hft/tlbook_jobs.json"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: m
+        run: echo "matrix=$(jq -c . scalper/research/hft/tlbook_jobs.json)" >> "$GITHUB_OUTPUT"
+
+  sim:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        job: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    defaults:
+      run:
+        working-directory: scalper
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pandas pyarrow numpy orjson numba
+      - run: python -m research.hft.tlbook --events research/hft/tlbook_events.csv --chunk "${{ matrix.job.chunk }}" --out ../out --workers 2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tlbook-${{ strategy.job-index }}
+          path: out/*.parquet
+          if-no-files-found: ignore
+
+  report:
+    needs: sim
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pandas pyarrow numpy orjson numba
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - name: Report
+        working-directory: scalper
+        run: mkdir -p ../out && python -m research.hft.tlbook --report ../out | tee ../out/log.txt
+      - name: Publish results to research-results branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898277+github-actions[bot]@users.noreply.github.com"
+          dest="runs/${GITHUB_RUN_ID}"
+          git fetch origin research-results
+          git worktree add rr origin/research-results && git -C rr checkout -B research-results
+          mkdir -p "rr/$dest" && cp out/log.txt "rr/$dest/" && cp out/*.parquet "rr/$dest/" 2>/dev/null || true
+          echo "${GITHUB_SHA}" > "rr/$dest/commit.txt"
+          git -C rr add runs && git -C rr commit -qm "tlbook results run ${GITHUB_RUN_ID}" && git -C rr push origin research-results
