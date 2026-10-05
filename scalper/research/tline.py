@@ -1525,6 +1525,68 @@ def more_signals_report(df: pd.DataFrame) -> None:
                      ("шорты, BTC ниже EMA50", zz[(zz.side == -1) & (zz.btc_trend == -1)])])
 
 
+def _risk_stats(x: pd.DataFrame, col: str) -> dict[str, str]:
+    """Сделки по времени входа, каждая на 1R: просадка, серия убытков, худший месяц, доля плюсовых месяцев."""
+    r = x.sort_values("t")[col].dropna()
+    if len(r) < 10:
+        return {"сделок": str(len(r))}
+    eq = r.cumsum().to_numpy()
+    dd = float((np.maximum.accumulate(np.r_[0.0, eq]) - np.r_[0.0, eq]).max())
+    streak = run = 0
+    for v in r.to_numpy():
+        run = run + 1 if v < 0 else 0
+        streak = max(streak, run)
+    month = r.groupby(x.loc[r.index, "t"].dt.to_period("M")).sum()
+    return {"сделок": str(len(r)), "R на сделку": f"{r.mean():+.3f}", "итог, R": f"{r.sum():+.0f}",
+            "макс. просадка, R": f"{dd:.1f}", "серия убытков": str(streak), "худший месяц, R": f"{month.min():+.1f}",
+            "месяцев в плюсе": f"{(month > 0).mean():.0%}", "прибыльных": f"{(r > 0).mean():.0%}"}
+
+
+def followup_report(df: pd.DataFrame) -> None:
+    """1) Выход «стоп за свечой пробоя + трейлинг 3 ATR» против текущего: просадки и серии убытков.
+    2) 15m, шорт от пологой линии — порог наклона зафиксирован по IS, VAL и HO его не видят."""
+    if "Rbs_tr3" not in df.columns or "adv" not in df.columns:
+        return
+    base = _bot_base(df[df.adv.isna() | (df.adv >= ADV_MIN)])
+    print("\n=== ПРОВЕРКА 1: выход «стоп за свечой пробоя + трейлинг 3 ATR» против текущего (4h, линии по значимым "
+          "точкам, правило бота); сделки по времени входа, каждая на 1R ===")
+    for entry in ("retest", "market"):
+        g = base[(base.tf == "4h") & (base.line == "zz") & (base.entry == entry)]
+        g = g[g.Rbs_tr3.notna()]
+        rows = []
+        for col, nm in (("R3", "сейчас: стоп за свингом, 3R"), ("Rbs_tr3", "стоп за свечой пробоя + трейлинг 3 ATR"),
+                        ("Rtr3", "стоп за свингом + трейлинг 3 ATR")):
+            for p_ in (*PER, "всё"):
+                x = g if p_ == "всё" else g[g.per == p_]
+                rows.append({"выход": nm, "период": p_, **_risk_stats(x, col)})
+        print(f"\n  --- {'ретест' if entry == 'retest' else 'рынок'} (те же сделки, где стоп за свечой пробоя возможен) ---")
+        print(pd.DataFrame(rows).to_string(index=False))
+
+    print("\n=== ПРОВЕРКА 2: 15m, шорт от пологой линии (правило бота); порог наклона — нижняя треть по IS, "
+          "дальше не меняется; ячейка — R на сделку, всё на 3R ===")
+    for tf in ("15m", "4h"):
+        for entry in ("market", "retest"):
+            g = base[(base.tf == tf) & (base.line == "zz") & (base.entry == entry) & (base.side == -1)]
+            if g.empty:
+                continue
+            thr = g[g.per == "is"].slope_atr.quantile(1 / 3)
+            gentle = g[g.slope_atr <= thr]
+            x2 = gentle.assign(R3=gentle["R3"] - 11e-4 / gentle["risk_pct"])          # издержки x2
+            rows = []
+            for nm, z in (("все шорты", g), (f"пологие: наклон <= {thr:.4f} ATR/свечу", gentle),
+                          ("  издержки x2", x2), ("остальные шорты", g[g.slope_atr > thr])):
+                z = z.assign(R=z["R3"])
+                rows.append({"вариант": nm, **{p_: _cell(z[z.per == p_]) for p_ in PER},
+                             "R/мес IS / VAL / HO": _per_month(z, "R3")})
+            print(f"\n  --- {tf}, {'рынок' if entry == 'market' else 'ретест'} ---")
+            print(pd.DataFrame(rows).to_string(index=False))
+            q = pd.qcut(g.slope_atr, 5, labels=False, duplicates="drop")
+            tab = g.assign(q=q).groupby(["q", "per"])["R3"].mean().unstack().reindex(columns=list(PER))
+            print("  средний R по квинтилям наклона (1 — самые пологие):")
+            print("  " + tab.round(3).to_string().replace("\n", "\n  "))
+            print(f"  пологие по годам: {_years(gentle)}")
+
+
 def conviction_report(df: pd.DataFrame, line_name: dict) -> None:
     """Уверенный пробой: закрытие далеко за линией (ATR), у края свечи, с крупным телом — против пробоев «на чуть-чуть».
     База — сигнал бота: агрессоры >= 55% + тренд старшего ТФ, пробой (без закрепления), цель — всё на 3R."""
@@ -1869,6 +1931,7 @@ def report() -> None:
     if "R3" in df.columns and "brk_atr" in df.columns:
         bot_rule_report(df, line_name)
         more_signals_report(more)
+        followup_report(more)
         article_report(df, line_name)
         lowtf_report(df)
         conviction_report(df, line_name)
