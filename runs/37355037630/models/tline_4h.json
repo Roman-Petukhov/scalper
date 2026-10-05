@@ -1,0 +1,1 @@
+{"tf": "4h", "features": ["aggr", "vol_ratio", "body", "close_loc", "brk_atr", "stop_atr", "ret30", "effort", "cvd20", "atr_ratio", "range10", "approach", "rs7", "breadth", "with_trend2"], "threshold_top40": 0.2775557797540606, "trained_on": "IS 2022-01..2024-06, retest, R3 clipped"}
