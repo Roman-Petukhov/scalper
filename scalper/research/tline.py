@@ -815,6 +815,17 @@ def collect(root: Path, syms: list[str], syms15: list[str]) -> None:
                     parts.append(x)
             except Exception as e:
                 print(f"  {tf} {s}: пропуск ({e})", flush=True)
+    if "15m" in tfs and "4h" in tfs:
+        mt = []
+        for s_ in mine(syms15):
+            try:
+                x = mtf_trades(root, s_)
+                if len(x):
+                    mt.append(x)
+            except Exception as e:
+                print(f"  15m-вход {s_}: пропуск ({e})", flush=True)
+        if mt:
+            pd.concat(mt, ignore_index=True).to_parquet(part_path("tline_mtf"), index=False)
     print(f"  частей монет-ТФ со сделками: {len(parts)}", flush=True)
     if parts:
         pd.concat(parts, ignore_index=True).to_parquet(part_path("tline"), index=False)
@@ -975,8 +986,16 @@ def filters_report(df: pd.DataFrame, line_name: dict) -> None:
     >= 55%, тренд 1D», цель — всё на 3R; ранний выход по возврату за линию; модель LightGBM на всех признаках
     (обучение — IS, отбор — верхние 40% прогноза по порогу IS)."""
     df = add_breadth(df)
-    base_all = df[(df.tf == "4h") & (df.entry == "retest") & ~df.confirm]
-    print("\n=== Настоящий / ложный пробой: 4h, ретест пробоя; ячейка — средний R при цели 3R (t, прибыльных, в месяц) ===")
+    for tf in ("4h", "1h", "15m"):
+        _filters_tf(df, tf, line_name)
+
+
+def _filters_tf(df: pd.DataFrame, tf: str, line_name: dict) -> None:
+    base_all = df[(df.tf == tf) & (df.entry == "retest") & ~df.confirm]
+    if not len(base_all):
+        return
+    print(f"\n=== Настоящий / ложный пробой: {tf}, ретест пробоя, агрессоры >= 55% + тренд старшего ТФ; "
+          f"ячейка — средний R при цели 3R (t, прибыльных, в месяц) ===")
     for ln in ("zz", "fan", "fan2"):
         g = base_all[(base_all.line == ln) & (base_all.aggr >= 0.55) & base_all.with_trend]
         if g.per.eq("is").sum() < 100:
@@ -1010,7 +1029,7 @@ def filters_report(df: pd.DataFrame, line_name: dict) -> None:
     except ImportError:
         print("  lightgbm не установлен — модель пропущена")
         return
-    print("\n  9 модель LightGBM (все признаки; обучение на IS: 4h, ретест пробоя, все линии кроме last2, цель 3R):")
+    print(f"\n  9 модель LightGBM (все признаки; обучение на IS: {tf}, ретест пробоя, все линии кроме last2, цель 3R):")
     tr_all = base_all[base_all.line.isin(["clean", "zz", "fan", "fan2"])].copy()
     feats = [f for f in MODEL_FEATS if f in tr_all.columns]
     X = tr_all[feats].astype("float64")
@@ -1036,6 +1055,108 @@ def filters_report(df: pd.DataFrame, line_name: dict) -> None:
             zz = z.assign(R=z.R3)
             print(f"    {line_name[ln]}, {nm}: " + ", ".join(f"{p} {_cell(zz[zz.per == p])}" for p in PER) +
                   f"; по годам: {_years(z)}")
+
+
+MTF_WINDOW_H = 48       # после сигнала 4h ждём пробой 15m-линии в ту же сторону не дольше 48 ч
+
+
+def mtf_trades(root: Path, sym: str) -> pd.DataFrame:
+    """15m как точка входа по сигналу 4h. Сигнал 4h — пробой линии («по значимым точкам» / «веер») на закрытии
+    свечи T; затем первый пробой 15m-линии («веер 2/3/6 ATR» / «по значимым точкам») в ту же сторону в окне
+    (T, T + 48 ч]: вход по рынку на закрытии 15m-пробоя или свечи закрепления, стоп за 15m-свингом − 0.1 ATR15.
+    Цели: всё на 3R (R по 15m-стопу) и уровень 3R сделки 4h (стоп за 4h-свингом от закрытия 4h-пробоя).
+    Для сравнения на тех же сигналах — сделка 4h по рынку на закрытии пробоя, цель 3R."""
+    d4, d15 = tf_frame(root, sym, "4h"), tf_frame(root, sym, "15m")
+    if d4 is None or d15 is None or len(d4) < 500 or len(d15) < 2000:
+        return pd.DataFrame()
+    o4, h4, l4, c4 = (d4[k].to_numpy(dtype="float64") for k in ("open", "high", "low", "close"))
+    a4 = _atr(d4).to_numpy()
+    bs4 = (d4["taker_buy_volume"] / d4["volume"].replace(0, np.nan)).to_numpy()
+    tr4 = htf_trend(d4, "4h")
+    slo4, shi4 = last_confirmed(pivots(l4, PIV, False), len(c4)), last_confirmed(pivots(h4, PIV, True), len(c4))
+    o, h, lo, c = (d15[k].to_numpy(dtype="float64") for k in ("open", "high", "low", "close"))
+    f15 = d15["funding"].to_numpy(dtype="float64")
+    a = _atr(d15).to_numpy()
+    bs = (d15["taker_buy_volume"] / d15["volume"].replace(0, np.nan)).to_numpy()
+    slo, shi = last_confirmed(pivots(lo, PIV, False), len(c)), last_confirmed(pivots(h, PIV, True), len(c))
+    close15 = d15.index + pd.Timedelta(minutes=15)
+    sig15 = {m: sorted(signals(d15, m)) for m in ("fan2", "zz")}
+    tb15 = {m: np.array([x[0] for x in v], dtype=np.int64) for m, v in sig15.items()}
+    rows = []
+    for m4 in ("zz", "fan"):
+        for tb, _, side, *_ in signals(d4, m4):
+            if not (a4[tb] > 0):
+                continue
+            T = d4.index[tb] + pd.Timedelta(hours=4)
+            sw4 = slo4[tb] if side > 0 else shi4[tb]
+            if sw4 < 0:
+                continue
+            stop4 = (l4[sw4] - 0.1 * a4[tb]) if side > 0 else (h4[sw4] + 0.1 * a4[tb])
+            risk4 = side * (c4[tb] - stop4)
+            if not (0.3 <= risk4 / a4[tb] <= 4.0):
+                continue
+            tp4 = c4[tb] + side * 3 * risk4
+            r4, _ = two_targets(o4, h4, l4, c4, d4["funding"].to_numpy(dtype="float64"), tb, side, c4[tb], stop4,
+                                3.0, 3.0, False, HOLD["4h"], TAKER)
+            aggr4 = bs4[tb] if side > 0 else 1 - bs4[tb]
+            i0 = int(close15.searchsorted(T, side="right"))
+            i1 = int(close15.searchsorted(T + pd.Timedelta(hours=MTF_WINDOW_H), side="right"))
+            for m15 in ("fan2", "zz"):
+                arr = tb15[m15]
+                j0 = int(np.searchsorted(arr, i0))
+                hit = None
+                while j0 < len(arr) and arr[j0] < i1:
+                    if sig15[m15][j0][2] == side:
+                        hit = sig15[m15][j0]
+                        break
+                    j0 += 1
+                if hit is None:
+                    continue
+                t15, tc15 = hit[0], hit[1]
+                for confirm in (False, True):
+                    e = tc15 if confirm else t15
+                    if e < 0 or e >= len(c) - 1 or not (a[e] > 0):
+                        continue
+                    sw = slo[e] if side > 0 else shi[e]
+                    if sw < 0:
+                        continue
+                    stop = (lo[sw] - 0.1 * a[e]) if side > 0 else (h[sw] + 0.1 * a[e])
+                    risk = side * (c[e] - stop)
+                    if not (0.3 <= risk / a[e] <= 4.0) or side * (tp4 - c[e]) <= risk:
+                        continue
+                    k4 = side * (tp4 - c[e]) / risk
+                    r3, _ = two_targets(o, h, lo, c, f15, e, side, c[e], stop, 3.0, 3.0, False, 16 * HOLD["4h"], TAKER)
+                    rk, _ = two_targets(o, h, lo, c, f15, e, side, c[e], stop, k4, k4, False, 16 * HOLD["4h"], TAKER)
+                    rows.append({"symbol": sym, "t": T, "side": side, "line4": m4, "line15": m15, "confirm": confirm,
+                                 "aggr4": aggr4, "with_trend": tr4[tb] == side,
+                                 "aggr15": bs[t15] if side > 0 else 1 - bs[t15],
+                                 "wait_h": (d15.index[t15] + pd.Timedelta(minutes=15) - T) / pd.Timedelta(hours=1),
+                                 "k4": k4, "R4": r4, "R3_15": r3, "Rk_15": rk})
+    return pd.DataFrame(rows)
+
+
+def mtf_report(line_name: dict) -> None:
+    parts = all_parts("tline_mtf")
+    if not parts:
+        return
+    df = pd.concat([pd.read_parquet(p) for p in parts], ignore_index=True)
+    df["t"] = pd.to_datetime(df["t"], utc=True)
+    df["per"] = ""
+    for p, (a, b) in PER.items():
+        df.loc[(df.t >= a) & (df.t < b), "per"] = p
+    print(f"\n=== 15m как точка входа по сигналу 4h (70 монет; сигналов {len(df)}) — ячейка: средний R (t, прибыльных, в месяц) ===")
+    print("R4 — та же сделка на 4h (рынок на закрытии пробоя, 3R); R3_15 — вход на 15m, всё на 3R по 15m-стопу;"
+          " Rk_15 — вход на 15m, цель — уровень 3R сделки 4h (медиана k указана)")
+    rows = []
+    for (l4, l15, cf), g in df.groupby(["line4", "line15", "confirm"]):
+        for fname, x in (("все сигналы 4h", g), ("агрессоры 4h >= 55% + тренд", g[(g.aggr4 >= 0.55) & g.with_trend]),
+                         ("+ агрессоры 15m >= 55%", g[(g.aggr4 >= 0.55) & g.with_trend & (g.aggr15 >= 0.55)])):
+            for col in ("R4", "R3_15", "Rk_15"):
+                z = x.assign(R=x[col])
+                rows.append({"4h": line_name[l4], "15m": line_name[l15], "вход 15m": "закрепл." if cf else "пробой",
+                             "фильтр": fname, "сделка": col, "k": f"{x.k4.median():.1f}" if col == "Rk_15" else "",
+                             **{p: _cell(z[z.per == p]) for p in PER}, "2026": _cell(z[z.t.dt.year == 2026])})
+    print(pd.DataFrame(rows).to_string(index=False))
 
 
 def report() -> None:
@@ -1099,6 +1220,7 @@ def report() -> None:
         target_report(df, line_name)
     if "R3x0" in df.columns:
         filters_report(df, line_name)
+    mtf_report(line_name)
     if "effort" in df.columns:
         strength_report(df, line_name)
         ev = df[df.confirm & (df.entry == "market") & (df.tf == "4h") & df.line.isin(["clean", "zz", "fan", "fan2"])]
