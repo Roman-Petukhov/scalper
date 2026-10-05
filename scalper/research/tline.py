@@ -112,6 +112,32 @@ def target_exit(o, h, lo, c, fund, e, side, entry, stop, k, max_hold, entry_fee,
 
 
 @njit(cache=True)
+def trail_exit(o, h, lo, c, fund, e, side, entry, stop, atr, k_trail, max_hold, entry_fee):
+    """Без цели: стоп подтягивается за лучшим закрытием на k_trail ATR (ATR на баре входа), не отодвигается назад
+    (Bulkowski: стоп за свечой пробоя, затем волатильный трейлинг). Стоп проверяется раньше подтяжки. Результат в R."""
+    n = len(c)
+    risk = side * (entry - stop)
+    if not (risk > 0):
+        return np.nan, e
+    sp = stop
+    best = c[e]
+    paid = 0.0
+    for j in range(e + 1, n):
+        paid += fund[j]
+        if (side > 0 and lo[j] <= sp) or (side < 0 and h[j] >= sp):
+            ex = min(sp, o[j]) if side > 0 else max(sp, o[j])
+            return (side * (ex - entry) - (entry_fee + TAKER) * entry) / risk - side * paid * entry / risk, j
+        if side * (c[j] - best) > 0:
+            best = c[j]
+        nsp = best - side * k_trail * atr
+        if side * (nsp - sp) > 0:
+            sp = nsp
+        if j - e >= max_hold or j == n - 1:
+            return (side * (c[j] - entry) - (entry_fee + TAKER) * entry) / risk - side * paid * entry / risk, j
+    return np.nan, n - 1
+
+
+@njit(cache=True)
 def retest_fill(h, lo, e, side, level, tp1_dist, valid):
     """Бар исполнения лимитки на линии (−1 — не исполнилась или цена ушла к первой цели раньше)."""
     n = len(h)
@@ -143,7 +169,7 @@ def last_confirmed(piv: np.ndarray, m: int) -> np.ndarray:
     return out
 
 
-LINES = ("zz", "zone", "zone3", "hl3", "hl4")      # прежние варианты — в истории git и docs/research_report.md
+LINES = ("zz", "s123")      # прежние варианты (зоны, горизонтальные уровни и др.) — в git и docs/research_report.md
 MAJOR_L = 12          # главный экстремум: тень выше (ниже) 12 свечей с каждой стороны
 MINOR_N = 3           # точки касания: фрактал 3 свечи
 ZZ_K = 3.0            # зигзаг по закрытиям: разворот >= 3 ATR
@@ -303,6 +329,50 @@ def zz_lines(d: pd.DataFrame, log: bool = False) -> list[dict]:
                 rec = {"side": side, "a": int(a), "b": b_best, "slope": best, "t": -1, "tc": -1,
                        "line_t": np.nan, "line_n": np.nan, "log": log}
             if rec is not None and (rec["t"] < 0 or rec["t"] not in seen):
+                seen.add(rec["t"])
+                out.append(rec)
+    return out
+
+
+def s123_lines(d: pd.DataFrame) -> list[dict]:
+    """Линия по методу 1-2-3 Сперандео (Bulkowski, «Down-Sloping Trendline Tutorial»): от вершины A (как в zz_lines —
+    вершина зигзага, самое высокое закрытие за ZZ_ANCHOR свечей до неё) к самому низкому закрытию B после неё; линия
+    разворачивается вверх, пока ни одно закрытие между A и B не окажется над ней (наклон — наибольший из наклонов
+    A→j, j в (A, B]). B обновляется, пока цена делает новые минимумы; после B линия может пересечь цену — это пробой
+    (закрытие над линией, не раньше чем через свечу после B). Для восходящей линии — зеркально. Формат — как у zz_lines."""
+    c = d["close"].to_numpy(dtype="float64")
+    atr = _atr(d).to_numpy() if {"high", "low"} <= set(d.columns) else np.full(len(c), np.inf)
+    m = len(c)
+    hs, ls = zigzag(c, atr, ZZ_K)
+    out = []
+    for side, piv in ((1, hs), (-1, ls)):
+        seen = set()
+        for a, conf_a in piv:
+            w = c[max(0, a - ZZ_ANCHOR): a]
+            if len(w) < ZZ_ANCHOR or side * (c[a] - (w.max() if side > 0 else w.min())) <= 0:
+                continue
+            end = min(a + ZZ_LIFE, m - 1)
+            js = np.arange(a + 1, end)
+            if not len(js):
+                continue
+            slope_to = (c[js] - c[a]) / (js - a)
+            cum = np.maximum.accumulate(side * slope_to) * side     # самый «поворачивающий» наклон до j
+            b = a + 1
+            rec = None
+            for t in range(max(conf_a, a + ZZ_SPAN) + 1, end):
+                if side * (c[b] - c[t - 1]) > 0:                    # новый экстремум против линии — новая точка B
+                    b = t - 1
+                sl = cum[b - a - 1]
+                if not (side * sl < 0) or t <= b + 1:
+                    continue
+                lt, lp = c[a] + sl * (t - a), c[a] + sl * (t - 1 - a)
+                if side * (c[t] - lt) > 0 and side * (c[t - 1] - lp) <= 0:
+                    ln = c[a] + sl * (t + 1 - a)
+                    jb = int(js[int(np.argmax(side * slope_to[: b - a]))])
+                    rec = {"side": side, "a": int(a), "b": jb, "slope": sl, "t": t,
+                           "tc": t + 1 if side * (c[t + 1] - ln) > 0 else -1, "line_t": float(lt), "line_n": float(ln)}
+                    break
+            if rec is not None and rec["t"] not in seen:
                 seen.add(rec["t"])
                 out.append(rec)
     return out
@@ -480,10 +550,10 @@ def fan_lines(d: pd.DataFrame, scales: tuple[float, ...] = FAN_K) -> list[dict]:
 def signals(d: pd.DataFrame, mode: str = "last2") -> list[tuple[int, int, int, float, float, int, int]]:
     """(бар пробоя, бар закрепления или −1, сторона, линия на баре пробоя, линия на баре закрепления,
     индексы двух точек линии)."""
-    if mode in ("major", "zz", "zzlog", "fan", "fan2", "zone", "zone3", "hl3", "hl4"):
+    if mode in ("major", "zz", "zzlog", "fan", "fan2", "zone", "zone3", "hl3", "hl4", "s123"):
         recs = {"major": major_lines, "zz": zz_lines, "zzlog": lambda x: zz_lines(x, log=True), "fan": fan_lines,
                 "fan2": lambda x: fan_lines(x, FAN2_K), "zone": zone_lines, "zone3": lambda x: zone_lines(x, 3),
-                "hl3": lambda x: level_lines(x, 3), "hl4": lambda x: level_lines(x, 4)}[mode](d)
+                "hl3": lambda x: level_lines(x, 3), "hl4": lambda x: level_lines(x, 4), "s123": s123_lines}[mode](d)
         return [(r["t"], r["tc"], r["side"], r["line_t"], r["line_n"], r["a"], r["b"]) for r in recs if r["t"] > 0]
     c = d["close"].to_numpy(dtype="float64")
     atr = _atr(d).to_numpy() if {"high", "low"} <= set(d.columns) else np.full(len(c), np.inf)
@@ -738,6 +808,61 @@ def filter_row(fx: dict[str, np.ndarray], tb: int, e: int, fill: int, side: int,
     return row
 
 
+def round_step(price: float) -> float:
+    """Шаг «круглых» цен: число вида 1 / 2.5 / 5 × 10^k, ближайшее к 0.5% цены (аналог 00 / 50 у Osler 2003)."""
+    base = price * 0.005
+    k = 10.0 ** np.floor(np.log10(base))
+    steps = np.array([1.0, 2.5, 5.0, 10.0]) * k
+    return float(steps[np.argmin(np.abs(steps - base))])
+
+
+def article_outcomes(o, hi, lo, c, f, a, tb: int, e: int, fill: int, side: int, px: float, stop: float, fee: float,
+                     hold: int, line_b: float, slope_l: float, ia: int, ib: int) -> dict:
+    """Варианты из статей для одной сделки (результат в R; NaN — вариант к сделке неприменим):
+    inv_pre — до исполнения ретеста цена закрылась за экстремумом свечи пробоя (Bulkowski: глубокий возврат);
+    R3_bx — всё на 3R + выход по закрытию за экстремумом свечи пробоя;
+    R3_bs — стоп за свечой пробоя (∓0.1 ATR) вместо свинга, всё на 3R;
+    Rtr2 / Rtr3 — стоп за свингом, без цели, трейлинг 2 / 3 ATR от лучшего закрытия;
+    Rbs_tr3 — стоп за свечой пробоя + трейлинг 3 ATR (Bulkowski, «Money Management: Stops»);
+    Rmm56 / Rmm100 — цель «мерой высоты»: 56% / 100% наибольшего расстояния от линии до цены между второй точкой
+    и пробоем, от закрытия свечи пробоя;
+    R3_rn — стоп отодвинут за круглое число, если стоял сразу за ним (Osler 2003: там копятся стопы);
+    slope_atr — наклон линии, ATR на свечу; inbound_atr — наклон цены за ZZ_ANCHOR свечей до точки A, ATR на свечу."""
+    at = a[e]
+    out = {"inv_pre": False, "R3_bx": np.nan, "R3_bs": np.nan, "Rtr2": np.nan, "Rtr3": np.nan, "Rbs_tr3": np.nan,
+           "Rmm56": np.nan, "Rmm100": np.nan, "R3_rn": np.nan,
+           "slope_atr": abs(slope_l) / a[tb] if a[tb] > 0 else np.nan,
+           "inbound_atr": (c[ia] - c[max(ia - ZZ_ANCHOR, 0)]) / (ZZ_ANCHOR * a[ia]) if a[ia] > 0 else np.nan}
+    brk_ext = lo[tb] if side > 0 else hi[tb]
+    if fill > tb + 1:
+        out["inv_pre"] = bool(np.any(side * (c[tb + 1: fill] - brk_ext) < 0))
+    out["R3_bx"] = target_exit(o, hi, lo, c, f, fill, side, px, stop, 3.0, hold, fee, brk_ext, tb, 0.0, 0.0)[0]
+    st_b = brk_ext - side * 0.1 * at
+    ok_b = 0.3 * at <= side * (px - st_b) <= 4.0 * at
+    if ok_b:
+        out["R3_bs"] = two_targets(o, hi, lo, c, f, fill, side, px, st_b, 3.0, 3.0, False, hold, fee)[0]
+        out["Rbs_tr3"] = trail_exit(o, hi, lo, c, f, fill, side, px, st_b, at, 3.0, hold, fee)[0]
+    out["Rtr2"] = trail_exit(o, hi, lo, c, f, fill, side, px, stop, at, 2.0, hold, fee)[0]
+    out["Rtr3"] = trail_exit(o, hi, lo, c, f, fill, side, px, stop, at, 3.0, hold, fee)[0]
+    risk = side * (px - stop)
+    if ib < tb and risk > 0:
+        js = np.arange(ib, tb + 1)
+        line = line_b - slope_l * (tb - js)
+        far = lo[js] if side > 0 else hi[js]
+        height = float(np.max(side * (line - far)))
+        for frac, nm in ((0.56, "Rmm56"), (1.0, "Rmm100")):
+            k = side * (c[tb] + side * frac * height - px) / risk
+            if k >= 1.0:
+                out[nm] = two_targets(o, hi, lo, c, f, fill, side, px, stop, k, k, False, hold, fee)[0]
+    step = round_step(px)
+    rn = np.ceil(stop / step) * step if side > 0 else np.floor(stop / step) * step
+    st_rn = stop
+    if 0 <= side * (rn - stop) <= 0.25 * at and side * (px - rn) > 0:
+        st_rn = rn - side * 0.4 * at
+    out["R3_rn"] = two_targets(o, hi, lo, c, f, fill, side, px, st_rn, 3.0, 3.0, False, hold, fee)[0]
+    return out
+
+
 def coin_trades(root: Path, sym: str, tf: str, ctx: pd.DataFrame | None = None) -> pd.DataFrame:
     d = tf_frame(root, sym, tf)
     if d is None or len(d) < 500:
@@ -776,7 +901,7 @@ def coin_trades(root: Path, sym: str, tf: str, ctx: pd.DataFrame | None = None) 
     st = strength_inputs(root, sym, tf, d, a)
     fx = filter_inputs(root, sym, tf, d, a)
     zh, zl = zigzag(c, a, ZZ_K)
-    for mode, (tb, tc, side, line_b, line_c, _, _) in ((m_, sg) for m_ in LINES for sg in signals(d, m_)):
+    for mode, (tb, tc, side, line_b, line_c, ia, ib) in ((m_, sg) for m_ in LINES for sg in signals(d, m_)):
         for confirm in (False, True):
             e = tc if confirm else tb
             if e < 0 or e >= len(c) - 1 or not ok[e] or not (a[e] > 0):
@@ -815,6 +940,9 @@ def coin_trades(root: Path, sym: str, tf: str, ctx: pd.DataFrame | None = None) 
                                                ("R1_2be", 1.0, 2.0, True), ("R15_3be", 1.5, 3.0, True),
                                                ("R2_4be", 2.0, 4.0, True)):
                             tg[nm] = two_targets(o, hi, lo, c, f, fill, side, px, stop, k1, k2, b_, HOLD[tf], fee)[0]
+                    if not confirm:                                      # проверки из статей (docs/research_report.md)
+                        tg |= article_outcomes(o, hi, lo, c, f, a, tb, e, fill, side, px, stop, fee, HOLD[tf], line_b,
+                                               slope_l, int(ia), int(ib))
                     rows.append({"symbol": sym, "tf": tf, "line": mode, "t": d.index[e], "side": side, "confirm": confirm,
                                  "risk_pct": side * (px - stop) / px,
                                  "entry": entry_kind, "be": be, "with_trend": trend[e] == side, "with_trend2": trend2[e] == side,
@@ -879,7 +1007,7 @@ def chart(root: Path, sym: str, tf: str, bars: int, out: Path, mode: str = "fan2
     n_tr = 0
     for rec in {"zz": zz_lines, "fan": fan_lines, "major": major_lines,
                 "fan2": lambda x: fan_lines(x, FAN2_K), "zone": zone_lines, "zone3": lambda x: zone_lines(x, 3),
-                "hl3": lambda x: level_lines(x, 3), "hl4": lambda x: level_lines(x, 4)}[mode](d):
+                "hl3": lambda x: level_lines(x, 3), "hl4": lambda x: level_lines(x, 4), "s123": s123_lines}[mode](d):
         i1, i2, side, tb, tc = rec["a"], rec["b"], rec["side"], rec["t"], rec["tc"]
         if i1 < w0 - 300 or (tb > 0 and tb < w0):
             continue
@@ -1240,6 +1368,55 @@ def _bot_rule_lines(base: pd.DataFrame) -> None:
                     print(f"  {tf}, {'ретест' if entry == 'retest' else 'рынок'}, {nm}: {_years(f(g))}")
 
 
+def article_report(df: pd.DataFrame, line_name: dict) -> None:
+    """Проверки из статей (Bulkowski, Osler 2000/2003, Chung & Bellotti 2021) на правиле бота: 4h и 15m, пробой без
+    закрепления, агрессоры >= 55% + тренд старшего ТФ, закрытие в верхней половине свечи."""
+    if "Rtr3" not in df.columns:
+        return
+    print("\n=== ИДЕИ ИЗ СТАТЕЙ на правиле бота (агрессоры >= 55% + тренд, закрытие в верхней половине); "
+          "ячейка — R на сделку ===")
+    base = df[~df.confirm & (df.aggr >= 0.55) & df.with_trend & (df.close_loc >= 0.5)]
+    for ln in LINES:
+        for tf in ("4h", "15m"):
+            for entry in ("retest", "market"):
+                g = base[(base.line == ln) & (base.tf == tf) & (base.entry == entry)]
+                if not len(g):
+                    continue
+                rows = []
+
+                def add(nm: str, z: pd.DataFrame, col: str = "R3") -> None:
+                    z = z[z[col].notna()].assign(R=lambda x: x[col])
+                    rows.append({"вариант": nm, **{p: _cell(z[z.per == p]) for p in PER},
+                                 "R/мес IS / VAL / HO": _per_month(z, col)})
+
+                add("база: стоп за свингом, всё на 3R", g)
+                if entry == "retest":
+                    add("ретест отменён, если до него закрылись за свечой пробоя", g[~g.inv_pre])
+                add("+ выход по закрытию за свечой пробоя", g, "R3_bx")
+                add("стоп за свечой пробоя, 3R", g, "R3_bs")
+                add("  то же сделки, стоп за свингом, 3R", g[g.R3_bs.notna()])
+                add("стоп за свечой пробоя + трейлинг 3 ATR", g, "Rbs_tr3")
+                add("стоп за свингом + трейлинг 2 ATR", g, "Rtr2")
+                add("стоп за свингом + трейлинг 3 ATR", g, "Rtr3")
+                add("цель мерой высоты 56%", g, "Rmm56")
+                add("цель мерой высоты 100%", g, "Rmm100")
+                add("  те же сделки, 3R", g[g.Rmm56.notna()])
+                add("стоп отодвинут за круглое число", g, "R3_rn")
+                for sd, nm in ((1, "лонг"), (-1, "шорт")):
+                    x = g[g.side == sd]
+                    if len(x) < 30:
+                        continue
+                    q1, q2 = x.slope_atr.quantile([1 / 3, 2 / 3])
+                    add(f"{nm}: пологая линия (нижняя треть наклона)", x[x.slope_atr <= q1])
+                    add(f"{nm}: крутая линия (верхняя треть)", x[x.slope_atr > q2])
+                    ib = x.inbound_atr.abs()
+                    b1, b2 = ib.quantile([1 / 3, 2 / 3])
+                    add(f"{nm}: плавный подход к линии (нижняя треть)", x[ib <= b1])
+                    add(f"{nm}: крутой подход (верхняя треть)", x[ib > b2])
+                print(f"\n  --- {line_name.get(ln, ln)}, {tf}, {'ретест' if entry == 'retest' else 'рынок'} ---")
+                print(pd.DataFrame(rows).to_string(index=False))
+
+
 def conviction_report(df: pd.DataFrame, line_name: dict) -> None:
     """Уверенный пробой: закрытие далеко за линией (ATR), у края свечи, с крупным телом — против пробоев «на чуть-чуть».
     База — сигнал бота: агрессоры >= 55% + тренд старшего ТФ, пробой (без закрепления), цель — всё на 3R."""
@@ -1536,7 +1713,7 @@ def report() -> None:
         shutil.copy(png, out / png.name)
     print(f"===== TLINE: сделок {len(df):,}, монет {df.symbol.nunique()}, частей {len(parts)} =====")
     print("ячейка: средний R на сделку (t по дням, прибыльных, сделок в месяц на весь набор монет); выход 1/2 на 3R + 1/2 на 5R")
-    line_name = {"last2": "2 последние", "clean": "чистая", "clean3": "чистая, 3 касания", "major": "от главного экстремума", "zz": "по значимым точкам", "zzlog": "по значимым точкам, лог-шкала", "fan": "веер: соседние вершины", "fan2": "веер 2/3/6 ATR", "zone": "наклонная зона 1 ATR", "zone3": "наклонная зона, 3+ касания", "hl3": "горизонтальный уровень, 3+ касания", "hl4": "горизонтальный уровень, 4+ касания"}
+    line_name = {"last2": "2 последние", "clean": "чистая", "clean3": "чистая, 3 касания", "major": "от главного экстремума", "zz": "по значимым точкам", "zzlog": "по значимым точкам, лог-шкала", "fan": "веер: соседние вершины", "fan2": "веер 2/3/6 ATR", "zone": "наклонная зона 1 ATR", "zone3": "наклонная зона, 3+ касания", "hl3": "горизонтальный уровень, 3+ касания", "hl4": "горизонтальный уровень, 4+ касания", "s123": "линия 1-2-3 Сперандео"}
     filters = lambda g: (("все", g), ("по тренду старшего ТФ", g[g.with_trend]),
                          ("объём пробоя >= 1.5x", g[g.vol_ratio >= 1.5]), ("OI рос 4 бара", g[g.oi_chg > 0]),
                          ("сильная свеча", g[(g.body >= 0.6) & (g.close_loc >= 0.75) & (g.brk_atr >= 0.3)]),
@@ -1580,6 +1757,7 @@ def report() -> None:
         target_report(df, line_name)
     if "R3" in df.columns and "brk_atr" in df.columns:
         bot_rule_report(df, line_name)
+        article_report(df, line_name)
         lowtf_report(df)
         conviction_report(df, line_name)
     if "R3x0" in df.columns:
