@@ -1,0 +1,182 @@
+
+
+
+
+
+
+
+
+
+
+Home Blog FAQs
+Chart
+Patterns &dtrif;
+
+Busted Index Pic_Index Event Indicator Rank Small Ugly
+More
+Patterns &dtrif;
+Candle_Index Candle_Pic_Index Elliott_Wave Volume
+Trading
+Help &dtrif;
+Books Class Quizzes Setups Studies Traps Tutorials
+Other &dtrif;
+About Forecast Fundamentals Glossary Scoring Site_map Software
+What's_New
+ 
+☰
+As of 10/02/2026                      YTD            Targets    Overview: 09/30/2026  
+  Indus: 51,177 +250.40 +0.5%     +6.5%      [Down arrow]50,500 or 52,800 by 10/15/2026
+  Trans: 20,010 +405.24 +2.1%     +15.3%     [Up arrow]20,500 or 18,750 by 10/15/2026
+  Utils: 1,018 +4.93 +0.5%       -4.7%        [Up arrow]1,100 or 960 by 10/15/2026
+  Nasdaq: 27,191 +319.26 +1.2%    +17.0%     [Up arrow]28,000 or 26,300 by 10/15/2026
+  S&P 500: 7,723 +56.27 +0.7%     +12.8%     [Up arrow]7,900 or 7,500 by 10/15/2026
+Chart_Pattern_Indicator: [Arrows] on 9/4/26
+As of 10/02/2026                      YTD
+  Indus: 51,177 +250.40 +0.5%     +6.5%  
+  Trans: 20,010 +405.24 +2.1%     +15.3%  
+  Utils: 1,018 +4.93 +0.5%       -4.7%  
+  Nasdaq: 27,191 +319.26 +1.2%    +17.0%  
+  S&P 500: 7,723 +56.27 +0.7%     +12.8%  
+  Targets    Overview: 09/30/2026  
+  [Down arrow]50,500 or 52,800 by 10/15/2026
+  [Up arrow]20,500 or 18,750 by 10/15/2026
+  [Up arrow]1,100 or 960 by 10/15/2026
+  [Up arrow]28,000 or 26,300 by 10/15/2026
+  [Up arrow]7,900 or 7,500 by 10/15/2026
+Chart_Pattern_Indicator: [Arrows] on 9/4/26
+****** Bulkowski on Money Management ******
+***** Money Management: Overview *****
+This page explores money management using throwbacks and pullbacks, answering
+the questions, should I exit a position if a throwback or pullback retraces too
+far, and does a close stop result in more profit than a stop farther away?
+$ $ $
+My book, Getting_Started_in_Chart_Patterns,_Second_Edition[Getting_Started_in
+Chart_Patterns,_Second_Edition_book.], shown on the left, discusses throwbacks
+and pullbacks starting on page 217.
+If you click on the above link and then buy the book (or anything) while at
+Amazon.com, the referral will help support this site. Thanks.
+-- Tom Bulkowski
+$ $ $
+Summary
+Methodology_and_Results
+Stops
+See_Also
+***** Money Management: Summary *****
+In the book, [images/419FY5VP4JL._SL160_.jpg] Swing_Trading:_Power_strategies
+to_cut_risk_and_boost_profits,_by_Jon_Markman, Markman writes (page 36) "Upside
+breakouts through the reaction high often lead to small two percent to three
+percent advances followed by an immediate test of the breakout level. If the
+stock closes below this level (now support) for any reason, the pattern becomes
+invalid." In other words, if price throws_back below the buy price, then exit.
+You can make the same case for pullbacks. If price climbs too far then exit a
+position. Is that the proper thing to do?
+To answer that question, I looked at both throwbacks and pullbacks. The average
+rise for chart patterns with throwbacks that do not drop below the breakout
+price is 41.3%. When a throwback takes the stock below the breakout price, the
+average rise is just 26.7%. Pullbacks are similar with declines averaging 25.1%
+when price does not climb above the breakout price to 17.3% when it does.
+If you follow his advice, you will be stopped out more often with a smaller
+loss, but trades that work will tend to do well.
+If you place a stop loss order two cents below the breakout day's low and then
+calculate a volatility stop (using the higher of the two), you will make 11%
+more than if you just use a volatility stop alone. However, this finding
+applies only to throwbacks since I did not run the same test for pullbacks.
+[Top_of_page] More
+***** Money Management: Methodology and Results *****
+I sifted through three databases from July 1991 to June 2008 to find chart
+patterns that qualified for the test. I included only those patterns with
+throwbacks or pullbacks, and measured how far price dropped (during a
+throwback) or rose (during a pullback). I found 9,372 samples in 841 stocks
+using 30 different types of chart patterns (such as triple bottoms, head-and-
+shoulder tops, and so on). Not all stocks covered the entire period, and I used
+over a thousand securities to winnow it down to 841 unique ones.
+The following table shows the results.
+           Partial Retrace         Full Retrace
+Type       Avg Move        Samples Avg Move     Samples
+Throwbacks 41.3%           1,717   26.7%        3,311
+Pullbacks  25.1%           1,355   17.3%        2,989
+ 
+[Breakout from an ascending triangle with a throwback.]
+I show the difference between a partial retrace and a full retrace in the
+chart. The left image shows price breaking out at point A, climbing and then
+throwing back to the triangle at C, but not quite making it. Price climbs after
+that.
+The image on the right shows a similar situation only price completes the
+throwback and drifts into and below the lower trendline of the ascending
+triangle, bottoming at D, which is below the breakout day's low price, B.
+What Markman suggests is that the partial retrace (the left image) represents a
+better trading setup than the right image. My tests verify that. Those chart
+patterns with a throwback that does not drop below B (the breakout day's low
+price) show a post breakout climb that averages 41.3%, using 1,717 samples. For
+chart patterns like those on the right, a full retrace, the average post-
+breakout rise is 26.7%, using 3,311 samples.
+Pullbacks show a similar trend and you can think of the picture flipped upside
+down. When the stock tries to pull back to the breakout price but does not
+quite make it, the average post-breakout decline is 25.1%, using 1,355 samples.
+Those situations in which the pullback rises above the high on the day of
+breakout show drops averaging 17.3%, using 2,989 samples.
+[Top_of_page] More
+***** Money Management: Stops *****
+In another test, I wanted to determine whether a stop placed two cents below
+the breakout day's low and then using a trailing volatility stop thereafter
+(whichever one was higher) performed better than just using a volatility stop
+from the start. In other words, would a stop placed at B (see above chart)
+result in more profitable performance than one farther away?
+For this test, I used only chart patterns with upward breakouts and throwbacks,
+not those with downward breakout or pullbacks. I found 5,188 samples that
+qualified using 811 unique stocks from 1991 to June 2008 (the same setup as
+with the prior test). The following table shows the results.
+Stop Type                               Gross Profit
+Breakout day stop, then volatility stop $165,148.26
+Volatility stop only                    $148,499.56
+For those chart patterns using the breakout day's low (resembling the left
+image, above), the trade's gross profit was $165,148.26, using $1,000 per buy
+and not including commissions, fees, slippage or anything else. Using a
+volatility stop beginning on the day of breakout, the gross profit was
+$148,499.56, a difference of 11%.
+In other words, my tests showed that a stop 2 cents below the breakout day's
+low (a tight stop) followed by a trailing volatility stop works better than
+does a trailing volatility stop alone.
+The bottom line for traders is this: After you enter a trade, place a close
+stop below the breakout day's low. As price rises, calculate a volatility stop
+and use that once the stop value rises above the original stop. This technique
+will cut your losses and yet allow you to stay in trades that perform better.
+-- Thomas Bulkowski
+[Top_of_page] More
+***** See Also *****
+    * After_a_throwback,_when_should_you_buy?
+    * This_article_discusses_throwbacks.
+    * And_this_article_covers_pullbacks.
+    * Partial_rises/declines_and_throws/pulls. Do throwbacks/pullbacks occur
+      more often after partial rises and declines?
+    * Triangle_apex_and_turning_points. Price turns at apex 60% of the time.
+    * Stop_placement, part 1.
+    * Stop_placement, part 2.
+    * The_best_stop_locations, by chart pattern.
+    * Example_stop_placement in a straight-line price run.
+    * Stan_Weinstein has developed a unique stop placement technique.
+    * Can_stops_hurt? Find out here.
+ 
+Support this site! Clicking any of the books (below) takes you to Amazon.com If
+you buy ANYTHING while there, they pay for the referral.
+Legal notice for paid links: "As an Amazon Associate I earn from qualifying
+purchases."
+My Stock Market Books
+Wealth_Under_Construction,_2nd_edition         My Novels
+Chart_Patterns:_After_the_Buy                  Bumper's_Story
+Encyclopedia_of_Chart_Pattern,_3rd_Edition     Orb_Foresight
+Fundamental_Analysis_and_Position_Trading      Head's_Law
+Getting_Started_in_Chart_Patterns,_2nd_Edition Remember_Me
+Swing_and_Day_Trading
+Trading_Basics
+
+Copyright © 2005-2026 by Thomas N. Bulkowski. All rights reserved. This
+website, in whole or in part, shall not be used to train artificial
+intelligence (AI) systems, technologies, large language models, or similar
+systems, including use to create works of a similar style.
+Disclaimer: You alone are responsible for your investment decisions. See
+Privacy/Disclaimer for more information.
+Some pattern names are registered trademarks of their respective owners.
+Home Advertise Contact Privacy/Disclaimer ☰
+Your momma is so fat that when she was diagnosed with a flesh eating disease,
+the doctor gave her 13 years to live![Smiley]

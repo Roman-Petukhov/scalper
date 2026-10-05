@@ -1,0 +1,272 @@
+
+
+
+
+
+
+
+
+
+
+Home Blog FAQs
+Chart
+Patterns &dtrif;
+
+Busted Index Pic_Index Event Indicator Rank Small Ugly
+More
+Patterns &dtrif;
+Candle_Index Candle_Pic_Index Elliott_Wave Volume
+Trading
+Help &dtrif;
+Books Class Quizzes Setups Studies Traps Tutorials
+Other &dtrif;
+About Forecast Fundamentals Glossary Scoring Site_map Software
+What's_New
+ 
+☰
+As of 10/02/2026                      YTD            Targets    Overview: 09/30/2026  
+  Indus: 51,177 +250.40 +0.5%     +6.5%      [Down arrow]50,500 or 52,800 by 10/15/2026
+  Trans: 20,010 +405.24 +2.1%     +15.3%     [Up arrow]20,500 or 18,750 by 10/15/2026
+  Utils: 1,018 +4.93 +0.5%       -4.7%        [Up arrow]1,100 or 960 by 10/15/2026
+  Nasdaq: 27,191 +319.26 +1.2%    +17.0%     [Up arrow]28,000 or 26,300 by 10/15/2026
+  S&P 500: 7,723 +56.27 +0.7%     +12.8%     [Up arrow]7,900 or 7,500 by 10/15/2026
+Chart_Pattern_Indicator: [Arrows] on 9/4/26
+As of 10/02/2026                      YTD
+  Indus: 51,177 +250.40 +0.5%     +6.5%  
+  Trans: 20,010 +405.24 +2.1%     +15.3%  
+  Utils: 1,018 +4.93 +0.5%       -4.7%  
+  Nasdaq: 27,191 +319.26 +1.2%    +17.0%  
+  S&P 500: 7,723 +56.27 +0.7%     +12.8%  
+  Targets    Overview: 09/30/2026  
+  [Down arrow]50,500 or 52,800 by 10/15/2026
+  [Up arrow]20,500 or 18,750 by 10/15/2026
+  [Up arrow]1,100 or 960 by 10/15/2026
+  [Up arrow]28,000 or 26,300 by 10/15/2026
+  [Up arrow]7,900 or 7,500 by 10/15/2026
+Chart_Pattern_Indicator: [Arrows] on 9/4/26
+****** Bulkowski on Up-Sloping Trendlines ******
+Revised, new statistics, 5/14/2021. The measure rule was incorrect. I changed
+the 26% to 63%.
+***** Up-Sloping Trendlines: Summary *****
+Price follows trends. When you draw an up-sloping line along price valleys, the
+stock often touches the line and rises away from it without piercing it. The
+line is called a trendline because it shows the price trend.
+$ $ $
+My book, Trading_Classic_Chart_Patterns[Trading_Classic_Chart_Patterns_book.],
+pictured on the left, has two, yes, two, chapters dedicated to trendlines.
+If you click on the above link and then buy the book (or anything) while at
+Amazon.com, the referral will help support this site. Thanks.
+-- Tom Bulkowski
+$ $ $
+Identification_Guidelines
+The_Measure_Rule
+Trading
+After_the_Breakout
+What_to_Avoid
+See_Also
+[Up trendline chart pattern]
+Up Trendline Chart Pattern
+***** Up-Sloping Trendlines: Identification Guidelines *****
+Characteristic Discussion
+Log scale      Use the logarithmic scale. Price will signal a trend change
+               sooner on the log scale than on the arithmetic scale.
+               Draw an up-sloping trendline along the price valleys. That way,
+Minor highs    when the trend changes from up to down, you'll know with a
+               trendline pierce. The numbers in the above chart show price
+               touching the trendline at four minor lows.
+Spacing        Widely spaced touches (over the median 12 days each) suggest a
+               more powerful move post-breakout.
+[Top_of_page] More
+For the discussion which follows, I logged 3,720 trendlines with 3,172 of them
+happening in bull markets (only bull market results are reviewed in this
+article). I measured the move after the breakout to the ultimate low and after
+the third trendline touch to simulate trading them (more about that later). I
+used 699 stocks with trendlines priced above $5 per share from data starting in
+March 1991 through April 2021. Not all stocks covered the entire period.
+[Up trendline measure rule]
+***** Up-Sloping Trendlines: The Measure Rule *****
+Use the measure rule to predict how far price will tumble after a downward
+breakout (a price pierce) from the trendline. The figure to the right shows an
+up-sloping trendline with price breaking out downward at point B.
+If you'd like to use the classic measure rule, then from the breakout, find the
+prior minor low trendline touch. I show it as point A. Measure the tallest
+distance between those two points (re, A and B), measured vertically. In this
+case, that's the distance from C to D. Multiply that distance by 63% because
+that's how often this method works when a full height is used. Project the
+result downward from the breakout price (B) -- the point where price pierces
+the trendline.
+For example, if the high at C is 10 and directly below that at point D, the
+trendline is at 8, the difference is 2. Multiply this by 63% to get $1.26.
+Suppose the breakout at point B is at 9. That would give a price target of 7.74
+(9 - 1.26). If the projected decline is less than 0, ignore the result.
+You might look for underlying support where price might stop and reverse
+instead of relying on a number.
+[Top_of_page] More
+***** Up-Sloping Trendlines: Trading *****
+[Up trendline trade]
+I was looking at trendlines, trying to discover if there was a way to trade
+them and make money. I thought that if I could buy a stock showing a trendline
+at the third touch, ride price higher until I got a downward breakout and then
+sell, I could pocket the difference.
+The chart on the right shows an example. The 3-touch trendline is in red. It
+ends in mid June. Four days later, buy at the open and hold until the day after
+price closes below the trendline (the orange/brown line). The difference
+between the buy price and the sale price is profit. If you have the courage to
+buy sooner at or after the third touch, then profits would likely increase.
+I found that on 3,172 trades, you'd make an average of 0.7% or lose a median of
+0.9%. The win/loss ratio was 37%. In other words, this method didn't work well.
+Along the way, I learned features about trendlines. For the tests which follow,
+I found the third trendline touch and waited 3 days (price bars) before buying
+at the open the following day (4 days, total, after the minor low). This is
+because my software uses 3 bars after a minor low to assure that it is, indeed,
+a minor low on the trendline.
+Because the first close below a trendline worked better than a delayed exit,
+all tests which follow use the first close as a sell signal (sell at the open
+the next trading day). I explain the delayed sale idea next.
+   1. Sell immediately? Is it better to sell immediately at the open the day
+      after price closes below an up-sloping trendline or wait? Answer: Sell
+      immediately. To test this, I sold after price closed below the trendline
+      or waited for 2 closes below the trendline and only if the second price
+      bar also had a lower close and lower low (than the prior bar). The idea
+      is to allow price to recover from minor trendline pierces without
+      selling. I found that selling on the first close had a median loss of
+      0.9% compared to a median loss of 1.3% after the delayed exit. Waiting to
+      sell costs you money.
+   2. Trendlines with more minor low touches perform better. Trendlines with 3
+      touches lost 2.1%. Trendlines with 4 touches made 2% (3 and 4 touch
+      trendlines had over 1,000 trades, each) going up to 7 trendline touches
+      with gains averaging 7.5% (but only 23 samples).
+   3. Long trendlines made more money than short ones. Long trendlines made
+      2.9% and short ones lost 1.4%. The median between short and long was 44
+      days. In other words, buying after the 3rd touch on a trendline longer
+      than 44 days made money, on average.
+   4. Shallow trendlines made more money than steep ones. I measured the slope
+      of the trendline from low to high divided by the start and end dates,
+      respectively (change in y divided by the change in x). The median slope
+      was 0.05. Trendlines steeper than 0.05 lost 0.7% but those more shallow
+      made 2%. In fact, splitting the slope into shallow, medium, and steep
+      shows the best performance for shallow trendlines followed medium ones
+      and then steep ones, in that order.
+   5. More days between touches is better. Trendlines with touches spaced wider
+      than 12 days saw gains averaging 2%. Trades in trendlines shorter than 12
+      days lost 1%.
+   6. Shallow inbound trend is best. Finally, I measure the slope from the
+      trend_start to the beginning of the trendline. If the slope of the price
+      trend leading to the start of the trendline was flat to slightly down,
+      performance was best. If the inbound trend was steep, either up or down,
+      the trendline under-performed. The slope which work best was between -
+      0.03 and +0.02. Outside of that range and performance deteriorated.
+[Top_of_page] More
+***** Up-Sloping Trendlines: After the Breakout *****
+[Up trendline in a downtrend]
+Pictured is an up-sloping trendline in a downward price trend. I found this
+type of setup happening frequently in the charts I looked at. As bad as it
+looks, the difference between an up-trendline in an upward versus a downward
+trend is just one percentage point in performance: 13% (in uptrend) versus 14%
+(in downtrends). That's the average drop after the breakout to the ultimate
+low.
+A review of the statistics shows that the 5% failure rate is 30%. Almost a
+third of trendlines with downward breakouts will see price drop no more than
+5%. Half (52%) will drop no more than 10%.
+Briefly, I found the following based on the drop from the breakout price to the
+ultimate low (which is different than the trading method described above.
+    * Trendlines with 3 touches see price drop further (13.4% versus 13.0 to
+      13.1% for 4-6 touches) than those with more touches.
+    * Steep trendlines see price drop further (steep: 13.5%, shallow: 12.8%)
+    * The distance between touches (12 days median) showed no performance
+      difference.
+    * A steep inbound price trend (either up or down, measured from the trend
+      start to the trendline's start) resulted in slightly better performance
+      than shallow ones (14% drop after a steep inbound trend versus 11% for
+      flat inbound trends).
+***** Up-Sloping Trendlines: What to Avoid *****
+I spent 6 weeks looking at trendlines and studying them. I found several
+scenarios which appeared and tripped up trendlines. Here's a brief review.
+I found other scenarios which happened infrequently.
+    * Bottom fishing. Price drops to a yearly low and traders/investors buy the
+      stock at a low price and hope it'll recover. This type of entry is
+      difficult because it's hard to know when the stock will stop droppings.
+      My tests showed it made money only 36% of the time.
+    * Flat base. Price moves horizontally for months and then price rises,
+      following an up-sloping trendline. It's rare but can lead to good gains.
+      However, I found it profitable only 31% of the time.
+    * Retrace in downtrend. Price drops and then retraces, following a
+      trendline higher. Traders trying to profit from the uptrend are in for a
+      surprise when the trend reverses and price drops. The pattern forms a
+      measured_move_down. Tests showed a profit 37% of the time, meaning a
+      trader could buy in at the 3rd trendline touch and exit as price pierced
+      the trendline on the way down.
+Here are more tips, in slider format.
+
+1 / 4
+[chart pattern]
+Top_trap. Price at A starts forming a top where price bumps up against overhead
+resistance and moves sideways. Any bullish pattern trying to push price through
+that resistance struggles to see the stock move higher. I was able to make
+money only 35% of the time trading this scenario.
+2B is next.
+2 / 4
+[chart pattern]
+2B. In this scenario, price rises following a trendline (red line) and comes
+near to (B) or rises slightly above a nearby peak (A). Price tumbles, piercing
+the trendline and the trade becomes a loss.
+This chart shows an example of the 2B scenario. Entry is after the third
+trendline touch (C). Price moves horizontally for two weeks before taking a
+plunge and piercing the trendline.
+BARR top is next.
+3 / 4
+[chart pattern]
+BARR top. BARR is short for a bump-and-reversal_top chart pattern. In this
+scenario, the vertical height during the lead-in phase (B) is small compared to
+the height of the bump phase (A). Entering a buy after the third trendline
+touch leads to a mistake when price drops through the trendline and continues
+lower to C (and below).
+Fast down to TL next.
+4 / 4
+[chart pattern]
+Fast down to TL (trendline). In this scenario, price makes a fast plunge from B
+to A (a least two days long, sometimes with tall price bars and little
+overlap). Although entering a few days after A assures a third trendline touch,
+price recovers to C only to plunge through the trendline. Entering using this
+scenario worked just 35% of the time.
+The End.
+❮ ❯
+
+
+-- Thomas Bulkowski
+[Top_of_page] More
+***** See Also *****
+    * Slider_tutorial_on_up-sloping_trendlines.
+    * Slider_tutorial:_Drawing_down-sloping_trendlines
+    * Slider_tutorial:_1-2-3_trend_change_method
+    * Finding_the_bottom_using_the_1-2-3_trend_change.
+    * 1-2-3_trend_change. How do you know when the price trend is changing?
+    * If_you_thought_up_sloping_trendlines_were_way_cool,_check_out_down-
+      sloping_ones,_too.
+    * Trendline_mirrors. Use trendlines to predict price movements.
+    * Drawing_3_point_channels. What's involved and how is it done?
+    * Swing_rule. A reliable way to predict price targets.
+ 
+Support this site! Clicking any of the books (below) takes you to Amazon.com If
+you buy ANYTHING while there, they pay for the referral.
+Legal notice for paid links: "As an Amazon Associate I earn from qualifying
+purchases."
+My Stock Market Books
+Wealth_Under_Construction,_2nd_edition         My Novels
+Chart_Patterns:_After_the_Buy                  Bumper's_Story
+Encyclopedia_of_Chart_Pattern,_3rd_Edition     Orb_Foresight
+Fundamental_Analysis_and_Position_Trading      Head's_Law
+Getting_Started_in_Chart_Patterns,_2nd_Edition Remember_Me
+Swing_and_Day_Trading
+Trading_Basics
+
+Copyright © 2005-2026 by Thomas N. Bulkowski. All rights reserved. This
+website, in whole or in part, shall not be used to train artificial
+intelligence (AI) systems, technologies, large language models, or similar
+systems, including use to create works of a similar style.
+Disclaimer: You alone are responsible for your investment decisions. See
+Privacy/Disclaimer for more information.
+Some pattern names are registered trademarks of their respective owners.
+Home Advertise Contact Privacy/Disclaimer ☰
+No matter how cynical you become, it's never enough to keep up. -- Lily Tomlin
+[Smiley]

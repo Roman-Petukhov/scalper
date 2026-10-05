@@ -1,0 +1,907 @@
+Carol Osler
+
+
+
+
+Support for Resistance:
+Technical Analysis and
+Intraday Exchange Rates
+• Among the technical trading signals supplied
+   to customers by foreign exchange trading
+   firms are “support” and “resistance” levels.
+                                                                             E    arly in the morning of each business day, the major foreign
+                                                                                   exchange trading firms send their customers lists of
+                                                                             technical trading signals for that day. Timely technical signals
+   These levels indicate points at which an                                  are also supplied by major real-time information providers.
+   exchange rate trend is likely to be                                       These signals, which are based primarily on prior price and
+   interrupted or reversed.                                                  volume movements, are widely used by active foreign exchange
+                                                                             market participants for speculation and for timing their
+• A rigorous test of the levels specified by six                             nonspeculative currency transactions. In fact, 25 to 30 percent
+                                                                             of foreign exchange traders base most of their trades on
+   trading firms during the 1996-98 period
+                                                                             technical trading signals (Cheung and Chinn 1999; Cheung
+   reveals that these signals were quite
+                                                                             and Wong 1999). More broadly, technical analysis is used as
+   successful in predicting intraday trend
+                                                                             either a primary or secondary source of trading information by
+   interruptions.
+                                                                             more than 90 percent of foreign exchange market participants
+                                                                             in London (Allen and Taylor 1992) and Hong Kong (Lui and
+• Although all six firms were able to identify                               Mole 1998).
+   turning points in exchange rate trends, some                                 The technical trading signals provided to customers vary
+   firms performed markedly better than others.                              over time and across technical analysts, but the vast majority of
+   As a group, the firms predicted turning points                            the daily technical reports include “support” and “resistance”
+   in the dollar-yen and dollar-pound exchange                               levels. According to technical analysts, support and resistance
+   rates more accurately than turning points in                              levels are points at which an exchange rate trend is likely to stop
+   the dollar-mark exchange rate.                                            and may be reversed. For example, a firm publishing a support
+                                                                             level of $1.50/£ would claim that the dollar-pound exchange
+• In addition, the predictive power of the                                   rate is likely to stop falling if it reaches $1.50/£. If the firm also
+   support and resistance levels appeared to                                 provided another support level of $1.45/£, the firm would
+   last at least five business days after they                               claim that if the exchange rate passes through $1.50/£, it is
+   were first communicated to customers.                                     likely to stop falling at $1.45/£.
+
+
+
+
+Carol Osler is a senior economist at the Federal Reserve Bank of New York.   The author thanks Franklin Allen, Alain Chaboud, and Charles Jordan for
+                                                                             thoughtful comments, Gijoon Hong for excellent research assistance, and two
+                                                                             anonymous referees. The views expressed are those of the author and do not
+                                                                             necessarily reflect the position of the Federal Reserve Bank of New York or the
+                                                                             Federal Reserve System.
+
+
+                                                                             FRBNY Economic Policy Review / July 2000                                     53
+   Despite the almost universal use of support and resistance           To complement the analysis of these signals’ predictive
+levels in short-term exchange rate forecasting, the ability of       power, I also analyze the signals themselves. I show that
+these trading signals to predict intraday trend interruptions has    support and resistance levels provided by individual firms tend
+never been rigorously evaluated. This article undertakes such a      to be fairly stable from day to day. Their range varies very little
+test, using actual support and resistance levels published daily     over time. Firms do not agree extensively with each other on
+by six firms from January 1996 through March 1998. The firms         the relevant signals.
+include commercial banks, investment banks, and real-time               The specific conclusion that exchange rates tend to stop
+information providers based in the United States and abroad. I       trending at support and resistance levels has no precedent in
+examine the value of three currencies relative to the U.S. dollar:   the academic literature. The closest point of comparison is a
+the German mark, the Japanese yen, and the British pound.            study by Lo et al. (2000), which finds that the conditional
+Support and resistance levels for these exchange rates are tested    distribution of financial prices is sensitive to the presence of a
+against indicative exchange rate quotes sampled at one-minute        broad variety of technical trading signals, consistent with the
+intervals between 9 a.m. and 4 p.m. New York time.                   results presented here.
+   These tests strongly support the claim that support and              The finding that support and resistance levels are able to
+resistance levels help predict intraday trend interruptions for      predict trend interruptions is consistent with other studies of
+exchange rates. All six of the firms studied were able to identify   the usefulness of technical trading rules when applied to
+                                                                     currencies. Filter rules were found to be profitable as early as
+                                                                     1984 (Dooley and Shafer 1984), less than a decade into the
+     Despite the almost universal use of support                     floating rate period, and this finding has been confirmed
+                                                                     repeatedly (Sweeney 1986; Levich and Thomas 1993). Moving-
+     and resistance levels in short-term
+                                                                     average crossover rules have also been tested frequently on
+     exchange rate forecasting, the ability of                       exchange rates, with similar results (Levich and Thomas 1993;
+     these trading signals to predict intraday                       Menkhoff and Schlumberger 1995). More recently, Chang and
+                                                                     Osler (1998) find that a trading strategy based on the head-
+     trend interruptions has never been
+                                                                     and-shoulders chart pattern is profitable for dollar exchange
+     rigorously evaluated.                                           rates vis-à-vis the mark and the yen, although not for four other
+                                                                     dollar exchange rates.
+                                                                        This study differs from those earlier studies in four notable
+points where intraday trends were likely to end. However, some       ways. First, the technical trading signals used here are intended
+firms were better than others at identifying such points.            to anticipate trend reversals, rather than trend continuations.
+    For most firms, the predictive power of support and              Second, this study uses a type of trading signal that is actively
+resistance levels lasted at least five business days beyond the      used by market participants. Third, it uses trading signals that
+levels’ publication date. Despite their overall success at           were produced by market participants. Other academic studies
+identifying points of trend interruptions, none of the firms         of technical analysis have typically constructed technical
+correctly assessed the relative likelihood of trend interruptions    trading signals of their own. Finally, this study uses data
+at the different levels. These results are consistent across firms   sampled at one-minute intervals throughout the New York
+and are sustained over a number of sensitivity analyses.             trading day, while most earlier studies have used data sampled
+    The statistical tests are based on the bootstrap technique       at daily or lower frequencies.
+(Efron 1979, 1982), a nonparametric method frequently used              The two existing studies of support and resistance levels—
+to evaluate technical trading strategies (Brock et al. 1992;         Curcio et al. (1997) and Brock et al. (1992)—test the hypothesis
+Levich and Thomas 1993). To implement the tests, I compare           that prices tend to move rapidly once the levels are breached.
+the behavior of exchange rates upon reaching published               Curcio et al. find that the hypothesis is not true on average for
+support and resistance levels with the behavior upon reaching        currencies, but may hold true during periods of strong
+10,000 sets of arbitrarily chosen support and resistance levels.     trending. Brock et al. find that the hypothesis is true for daily
+If the outcome associated with the actual levels exceeds the         movements of the S&P 500 stock index, but the profits may not
+average outcome for the arbitrary levels in a high proportion of     be sufficient to offset transaction costs. The hypothesis that
+months, I conclude that the published levels have significant        prices will trend once a trading signal is breached is not unique
+predictive power.                                                    to support and resistance levels and is not examined here.
+
+
+
+
+54                                          Support for Resistance
+   Technical Analysis                                                 price performance, inference based on knowledge about order
+                                                                      flow, and market psychology.
+Technical analysts claim that they can predict financial price           The simplest approach to visual assessment is to look at
+movements using an information set limited to a few variables,        recent minima and maxima: “Usually, a support level is
+such as past prices. Many of the major technical indicators were      identified beforehand by a previous reaction low,” and “a
+described as early as 1930 by Shabacker, who based his                resistance level is identified by a previous peak” (Murphy
+conclusions on observations of U.S. stock prices. By now,             1986, p. 59). According to Pring (1991), one could also
+technical indicators are widely used in major financial markets       identify support and resistance levels by drawing a trendline,
+around the world, including foreign exchange and futures
+markets. There are two magazines devoted exclusively to the
+topic, each of which has more than 40,000 subscribers. To learn          To identify the support and resistance
+about technical analysis, one can consult myriad manuals,
+                                                                         levels relevant for the coming day,
+software, and on-line sources. Alternatively, one can take
+courses on technical analysis.                                           practicing technical analysts consult a
+   Casual observation and conversations with market                      variety of information inputs.
+participants indicate that support and resistance levels are the
+most widely used technical indicators in the foreign exchange
+market. This conclusion is also suggested by the fact that
+                                                                      or “channel,” in which recent peaks are connected by one line
+support and resistance levels are the only indicators provided
+                                                                      and recent troughs are connected by another: “A good
+by all six of the technical services covered in this research. In
+                                                                      trendline represents an important support and resistance
+fact, some services provide no technical indicators at all other
+                                                                      zone” (p. 105).
+than support and resistance levels.
+                                                                         One numerical rule used to infer support and resistance
+                                                                      levels is the “50 percent rule,” which asserts that a major market
+                                                                      move will often be reversed by about 50 percent in the first
+   Support and Resistance Levels Defined                              major correction (Pring, p. 187). Fibonacci series, which are
+                                                                      widely used, suggest that 38.2 percent and 61.8 percent
+Before delving further into the analysis, it is important to          retracements of recent rises or declines are common.
+explore the definition of support and resistance levels provided         Market insiders sometimes identify support and resistance
+by technical analysts themselves. According to one major              levels using private information or information circulated
+technical analysis manual, “support is a level or area on the         informally in the market about certain market participants. For
+chart under the market where buying interest is sufficiently          example, if a technical analyst learned in conversation that
+strong to overcome selling pressure. As a result, a decline is        Japanese exporters are selling at 100, he or she would report a
+halted and prices turn back again. . . . Resistance is the opposite   resistance level at ¥100.00/$. Similarly, if a trader knew that his
+of support” (Murphy 1986, p. 59).                                     or her own firm had a large order at DM1.50/$, he or she might
+    A review of technical analysis manuals reveals that there is      expect unusual price behavior at that point.
+little disagreement among analysts on this definition (Arnold            Simple market psychology is also used to help identify
+1993; Edwards and Magee 1997; Hardy 1978; Kaufman 1978;               support and resistance levels. According to Murphy (1986):
+Murphy 1986; Pring 1991; Sklarew 1980). For example, Pring            “Traders tend to think in terms of important round
+states: “Support and resistance represent a concentration of          numbers . . . as price objectives and act accordingly. These
+demand and supply sufficient to halt a price move at least            round numbers, therefore, will often act as psychological
+temporarily” (p. 199). Likewise, Arnold (1993) observes: “A           support or resistance levels.” As I will demonstrate later,
+support level is a price level at which sufficient demand exists      published support and resistance levels are round numbers
+to at least temporarily halt a downward movement in prices”           that end in 0 or 5 much more often than they would if they
+(p. 67).1                                                             were chosen at random.
+    To identify the support and resistance levels relevant for the       Some of the firms in the sample provided explanations
+coming day, practicing technical analysts consult a variety of        for their chosen support and resistance levels. All of the
+information inputs. These include visual assessments of recent        approaches listed above are well represented among those
+price performance, simple numerical rules based on recent             explanations.
+
+
+
+
+                                                                      FRBNY Economic Policy Review / July 2000                        55
+     Properties of the Support and Resistance                             Table 2
+     Database                                                             Average Distance between Support
+                                                                          and Resistance Levels
+The data examined here include support and resistance levels
+for the mark, yen, and pound in relation to the U.S. dollar,                                                German         Japanese        British
+published daily by six firms from January 1996 through                    Firm               Overall         Mark            Yen           Pound
+
+March 1998. Two of the firms did not report support and                    1                    30             36              29             26
+resistance levels for the pound. In total, there are approximately         2                    61             75              52             55
+                                                                           3                    54             58              49             54
+23,700 support and resistance values (combined) for the mark,
+                                                                           4                    57             64              49             —
+22,800 for the yen, and 17,700 for the pound.                              5                   162            156             184            144
+   The six providers of technical analysis include commercial              6                    42             47              36             —
+banks, investment banks, and news services. Some operate in
+the United States and others operate abroad. The commercial               Source: Author’s calculations.
+and investment banks provide the information free of charge to            Note: Distances are measured in points, or 0.0001 marks/dollar, 0.01 yen/
+                                                                          dollar, and 0.0001 dollars/pound.
+
+
+
+     The data examined here include support
+     and resistance levels for the mark, yen, and                          On any given day, technical indicators were likely to be
+     pound in relation to the U.S. dollar,                              received from about five of the six firms. Firms failed to report
+                                                                        for reasons such as vacations, sickness, and equipment
+     published daily by six firms from January                          problems. For individual firms, the average number of support
+     1996 through March 1998.                                           and resistance levels (combined) that were listed per reporting
+                                                                        day per currency ranges from two to eighteen (Table 1).
+                                                                           The support and resistance levels were quite close together
+                                                                        for some firms and quite far apart for others. As shown in
+their customers, hoping that customers will be encouraged to            Table 2, the average distance between levels varied from
+direct more business toward them. Some news services charge             30 to 162 points on average (where a point is the smallest unit
+for the information. Since all the providers hope that the              used in quoting an exchange rate).
+usefulness of their signals will generate additional business,
+they have every incentive to maximize accuracy. In the analysis
+that follows, the firms are assigned numbers to preserve
+anonymity.
+                                                                           Table 3
+                                                                           Average Gap between Current Spot Rates and
+                                                                           Outermost Support and Resistance Levels
+
+                                                                                                            German         Japanese        British
+     Table 1
+                                                                           Firm                              Mark            Yen           Pound
+     Average Total of Support and Resistance Levels
+                                                                           1                                 3.45           2.56            2.38
+     per Reporting Day
+                                                                           2                                 3.71           2.38            2.63
+                                                                           3                                 8.32           6.73            7.15
+                                      German   Japanese    British         4                                 5.52           3.79              —
+     Firm             Overall          Mark      Yen       Pound
+                                                                           5                                 4.96           5.13            4.52
+     1                  10.0           10.0      10.0        10.0          6                                 1.24           0.74              —
+     2                   6.0            6.0       6.0         6.0          Daily ranges
+     3                  17.8           18.1      18.0        17.5           Average                          0.45           0.33            0.37
+                                                                            Maximum                          3.23           3.88            3.28
+     4                   9.0            9.2       8.8         —
+     5                   4.2            4.8       3.8         4.0
+     6                   2.5            2.7       2.3         —            Source: Author’s calculations.
+
+                                                                           Note: Distances are measured in units of 100 points, or 0.01 marks/dollar,
+     Source: Author’s calculations.                                        1.0 yen/dollar, and 0.01 dollars/pound.
+
+
+
+
+56                                             Support for Resistance
+   Firms also varied dramatically in the range over which they                 Goodhart and Figliuoli (1991) observed that round numbers
+chose to present support and resistance levels applicable to a                 were also disproportionately represented in bid-ask spreads for
+given day (Table 3). For Firm 6, the outermost support and                     major currencies.
+resistance levels were typically only about 100 points away from
+current spot rates, while for Firm 3 the outermost support and
+resistance levels were typically more than 700 points away. The
+final two rows of the table show the average and maximum                          Continuity
+daily exchange rate moves away from their opening rates over
+                                                                               To analyze the extent to which support and resistance levels
+the period. For all firms, the outermost support and resistance
+levels were substantially farther away from the opening rates                  published by a given firm vary from day to day, I counted the
+                                                                               number of support and resistance levels shared across days for
+than this average move. The correlation between daily
+                                                                               a given firm, and compared it with the maximum number of
+exchange rate ranges and the gap between opening rates and
+outermost support and resistance levels was not statistically                  levels that could have been shared. That maximum depends on
+                                                                               the number of support and resistance levels provided on the
+significant for any firm-currency pair.
+                                                                               two days: if the firm provided three support levels on the first
+                                                                               day and four on the second day, the number of shared support
+                                                                               levels, or matches, could not possibly exceed three. The
+   Use of Round Numbers                                                        maximum number also depends on the size of the exchange
+                                                                               rate move from the first to the second day: if the exchange rate
+More than 70 percent of the support and resistance levels in the               falls substantially between days one and two, then some of the
+sample end in 0, and a full 96 percent end in either 0 or 5                    support levels provided on day one might be irrelevant on day
+(Table 4). These proportions greatly exceed the proportions we                 two. A shared level, or “match,” was defined as a pair of
+would observe if levels were chosen randomly, which would be                   support and resistance levels on contiguous days that differed
+10 or 20 percent, respectively. Levels ending in 00 or 50 were                 by less than 5 points.
+also disproportionately represented. This may be a mani-                           On average, about three-quarters of the still-applicable
+festation of the psychological interpretation of support and                   support and resistance levels from one day would be used again
+resistance levels mentioned earlier. It is interesting to note that            the next day (Table 5). This average masks a clear division of
+
+
+
+
+   Table 4
+   Support and Resistance Levels Ending                                           Table 5
+   in Round Numbers                                                               Continuity in Support and Resistance Levels
+   Percent
+                                                                                                                   German          Japanese         British
+                                                                                  Firm              Overall         Mark             Yen            Pound
+                            Support and Resistance Levels Ending in
+                                                                                  1                   64.4            62.4           62.9            67.9
+                     00             00 or 50          0               0 or 5
+                                                                                  2                   54.0            51.0           56.2            54.5
+   Natural                                                                        3                   91.4            89.8           91.7            92.6
+   frequency          1.0              2.0          10.0              20.0        4                   81.9            81.2           82.7             —
+   Firm 1           12.1              17.9           65.8          96.3           5                   80.8            77.5           85.0            81.3
+   Firm 2           13.2              22.4           58.1          84.4           6                   56.5            56.0           57.4             —
+   Firm 3           12.5              16.8           82.4          96.6           All firms           77.8            76.5           78.2            79.1
+   Firm 4            7.8              15.7           52.9          92.2
+   Firm 5           49.4              66.4           97.1          99.4           Source: Author’s calculations.
+   Firm 6           22.9              42.9           74.3         100.0
+                                                                                  Notes: The table shows the percentage of support and resistance levels
+   All firms        13.5              19.6          70.1              95.5        shared across adjacent days. A pair of levels on adjacent days is defined as
+                                                                                  shared if the levels differ by at most 5 points. Numbers for firms showing
+   Source: Author’s calculations.                                                 particularly high continuity are italicized.
+
+
+
+
+                                                                               FRBNY Economic Policy Review / July 2000                                       57
+the firms into two groups. Firms 3, 4, and 5 showed the                            Table 7
+strongest continuity: more than three-quarters of their still-                     Pairwise Agreement across Firms on Support
+                                                                                   and Resistance Levels
+applicable support and resistance levels were used again the
+                                                                                   All Currencies
+next day. For the remaining three firms, the corresponding
+proportions were lower, ranging from about one-half to two-
+                                                                                                                              Firm
+thirds. These results do not change qualitatively if a match is
+                                                                                   Firm                   2             3              4               5
+defined as two levels within 2 points of each other.
+                                                                                    1                    38            33              27             17
+                                                                                    2                                  35              31             13
+                                                                                    3                                                  32             25
+     Agreement across Firms                                                         4                                                                 23
+                                                                                    5
+
+Firms do not agree extensively on the relevant support and
+                                                                                   Source: Author’s calculations.
+resistance levels for a given day. To examine the extent of
+agreement across firms, I first counted the number of matches                      Notes: The table shows the number of times a pair of firms’ support
+                                                                                   and resistance levels actually match as a percentage of the number of
+across each of the fifteen pairs of firms. For each day, the                       possible matches. A match is defined as a pair of support and resistance
+number of actual matches was then compared with the number                         levels that differ by at most 5 points. Numbers representing firm pairs for
+of possible matches for that day. For a given day, the number                      which agreement falls at or below 23 percent (mean overall agreement
+                                                                                   of 30 percent minus one standard deviation) are in bold. The italicized
+of possible matches among support (resistance) levels was                          number represents firm pairs for which agreement falls at or above
+taken to be the minimum number of support (resistance) levels                      37 percent (mean overall agreement of 30 percent plus one
+provided across the two firms.                                                     standard deviation).
+   On average, roughly 30 percent of all possible matches were
+realized as actual matches under the basic definition of a match
+(a maximum difference of 5 points), as shown in Table 6.
+Across firm pairs, the frequency of agreement varied from
+                                                                                   If a match is defined as two levels within 2 points of each
+13 to 38 percent (Table 7). Firm 5 stands out as the least likely
+                                                                                other, then roughly 18 percent of possible matches are actually
+to agree with its peers. Firms 1 and 2 stand out as agreeing
+                                                                                realized. The same Firm 5 still stands out as the least likely to
+particularly frequently with each other. Among the other firms,
+                                                                                agree with its peers; the only strong agreement appears to be
+no strong patterns are distinguishable.
+                                                                                between Firms 3 and 6.2
+
+
+     Table 6
+     Overall Agreement on Support and Resistance
+     Levels across Firms                                                           Exchange Rate Data
+                                                                                   and Methodology
+                                              German      Japanese    British
+                                  Overall      Mark         Yen       Pound
+                                                                                This section presents the exchange rate data, some important
+     Average possible matches                                                   definitions, and the statistical methodology used to test the
+      per day                         112.0    47.9         43.0        21.1
+                                                                                ability of support and resistance levels to predict intraday trend
+     Average actual matches                                                     interruptions.
+      per day                          33.5    14.3         12.3         6.9
+
+     Average actual matches
+      per day as a percentage
+      of possible matches              29.9    29.9         28.6        32.7       Exchange Rate Data
+     Source: Author’s calculations.                                             The exchange rate data comprise indicative bid-ask rates
+     Notes: The table shows the number of times all firms’ support and          posted on Reuters, captured at one-minute intervals from
+     resistance levels actually match as a percentage of the total number of    9 a.m. to 4 p.m. New York time. The prices for a given minute
+     possible matches. A match is defined as a pair of support and resistance
+     levels that differ by at most 5 points.                                    were taken to be the last quote made prior to that minute.
+
+
+
+
+58                                                    Support for Resistance
+   The analysis in Goodhart, Ito, and Payne (1996) suggests            Some Definitions
+that these indicative quotes are likely to correspond closely to
+actual transaction prices. The major divergences between            The exchange rate was defined as hitting a support (resistance)
+quotes and actual prices seem most likely to occur at times of      level if the bid (ask) price fell (rose) to within 0.01 percent of
+large, rapid price movements. During the sample period,             that level (see the chart for an illustration). Because the 0.01
+these divergences often occurred at times of macroeconomic          percent figure is somewhat arbitrary, more than one definition
+data announcements from the United States, which tended to          was tried: the gap was also set at 0.00 percent and 0.02 percent
+happen at 8:30 a.m., before the exchange rate data used here        in alternative tests. A trend interruption was defined as follows:
+begin. Recent research by Danielsson and Payne (1999) finds         once the exchange rate hit a support (resistance) level, the trend
+that quotes may differ from actual transaction prices in other,     was interrupted if the bid (ask) price exceeded (fell short of) the
+potentially important ways. This point is discussed in greater      support (resistance) level fifteen minutes later. Since the cutoff
+detail below.                                                       at fifteen minutes is also somewhat arbitrary, an alternative of
+   The construction of the exchange rate data set was driven        thirty minutes was examined as well.
+primarily by the need to capture as closely as possible the price       For brevity, a trend interruption will be referred to fre-
+sequence that would be observed by traders operating in the         quently as a “bounce,” and the ratio of times the exchange rate
+market. This explains why an interval of one minute was             bounces to the number of actual hits will be referred to as the
+                                                                    “bounce frequency.” In formal terms, the goal of the test
+                                                                    described below is to ascertain statistically whether the bounce
+                                                                    frequencies for the published support and resistance levels are
+   The construction of the exchange rate data
+                                                                    high, as claimed by technical analysts.
+   set was driven primarily by the need to
+   capture as closely as possible the price
+   sequence that would be observed by traders                          Statistical Methodology
+   operating in the market.
+                                                                    The statistical test evaluates whether or not published support
+                                                                    and resistance levels are able to identify points of likely trend
+                                                                    interruptions, as claimed by technical analysts. The central or
+selected, rather than the more common interval of five minutes      “null” hypothesis is that the published levels have no special
+(for example, see Andersen and Bollerslev [1998]). It also          ability to identify such points. I begin with a summary of the
+explains why prices were not taken as an average of the             methodology and then present details.
+immediately preceding and following quotes, another
+common technique in the literature (for example, see Andersen
+and Bollerslev [1998]): traders operating in real time could not
+know the immediately following quote.
+   The starting time for the data was chosen as 9 a.m.                             Hypothetical Exchange Rate Paths
+New York time for two reasons. First, by 9 a.m., the support                       Exchange rate
+and resistance levels in the data set have been transmitted to                                                                   A “bounce” if rate
+                                                                                           A “hit” if rate
+customers, including those from New York firms. Second,                                  crosses support +                        is greater than
+                                                                                            0.01 percent                           support after
+by 9 a.m., the reaction to macroeconomic data announcements                                                                       fifteen minutes
+from all the countries involved—including the United States,
+                                                                       Support +
+where, as noted, major announcements generally occurred at          0.01 percent
+8:30 a.m. New York time—would largely be over (see Andersen             Support
+and Bollerslev [1998]).
+   The data end at 4 p.m. because very little trading takes place
+between then and the beginning of the next trading day in Asia.
+The 4 p.m. cutoff was also chosen because, in the underlying                                                 t          t + 15
+tick-by-tick exchange rate data set, quotes are not captured                                                     Time
+
+after 4 p.m. on Fridays.                                                           Source: Author’s calculations.
+
+
+
+
+                                                                    FRBNY Economic Policy Review / July 2000                                          59
+     Summary                                                               The Statistical Test
+
+The statistical methodology used to test this null hypothesis is        The statistical test is based on comparing the bounce
+a specific application of the bootstrap technique (Efron 1979,          frequencies for the published support and resistance levels (BP)
+1982). To apply this technique, I first calculate bounce fre-           with the average bounce frequencies for the artificial levels
+quencies for each firm for each month in the sample. I then             (BA), month by month. To understand the test intuitively,
+build a statistical representation of what bounce frequencies           suppose published support and resistance levels provide no
+for the published support and resistance levels would look like         more information than arbitrary levels. In this case, BP should
+if the null hypothesis were true. In the present context, this          not consistently be higher or lower than BA. However, if
+representation is constructed by first creating 10,000 sets of          published support and resistance levels can predict points of
+artificial support and resistance levels for each day. For each of      likely trend interruptions, as claimed by technical analysts,
+these artificial sets of support and resistance levels, I then          then BP should usually be higher than BA.
+calculate bounce frequencies for each month, using the criteria             This idea can be formalized into a rigorous statistical test.
+for hits and bounces listed above.                                      The comparison for each month can be viewed as a “Bernoulli
+    At this point, I have twenty-eight bounce frequencies for           trial,” in which a random event occurs with a certain proba-
+each firm, one for each month of the sample, and twenty-eight
+average bounce frequencies for the artificial support and
+resistance levels. In the final step of the test, I determine the
+                                                                           Consistent with the market’s conventional
+number of months in which the bounce frequency for a given
+firm exceeds the average bounce frequency for artificial levels.           wisdom, exchange rates bounced quite a bit
+If this number of months is quite high, I conclude that the                more frequently after hitting published
+published support and resistance levels have some ability to
+predict intraday trend interruptions. Additional details on this
+                                                                           support and resistance levels than they
+methodology are presented below.                                           would have by chance.
+
+
+                                                                        bility. The random event here would be BP > BA. Under the
+     Calculating Artificial Support
+                                                                        null hypothesis that published levels have no special predictive
+     and Resistance Levels
+                                                                        power, the likelihood of that event is 50 percent. Over the
+                                                                        entire twenty-eight-month sample, if it is true that published
+For each day, the artificial support and resistance levels are
+                                                                        levels are not informative, the chance that BP > BA for any given
+chosen at random from exchange rates within a certain range
+                                                                        number of months will conform to the binomial distribution.
+of the day’s opening rate. The range for each month is based on
+                                                                        This distribution is symmetrical around a single peak at
+the exchange rate’s actual behavior, as follows: for a given
+                                                                        fourteen months, where the probability is about 15 percent.
+month, I calculate the gap between the opening rate and
+                                                                            To understand how to use this distribution, suppose we find
+intraday highs and lows for each day. The absolute value of the
+                                                                        that BP > BA in twenty of the twenty-eight months of the
+largest of these gaps is used as the range for calculating artificial
+support and resistance levels for that month.                           sample. We might naturally ask: Would it be unusual to get
+    For each day, twenty artificial support and twenty artificial       such an extreme outcome if the published levels are truly not
+resistance levels are calculated using the following algorithm:         informative? More concretely, what is the likelihood, if the
+                                                                        published levels are not informative, of finding BP > BA in
+                    R ti = Ot + bti range ,                             twenty or more of the twenty-eight months of the sample? This
+                                                                        likelihood is the area under the tail of the distribution to the
+                    S ti = Ot – ati range .
+                                                                        right of the number 20. This is a very small number: in fact, it
+Here, t represents time, S ti ( R ti ) is the ith artificial support    is 1.8 percent.
+(resistance) level, O t is the day’s opening rate, a ti and b ti are        The likelihood of finding BP > BA in twenty or more of the
+random numbers generated from a uniform distribution over               twenty-eight months, under the assumption that published
+[0,1], and range is the range for that month. These levels are          levels are not informative, is called the “marginal significance
+then rounded off so that they have the same number of                   level” associated with the number 20.4 If the marginal
+significant digits to the right of the decimal point as actual          significance level of some result is smaller than 5 percent, it is
+quoted exchange rates.3                                                 consistent with standard practice in the literature to conclude
+
+
+
+60                                            Support for Resistance
+that the published numbers are better than arbitrary numbers                  Differences across firms are evaluated statistically in Table 9.
+at predicting trend interruptions. Such a result is said to be             Firm 1 is clearly the best overall: it had the highest bounce
+“statistically significant.”                                               frequency for two of the three currencies and the second-
+    To summarize our example: it would be extremely unusual                highest bounce frequency for the third currency. Furthermore,
+to find that BP > BA in twenty or more of the twenty-eight                 the differences between Firm 1 and the other firms are
+months if the published support and resistance levels were truly           statistically significant at the 5 percent level in seven of the
+not informative. In fact, we would realize such an outcome only            thirteen possible firm-to-firm comparisons and are statistically
+1.8 percent of the time. Since 1.8 percent falls below the                 significant at the 10 percent level in another comparison. Firm 5
+common critical value of 5 percent, we would conclude that the             did quite well for the mark, but did not do noticeably well for
+predictive power of the published levels exceeds that of the               the other two currencies. No firm was consistently worst.
+arbitrary levels to a statistically significant degree.
+
+
+
+
+                                                                            Table 8
+   Results                                                                  Ability of Support and Resistance Levels to Predict
+                                                                            Interruptions of Intraday Exchange Rate Trends
+Consistent with the market’s conventional wisdom, exchange
+rates bounced quite a bit more frequently after hitting                                Artificial                 Levels Published by Firm            ..
+published support and resistance levels than they would have                            Levels         1        2.. .     3        4       5          6
+by chance. Exchange rates bounced off arbitrary support and                                                    Bounce Frequency
+resistance levels 56.2 percent of the time on average.5 By                                                     (Number of Hits)
+contrast, they bounced off the published levels 60.8 percent of             German        54.9        60.1)   56.6)   58.0)   58.5)   62.0)   59.3)
+the time on average (Table 8). Looking more closely, we find                 mark                   (6,291) (4,102) (8,111) (3,570) (1,262) (2,296)
+that in all sixteen firm-currency pairs, average bounce fre-                Japanese      57.3        66.5)   63.6)   62.3)   60.7)        61.6)   62.6)
+quencies for published levels (across the entire sample period)               yen                   (4,558) (3,874) (6,271) (2,679)        (859) (1,396)
+exceeded average bounce frequencies for artificial levels.                                56.3        63.0)   58.8)   59.6)                60.0)
+                                                                            British
+   The month-by-month breakdown shows that for most                          pound                  (5,409) (3,920) (6,056)              (1,039)
+firm-currency pairs bounce frequencies for the published levels
+                                                                                                           Months BP>BA/Total Months
+exceeded average bounce frequencies for artificial levels in                                                 (Marginal Significance)
+twenty or more months. As noted above, these outcomes
+                                                                            German                   24/28) 17/28) 21/28) 20/27) 20/26) 19/28)
+would be extremely unlikely if the support and resistance levels
+                                                                             mark                   (0.000) (0.172) (0.006) (0.010) (0.005) (0.044)
+were truly not informative. More rigorously, the marginal
+                                                                            Japanese                 26/28) 24/27) 22/28) 23/27) 15/23) 20/27)
+significance levels indicate that the results are statistically signifi-                     )
+                                                                              yen                   (0.000) (0.000) (0.002) (0.000) (0.105) (0.010)
+cant at the 5 percent level for all but three firm-currency pairs.
+   The firms’ ability to predict turning points in intraday                 British                  27/28) 19/28) 24/28)                 16/26)
+                                                                             pound                  (0.000) (0.044) (0.000)              (0.163)
+trends seems to have been stronger for the yen and weaker
+for the mark and the pound. On average, bounce frequencies
+                                                                            Source: Author’s calculations.
+for published support and resistance levels exceeded those
+                                                                            Notes: The table compares the ability of published support and resistance
+for arbitrary levels by 4.2 percentage points for the mark,                 levels to predict intraday trend interruptions with the distribution of
+5.6 percentage points for the yen, and 4.0 percentage points                predictive ability for 10,000 sets of arbitrary support and resistance levels.
+for the pound. This relative ranking was maintained fairly                  The measure of predictive ability is based on the “bounce frequency,” or the
+                                                                            number of times the exchange rate stopped trending after reaching
+consistently for individual firms.
+                                                                            support or resistance levels compared with the total number of times the
+   Although all six firms seem to have the ability to predict               rate actually reached such levels.
+exchange rate bounces, their performance varied considerably.                   The table shows the bounce frequency for published and artificial
+                                                                            support and resistance levels, the number of hits, the number of months in
+The bounce frequencies of the best and worst firms differ by
+                                                                            which the bounce frequency for published levels (BP) exceeds the bounce
+4.0 percentage points on average. At one extreme, Firm 1’s                  frequency for artificial levels (BA), and the marginal significance of this
+support and resistance levels for the yen had a bounce                      number of months under the null hypothesis that published support and
+                                                                            resistance levels are not informative. “Total months” varies across firms and
+frequency 9.2 percentage points higher than that of the
+                                                                            currencies because occasionally a firm contributed too few support and
+arbitrary levels.                                                           resistance levels to have any hits at all.
+
+
+
+
+                                                                           FRBNY Economic Policy Review / July 2000                                    61
+     Table 9                                                                          exceeded those for the artificial levels, but the differences
+     Differences in Firms’ Ability to Predict                                         were no longer statistically significant in half the cases.7 This
+     Exchange Rate Bounces                                                            outcome is consistent with the market’s conventional wisdom
+                                                                                      that rates tend to “range trade” in periods of low volatility, thus
+                                                 Firm A                               making this type of trend reversal more common.
+     Firm B                  1            2            3             4         5
+
+     German mark
+     2                     3.5***
+     3                     2.1***      -1.4***
+                                                                                         Quotes versus Transaction Prices
+     4                     1.5***      -2.0***      -0.6***
+     5                    -2.0***      -5.5***      -4.1***        -3.5*
+                                                                                      At this point, it is possible to discuss more fully the potential
+     6                     0.8***      -2.7***      -1.3***        -0.7*      2.8*    implications of the differences noted by Danielsson and Payne
+                                                                                      (1999) between exchange rate quotes and actual transaction
+     Japanese yen                                                                     prices. The first important difference they note is that quotes
+      2                    2.8***                                                     tend to be more volatile than actual transaction prices. This
+      3                    4.1***       1.3***                                        should not be critical here, because these results concern the
+      4                    5.7***       2.9***       1.6***
+                                                                                      direction of price changes, not their magnitude.
+      5                    4.9***       2.0***       0.7***        -0.9*
+      6                    3.8***       1.0***      -0.3***        -1.9*     -1.0*       Second, Danielsson and Payne (1999) find that quotes tend
+                                                                                      to be negatively autocorrelated while transaction prices are not.
+     British pound                                                                    In theory, this could affect the absolute frequency of bounces
+     2                     4.2***                                                     presented in Table 8. Fortunately, the important qualitative
+     3                     3.5***      -0.8***
+     5                     3.1***      -1.2***      -0.4***
+
+
+     Source: Author’s calculations.                                                      Could an analyst using support and
+     Notes: The table compares different firms’ ability to predict intraday trend        resistance levels published today have any
+     interruptions in exchange rates. The measure of predictive ability is based
+     on the “bounce frequency,” or the number of times the exchange rate
+                                                                                         success predicting intraday trend reversals
+     stopped trending after reaching support or resistance levels compared               one week from today?
+     with the total number of times the rate actually reached such levels. The
+     table presents the difference between bounce frequencies (measured as               The answer seems to be yes.
+     Firm A minus Firm B).
+
+     * Statistically significant at the 10 percent level.
+     ** Statistically significant at the 5 percent level.
+                                                                                      conclusions of the paper are based on the difference between
+     *** Statistically significant at the 1 percent level.
+                                                                                      bounce frequencies for published and simulated levels, rather
+                                                                                      than the absolute size of those bounce frequencies. Further-
+                                                                                      more, the negative autocorrelation in quote data may largely
+     Robustness                                                                       have dissipated by the end of the fifteen-minute horizon of
+                                                                                      interest. The reason is that if the exchange rate is required to
+These results are robust to changes in the test methodology.6
+                                                                                      reach the actual level rather than some nearby level to achieve
+They are not changed qualitatively if a hit is defined more
+                                                                                      a hit, bounce frequencies in the simulated support and
+broadly or more narrowly (as described earlier) or if one looks
+                                                                                      resistance levels fall slightly short of 50 percent. If negative
+thirty minutes rather than fifteen minutes beyond a hit. The
+                                                                                      autocorrelation at the fifteen-minute horizon were an issue,
+results are also unchanged if one splits the sample into morning
+                                                                                      that proportion would presumably exceed 50 percent.
+and afternoon sessions (where the morning session is defined
+to include positions entered before noon).
+    Interestingly, the results change somewhat if the sample is
+split in half chronologically. During the first half of the sample                       Duration of Predictive Power
+period, when volatility was fairly low by historical standards,
+bounce frequencies were statistically significant for published                       Could an analyst using support and resistance levels published
+levels in all but one case. In the second half, when volatility                       today have any success predicting intraday trend reversals one
+returned to more normal levels, firms’ bounce frequencies still                       week from today? The answer seems to be yes. Five days after
+
+
+
+
+62                                                           Support for Resistance
+  Table 10                                                                           The Power of Agreement
+  Ability of Support and Resistance Levels to Predict
+  Interruptions of Intraday Exchange Rate Trends                                  If many analysts agree that a particular level is likely to be
+  after Five Trading Days                                                         important, does this imply that the level is more likely than
+                                                                                  others to be important? I addressed this question by comparing
+             Artificial                 Levels Published by Firm           ..     the predictive power of support and resistance levels provided
+              Levels         1        2.. .     3        4       5         6      by more than one firm (“agreed levels”) on a given day with the
+                                     Bounce Frequency                             predictive power of support and resistance levels provided by
+                                     (Number of Hits)                             only one firm.
+  German        53.8        58.0)   59.0)   57.5)   56.9)   58.3)   55.5)            As shown in Table 11, the bounce frequencies associated
+   mark                   (4,078) (2,464) (5,902) (2,930) (1,004) (1,148)         with agreed levels are quite close to the bounce frequencies
+  Japanese      55.4        62.5)   60.5)   61.2)   59.5)       59.7)    64.3)    associated with levels provided by just one firm. Although the
+    yen                   (3,531) (2,112) (4,392) (2,373)       (703)    (635)    agreed levels tend to have higher bounce frequencies, the
+  British       54.0        57.5)   59.0)   56.5)               57.4)             differences are generally not statistically significant. The one
+   pound                  (3,661) (2,400) (4,641)               (622)             difference found to be statistically significant implies that
+                                 Months BP>BA/Total Months
+                                                                                  agreed levels have less predictive power than other levels.
+                                   (Marginal Significance)                        Overall, these results suggest that, if agreed levels do provide
+  German                   22/27) 22/27) 21/27) 16/26) 16/23) 16/25)
+                                                                                  additional predictive power, the benefit is too small to be of
+   mark                   (0.001) (0.001) (0.003) (0.163) (0.047) (0.115)         much practical importance.9
+  Japanese                 21/27) 20/27) 22/27) 19/26) 12/22) 16/24)
+    yen                   (0.003) (0.010) (0.001) (0.014) (0.416) (0.076)
+
+  British                  19/27) 17/27) 17/27)                 13/19)
+                                                           )
+   pound                  (0.026) (0.124) (0.124)              (0.084)
+                                                                                   Table 11
+  Source: Author’s calculations.                                                   Is There Power in Agreement?
+  Notes: The table shows the results of using published support and resistance
+  levels to predict intraday trend interruptions five business days after the                           Narrow Agreement                   Broad Agreement
+  levels’ publication date. The measure of predictive ability is based on the
+  “bounce frequency,” or the number of times the exchange rate stopped                             German Japanese British           German Japanese British
+  trending after reaching support or resistance levels compared with the total                      Mark    Yen    Pound              Mark    Yen    Pound
+  number of times the rate actually reached such levels.                           Agreed levels      58.0      65.9       63.1         59.1      65.2       61.7
+      The table shows the bounce frequency for published and artificial
+  support and resistance levels, the number of hits, the number of months in       Other levels       59.0      63.7       60.6         58.6      63.5       60.3
+  which the bounce frequency for published levels (BP) exceeds the bounce
+                                                                                   Months
+  frequency for artificial levels (BA), and the marginal significance of this
+                                                                                    agreed >
+  number of months under the null hypothesis that published support and
+                                                                                    other /total
+  resistance levels are not informative. “Total months” varies across firms and
+                                                                                     months          10/28      15/27     17/28        11/28     14/27      14/28
+  currencies because occasionally a firm contributed too few support and
+  resistance levels to have any hits at all.                                       Marginal
+                                                                                    significance      0.96      0.35       0.17         0.91      0.50       0.57
+
+
+                                                                                   Source: Author’s calculations.
+their publication, bounce frequencies for our six firms still
+                                                                                   Notes: The table compares the predictive ability of support and resistance
+exceeded those from arbitrary levels for all firms and cur-                        levels on which two or more firms agree (“agreed levels”) with the pre-
+rencies, and the differences were statistically significant in nine                dictive ability of support and resistance levels provided by only one firm.
+of the sixteen cases (Table 10). Not surprisingly, the published                   The measure of predictive ability is based on the “bounce frequency,” or the
+                                                                                   number of times the exchange rate stopped trending after reaching support
+levels were not quite as useful at predicting intraday trend                       or resistance levels compared with the total number of times the rate
+reversals five days after publication as they were on their actual                 actually reached such levels. If agreed levels were better able to predict intra-
+publication day. On average, five days after publication, rates                    day trend interruptions, the numbers would be positive and statistically
+                                                                                   significant. Two levels were in “narrow agreement” if they were within
+bounced at published levels 1.7 percentage points less
+                                                                                   2 points of each other; they were in “broad agreement” if they were within
+frequently than they did on the actual publication day.8                           5 points of each other.
+
+
+
+
+                                                                                  FRBNY Economic Policy Review / July 2000                                       63
+     Reliability of Estimated “Strengths”                                             relative frequency of bounces off support and resistance levels
+                                                                                      in three strength categories: (1) least strong, (2) somewhat
+                                                                                      strong, and (3) strongest. Unfortunately, in many months
+Three of the firms regularly provided estimates of the                                there were few observations in strength category 3, so the only
+“strength” of their published support and resistance levels.                          reliable comparison was between categories 1 and 2.
+For example, levels could be categorized as having strength                               Results for this comparison are shown in Table 12, where
+numbers “1,” “2,” or “3,” with 3 being the strongest. The                             the reported differences would be positive and statistically
+strength of a particular level can be interpreted as a crude                          significant if the strength categories were meaningful. In fact,
+measure of the likelihood that an exchange rate that arrives                          the reported strength levels seem to have no consistent
+at the level will actually bounce off it.                                             correspondence with the actual frequency with which exchange
+    Were the estimated strengths of support and resistance                            rates bounced off support and resistance levels. All but two of
+levels meaningful? To answer this question, I examined the                            the differences are negative, and the three that are statistically
+                                                                                      significant are negative. In short, published estimates of the
+                                                                                      strength of the levels do not seem to be useful.
+
+     Table 12
+     The Meaning of Reported Strength Ratings
+
+     Comparison of                                                                       Conclusion
+     Strengths 1 and 2     German Mark           Japanese Yen        British Pound
+
+     Firm 1                     -2.3**                -4.1***            -6.5         This article has examined the predictive power of support and
+                                10/27)                 8/26              12/28        resistance levels for intraday exchange rates, using technical
+                                (0.04)                (0.01)             (0.17)
+                                                                                      signals published by six active market participants from
+     Firm 2                     -2.7**                -5.5               -3.9*        January 1996 through March 1998. The statistical tests, which
+                                10/27)                10/25              10/26        use the bootstrap technique (Efron 1979, 1982), cover support
+                                (0.04)                (0.11)             (0.08)
+                                                                                      and resistance levels for three currency pairs: dollar-mark,
+     Firm 3                      2.4**                 0.2               -0.1         dollar-yen, and dollar-pound.
+                                14/25)                11/24              11/23
+                                                                                          The results indicate that intraday exchange rate trends
+                                (0.35)                (0.27)             (0.34)
+                                                                                      were interrupted at published support and resistance levels
+                                                                                      substantially more often than would have occurred had the
+     Source: Author’s calculations.
+                                                                                      levels been arbitrarily chosen. This finding is consistent across
+     Notes: The table evaluates whether support and resistance levels con-
+                                                                                      all three exchange rates and across all six firms studied. The
+     sidered somewhat strong by their publishers actually predict intraday
+     trend interruptions better than those considered least strong. The measure       predictive power of published support and resistance levels
+     of predictive ability is based on the “bounce frequency,” or the number of       varies considerably across firms and across exchange rates.
+     times the exchange rate stopped trending after reaching support or               It lasts at least one week. The strength estimates published
+     resistance levels compared with the total number of times the rate actually
+     reached such levels. Strength 1 corresponds to the support and resistance
+                                                                                      with the levels are not meaningful. These results are highly
+     levels at which trend interruptions are least likely; strength 2 corresponds     statistically significant and are robust to alternative
+     to support and resistance levels at which trend interruptions are more—          parameterizations.
+     but not most—likely.                                                                 The predictive power of support and resistance levels has
+          For each firm listed on the left side of the table, the first row of
+     numbers represents the difference between the predictive ability of              many possible sources, some of which are discussed in Osler
+     support and resistance levels of the two different strengths. If the reported    (2000). Central bank intervention has been cited as a possible
+     strength levels were reliable, then the numbers would be positive and            source of the predictive power of other technical trading
+     significant. The first number in each second row represents the months in
+     which the bounce frequency for strength 2 actually exceeded the bounce
+                                                                                      strategies (Szakmary and Mathur 1997; LeBaron 1999).
+     frequency for strength 1; the second number in each row (following the           However, central bank intervention seems unlikely to be an
+     slash) represents the number of months in which the comparison was               important source of the predictive power of support and
+     valid; the third row of numbers gives the marginal significance of the           resistance levels since there was no reported intervention for
+     second row under the null hypothesis that there is no difference between
+     the two sets of numbers.                                                         the mark and the pound during the sample period. Other
+                                                                                      possible explanations include clustered order flow, which
+     * Statistically significant at the 10 percent level.
+     ** Statistically significant at the 5 percent level.
+                                                                                      receives support in Osler (2000), and self-fulfilling
+     *** Statistically significant at the 1 percent level.                            prophecies.
+
+
+
+
+64                                                           Support for Resistance
+   The ability of support and resistance levels to predict trend   signals, there would seem to be some incentive for rational
+reversals suggests that the intraday currency markets may not      traders to trade the profits away. This would be an appropriate
+be fully efficient. To investigate this possibility, it would be   subject for future research. It might also be appropriate to
+natural to examine whether traders could profit from these         examine the claim of technical analysts that trends typically are
+predictable bounces on a fairly consistent basis. If it were       sustained once support and resistance levels are “decisively”
+indeed profitable to trade on these readily available technical    crossed.
+
+
+
+
+                                                                   FRBNY Economic Policy Review / July 2000                      65
+     Endnotes
+
+
+
+1. Support and resistance levels are related to but not identical to            7. The standard deviation of daily exchange rate changes rose by one-
+trading ranges. A trading range has just one support level and one              third on average between the first and second halves of the sample
+resistance level. The firms examined here usually provided multiple             period. In the first half, these standard deviations were 0.199, 0.216,
+support levels and multiple resistance levels each day.                         and 0.260 for the mark, yen, and pound, respectively. In the second
+                                                                                half, the corresponding standard deviations were 0.252, 0.362, and
+2. These results are available from the author upon request.                    0.277 (all figures E+3).
+
+3. That is, all artificial support and resistance levels for the mark and       8. The reader may also be interested to know whether the tendency of
+the pound had the form x.xxxx00, while all artificial support and               support and resistance levels to be selected as round numbers or as
+resistance levels for the yen had the form xxx.xx00000.                         local highs/lows has any influence on the levels’ predictive power. In
+                                                                                Osler (2000), I examine whether round numbers or local minima/
+4. For some firms, there were few support and resistance levels in some         maxima (both of which are known to be sources of published support
+months, and thus few hits and bounces. These months were excluded               and resistance levels) have predictive power for exchange rate
+from the sample for those firms.                                                bounces. I find that they do, from which I conclude that at least some
+                                                                                of the predictive power in the published levels comes from the firms’
+5. If intraday exchange rates followed a random walk, the tendency to           tendency to choose these types of numbers. I also show that the size of
+bounce would, in the abstract, be about 50 percent. The tendency to             the typical move following a hit differs substantially between the
+bounce in the actual data exceeds this benchmark for two reasons.               published levels of some firms and the artificial levels. I conclude from
+First, changes in the actual and the simulated data have a fairly strong        this that round numbers and local minima/maxima do not
+negative first-order autocorrelation, as noted by Goodhart and                  incorporate as much information about intraday trend reversals as do
+Figliuoli (1991). Second, to “bounce,” the exchange rate must first             some published support and resistance levels.
+reach a level a little above (below) the actual support (resistance) level,
+and then remain above (below) the actual support (resistance) level             9. It would be desirable here to weight the advising firms by their order
+for a certain interval. Thus, the exchange rate can continue trending           flow. However, order information is very closely guarded by the firms
+slightly after officially hitting the level yet still be considered as having   in question. Furthermore, some of the firms do not actually take
+“bounced.”                                                                      orders.
+
+6. Results from these sensitivity tests are available from the author
+upon request.
+
+
+
+
+66                                                 Support for Resistance
+   References
+
+
+
+Allen, Helen, and Mark P. Taylor. 1992. “The Use of Technical Analysis   Efron, B. 1979. “Bootstrap Methods: Another Look at the Jackknife.”
+    in the Foreign Exchange Market.” Journal of International               Annals of Statistics 7: 1-26.
+    Money and Finance 11, no. 3 (June): 304-14.
+                                                                         ———. 1982. The Jackknife, the Bootstrap, and Other
+Andersen, Torben, and Tim Bollerslev. 1998. “Deutsche Mark–Dollar         Resampling Plans. Philadelphia: Society for Industrial and
+  Volatility: Intraday Activity Patterns, Macroeconomic Announce-         Applied Mathematics.
+  ments, and Longer Run Dependencies.” Journal of Finance 53
+  (February): 219-65.                                                    Goodhart, C., and L. Figliuoli. 1991. “Every Minute Counts in
+                                                                           Financial Markets.” Journal of International Money and
+Arnold, Curtis M. 1993. Timing the Market: How to Profit in                Finance 10, no. 1 (March): 23-52.
+   Bull and Bear Markets with Technical Analysis. Chicago:
+   Probus Publishing Company.                                            Goodhart, C., T. Ito, and R. Payne. 1996. “One Day in June 1993: A
+                                                                           Study of the Working of the Reuters 2000-2 Electronic Foreign
+Brock, W., et al. 1992. “Simple Technical Trading Rules and the            Exchange Trading System.” In Jeffrey Frankel, Gianpaolo Galli,
+   Stochastic Properties of Stock Returns.” Journal of Finance 48          and Alberto Giovannini, eds., The Microstructure of Foreign
+   (December): 1731-64.                                                    Exchange Markets, 107-79. National Bureau of Economic
+                                                                           Research Conference Report Series. Chicago: University of
+Chang, P. H. Kevin, and C. L. Osler. 1998. “Methodical Madness:            Chicago Press.
+  Technical Analysis and the Irrationality of Exchange Rate
+  Forecasts.” Economic Journal 109, no. 458 (October): 636-61.           Hardy, C. Colburn. 1978. The Investor’s Guide to Technical
+                                                                           Analysis. New York: McGraw-Hill.
+Cheung, Yin-Wong, and Menzie Chinn. 1999. “Traders, Market
+  Microstructure, and Exchange Rate Dynamics.” Unpublished               Kaufman, P. 1978. Commodity Trading Systems and Methods.
+  paper, University of California at Santa Cruz, January.                  New York: Ronald Press.
+
+Cheung, Yin-Wong, and Clement Yuk-Pang Wong. 1999. “Foreign              LeBaron, Blake. 1999. “Technical Trading Rule Profitability of Foreign
+  Exchange Traders in Hong Kong, Tokyo, and Singapore: A Survey             Exchange Intervention.” Journal of International Economics
+  Study.” Advances in Pacific Basin Financial Markets 5:                    49 (October): 125-43.
+  111-34.
+                                                                         Levich, R., and L. Thomas. 1993. “The Significance of Technical
+Curcio, Richard, et al. 1997. “Do Technical Trading Rules Generate          Trading Rule Profits in the Foreign Exchange Market: A Bootstrap
+  Profits? Conclusions from the Intraday Foreign Exchange Market.”          Approach.” Journal of International Money and Finance 12
+  Unpublished paper, London School of Economics.                            (October): 451-74.
+
+Danielsson, Jón, and Richard Payne. 1999. “Real Trading Patterns and     Lo, Andrew W., et al. 2000. “Foundations of Technical Analysis:
+  Prices in Spot Foreign Exchange Markets.” Unpublished paper,               Computational Algorithms, Statistical Inference, and Empirical
+  London School of Economics, March.                                         Implementation.” NBER Working Paper no. 7613, March.
+
+Dooley, Michael P., and Jeffrey Shafer. 1984. “Analysis of Short-Run     Lui, Yu-Hon, and David Mole. 1998. “The Use of Fundamental and
+  Exchange Rate Behavior: March 1973 to November 1981.” In                  Technical Analyses by Foreign Exchange Dealers: Hong Kong
+  David Bigman and Teizo Taya, eds., Floating Exchange Rates                Evidence.” Journal of International Money and Finance 17,
+  and the State of World Trade and Payments, 43-70.                         no. 3 (June): 535-45.
+  Cambridge, Mass.: Ballinger Publishing Company.
+                                                                         Menkhoff, Lukas, and Manfred Schlumberger. 1995. “Persistent Profit-
+Edwards, Robert, and John Magee. 1997. Technical Analysis                  ability of Technical Analysis on Foreign Exchange Markets?” Banca
+  of Stock Trends. 5th ed. Boston: John Magee.                             Nazionale del Lavoro Quarterly Review 193 (June): 189-215.
+
+
+
+
+                                                                         FRBNY Economic Policy Review / July 2000                             67
+     References (Continued)
+
+
+
+Murphy, John J. 1986. Technical Analysis of the Futures                 Sklarew, Arthur. 1980. Techniques of a Professional Commodity
+  Market: A Comprehensive Guide to Trading Methods                         Chart Analyst. New York: Commodity Research Bureau.
+  and Applications. New York: Prentice Hall.
+                                                                        Sweeney, R. J. 1986. “Beating the Foreign Exchange Market.” Journal
+Osler, C. L. 2000. “Are Currency Markets Efficient? Predictable Trend      of Finance 41 (March): 163-82.
+   Reversals in Intraday Exchange Rates.” Unpublished paper,
+   Federal Reserve Bank of New York, February.                          Szakmary, Andrew, and Ike Mathur. 1997. “Central Bank Intervention
+                                                                           and Trading Rule Profits in Foreign Exchange Markets.” Journal
+Pring, M. 1991. Technical Analysis Explained: The Successful               of International Money and Finance 16, no. 4 (August):
+   Investor’s Guide to Spotting Investment Trends and                      513-35.
+   Turning Points. 3rd ed. New York: McGraw-Hill.
+
+Shabacker, R. W. 1930. Stock Market Theory and Practice.
+   New York: B. C. Forbes Publishing Company.
+
+
+
+
+     The views expressed in this paper are those of the author and do not necessarily reflect the position of the Federal Reserve Bank
+     of New York or the Federal Reserve System. The Federal Reserve Bank of New York provides no warranty, express or
+     implied, as to the accuracy, timeliness, completeness, merchantability, or fitness for any particular purpose of any
+     information contained in documents produced and provided by the Federal Reserve Bank of New York in any form or
+     manner whatsoever.
+
+68                                            Support for Resistance
+

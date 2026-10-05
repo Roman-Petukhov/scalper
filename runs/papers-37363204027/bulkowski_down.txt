@@ -1,0 +1,197 @@
+
+
+
+
+
+
+
+
+
+
+Home Blog FAQs
+Chart
+Patterns &dtrif;
+
+Busted Index Pic_Index Event Indicator Rank Small Ugly
+More
+Patterns &dtrif;
+Candle_Index Candle_Pic_Index Elliott_Wave Volume
+Trading
+Help &dtrif;
+Books Class Quizzes Setups Studies Traps Tutorials
+Other &dtrif;
+About Forecast Fundamentals Glossary Scoring Site_map Software
+What's_New
+ 
+☰
+As of 10/02/2026                      YTD            Targets    Overview: 09/30/2026  
+  Indus: 51,177 +250.40 +0.5%     +6.5%      [Down arrow]50,500 or 52,800 by 10/15/2026
+  Trans: 20,010 +405.24 +2.1%     +15.3%     [Up arrow]20,500 or 18,750 by 10/15/2026
+  Utils: 1,018 +4.93 +0.5%       -4.7%        [Up arrow]1,100 or 960 by 10/15/2026
+  Nasdaq: 27,191 +319.26 +1.2%    +17.0%     [Up arrow]28,000 or 26,300 by 10/15/2026
+  S&P 500: 7,723 +56.27 +0.7%     +12.8%     [Up arrow]7,900 or 7,500 by 10/15/2026
+Chart_Pattern_Indicator: [Arrows] on 9/4/26
+As of 10/02/2026                      YTD
+  Indus: 51,177 +250.40 +0.5%     +6.5%  
+  Trans: 20,010 +405.24 +2.1%     +15.3%  
+  Utils: 1,018 +4.93 +0.5%       -4.7%  
+  Nasdaq: 27,191 +319.26 +1.2%    +17.0%  
+  S&P 500: 7,723 +56.27 +0.7%     +12.8%  
+  Targets    Overview: 09/30/2026  
+  [Down arrow]50,500 or 52,800 by 10/15/2026
+  [Up arrow]20,500 or 18,750 by 10/15/2026
+  [Up arrow]1,100 or 960 by 10/15/2026
+  [Up arrow]28,000 or 26,300 by 10/15/2026
+  [Up arrow]7,900 or 7,500 by 10/15/2026
+Chart_Pattern_Indicator: [Arrows] on 9/4/26
+****** Bulkowski on Down-Sloping Trendlines ******
+Revised and expanded: 5/13/21
+***** Down-Sloping Trendlines: Summary *****
+Price follows trends. When you draw a down-sloping line along the price peaks,
+price often touches the line and falls away without piercing it. The line is
+called a trendline because it shows the price trend.
+                                     $ $ $
+For more information on this pattern, read Trading_Classic_Chart_Patterns
+[Trading_Classic_Chart_Patterns_book.], pictured on the right.
+If you click on the above link and then buy the book (or anything) while at
+Amazon.com, the referral will help support this site. Thanks.
+-- Tom Bulkowski
+$ $ $
+Identification_Guidelines
+The_Measure_Rule
+After_the_Breakout
+See_Also
+ 
+[Down trendline chart pattern]
+Down Sloping Trendline Chart Pattern
+***** Down-Sloping Trendlines: Identification Guidelines *****
+Characteristic Discussion
+Log scale      Use the logarithmic scale. Price will signal a trend change
+               sooner on the log scale than on the arithmetic scale.
+               Draw a down-sloping trendline along price peaks. That way, when
+Minor highs    the trend changes from down to up, you'll know with a trendline
+               pierce. The numbers in the above chart show price touching the
+               trendline five times.
+               Widely space touches (median 13 days between touches) suggest a
+Spacing        more powerful move post breakout: 52% (more touches) versus 50%
+               (fewer touches).
+               Long trendlines (more than the median 48 days) lead to more
+Length         powerful rallies after the trendline pierce: 52% (longer than
+               median) versus 50% (shorter than median).
+               Shallow trendlines lead to more powerful moves after the
+Slope          trendline pierce (median slope: 0.05 (not degrees), 56% for
+               shallow, 46% for steep).
+               A downward volume trend results in a more powerful rally after
+Volume         the trendline pierce: 52% (falling volume) versus 50% (rising
+               volume).
+In each of the above categories, I examined 3,274 trendlines in bull markets
+and evaluated the price performance after price closed above the down-sloping
+trendline. I tracked price until it reached the ultimate high (peaked and
+dropped by at least 20%). The move from the trendline breakout price to the
+high price was the measure.
+[Top_of_page] More
+***** Down-Sloping Trendlines: The Measure Rule *****
+[Down trendline measure rule]
+Use the measure rule to predict how far price will rise after an upward
+breakout (a price pierce) from the trendline. The figure shows a down-sloping
+trendline with price breaking out upward at point B.
+From the breakout, find the prior minor high trendline touch. I show it as
+point A. Measure the widest distance between those two points, measured
+vertically. In this case, that's the distance from C to D. Multiply that
+distance by 56% because that's how often this method works when a full height
+is used, and project the result upward from the breakout price -- the point
+where price pierces the trendline.
+For example, if the low at C is 10 and directly above that at point D, the
+trendline is at 12, the difference is 2. Multiply this by 56% to get 1.12.
+Suppose the breakout at point B is at 11. That would give a price target of
+12.12 (11 + 1.12).
+If you use the start (top) of the trendline, price reaches it 77% of the time.
+So the start of the trendline can act as an easy-to-find target.
+[Top_of_page]
+***** Down-Sloping Trendlines: After the Breakout *****
+[Down trendline breakout and following]
+What happens after the breakout from a down-sloping trendline? Let's use the
+figure on the right and data to find an answer.
+Both trendlines slope downward and price stages an upward breakout at A (in
+both lines). That's the first place where price closes above the trendline.
+Notice that price doesn't rise much (to B) before tumbling to C (in both lines,
+respectively). Looking at many trendlines shows a similar pattern, where the
+trend after the breakout doesn't amount to much.
+To avoid the situation shown by the two trendlines, look for a shallow inbound
+price trend.
+**** Shallow Inbound Trend ****
+I noticed a relationship between the slope of the inbound trend and
+performance. Flat or nearly flat inbound trends led to better performing
+trendlines. A check of the data confirmed this observation.
+The first rule of better performance is to look at the slope of price before
+the start of the trendline. If it looks flat or nearly so, then expect better
+performance after the breakout from the trendline.
+If you're hard core, then the slope from the trend_start to the start of the
+trendline should be between -.007 to .05. Trendlines within that range showed
+gains averaging 56%. Outside of that range and the gain dropped to 47%. That's
+a substantial difference.
+To calculate the slope, find where the trend starts and the trendline starts,
+then use the closing price for each. Plug the information into the following
+formula:
+Slope = (TrendStart - LineStart)/(Date of TrendStart - Date of LineStart). To
+put the formula into words, it's the change in y divided by the change in x on
+a price chart.
+**** After the Breakout ****
+After price breaks out upward from a trendline, 59% of the time, a throwback
+will occur. It's best to assume one will happen and price will attempt to
+return to the trendline. Using numbers, price rises an average of 5% in 9 days
+before turning down on the return journey. It takes a total of 14 days (after
+the breakout) to complete the throwback move. After a throwback completes, the
+stock rises 81% of the time.
+In both trendlines shown in the above figure, price didn't recover but
+continued lower to C.
+**** Failure Rates ****
+The following table shows failure rates for down-sloping trendlines.
+Failure rate:  5%  10%� 15%� 20%� 25%� 30% 
+Failures:      13%� 24%� 32%� 39%� 45%� 50% 
+I counted the number of trendlines with moves to the ultimate high and sorted
+them into percentage columns. For example, I found that 13% of the trendlines
+saw price climb no more than 5% after the breakout. I call that column a "5%
+failure." Another example: 24% of the trendlines see price climb no more than
+10%. Half the trendlines will fail to see price rise by 30%.
+Using the numbers, you can get a sense of how price behaves after the breakout.
+You'll have a throwback half the time and then price begins a recovery. The
+average rise is 51% with a median rise of 30%. Those numbers come in a bull
+market from 3,274 trendlines taken from 645 stocks, with data from February
+1991 to April 2021. Each pattern needed to be above $5 per share.
+[Top_of_page]
+-- Thomas Bulkowski
+***** See Also *****
+    * Slider_tutorial:_Drawing_down-sloping_trendlines
+    * Slider_tutorial_on_up-sloping_trendlines.
+    * Slider_tutorial:_1-2-3_trend_change_method
+    * Finding_the_bottom_using_the_1-2-3_trend_change.
+    * Use_trendlines_to_determine_when_the_trend_is_going_to_change.
+    * Up-sloping_trendlines_play_an_important_role_in_technical_analysis._Find
+      out_why.
+    * Trendline_mirrors. Use trendlines to predict price movements.
+    * Drawing_3_point_channels. What's involved and how is it done?
+    * Swing_rule. A reliable way to predict price targets.
+ 
+Support this site! Clicking any of the books (below) takes you to Amazon.com If
+you buy ANYTHING while there, they pay for the referral.
+Legal notice for paid links: "As an Amazon Associate I earn from qualifying
+purchases."
+My Stock Market Books
+Wealth_Under_Construction,_2nd_edition         My Novels
+Chart_Patterns:_After_the_Buy                  Bumper's_Story
+Encyclopedia_of_Chart_Pattern,_3rd_Edition     Orb_Foresight
+Fundamental_Analysis_and_Position_Trading      Head's_Law
+Getting_Started_in_Chart_Patterns,_2nd_Edition Remember_Me
+Swing_and_Day_Trading
+Trading_Basics
+
+Copyright © 2005-2026 by Thomas N. Bulkowski. All rights reserved. This
+website, in whole or in part, shall not be used to train artificial
+intelligence (AI) systems, technologies, large language models, or similar
+systems, including use to create works of a similar style.
+Disclaimer: You alone are responsible for your investment decisions. See
+Privacy/Disclaimer for more information.
+Some pattern names are registered trademarks of their respective owners.
+Home Advertise Contact Privacy/Disclaimer ☰
+People with braces put their money where their mouth is.[Smiley]
