@@ -26,3 +26,13 @@ self.addEventListener("notificationclick", (e) => {
     return self.clients.openWindow(url);
   })());
 });
+
+// Push с сервера: показать уведомление о сигнале, даже если панель закрыта.
+self.addEventListener("push", (e) => {
+  let m = {};
+  try { m = e.data ? e.data.json() : {}; } catch { m = { body: e.data && e.data.text() }; }
+  e.waitUntil(self.registration.showNotification(m.title || "Трендовые пробои", {
+    body: m.body || "", tag: m.tag || "signal", icon: "/static/icons/icon-192.png",
+    badge: "/static/icons/maskable-192.png", data: { url: m.url || "/" }, requireInteraction: true,
+  }));
+});

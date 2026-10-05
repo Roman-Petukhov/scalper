@@ -8,7 +8,7 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi import Body, FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -23,6 +23,7 @@ from ..infrastructure.binance_data import BinanceMarketData
 from ..infrastructure.charts import MatplotlibCharts
 from ..infrastructure.sqlite_repo import SqliteStore
 from ..infrastructure.telegram import TelegramNotifier
+from ..infrastructure.webpush import MultiNotifier, WebPushNotifier
 
 log = logging.getLogger(__name__)
 HERE = Path(__file__).parent
@@ -37,9 +38,10 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
     store = SqliteStore(cfg.data_dir / "trader.db")
     charts = MatplotlibCharts(cfg.data_dir / "charts")
     market = market or BinanceMarketData()
-    if notifier is None and cfg.telegram_token and cfg.telegram_chat_id:
-        notifier = TelegramNotifier(cfg.telegram_token, cfg.telegram_chat_id)
-    scanner = Scanner(market, store, store, charts, notifier, cfg.panel_url)
+    push = WebPushNotifier(store, cfg.data_dir / "vapid_private.pem")
+    telegram = (TelegramNotifier(cfg.telegram_token, cfg.telegram_chat_id)
+                if cfg.telegram_token and cfg.telegram_chat_id else None)
+    scanner = Scanner(market, store, store, charts, MultiNotifier(push, telegram, notifier), cfg.panel_url)
     settings_svc = SettingsService(store)
     decisions = SignalDecisions(store, store)
 
@@ -69,7 +71,7 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
 
     def page_context(request: Request) -> dict:
         s = settings_svc.get()
-        return {"s": s, "signals": store.recent(80), "last": scanner.last, "notify": notifier is not None}
+        return {"s": s, "signals": store.recent(80), "last": scanner.last}
 
     @app.get("/manifest.webmanifest")
     async def manifest():
@@ -129,6 +131,39 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
              "entry": x.plan.entry, "stop": x.plan.stop, "target": x.plan.target,
              "entry_kind": "ретест" if x.plan.entry_kind.value == "retest" else "рынок",
              "aggr": round(x.aggr, 3), "status": x.status.value} for x in sorted(items, key=lambda z: z.id)]}
+
+    def guard_api(request: Request) -> None:
+        guard(request)
+        if request.headers.get("X-Panel") != "1":
+            raise HTTPException(403, "запрос не из панели")
+
+    @app.get("/api/push/key")
+    async def push_key(request: Request) -> dict:
+        guard(request)
+        return {"key": push.public_key}
+
+    @app.post("/api/push/subscribe")
+    async def push_subscribe(request: Request, sub: dict = Body(...)) -> dict:
+        guard_api(request)
+        endpoint, keys = sub.get("endpoint"), sub.get("keys") or {}
+        if not (isinstance(endpoint, str) and endpoint.startswith("https://") and keys.get("p256dh") and keys.get("auth")):
+            raise HTTPException(422, "неверная подписка")
+        store.add_subscription({"endpoint": endpoint, "keys": {"p256dh": keys["p256dh"], "auth": keys["auth"]}})
+        return {"ok": True, "devices": len(store.subscriptions())}
+
+    @app.post("/api/push/unsubscribe")
+    async def push_unsubscribe(request: Request, sub: dict = Body(...)) -> dict:
+        guard_api(request)
+        if isinstance(sub.get("endpoint"), str):
+            store.remove_subscription(sub["endpoint"])
+        return {"ok": True}
+
+    @app.post("/api/push/test")
+    async def push_test(request: Request) -> dict:
+        guard_api(request)
+        sent = await push.send({"title": "Трендовые пробои", "body": "Push работает: так придёт сигнал.",
+                                "tag": "test", "url": "/"})
+        return {"sent": sent, "devices": len(store.subscriptions())}
 
     @app.post("/settings/tf/{tf}", response_class=HTMLResponse)
     async def toggle_tf(request: Request, tf: Timeframe):

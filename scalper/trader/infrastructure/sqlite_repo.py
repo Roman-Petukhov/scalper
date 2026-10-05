@@ -21,6 +21,9 @@ CREATE TABLE IF NOT EXISTS signals (
 );
 CREATE INDEX IF NOT EXISTS signals_created ON signals(created_at DESC);
 CREATE TABLE IF NOT EXISTS settings (id INTEGER PRIMARY KEY CHECK (id = 1), payload TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+    endpoint TEXT PRIMARY KEY, payload TEXT NOT NULL, created_at TEXT NOT NULL
+);
 """
 
 
@@ -127,3 +130,21 @@ class SqliteStore:
             self.db.execute("INSERT INTO settings(id, payload) VALUES (1, ?) "
                             "ON CONFLICT(id) DO UPDATE SET payload = excluded.payload", (json.dumps(p),))
             self.db.commit()
+
+    # ---------- подписки на push (устройства) ----------
+    def add_subscription(self, sub: dict) -> None:
+        with self.lock:
+            self.db.execute("INSERT INTO push_subscriptions(endpoint, payload, created_at) VALUES (?,?,?) "
+                            "ON CONFLICT(endpoint) DO UPDATE SET payload = excluded.payload",
+                            (sub["endpoint"], json.dumps(sub), datetime.now(timezone.utc).isoformat()))
+            self.db.commit()
+
+    def remove_subscription(self, endpoint: str) -> None:
+        with self.lock:
+            self.db.execute("DELETE FROM push_subscriptions WHERE endpoint = ?", (endpoint,))
+            self.db.commit()
+
+    def subscriptions(self) -> list[dict]:
+        with self.lock:
+            rows = self.db.execute("SELECT payload FROM push_subscriptions").fetchall()
+        return [json.loads(r["payload"]) for r in rows]

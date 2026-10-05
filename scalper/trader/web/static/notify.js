@@ -1,6 +1,6 @@
-// Уведомления приложения: раз в 30 с спрашиваем у сервера новые сигналы и показываем системное уведомление
-// (Windows / macOS / Android), звук и счётчик на иконке приложения. Работает, пока окно панели открыто
-// (можно свёрнутым). Что уже показано — помним в localStorage этого устройства.
+// Уведомления приложения. Push (Web Push): сервер присылает уведомление на устройство, даже когда панель закрыта.
+// Плюс, пока окно открыто, раз в 30 с спрашиваем новые сигналы: звук, счётчик на иконке, обновление ленты.
+// Оба пути дают уведомление с одним тегом signal-<id>, поэтому дубля нет. Что уже показано — в localStorage.
 (() => {
   const KEY_LAST = "tt.lastSignalId", KEY_SOUND = "tt.sound";
   const POLL_MS = 30000;
@@ -65,6 +65,36 @@
     if (supported() && Notification.permission === "granted") for (const sig of res.signals) await show(sig);
   }
 
+  // Push: подписка этого устройства на уведомления с сервера — придут, даже когда панель закрыта.
+  const pushSupported = () => supported() && "PushManager" in window && window.isSecureContext;
+  const b64ToBytes = (b64) => {
+    const pad = "=".repeat((4 - (b64.length % 4)) % 4);
+    const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
+    return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+  };
+  let pushActive = false;
+
+  async function ensurePush() {
+    if (!pushSupported() || Notification.permission !== "granted") return false;
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        const r = await fetch("/api/push/key", { credentials: "same-origin" });
+        if (!r.ok) return false;
+        const { key } = await r.json();
+        sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(key) });
+      }
+      const r = await fetch("/api/push/subscribe", {
+        method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/json", "X-Panel": "1" }, body: JSON.stringify(sub.toJSON()),
+      });
+      pushActive = r.ok;
+    } catch { pushActive = false; }
+    renderState();
+    return pushActive;
+  }
+
   function renderState() {
     const el = document.getElementById("notify-state");
     const btn = document.getElementById("notify-enable");
@@ -73,7 +103,14 @@
     if (!el || !btn) return;
     if (!supported()) { el.textContent = "Браузер не поддерживает уведомления."; btn.hidden = true; return; }
     const p = Notification.permission;
-    el.textContent = p === "granted" ? "Включены: придут, пока окно панели открыто (можно свёрнутым)."
+    const ios = /iPhone|iPad/.test(navigator.userAgent) && !window.navigator.standalone;
+    if (ios && !("Notification" in window && "PushManager" in window)) {
+      el.textContent = "На iPhone: Поделиться → «На экран Домой», затем откройте панель с иконки и включите уведомления.";
+      btn.hidden = true; return;
+    }
+    el.textContent = p === "granted"
+      ? (pushActive ? "Включены на этом устройстве: придут, даже когда панель закрыта."
+                    : "Включены: придут, пока окно панели открыто (можно свёрнутым).")
       : p === "denied" ? "Заблокированы в браузере: разрешите их в настройках сайта (значок замка в адресной строке)."
       : "Выключены.";
     btn.hidden = p !== "default";
@@ -82,11 +119,13 @@
   document.addEventListener("click", async (e) => {
     const t = e.target.closest("#notify-enable, #notify-sound, #notify-test");
     if (!t) return;
-    if (t.id === "notify-enable") { await Notification.requestPermission(); renderState(); }
+    if (t.id === "notify-enable") { await Notification.requestPermission(); renderState(); await ensurePush(); }
     if (t.id === "notify-sound") { store.set(KEY_SOUND, soundOn() ? "0" : "1"); renderState(); }
     if (t.id === "notify-test") {
       beep();
-      if (supported() && Notification.permission === "granted") {
+      if (pushActive) {                                         // через сервер — проверяет весь путь до устройства
+        await fetch("/api/push/test", { method: "POST", credentials: "same-origin", headers: { "X-Panel": "1" } });
+      } else if (supported() && Notification.permission === "granted") {
         const reg = await navigator.serviceWorker.ready;
         reg.showNotification("Трендовые пробои", { body: "Так будет выглядеть уведомление о сигнале.",
           icon: "/static/icons/icon-192.png", tag: "test" });
@@ -95,5 +134,5 @@
   });
   document.addEventListener("visibilitychange", () => { if (!document.hidden) { unseen = 0; setBadge(0); } });
   document.addEventListener("htmx:afterSwap", renderState);
-  window.addEventListener("load", () => { renderState(); poll(); setInterval(poll, POLL_MS); });
+  window.addEventListener("load", () => { renderState(); ensurePush(); poll(); setInterval(poll, POLL_MS); });
 })();
