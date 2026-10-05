@@ -41,7 +41,7 @@ import pandas as pd
 from numba import njit
 
 from .broad import ADV_MIN, adv30, group_of
-from .engine import funding_on_bars, resample
+from .engine import funding_on_bars
 from .shard import all_parts, mine, part_path
 from .smc import _atr, _cell
 from .wave2 import metrics_on_bars
@@ -49,9 +49,10 @@ from .wave2 import metrics_on_bars
 PER = {"is": ("2022-01-01", "2024-07-01"), "val": ("2024-07-01", "2025-07-01"), "ho": ("2025-07-01", "2026-10-01")}
 PIV = 5
 MAKER, TAKER = 2e-4, 5.5e-4
-HOLD = {"15m": 200, "1h": 120, "4h": 60}
-HTF = {"15m": "1h", "1h": "4h", "4h": "1D"}
-BAR_MIN = {"15m": 15, "1h": 60, "4h": 240}
+HOLD = {"15m": 200, "1h": 120, "2h": 90, "4h": 60, "6h": 50, "12h": 40, "1d": 30}
+HTF = {"15m": "1h", "1h": "4h", "2h": "1D", "4h": "1D", "6h": "1D", "12h": "1W", "1d": "1W"}
+BAR_MIN = {"15m": 15, "1h": 60, "2h": 120, "4h": 240, "6h": 360, "12h": 720, "1d": 1440}
+HIGH_TFS = {"2h": "2h", "4h": "4h", "6h": "6h", "12h": "12h", "1d": "1D"}      # собираются из 1h-свечей
 RETEST_BARS = 12
 
 
@@ -170,6 +171,9 @@ def last_confirmed(piv: np.ndarray, m: int) -> np.ndarray:
 
 
 LINES = ("zz", "s123")      # прежние варианты (зоны, горизонтальные уровни и др.) — в git и docs/research_report.md
+SCALE_LINES = {"zz2": 2.0, "zz5": 5.0}   # та же линия на других масштабах зигзага (только 4h): больше сигналов?
+MORE_TFS = ("2h", "6h", "12h", "1d")    # соседние с 4h таймфреймы — только правило бота на линии zz
+ADV_LO = 5e6                            # монеты с оборотом ниже порога бота (20M) — для корзин ликвидности
 MAJOR_L = 12          # главный экстремум: тень выше (ниже) 12 свечей с каждой стороны
 MINOR_N = 3           # точки касания: фрактал 3 свечи
 ZZ_K = 3.0            # зигзаг по закрытиям: разворот >= 3 ATR
@@ -276,7 +280,7 @@ def zigzag(c: np.ndarray, atr: np.ndarray, k: float) -> tuple[np.ndarray, np.nda
     return (np.array(highs, np.int64).reshape(-1, 2), np.array(lows, np.int64).reshape(-1, 2))
 
 
-def zz_lines(d: pd.DataFrame, log: bool = False) -> list[dict]:
+def zz_lines(d: pd.DataFrame, log: bool = False, k: float = ZZ_K) -> list[dict]:
     """Линии по значимым точкам: обе точки — вершины зигзага по закрытиям (разворот >= ZZ_K ATR), первая — самое
     высокое закрытие за ZZ_ANCHOR свечей до неё, между точками >= ZZ_SPAN свечей; из таких вторых точек берётся та,
     что даёт самую пологую касательную (ни одна вершина зигзага после первой не выше линии). Линия живёт до пробоя,
@@ -287,7 +291,7 @@ def zz_lines(d: pd.DataFrame, log: bool = False) -> list[dict]:
     price = d["close"].to_numpy(dtype="float64")
     atr = _atr(d).to_numpy() if {"high", "low"} <= set(d.columns) else np.full(len(price), np.inf)
     m = len(price)
-    hs, ls = zigzag(price, atr, ZZ_K)
+    hs, ls = zigzag(price, atr, k)
     c = np.log(price) if log else price
     back = np.exp if log else (lambda v: v)
     out = []
@@ -550,6 +554,9 @@ def fan_lines(d: pd.DataFrame, scales: tuple[float, ...] = FAN_K) -> list[dict]:
 def signals(d: pd.DataFrame, mode: str = "last2") -> list[tuple[int, int, int, float, float, int, int]]:
     """(бар пробоя, бар закрепления или −1, сторона, линия на баре пробоя, линия на баре закрепления,
     индексы двух точек линии)."""
+    if mode in SCALE_LINES:
+        return [(r["t"], r["tc"], r["side"], r["line_t"], r["line_n"], r["a"], r["b"])
+                for r in zz_lines(d, k=SCALE_LINES[mode]) if r["t"] > 0]
     if mode in ("major", "zz", "zzlog", "fan", "fan2", "zone", "zone3", "hl3", "hl4", "s123"):
         recs = {"major": major_lines, "zz": zz_lines, "zzlog": lambda x: zz_lines(x, log=True), "fan": fan_lines,
                 "fan2": lambda x: fan_lines(x, FAN2_K), "zone": zone_lines, "zone3": lambda x: zone_lines(x, 3),
@@ -612,13 +619,15 @@ def tf_frame(root: Path, sym: str, tf: str, extend: bool = False) -> pd.DataFram
     df = df[~df.index.duplicated()].sort_index()
     if extend:
         df = _extend_daily(sym, df, "15m" if tf == "15m" else "1h")
-    if tf == "4h":
-        df = resample(df, "4h")
+    if tf in HIGH_TFS:
+        df = df.resample(HIGH_TFS[tf], label="left", closed="left").agg(
+            {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum", "quote_volume": "sum",
+             "count": "sum", "taker_buy_volume": "sum", "taker_buy_quote_volume": "sum"}).dropna(subset=["close"])
     df["funding"] = funding_on_bars(sym, root, df.index, BAR_MIN[tf])
     return df
 
 
-HTF2 = {"15m": "4h", "1h": "1D", "4h": "1W"}          # тренд ещё на ступень старше
+HTF2 = {"15m": "4h", "1h": "1D", "2h": "1W", "4h": "1W", "6h": "1W", "12h": "1W", "1d": "1W"}          # тренд ещё на ступень старше
 
 
 def _htf_bars(d: pd.DataFrame, rule: str) -> pd.DataFrame:
@@ -875,9 +884,10 @@ def coin_trades(root: Path, sym: str, tf: str, ctx: pd.DataFrame | None = None) 
     trend2 = htf_trend(d, tf, HTF2[tf])
     struct = htf_structure(d, tf)
     ok = np.ones(len(c), bool)
+    liq = np.full(len(c), np.nan)
     if tf != "15m":
-        adv = adv30(root, sym)
-        ok = adv.reindex(d.index.floor("D")).to_numpy() >= ADV_MIN
+        liq = adv30(root, sym).reindex(d.index.floor("D")).to_numpy()
+        ok = liq >= (ADV_LO if tf == "4h" else ADV_MIN)        # 4h: и неликвиднее порога бота — для корзин
     rows = []
     v = d["volume"]
     vol_ratio = (v / v.shift(1).rolling(20).mean()).to_numpy()
@@ -901,10 +911,13 @@ def coin_trades(root: Path, sym: str, tf: str, ctx: pd.DataFrame | None = None) 
     st = strength_inputs(root, sym, tf, d, a)
     fx = filter_inputs(root, sym, tf, d, a)
     zh, zl = zigzag(c, a, ZZ_K)
-    for mode, (tb, tc, side, line_b, line_c, ia, ib) in ((m_, sg) for m_ in LINES for sg in signals(d, m_)):
-        for confirm in (False, True):
+    modes = ("zz",) if tf in MORE_TFS else (*LINES, *SCALE_LINES) if tf == "4h" else LINES
+    for mode, (tb, tc, side, line_b, line_c, ia, ib) in ((m_, sg) for m_ in modes for sg in signals(d, m_)):
+        for confirm in (False,) if (tf in MORE_TFS or mode in SCALE_LINES) else (False, True):
             e = tc if confirm else tb
             if e < 0 or e >= len(c) - 1 or not ok[e] or not (a[e] > 0):
+                continue
+            if confirm and not liq[e] >= ADV_MIN and tf != "15m":
                 continue
             sw = sw_lo[e] if side > 0 else sw_hi[e]
             if sw < 0:
@@ -944,6 +957,7 @@ def coin_trades(root: Path, sym: str, tf: str, ctx: pd.DataFrame | None = None) 
                         tg |= article_outcomes(o, hi, lo, c, f, a, tb, e, fill, side, px, stop, fee, HOLD[tf], line_b,
                                                slope_l, int(ia), int(ib))
                     rows.append({"symbol": sym, "tf": tf, "line": mode, "t": d.index[e], "side": side, "confirm": confirm,
+                                 "adv": liq[e],
                                  "risk_pct": side * (px - stop) / px,
                                  "entry": entry_kind, "be": be, "with_trend": trend[e] == side, "with_trend2": trend2[e] == side,
                                  "with_struct": struct[e] == side, "R": r, "R3": r3, "R3x0": r3x0, "R3x25": r3x25, **tg,
@@ -1078,7 +1092,7 @@ def collect(root: Path, syms: list[str], syms15: list[str]) -> None:
             except Exception as e:
                 print(f"  график {sym} {tf} (окно): {e}", flush=True)
     parts = []
-    for tf, lst in (("15m", syms15), ("1h", syms), ("4h", syms)):
+    for tf, lst in (("15m", syms15), ("1h", syms), ("4h", syms), *((t_, syms) for t_ in MORE_TFS)):
         if tf not in tfs:
             continue
         for s in mine(lst):
@@ -1420,6 +1434,76 @@ def article_report(df: pd.DataFrame, line_name: dict) -> None:
                 print(pd.DataFrame(rows).to_string(index=False))
 
 
+def _bot_base(df: pd.DataFrame) -> pd.DataFrame:
+    """Правило бота: пробой без закрепления, агрессоры >= 55%, тренд старшего ТФ, закрытие в верхней половине свечи."""
+    return df[~df.confirm & (df.aggr >= 0.55) & df.with_trend & (df.close_loc >= 0.5)]
+
+
+def _more_table(items: list[tuple[str, pd.DataFrame]]) -> None:
+    rows = []
+    for nm, z in items:
+        z = z.assign(R=z["R3"])
+        rows.append({"вариант": nm, **{p: _cell(z[z.per == p]) for p in PER}, "R/мес IS / VAL / HO": _per_month(z, "R3")})
+    print(pd.DataFrame(rows).to_string(index=False))
+
+
+def more_signals_report(df: pd.DataFrame) -> None:
+    """Как получить больше сигналов, не теряя R в месяц: соседние с 4h таймфреймы, другие масштабы зигзага на 4h,
+    монеты с оборотом ниже порога бота, фильтры для лонгов. Везде правило бота, всё на 3R."""
+    if "adv" not in df.columns:
+        return
+    base = _bot_base(df)
+    liquid = base[base.adv >= ADV_MIN]
+    print("\n=== БОЛЬШЕ СИГНАЛОВ: правило бота (агрессоры >= 55% + тренд, закрытие в верхней половине), всё на 3R; "
+          "ячейка — R на сделку (t, прибыльных, сделок в месяц); R/мес — сумма R за месяц по всему набору монет ===")
+    for entry in ("retest", "market"):
+        en = "ретест" if entry == "retest" else "рынок"
+        g = liquid[(liquid.entry == entry) & (liquid.line == "zz")]
+        print(f"\n  --- 1. таймфреймы, линии по значимым точкам, {en} ---")
+        _more_table([(tf, g[g.tf == tf]) for tf in ("2h", "4h", "6h", "12h", "1d") if (g.tf == tf).any()])
+        for tf in ("2h", "4h", "6h", "12h", "1d"):
+            if (g.tf == tf).any():
+                print(f"  {tf} по годам: {_years(g[g.tf == tf])}")
+
+        g4 = liquid[(liquid.entry == entry) & (liquid.tf == "4h")]
+        zz = g4[g4.line == "zz"]
+        known = set(zip(zz.symbol, zz.t, zz.side))
+        items = [("зигзаг 3 ATR (сейчас)", zz)]
+        for ln, k in SCALE_LINES.items():
+            x = g4[g4.line == ln]
+            items += [(f"зигзаг {k:g} ATR", x),
+                      ("  из них новые (нет пробоя 3 ATR в ту же свечу)",
+                       x[[t not in known for t in zip(x.symbol, x.t, x.side)]])]
+        items.append(("все три масштаба вместе (без повторов)",
+                      g4[g4.line.isin(["zz", *SCALE_LINES])].drop_duplicates(["symbol", "t", "side"])))
+        items.append(("3 + 5 ATR вместе", g4[g4.line.isin(["zz", "zz5"])].drop_duplicates(["symbol", "t", "side"])))
+        print(f"\n  --- 2. несколько масштабов зигзага, 4h, {en} ---")
+        _more_table(items)
+
+        b4 = base[(base.entry == entry) & (base.tf == "4h") & (base.line == "zz")]
+        print(f"\n  --- 3. ликвидность монеты (средний дневной оборот за 30 дней), 4h, {en} ---")
+        _more_table([(f"${lo / 1e6:.0f}M – " + ("∞" if hi == np.inf else f"${hi / 1e6:.0f}M"),
+                      b4[(b4.adv >= lo) & (b4.adv < hi)])
+                     for lo, hi in ((5e6, 10e6), (10e6, 20e6), (20e6, 50e6), (50e6, 200e6), (200e6, np.inf))]
+                    + [("от $10M (порог вдвое ниже)", b4[b4.adv >= 10e6]), ("от $20M (сейчас)", b4[b4.adv >= 20e6])])
+
+        lg = zz[zz.side == 1]
+        print(f"\n  --- 4. лонги, 4h, {en} (шорты для сравнения в конце) ---")
+        _more_table([("все лонги", lg),
+                     ("BTC выше EMA50 дневок", lg[lg.btc_trend == 1]),
+                     ("BTC вырос за 7 дней", lg[lg.btc_ret7 > 0]),
+                     ("BTC выше EMA50 и вырос за 7 дней", lg[(lg.btc_trend == 1) & (lg.btc_ret7 > 0)]),
+                     ("недельный тренд монеты вверх", lg[lg.with_trend2]),
+                     ("структура дневок вверх (HH + HL)", lg[lg.with_struct]),
+                     ("монета сильнее BTC за 7 дней", lg[lg.rs7 > 0]),
+                     ("монета выросла за 30 дней", lg[lg.ret30 > 0]),
+                     ("агрессоры >= 58%", lg[lg.aggr >= 0.58]),
+                     ("закрытие в верхних 20%", lg[lg.close_loc >= 0.8]),
+                     ("BTC выше EMA50 + недельный тренд вверх", lg[(lg.btc_trend == 1) & lg.with_trend2]),
+                     ("шорты (как сейчас)", zz[zz.side == -1]),
+                     ("шорты, BTC ниже EMA50", zz[(zz.side == -1) & (zz.btc_trend == -1)])])
+
+
 def conviction_report(df: pd.DataFrame, line_name: dict) -> None:
     """Уверенный пробой: закрытие далеко за линией (ATR), у края свечи, с крупным телом — против пробоев «на чуть-чуть».
     База — сигнал бота: агрессоры >= 55% + тренд старшего ТФ, пробой (без закрепления), цель — всё на 3R."""
@@ -1710,6 +1794,9 @@ def report() -> None:
     df["per"] = ""
     for p, (a, b) in PER.items():
         df.loc[(df.t >= a) & (df.t < b), "per"] = p
+    more = df
+    if "adv" in df.columns:                      # прежние отчёты — на прежнем наборе: 15m / 4h, линии бота, порог оборота
+        df = df[df.tf.isin(["15m", "1h", "4h"]) & df.line.isin(LINES) & ~(df.adv < ADV_MIN)].reset_index(drop=True)
     out = Path(os.environ.get("OUT", "../out")) / "tline_examples"
     for png in Path(os.environ.get("PARTS", "parts")).rglob("tline_examples/*.png"):
         out.mkdir(parents=True, exist_ok=True)
@@ -1760,6 +1847,7 @@ def report() -> None:
         target_report(df, line_name)
     if "R3" in df.columns and "brk_atr" in df.columns:
         bot_rule_report(df, line_name)
+        more_signals_report(more)
         article_report(df, line_name)
         lowtf_report(df)
         conviction_report(df, line_name)
