@@ -2,7 +2,7 @@
 
 Bybit торгует их как TradFi-перпетуалы в USDT (с апреля 2026) — их история слишком короткая для проверки на трёх
 периодах, поэтому берётся длинная история самих активов:
-    Dukascopy   часовые свечи XAUUSD, XAGUSD, WTI (LIGHTCMDUSD), Brent (BRENTCMDUSD) с 2018 года; объём тиковый,
+    Dukascopy   часовые свечи XAUUSD, WTI (LIGHTCMDUSD), XAGUSD с 2018 года; объём тиковый,
                 агрессоров нет — фильтр агрессоров не применяется
     Binance     спот PAXGUSDT (токен золота) с 2020 года — есть доля агрессоров, правило бота целиком
 Свечи складываются в тот же формат, что у крипты, и проходят через tline.coin_trades — линии, вход, стоп, цели и
@@ -33,8 +33,10 @@ from research.tline import PER, _per_month, _years, coin_trades
 
 DUKA = "https://datafeed.dukascopy.com/datafeed"
 # инструмент: (название в отчёте, ожидаемый диапазон цены — по нему выбирается масштаб целых чисел Dukascopy)
-DUKA_SYMS = {"XAUUSD": ("золото", (250.0, 10000.0)), "XAGUSD": ("серебро", (3.0, 200.0)),
-             "LIGHTCMDUSD": ("нефть WTI", (5.0, 300.0)), "BRENTCMDUSD": ("нефть Brent", (5.0, 300.0))}
+DUKA_SYMS = {"XAUUSD": ("золото", (250.0, 10000.0)), "LIGHTCMDUSD": ("нефть WTI", (5.0, 300.0)),
+             "XAGUSD": ("серебро", (3.0, 200.0))}         # Brent убран: дублирует WTI, а качается медленно
+BUDGET_S = 15 * 60              # на один инструмент: не уложились — считаем по тому, что успели скачать
+PROBE_RETRY_S = 120             # Dukascopy режет частые запросы: если проба не прошла — пауза и ещё одна попытка
 PAXG = "PAXGUSDT"
 START_YEAR = 2018
 TFS = ("4h", "12h", "1d")
@@ -91,13 +93,20 @@ def _scale(df: pd.DataFrame, lo: float, hi: float) -> pd.DataFrame:
 
 def fetch_duka(sym: str, end: pd.Timestamp) -> pd.DataFrame | None:
     t0 = time.monotonic()
-    if _duka_month(sym, end.year - 1, 0) is None:                     # проба: источник недоступен — сразу дальше
-        print(f"  {sym}: Dukascopy не отдал пробный месяц за {time.monotonic() - t0:.0f} с", flush=True)
-        return None
+    if _duka_month(sym, end.year - 1, 0) is None:                     # проба: источник недоступен — пауза и повтор
+        print(f"  {sym}: Dukascopy не отдал пробный месяц за {time.monotonic() - t0:.0f} с, повтор через "
+              f"{PROBE_RETRY_S} с", flush=True)
+        time.sleep(PROBE_RETRY_S)
+        if _duka_month(sym, end.year - 1, 0) is None:
+            return None
+    deadline = time.monotonic() + BUDGET_S
     jobs = [(y, m) for y in range(START_YEAR, end.year + 1) for m in range(12)
             if pd.Timestamp(year=y, month=m + 1, day=1, tz="UTC") < end]
     with ThreadPoolExecutor(3) as ex:
-        parts = [p for p in ex.map(lambda ym: _duka_month(sym, *ym), jobs) if p is not None and len(p)]
+        parts = [p for p in ex.map(lambda ym: _duka_month(sym, *ym) if time.monotonic() < deadline else None, jobs)
+                 if p is not None and len(p)]
+    if time.monotonic() >= deadline:
+        print(f"  {sym}: не уложились в {BUDGET_S // 60} мин — считаем по скачанному", flush=True)
     if not parts:
         return None
     df = pd.concat(parts).sort_index()
@@ -141,7 +150,7 @@ def collect(root: Path) -> pd.DataFrame:
     names = {}
     for k, (sym, (name, _)) in enumerate(DUKA_SYMS.items()):
         if k:
-            time.sleep(30)                                                   # пауза между инструментами
+            time.sleep(60)                                                   # пауза между инструментами
         df = fetch_duka(sym, end)
         if df is None:
             print(f"  {sym}: данных нет (Dukascopy не ответил)", flush=True)
