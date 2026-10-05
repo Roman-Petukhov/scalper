@@ -174,6 +174,17 @@ class SettingsService:
         self.repo.save(s)
         return s
 
+    STRATEGY_FIELDS = ("timeframes", "entry_policy", "min_aggr", "target_r", "hybrid_range_atr", "retest_bars",
+                       "min_break_atr", "min_close_loc", "min_turnover_usd")
+
+    def reset_strategy(self) -> Settings:
+        """Правило входа — к лучшему по бэктесту (значения по умолчанию Settings); режим и личный риск
+        (риск на сделку, плечо, число позиций, дневной стоп) не трогаем."""
+        best = Settings()
+        s = replace(self.repo.load(), **{k: getattr(best, k) for k in self.STRATEGY_FIELDS})
+        self.repo.save(s)
+        return s
+
     def update(self, **fields: float | int) -> Settings:
         """Числовые параметры риска и правила; Settings проверяет допустимые диапазоны."""
         allowed = {"risk_pct", "leverage", "min_break_atr", "min_close_loc", "max_positions", "daily_loss_pct", "min_aggr", "target_r", "hybrid_range_atr"}

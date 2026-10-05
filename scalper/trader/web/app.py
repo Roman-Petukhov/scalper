@@ -237,6 +237,13 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         settings_svc.set_entry_policy(policy)
         return templates.TemplateResponse(request, "_controls.html", page_context(request))
 
+    @app.post("/settings/reset", response_class=HTMLResponse)
+    async def reset_settings(request: Request):
+        guard(request, mutate=True)
+        settings_svc.reset_strategy()
+        return templates.TemplateResponse(request, "_controls.html", page_context(request) | {"reset_done": True},
+                                          headers={"HX-Trigger": "feed-refresh"})
+
     @app.post("/settings/params", response_class=HTMLResponse)
     async def set_params(request: Request, risk_pct: float = Form(...), leverage: int = Form(5),
                          max_positions: int = Form(...),

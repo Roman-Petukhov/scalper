@@ -10,7 +10,7 @@ import pandas as pd
 import pytest
 
 from trader.application.services import Scanner, SettingsService, SignalDecisions
-from trader.domain.models import EntryKind, Mode, Settings, Side, Signal, SignalStatus, Timeframe, TradePlan
+from trader.domain.models import EntryKind, EntryPolicy, Mode, Settings, Side, Signal, SignalStatus, Timeframe, TradePlan
 from trader.infrastructure.binance_data import BinanceMarketData
 from trader.infrastructure.charts import MatplotlibCharts
 from trader.infrastructure.sqlite_repo import SqliteStore
@@ -192,3 +192,14 @@ def test_stale_signals_expire_and_cannot_be_taken(tmp_path):
     with pytest.raises(ValueError, match="устарел"):
         asyncio.run(dec.take(stale.id))
     assert st.get(stale.id).status is SignalStatus.EXPIRED
+
+
+def test_reset_strategy_keeps_personal_risk(tmp_path):
+    st = SqliteStore(tmp_path / "t.db")
+    svc = SettingsService(st)
+    st.save(replace(Settings(), mode=Mode.AUTO, risk_pct=0.5, leverage=8, timeframes=frozenset(Timeframe),
+                    entry_policy=EntryPolicy.HYBRID, min_close_loc=0.0, min_aggr=0.6))
+    s = svc.reset_strategy()
+    assert s.timeframes == frozenset({Timeframe.H4}) and s.entry_policy is EntryPolicy.RETEST
+    assert s.min_close_loc == 0.8 and s.min_aggr == 0.55 and s.target_r == 3.0
+    assert (s.mode, s.risk_pct, s.leverage) == (Mode.AUTO, 0.5, 8)
