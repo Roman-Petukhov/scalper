@@ -122,17 +122,17 @@ def fade(o, h, lo, c, fund, t0, side, zone_top, smc_stop, valid, k_r, max_hold):
         if (side > 0 and lo[j] <= zone_top) or (side < 0 and h[j] >= zone_top):
             entry = min(zone_top, o[j]) if side > 0 else max(zone_top, o[j])
             stop, tp = entry - s * d, entry + s * k_r * d
+            # бар входа пришёл со стороны зоны: его экстремум был ДО касания, поэтому в нём смотрим только закрытие
+            if (s > 0 and c[j] <= stop) or (s < 0 and c[j] >= stop):
+                return (s * (c[j] - entry) - 2 * TAKER * entry) / d
             paid = 0.0
-            q = j
+            q = j + 1
             while q < n:
-                if q > j:
-                    paid += fund[q]
+                paid += fund[q]
                 if (s > 0 and lo[q] <= stop) or (s < 0 and h[q] >= stop):
-                    ex, fee = stop, TAKER
-                    if q > j:
-                        ex = min(stop, o[q]) if s > 0 else max(stop, o[q])
-                    return (s * (ex - entry) - (TAKER + fee) * entry - s * paid * entry) / d
-                if q > j and ((s > 0 and h[q] >= tp) or (s < 0 and lo[q] <= tp)):
+                    ex = min(stop, o[q]) if s > 0 else max(stop, o[q])
+                    return (s * (ex - entry) - 2 * TAKER * entry - s * paid * entry) / d
+                if (s > 0 and h[q] >= tp) or (s < 0 and lo[q] <= tp):
                     return (s * (tp - entry) - (TAKER + MAKER) * entry - s * paid * entry) / d
                 if q - j >= max_hold or q == n - 1:
                     return (s * (c[q] - entry) - 2 * TAKER * entry - s * paid * entry) / d
