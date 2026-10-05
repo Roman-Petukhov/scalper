@@ -47,3 +47,22 @@ def test_order_block_with_sweep():
     bull = [x for x in obs if x[1] == 1]
     assert bull and bull[-1][4] is True
     assert bull[-1][2] == 93.0                                   # зона — медвежья свеча на дне пролива
+
+
+def test_fade_and_trap():
+    from research.smc import fade, trap
+    # бычья зона 98–100, стоп SMC 97.5: цена падает в зону и дальше — шорт-фейд по 100 берёт 1R = 2.5 до 97.5
+    o = np.array([105, 101, 99, 97.0])
+    h = np.array([106, 101.5, 100, 98.0])
+    lo = np.array([104, 99.5, 97, 96.0])
+    c = np.array([105, 100, 97.5, 96.5])
+    r = fade(o, h, lo, c, np.zeros(4), 0, 1, 100.0, 97.5, 48, 1.0, 120)
+    assert np.isclose(r, (2.5 - (5.5e-4 + 2e-4) * 100) / 2.5)
+    # ловушка: пробой 97.5 до 96, возврат закрытием выше 98, затем рост к тейку 3R
+    o = np.array([105, 99, 96.5, 98.5, 100, 108.0])
+    h = np.array([106, 99.5, 97, 99.0, 104, 110.0])
+    lo = np.array([104, 98.5, 96, 97.5, 98.6, 103.0])
+    c = np.array([105, 99, 96.5, 98.5, 103, 109.0])
+    r = trap(o, h, lo, c, np.zeros(6), 0, 1, 98.0, 97.5, 1.0, 48, 6, 3.0, 120)
+    d = 98.5 - (96 - 0.1)
+    assert np.isclose(r, (3 * d - (5.5e-4 + 2e-4) * 98.5) / d)

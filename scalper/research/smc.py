@@ -18,6 +18,10 @@
 если цена дошла до тейка раньше первой лимитки — сетап пропущен. Издержки: вход maker 2 б.п., тейк maker 2 б.п.,
 стоп / таймаут taker 5.5 б.п., funding. Результат — в R (риск полной позиции из трёх лимиток).
 
+Против SMC: FADE — цена дошла до зоны, входим в обратную сторону стоп-ордером, стоп и тейк 1:1 / 1:2 от расстояния
+до стопа SMC-трейдера; TRAP — цена пробила стоп SMC-трейдера за зоной и за 6 баров закрылась обратно в зоне, входим
+по исходному направлению, стоп за экстремумом пролива, тейк 3R.
+
 Признаки сетапа (~45): импульс и зона в ATR, объём и поток агрессоров импульса, OI за 4 / 24 / 72 ч, funding 8 / 24 /
 72 ч, LSR толпы и топов; на 1h / 4h / 1d / 1w — положение к EMA20 / EMA50 и их наклон, место в диапазоне 20 баров,
 перцентиль волатильности, направление последнего слома структуры; совпадение зоны с OB старших таймфреймов (4h, 1d);
@@ -102,6 +106,74 @@ def ladder(o, h, lo, c, fund, t0, side, l1, l2, l3, stop, valid, max_hold):
             return r, nf, j
         j += 1
     return np.nan, 0, n - 1
+
+
+@njit(cache=True)
+def fade(o, h, lo, c, fund, t0, side, zone_top, smc_stop, valid, k_r, max_hold):
+    """Против SMC-входа: цена дошла до зоны — входим в обратную сторону стоп-ордером (taker) по краю зоны;
+    риск = расстояние от края зоны до стопа SMC-трейдера, стоп на том же расстоянии с другой стороны, тейк k_r R."""
+    n = len(c)
+    d = side * (zone_top - smc_stop)
+    if not (d > 0):
+        return np.nan
+    s = -side
+    j = t0 + 1
+    while j <= min(t0 + valid, n - 1):
+        if (side > 0 and lo[j] <= zone_top) or (side < 0 and h[j] >= zone_top):
+            entry = min(zone_top, o[j]) if side > 0 else max(zone_top, o[j])
+            stop, tp = entry - s * d, entry + s * k_r * d
+            paid = 0.0
+            q = j
+            while q < n:
+                if q > j:
+                    paid += fund[q]
+                if (s > 0 and lo[q] <= stop) or (s < 0 and h[q] >= stop):
+                    ex, fee = stop, TAKER
+                    if q > j:
+                        ex = min(stop, o[q]) if s > 0 else max(stop, o[q])
+                    return (s * (ex - entry) - (TAKER + fee) * entry - s * paid * entry) / d
+                if q > j and ((s > 0 and h[q] >= tp) or (s < 0 and lo[q] <= tp)):
+                    return (s * (tp - entry) - (TAKER + MAKER) * entry - s * paid * entry) / d
+                if q - j >= max_hold or q == n - 1:
+                    return (s * (c[q] - entry) - 2 * TAKER * entry - s * paid * entry) / d
+                q += 1
+            return np.nan
+        j += 1
+    return np.nan
+
+
+@njit(cache=True)
+def trap(o, h, lo, c, fund, t0, side, zone_edge, smc_stop, atr, valid, reclaim, k_r, max_hold):
+    """Охота на стопы SMC-трейдеров: цена пробила их стоп за зоной и за `reclaim` баров закрылась обратно в зоне —
+    входим по закрытию в сторону исходного сетапа; стоп за экстремумом пролива (−0.1 ATR), тейк k_r R."""
+    n = len(c)
+    j = t0 + 1
+    while j <= min(t0 + valid, n - 1):
+        if (side > 0 and lo[j] < smc_stop) or (side < 0 and h[j] > smc_stop):
+            ext = lo[j] if side > 0 else h[j]
+            for q in range(j, min(j + reclaim, n - 1) + 1):
+                ext = min(ext, lo[q]) if side > 0 else max(ext, h[q])
+                if (side > 0 and c[q] > zone_edge) or (side < 0 and c[q] < zone_edge):
+                    entry = c[q]
+                    stop = ext - side * 0.1 * atr
+                    d = side * (entry - stop)
+                    if not (d > 0):
+                        return np.nan
+                    tp = entry + side * k_r * d
+                    paid = 0.0
+                    for z in range(q + 1, n):
+                        paid += fund[z]
+                        if (side > 0 and lo[z] <= stop) or (side < 0 and h[z] >= stop):
+                            ex = min(stop, o[z]) if side > 0 else max(stop, o[z])
+                            return (side * (ex - entry) - 2 * TAKER * entry - side * paid * entry) / d
+                        if (side > 0 and h[z] >= tp) or (side < 0 and lo[z] <= tp):
+                            return (side * (tp - entry) - (TAKER + MAKER) * entry - side * paid * entry) / d
+                        if z - q >= max_hold or z == n - 1:
+                            return (side * (c[z] - entry) - 2 * TAKER * entry - side * paid * entry) / d
+                    return np.nan
+            return np.nan
+        j += 1
+    return np.nan
 
 
 # ---------- признаки ----------
@@ -295,7 +367,13 @@ def coin_setups(h: pd.DataFrame, btc_state: pd.DataFrame, adv: pd.Series, sym: s
             if kind == "BRK":
                 stop = zl + 1.0 * av[t]
         r, nf, ex = ladder(o, hi, lo, c, f, t, side, l1, l2, l3, stop, VALID[kind], MAX_HOLD)
+        edge, smc_stop = (zh, zl - 0.25 * av[t]) if side > 0 else (zl, zh + 0.25 * av[t])
+        inner = zl if side > 0 else zh
+        r_f1 = fade(o, hi, lo, c, f, t, side, edge, smc_stop, VALID[kind], 1.0, MAX_HOLD)
+        r_f2 = fade(o, hi, lo, c, f, t, side, edge, smc_stop, VALID[kind], 2.0, MAX_HOLD)
+        r_tr = trap(o, hi, lo, c, f, t, side, inner, smc_stop, av[t], VALID[kind], 6, 3.0, MAX_HOLD)
         row = {"symbol": sym, "t": idx[t], "kind": kind, "side": side, "R": r, "fills": nf,
+               "R_fade1": r_f1, "R_fade2": r_f2, "R_trap": r_tr,
                "exit": idx[min(ex, len(idx) - 1)],
                "zone_atr": width / av[t], "dist_atr": side * (c[t] - (zh if side > 0 else zl)) / av[t],
                "imp_atr": side * (c[t] - c[max(t - 6, 0)]) / av[t], "absorb": absorb[t]}
@@ -413,6 +491,16 @@ def report() -> None:
             g = g0[mask.loc[g0.index]]
             rows.append({"тип": k, "связка": name, "val": _cell(g[g.per == "val"]), "ho": _cell(g[g.per == "ho"]),
                          "is": _cell(g[g.per == "is"])})
+    print(pd.DataFrame(rows).to_string(index=False))
+
+    print("\n=== 1c. Против SMC: FADE 1:1 / 1:2 (вход против зоны стоп-ордером) и TRAP (стопы SMC сняты, цена вернулась "
+          "в зону — входим по исходному направлению, тейк 3R); сторона — исходного SMC-сетапа ===")
+    rows = []
+    for (k, sd), g in df[df.kind != "BRK"].groupby(["kind", "side"]):
+        for col, nm in (("R_fade1", "FADE 1:1"), ("R_fade2", "FADE 1:2"), ("R_trap", "TRAP 1:3")):
+            x = g.assign(R=g[col])
+            rows.append({"тип": k, "сетап": "лонг" if sd > 0 else "шорт", "вариант": nm,
+                         **{p: _cell(x[x.per == p]) for p in PER}})
     print(pd.DataFrame(rows).to_string(index=False))
 
     print("\n=== 2. ML-фильтр (LightGBM на IS, признаки 1h / 4h / 1d / 1w), отбор по прогнозу R ===")
