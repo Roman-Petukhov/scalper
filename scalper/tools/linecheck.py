@@ -26,23 +26,18 @@ from research.tline import ZZ_ANCHOR, ZZ_LIFE, ZZ_SPAN, pivots, zz_lines  # noqa
 VIS_TOL = 0.05              # закрытия между точками касания не заходят за линию дальше 0.05 ATR
 
 
-def vis_lines(d: pd.DataFrame, n: int, wick: bool = False) -> list[dict]:
-    """Как zz_lines, но вершины — «видимые на этом ТФ»: экстремум среди n свечей с каждой стороны (известен через
-    n свечей), и между двумя точками линии ни одно закрытие не заходит за линию.
-    wick=False — экстремум по закрытиям; wick=True — по теням (максимумы / минимумы), а линия всё равно идёт через
-    закрытия этих свечей."""
+def vis_lines(d: pd.DataFrame, n: int) -> list[dict]:
+    """Как zz_lines, но вершины — «видимые на этом ТФ»: закрытие — экстремум среди n свечей с каждой стороны
+    (известно через n свечей), и между двумя точками линии ни одно закрытие не заходит за линию."""
     c = d["close"].to_numpy(dtype="float64")
-    hi, lo = d["high"].to_numpy(dtype="float64"), d["low"].to_numpy(dtype="float64")
     atr = _atr(d).to_numpy()
     m = len(c)
     out = []
-    for side in (1, -1):
-        ext = (hi if side > 0 else lo) if wick else c          # чем ищем экстремум
-        piv = pivots(ext, n, side > 0)
+    for side, piv in ((1, pivots(c, n, True)), (-1, pivots(c, n, False))):
         seen = set()
         for a, conf_a in piv:
-            w = ext[max(0, a - ZZ_ANCHOR): a]
-            if len(w) < ZZ_ANCHOR or side * (ext[a] - (w.max() if side > 0 else w.min())) <= 0:
+            w = c[max(0, a - ZZ_ANCHOR): a]
+            if len(w) < ZZ_ANCHOR or side * (c[a] - (w.max() if side > 0 else w.min())) <= 0:
                 continue
             cand = piv[(piv[:, 0] >= a + ZZ_SPAN) & (side * (c[a] - c[piv[:, 0]]) > 0)]
             later = piv[piv[:, 0] > a]
@@ -80,9 +75,7 @@ def vis_lines(d: pd.DataFrame, n: int, wick: bool = False) -> list[dict]:
 
 BASE = "https://fapi.binance.com"
 MODES = {"сейчас: зигзаг 3 ATR": lambda d: zz_lines(d), "видимые вершины ±6 свечей": lambda d: vis_lines(d, 6),
-         "видимые вершины ±10 свечей": lambda d: vis_lines(d, 10), "видимые вершины ±16 свечей": lambda d: vis_lines(d, 16),
-         "экстремум по теням ±6, линия по закрытиям": lambda d: vis_lines(d, 6, wick=True),
-         "экстремум по теням ±10, линия по закрытиям": lambda d: vis_lines(d, 10, wick=True)}
+         "видимые вершины ±10 свечей": lambda d: vis_lines(d, 10), "видимые вершины ±16 свечей": lambda d: vis_lines(d, 16)}
 SHOW = 300
 
 
