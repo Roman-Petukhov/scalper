@@ -507,7 +507,8 @@ def coin_trades(root: Path, sym: str, tf: str, ctx: pd.DataFrame | None = None) 
 
 
 EXAMPLES = [("NEARUSDT", "1h", 300), ("NEARUSDT", "4h", 200), ("SOLUSDT", "15m", 320), ("SOLUSDT", "1h", 360), ("ETHUSDT", "1h", 360), ("DOGEUSDT", "1h", 360),
-            ("ETHUSDT", "4h", 260), ("SOLUSDT", "4h", 260), ("AVAXUSDT", "15m", 320), ("LINKUSDT", "1h", 360)]
+            ("ETHUSDT", "4h", 260), ("SOLUSDT", "4h", 260), ("AVAXUSDT", "15m", 320), ("LINKUSDT", "1h", 360),
+            ("NEARUSDT", "15m", 400), ("ETHUSDT", "15m", 400), ("DOGEUSDT", "15m", 400)]
 
 
 def chart(root: Path, sym: str, tf: str, bars: int, out: Path) -> None:
