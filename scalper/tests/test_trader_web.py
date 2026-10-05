@@ -23,6 +23,11 @@ class _Market:
     async def closed_bars(self, symbol, tf):
         raise AssertionError("не должен вызываться")
 
+    async def live_bars(self, symbol, tf, limit=300):
+        idx = pd.date_range("2026-09-30", periods=12, freq="4h", tz="UTC")
+        return pd.DataFrame({"open": 100.0, "high": 102.0, "low": 99.0, "close": 101.0, "volume": 1.0,
+                             "taker_buy_volume": 0.5}, index=idx)
+
 
 @pytest.fixture()
 def env(tmp_path):
@@ -220,3 +225,18 @@ def test_wallet_hidden_without_exchange(env):
     r = c.post("/exchange/keys", data={"api_key": "short", "secret": "x", "network": "demo"}, headers=HX)
     assert "неполными" in r.text
     assert c.post("/exchange/keys", data={"api_key": "k" * 20, "secret": "s" * 30}).status_code == 403
+
+
+def test_live_chart_api(env):
+    c, tmp = env
+    _login(c)
+    from trader.infrastructure.sqlite_repo import SqliteStore
+    s = SqliteStore(tmp / "trader.db").add(_signal())
+    d = c.get(f"/api/chart/{s.id}").json()
+    assert len(d["candles"]) == 12 and d["candles"][0]["time"] == int(pd.Timestamp("2026-09-30", tz="UTC").timestamp())
+    assert d["levels"] == {"entry": 101.0, "stop": 98.0, "target": 110.0} and d["side"] == 1
+    a, b = d["line"]
+    assert a["time"] == d["candles"][0]["time"] and b["time"] == d["candles"][-1]["time"] + 6 * 4 * 3600
+    assert b["value"] < a["value"]                                     # линия по точкам 110 → 105 падает
+    assert c.get("/api/chart/999").status_code == 404
+    assert 'class="live-chart" data-signal="%d"' % s.id in c.get("/feed").text

@@ -19,6 +19,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .. import scheduler
 from ..application.execution import Executor
+from ..application.live_chart import chart_payload
 from ..application.ports import Broker, MarketData, Notifier
 from ..application.services import Scanner, SettingsService, SignalDecisions
 from ..config import AppConfig
@@ -36,6 +37,7 @@ HERE = Path(__file__).parent
 templates = Jinja2Templates(directory=HERE / "templates")
 REMEMBER_S = 365 * 24 * 3600          # «запомнить на этом устройстве»
 SHORT_LOGIN_S = 12 * 3600
+CHART_BARS = 300                      # свечей на живом графике
 STATUS_LABEL = {SignalStatus.NEW: "новый", SignalStatus.TAKEN: "в работе", SignalStatus.SKIPPED: "пропущен",
                 SignalStatus.EXPIRED: "истёк"}
 
@@ -267,6 +269,20 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         disabled = tf not in settings_svc.get().timeframes
         return templates.TemplateResponse(request, "_scan_result.html", {"tf": tf, "rep": rep, "disabled": disabled},
                                           headers={"HX-Trigger": "feed-refresh"})
+
+    @app.get("/api/chart/{signal_id}")
+    async def live_chart(request: Request, signal_id: int) -> dict:
+        """Живой график сигнала: свечи с текущей, линия, уровни; панель опрашивает раз в несколько секунд."""
+        guard(request)
+        sig = store.get(signal_id)
+        if sig is None:
+            raise HTTPException(404, "сигнал не найден")
+        try:
+            bars = await market.live_bars(sig.symbol, sig.timeframe, CHART_BARS)
+        except Exception as e:
+            log.warning("живой график %s: %s", sig.symbol, e)
+            raise HTTPException(502, "биржа не отдала свечи")
+        return chart_payload(sig, bars, store.trades_for([signal_id]).get(signal_id))
 
     @app.get("/wallet", response_class=HTMLResponse)
     async def wallet(request: Request):

@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% block body %}
 <script src="/static/notify.js" defer></script>
+<script src="/static/lightweight-charts-5.2.0.min.js" defer></script>
+<script src="/static/charts.js" defer></script>
 <header class="top">
   <div class="brand">Трендовые пробои<small>линии по закрытиям · Binance → Bybit</small></div>
   <div class="spacer"></div>
@@ -25,7 +27,7 @@
     </div>
     <div id="scan-status" class="scan-status" aria-live="polite"></div>
     <div id="wallet" hx-get="/wallet" hx-trigger="load, every 15s, wallet-refresh from:body" hx-swap="innerHTML"></div>
-    <div id="feed" hx-get="/feed" hx-trigger="every 60s, feed-refresh from:body" hx-swap="innerHTML">
+    <div id="feed" hx-get="/feed" hx-trigger="every 300s, feed-refresh from:body" hx-swap="innerHTML">
       {% include "_feed.html" %}
     </div>
   </section>

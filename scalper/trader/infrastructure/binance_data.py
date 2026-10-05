@@ -16,6 +16,7 @@ log = logging.getLogger(__name__)
 BASE = "https://fapi.binance.com"
 HISTORY = 1500                    # 4h: 250 дней — хватает на EMA50 дневок и жизнь линий (300 свечей)
 TAIL = 6
+LIVE_TTL_S = 3.0                  # живой график: не чаще одного запроса к Binance за 3 с на монету и ТФ
 
 
 class BinanceMarketData:
@@ -24,6 +25,7 @@ class BinanceMarketData:
         self.cache: dict[tuple[str, Timeframe], pd.DataFrame] = {}
         self._universe: tuple[float, float, list[str]] | None = None
         self.universe_ttl_s = universe_ttl_s
+        self._live: dict[tuple[str, Timeframe, int], tuple[float, pd.DataFrame]] = {}
 
     async def _get(self, path: str, params: dict | None = None) -> list | dict:
         for attempt in range(5):
@@ -72,6 +74,18 @@ class BinanceMarketData:
         df = df.iloc[-HISTORY:]
         self.cache[key] = df
         return df.drop(columns="close_time")
+
+    async def live_bars(self, symbol: str, tf: Timeframe, limit: int = 300) -> pd.DataFrame:
+        """Последние свечи вместе с текущей (ещё формируется) — для живого графика; кеш 3 с на пару."""
+        key = (symbol, tf, limit)
+        hit = self._live.get(key)
+        now = time.monotonic()
+        if hit is not None and now - hit[0] < LIVE_TTL_S:
+            return hit[1]
+        rows = await self._get("/fapi/v1/klines", {"symbol": symbol, "interval": tf.value, "limit": limit})
+        df = self._frame(rows).drop(columns="close_time")
+        self._live[key] = (now, df)
+        return df
 
     async def aclose(self) -> None:
         await self.client.aclose()

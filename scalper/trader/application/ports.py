@@ -17,6 +17,9 @@ class MarketData(Protocol):
         """Только закрытые свечи; индекс — открытие свечи UTC; колонки open, high, low, close, volume,
         taker_buy_volume."""
 
+    async def live_bars(self, symbol: str, tf: Timeframe, limit: int = 300) -> pd.DataFrame:
+        """Последние свечи вместе с текущей, ещё не закрытой (для живого графика)."""
+
 
 class SignalRepository(Protocol):
     def add(self, signal: Signal) -> Signal | None:

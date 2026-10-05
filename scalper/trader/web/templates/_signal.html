@@ -1,9 +1,12 @@
 {% set long = sig.side.value > 0 %}
 <article class="card signal" id="signal-{{ sig.id }}">
   <div>
-    {% if sig.chart_path %}
-    <img src="/charts/{{ sig.chart_path | chart_name }}" alt="График {{ sig.symbol }} {{ sig.timeframe.value }}" loading="lazy">
-    {% else %}<div class="empty">График не построился</div>{% endif %}
+    <div class="live-chart" data-signal="{{ sig.id }}" data-tf="{{ sig.timeframe.value }}"
+         aria-label="Живой график {{ sig.symbol }} {{ sig.timeframe.value }}">
+      {% if sig.chart_path %}
+      <img src="/charts/{{ sig.chart_path | chart_name }}" alt="График {{ sig.symbol }} {{ sig.timeframe.value }}" loading="lazy">
+      {% else %}<div class="empty">График загружается…</div>{% endif %}
+    </div>
   </div>
   <div class="meta">
     <div class="title">
