@@ -399,4 +399,5 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
 
 def main() -> FastAPI:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    logging.getLogger("httpx").setLevel(logging.WARNING)          # без строки на каждый запрос к бирже
     return create_app(AppConfig.from_env())
