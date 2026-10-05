@@ -185,7 +185,7 @@ def test_stale_signals_expire_and_cannot_be_taken(tmp_path):
     dec = SignalDecisions(st, st)
     old = st.add(replace(_signal("OLDUSDT"), bar_time=T0 - timedelta(days=2)))
     fresh = st.add(_signal("NEWUSDT"))
-    assert old.valid_until() == old.bar_time + timedelta(hours=8)
+    assert old.valid_until() == old.bar_time + timedelta(hours=12)        # свеча пробоя + 2 свечи
     assert dec.expire_stale() == 1
     assert st.get(old.id).status is SignalStatus.EXPIRED and st.get(fresh.id).status is SignalStatus.NEW
     stale = st.add(replace(_signal("ETHUSDT"), bar_time=T0 - timedelta(days=1)))

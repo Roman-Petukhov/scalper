@@ -7,6 +7,7 @@ from enum import Enum
 
 
 MAX_LEVERAGE = 10                       # верхняя граница плеча в панели
+MARKET_VALID_BARS = 2                   # вход по рынку возможен ещё 2 свечи после свечи пробоя
 
 
 class Timeframe(str, Enum):
@@ -133,9 +134,9 @@ class Signal:
     extra: dict = field(default_factory=dict, compare=False)
 
     def valid_until(self) -> datetime:
-        """До какого момента по сигналу ещё можно входить: вход по рынку — до закрытия следующей свечи,
-        ретест — пока живёт лимитка (valid_bars свечей после свечи пробоя)."""
-        bars = 1 + max(1, self.plan.valid_bars)
+        """До какого момента по сигналу ещё можно входить: вход по рынку — MARKET_VALID_BARS свечи после свечи
+        пробоя, ретест — пока живёт лимитка (valid_bars свечей)."""
+        bars = 1 + (self.plan.valid_bars if self.plan.valid_bars > 0 else MARKET_VALID_BARS)
         return self.bar_time + timedelta(minutes=self.timeframe.minutes * bars)
 
     @property
