@@ -6,3 +6,8 @@ logs/
 results/
 STOP
 data_bybit/
+
+# панель на своём компьютере
+panel.env
+data_panel/
+.venv/
