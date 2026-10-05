@@ -1,0 +1,3041 @@
+                                            The Quarter-Hour Effect: Periodic Algorithmic Trading
+                                                and Return Predictability in Cryptocurrency Futures*
+
+                                                                         Chan Kim†                 Peter Reinhard Hansen‡
+
+                                                                                             July 20, 2026
+
+                                                                                                 Abstract
+arXiv:2607.09426v2 [q-fin.TR] 16 Jul 2026
+
+
+
+
+                                                       Cryptocurrency markets exhibit periodic bursts in volatility and volume at one-minute,
+                                                   five-minute, and quarter-hour marks. Using trade data for six Binance perpetual contracts,
+                                                   we link these bursts to algorithmic participation: trade-size roundness declines sharply during
+                                                   them. The Autocorrelation Map, a clock-phase-resolved display, reveals serial dependence in
+                                                   order flow and returns at quarter-hour openings that conventional measures obscure. Opening
+                                                   returns are predictable out of sample, while opening order imbalance predicts returns over four
+                                                   to twelve hours, with much weaker effects at finer clock-time frequencies. Together, these
+                                                   findings characterize periodic algorithmic trading and its cross-frequency variation.
+
+
+                                            Keywords: Cryptocurrency, High-Frequency Data, Market Microstructure, Algorithmic Trading, Return
+                                            Predictability.
+                                            JEL Classification: C58, G12, G14, G17
+
+
+                                               * We thank seminar participants at Duke University and Yonsei School of Business for valuable comments, and
+                                            Daejin Kim for helpful comments and suggestions. We are grateful to Wade Kimbrough for undertaking an inde-
+                                            pendent data validation and replication study. Hansen gratefully acknowledges funding provided by a grant from
+                                            Ripple’s University Blockchain Research Initiative (UBRI). The funder had no role in the research design, analysis, or
+                                            publication decision.
+                                               † Korea Information Society Development Institute, Department of AI Policy Research, 18, Jeongton-ro, Deoksan-
+
+                                            eup, Jincheon-gun, Chungcheongbuk-do, 27872, Republic of Korea. E-mail: kchan3540@gmail.com.
+                                               ‡ Corresponding author. University of North Carolina, Chapel Hill, Department of Economics, Gardner Hall,
+
+                                            Chapel Hill, NC 27599, USA. E-mail: hansen@unc.edu.
+
+
+
+
+                                                                                                      1
+1     Introduction
+
+Algorithmic trading plays a prominent role in price formation and liquidity provision in modern
+
+electronic markets (Hendershott et al., 2011). It is widely known that some algorithmic strate-
+
+gies operate on standardized calendar-time bars, which is a convention shared by exchange APIs,
+
+charting platforms, technical-indicator defaults, and much of the academic literature on financial
+
+markets. When this temporal frame is shared across market participants, periodic bursts of trading
+
+activity at bar boundaries emerge as a structural feature of the market environment rather than an
+
+idiosyncratic choice of any single strategy.
+
+    Cryptocurrency markets are no exception. As illustrated in the polar plots of Figure 1, the
+
+most liquid cryptocurrency contracts exhibit pronounced star-shaped patterns: trading activity and
+
+short-horizon price variation concentrate into sharp bursts at every minute, every fifth minute, ev-
+
+ery quarter-hour, and most prominently at the top of the hour. Hansen et al. (2024) document these
+
+nested periodicities for cryptocurrencies, and related patterns appear in various financial markets.1
+
+Their regularity is too systematic to be a benign timing artifact, and it raises broader questions
+
+about how algorithmic execution is reshaping market microstructure: what generates these bursts,
+
+how it propagates through order flow and returns, whether the resulting patterns are systemati-
+
+cally forecastable, and whether boundary order flow contains information about subsequent price
+
+movement. We address these questions through four complementary analyses.
+
+    Relative to Hansen et al. (2024), who document that these periodicities exist, we take them as
+
+given and characterize their source, propagation, and predictability. Our analysis makes four con-
+
+tributions to the literature on periodic algorithmic trading and cryptocurrency market microstruc-
+    1 Hasbrouck and Saar (2013), Broussard and Nikiforov (2014), Muravyev and Picard (2022), Chen et al. (2022),
+
+Wu et al. (2025), and Shynkevich (2026b) document related periodic patterns.
+
+
+
+                                                        2
+Figure 1: Minute-of-the-hour patterns in absolute returns (solid lines) and trading volume (bars)
+for six major Binance USDT perpetual futures contracts: BTC, ETH, XRP, SOL, DOGE, and
+ADA. Absolute returns are used as proxies for volatility. Both absolute returns and trading volume
+are normalized by their respective one-hour trailing averages. The pronounced spikes at 0, 15, 30,
+and 45 minutes reveal a strong recurring intrahour pattern across assets. Sample period: January
+1, 2021 to October 31, 2024.
+
+
+ture.
+
+    First, we provide high-frequency diagnostic evidence that periodic trading bursts are associated
+
+with algorithmic participation. Prior work uses daily round-size trade ratios as proxies for algo-
+
+rithmic intensity (Cong et al., 2023; Wu et al., 2025). We take this diagnostic to high frequency,
+
+showing that round-size order shares decline sharply at the exact 10-second windows in which
+
+periodic bursts occur. This co-movement ties the bursts themselves to a behavioral signature of al-
+
+gorithmic order flow, providing sharper indirect evidence that they are associated with heightened
+
+algorithmic activity.
+
+
+                                                 3
+   Second, we show that clock-time periodicities are not merely different resolutions of the same
+
+phenomenon. We introduce the Autocorrelation Map (ACM), a sign-based, time-domain display
+
+of clock-phase-resolved autocorrelations that admits an exact decomposition of the conventional
+
+robust autocorrelation function into phase-specific components. It reveals phase-specific depen-
+
+dence in order flow and returns concentrated around the quarter-hour grid, and placebo phase shifts
+
+confirm that this dependence is tied to the true boundary phase rather than to arbitrary 15-minute
+
+spacing. Distinct clock-time schedules therefore generate distinct dependence patterns.
+
+   Third, we document out-of-sample predictability of quarter-hour opening returns. Prior eq-
+
+uity studies document periodic return predictability around economically salient trading sched-
+
+ules, including month-end liquidity needs, infrequent rebalancing, and market opening or closing
+
+flows (Heston et al., 2010; Bogousslavsky, 2016; Etula et al., 2020; Gao et al., 2018). Our set-
+
+ting differs in that the pattern recurs at generic quarter-hour marks that are ordinarily not tied
+
+to an asset-specific economic event, but instead coincide with the calendar-time bar grid embed-
+
+ded in trading infrastructure. The opening 10-second return is predictable out of sample from its
+
+boundary-aligned lags, and technical indicators add significant incremental information, so this
+
+predictability is not exhausted by same-phase recurrence. This evidence links the phase-specific
+
+dependence revealed by the ACM to economically meaningful short-horizon forecastability.
+
+   Fourth, we show that quarter-hour order imbalance contains medium-horizon predictive con-
+
+tent for future returns. Much of the market microstructure literature infers informed trading and
+
+price discovery from contemporaneous price-impact measures, spread dynamics, or VAR-based
+
+decompositions of permanent and transitory price movements (Stoll, 1989; Hasbrouck, 1991; Bar-
+
+clay and Warner, 1993; Huang and Stoll, 1997; Madhavan, 2000; Wang and Yang, 2015; Muravyev
+
+and Picard, 2022; Brogaard et al., 2022). We instead test whether order flow at specific clock-time
+
+                                                4
+boundaries predicts subsequent returns. Horizon-specific regressions indicate that this predictive
+
+content is concentrated at the quarter-hour frequency, and a two-stage decomposition shows that
+
+the longer-horizon component is mainly associated with the part of boundary order imbalance
+
+spanned by observable price-volume state variables.
+
+    Our findings also have implications for scheduled algorithmic traders and liquidity providers.
+
+Scheduled traders may condition execution timing on forecasts of quarter-hour opening returns or
+
+randomize execution around scheduled times to reduce synchronization and make their timing less
+
+predictable. Liquidity providers, in turn, may adjust quotes and inventory ahead of quarter-hour
+
+openings, where aggregate order flow and short-horizon returns become partly predictable.
+
+    The remainder of the paper proceeds as follows. Section 2 describes the dataset and the con-
+
+struction of high-frequency variables. Section 3 applies the trade-size roundness diagnostic. Sec-
+
+tion 4 introduces the Autocorrelation Map, which visualizes clock-phase autocorrelations, and
+
+documents phase-specific dependence in signed order flow and returns. Section 5 evaluates the
+
+out-of-sample forecastability of quarter-hour opening returns. Section 6 examines the informa-
+
+tional content of quarter-hour order flow and decomposes its origin. Section 7 concludes.
+
+
+
+
+2     Data and Market Setting
+
+This study uses aggregate trade data from the Binance USDT-margined perpetual futures market,
+
+the largest crypto-derivatives venue by trading volume throughout our sample period.2 Unlike
+
+traditional futures contracts, perpetual contracts have no predetermined expiration date; their prices
+    2 Binance led all crypto-derivatives venues by trading volume in each year from 2021 to 2024; see CoinGecko,
+
+Market Share of Crypto Derivatives Exchanges by Trading Volume (https://www.coingecko.com/research/
+publications/crypto-derivatives-exchanges-market-share).
+
+
+
+
+                                                       5
+are continuously anchored to a spot-market index. When the futures price diverges from the index,
+
+periodic funding payments are imposed on position holders to incentivize convergence; settlements
+
+occur every eight hours at fixed UTC times.
+
+    We use aggregate trade data on six large and liquid non-stablecoin cryptocurrencies, namely
+
+Bitcoin (BTC), Ethereum (ETH), XRP, Solana (SOL), Dogecoin (DOGE), and Cardano (ADA),
+
+covering January 1, 2021 through October 31, 2024.3 We select these assets for their long and
+
+liquid trading histories on Binance Futures. Each record includes the timestamp (in milliseconds),
+
+price, quantity, and the isBuyerMaker indicator. The isBuyerMaker variable is set to True when
+
+the buyer acts as the maker (executing at the best bid) and False when the buyer acts as the taker
+
+(executing at the best ask).
+
+
+
+2.1    Construction of High-Frequency Variables
+
+We aggregate millisecond-level trades into high-frequency calendar-time intervals to study intra-
+
+hour periodicity. Let t index these intervals. We define the price Pt as the last traded price observed
+
+within interval t. We compute the corresponding log return as:
+
+
+
+                                          rt = log(Pt ) − log(Pt−1 )
+
+
+
+    We construct our measure of signed order flow using the isBuyerMaker indicator to infer trade
+
+direction. A trade is classified as buyer-initiated if the buyer is the taker (isBuyerMaker is False)
+
+and seller-initiated if the buyer is the maker (isBuyerMaker is True). Let Vk denote the volume
+   3 Although Binance officially makes these data available for download through its website, we identified rare
+
+missing-data episodes in the official files; Binance had corrected these files by March 16, 2026. Their frequency
+was negligible and immaterial to our analysis.
+
+
+
+                                                       6
+of trade k within interval t, and let Dk ∈ {+1, −1} indicate trade direction (+1 for buyer-initiated,
+
+−1 for seller-initiated). The net signed order flow for interval t is
+
+
+
+                                             OFt = ∑ Vk Dk
+                                                     k∈t
+
+
+
+    We also construct the (volume-normalized) order imbalance:
+
+
+                                                 OFt
+                                        OIt =           ∈ [−1, 1],
+                                                ∑k∈t Vk
+
+
+which captures directional pressure independently of total trading volume, enabling comparison
+
+across intervals and assets with heterogeneous activity levels.
+
+    In addition to returns and order flow, we extract calendar-time coordinates from each observa-
+
+tion. From the timestamp of interval t, we derive the date dt ∈ {1, . . . , 1400} (one index per cal-
+
+endar day in the sample), the hour ht ∈ {0, 1, . . . , 23}, the minute-of-the-hour mt ∈ {0, 1, . . . , 59},
+
+and the within-minute 10-second subperiod bt ∈ {1, . . . , 6}. The choice of 10-second windows is
+
+motivated in Section 3.
+
+
+
+2.2    Descriptive Statistics
+
+Table 1 reports summary statistics for our sample of six cryptocurrency perpetual futures contracts.
+
+The table presents the average daily number of trades, average daily dollar volume, average trade
+
+size, the frequency of zero-trade 10-second intervals, mean absolute interval returns (as proxies for
+
+volatility), and the fraction of buyer-initiated trades.
+
+    Trading activity is highly concentrated in Bitcoin (BTC) and Ethereum (ETH), which average
+
+
+                                                    7
+                                          Table 1: Summary Statistics
+
+             Avg Daily       Avg Daily      Avg Trade        Zero 10s           |r|10s        |r|1m         Buyer
+ Contract    Trades (M)      DV ($M)         Size ($)        Bins (%)           (bps)         (bps)         Share
+ BTC                 1.54        14,579          9,441           0.01          1.879          5.436          0.499
+ ETH                 1.24         7,178          5,792           0.01          2.369          6.782          0.499
+ XRP                 0.29           957          3,308           0.09          2.939          8.128          0.503
+ SOL                 0.57         1,454          2,540           0.21          3.851         10.880          0.499
+ DOGE                0.52           870          1,686           0.56          3.612         10.062          0.498
+ ADA                 0.29           544          1,881           0.45          3.159          8.686          0.497
+Notes: Sample period is January 1, 2021 to October 31, 2024 (1,400 calendar days). The unit of observation is a
+10-second bar from Binance USDT-margined perpetual futures. Avg Daily Trades and Avg Daily DV are total divided
+by 1,400 calendar days. Avg Trade Size is total dollar volume divided by total trade count. |r|10s and |r|1m are mean
+absolute log returns. Buyer Share is the fraction of buyer-initiated trades.
+
+
+
+$14.6 billion and $7.2 billion in daily volume, respectively. These two dominant assets execute
+
+over a million trades per day, with average trade sizes substantially larger than those of the alt-
+
+coins. Consequently, zero-trade 10-second intervals are almost absent for these contracts (0.01%
+
+zero-trade bins). In contrast, the smaller-cap contracts (XRP, SOL, DOGE, ADA) exhibit lower
+
+aggregate volumes, smaller average trade sizes, and a higher frequency of zero-trade bins, reaching
+
+up to 0.56% for DOGE. Furthermore, the smaller-cap assets exhibit substantially higher short-term
+
+volatility, with 1-minute absolute returns roughly double those of BTC. Finally, across all assets,
+
+the unconditional share of buyer-initiated trades is effectively symmetric, remaining close to 50%.
+
+Daily minima, medians, and maxima of these aggregates are reported in Appendix Table A.1. The
+
+daily ranges are wide: the number of trades varies across days by a factor of roughly forty for BTC
+
+and by up to several hundred for the smaller contracts.
+
+
+
+
+                                                         8
+3     Trade-Size Roundness as a Diagnostic of Algorithmic Partic-
+
+      ipation
+
+Periodic patterns in trading intensity provide a window into the behavioral and technological reg-
+
+ularities of modern financial markets. Prior research has documented such patterns across diverse
+
+asset classes: Muravyev and Picard (2022) report sub-minute periodicity in message arrivals in
+
+U.S. equity markets; Chen et al. (2022) identify a one-minute cycle in foreign-exchange trading ac-
+
+tivity; and Wu et al. (2025) show pronounced spikes in trade counts at 30-second, one-minute, and
+
+five-minute frequencies in both U.S. and Chinese equity markets. Recent cryptocurrency evidence
+
+also documents periodic trading activity and price discovery at subsecond frequencies, including
+
+within the first 100 milliseconds of the second (Shynkevich, 2026a,b).
+
+    Extending this evidence to the cryptocurrency market, we document comparable periodicity in
+
+trading activity, characterized by distinct surges at the 1-, 5-, and 15-minute marks, consistent with
+
+Hansen et al. (2024). While we attribute these broad patterns to algorithmic trading, the 15-minute
+
+cycle exhibits unique characteristics. The objective of this section is to disentangle these intrahour
+
+patterns and provide diagnostic evidence that the pronounced surges at quarter-hour boundaries are
+
+associated with a distinct form of periodic algorithmic activity.
+
+
+
+3.1    Intrahour Periodicity in Trading Activity
+
+Trading activity exhibits a nested intrahour structure, with bursts at one-minute, five-minute, quarter-
+
+hour, and hourly boundaries that become more pronounced at more salient clock times (Figure 1;
+
+Appendix Figure A.12). To localize these bursts within each minute, Figure 2 plots average trade
+
+
+
+                                                  9
+counts by second for quarter-hour and other minutes. Activity rises immediately after the minute
+
+boundary in both groups, but the increase is substantially larger at quarter-hour marks and peaks
+
+within the first 10 seconds. We therefore define this interval as the peak window.
+
+
+
+
+Figure 2: Each panel plots the average number of trades by second of the minute for BTC, ETH,
+XRP, SOL, DOGE, and ADA. The blue line averages activity during quarter-hour minutes (0,
+15, 30, and 45), while the red line averages activity during all other minutes. Trading activity at
+quarter-hour marks rises sharply in the opening seconds and reaches its maximum within the first
+10 seconds, indicated by the shaded region. This interval is defined as the peak window (b = 1) in
+the analysis that follows. Sample period: January 1, 2021 to October 31, 2024.
+
+
+   Beyond trade counts, these bursts carry elevated turnover and volatility: averaged across the
+
+six contracts, the first 10 seconds of quarter-hour minutes exhibit roughly 26% more trades, 32%
+
+higher dollar volume, and 26% larger absolute returns than the corresponding interval of ordinary
+
+minutes, all significant at the 1% level (Appendix Table A.2).
+
+
+
+3.2   Round-Number Bias as an Algorithmic Signature
+
+We test whether the quarter-hour volume spikes originate from algorithmic agents by examining
+
+round-number bias in trade sizes. Human traders frequently submit orders at round numbers, con-
+
+                                                10
+sistent with cognitive ease and anchoring (Garvey and Wu, 2014; Vigna and Osipovich, 2018),
+
+whereas algorithmic traders are systematically less prone to such behavior. Building on this dis-
+
+tinction, we measure the share of trades whose sizes end in trailing zeros (TZ) and test whether
+
+this share drops during the 10-second peak windows.
+
+    Let TZshare(z)t denote the share of trades within interval t whose sizes end with at least z ∈
+
+{1, 2, 3} trailing zeros, conditional on those trades being mechanically eligible to exhibit such
+
+roundness. On Binance perpetual futures, order step sizes are specified in the base asset and follow
+
+a power-of-ten format (e.g., 0.001 BTC for BTCUSDT). Although orders may be quoted in USDT,
+
+the exchange converts them to base-asset units internally, so trailing zeros are counted in the base-
+
+asset representation. Formally,
+
+                                            
+                                           # k ∈ t : TZ(Vk ) ≥ z
+                            TZshare(z)t =                          ,                             (1)
+                                          # k ∈ t : Vk ≥ 10z · smin
+
+
+where Vk is the size of trade k, smin is the minimum order increment, and TZ(Vk ) counts the trailing
+
+zeros in Vk .
+
+    This restriction to mechanically eligible trades adjusts for two confounding factors. First, the
+
+trade-size distribution shifts during burst windows. Without the eligibility restriction, the share of
+
+trailing-zero trades would mechanically rise with the share of large trades. Second, because the
+
+minimum increment is fixed in the base asset (e.g., 0.001 BTC), the dollar value of any round
+
+quantity changes with the underlying price, so the mechanical-eligibility distribution varies over
+
+time. The restriction reduces behavioral variation in roundness from these compositional shifts.
+
+    We standardize TZshare(z)t separately for each asset and each z to have zero mean and unit
+
+
+
+
+                                                 11
+variance, then estimate the following regression specification:
+
+
+
+          TZshare(z)t = β0 + β1 I{bt =1} + β2 I{mod(mt ,5)=0∧bt =1} + β3 I{mod(mt ,15)=0∧bt =1}
+
+                          + β4 I{mt =0∧bt =1} + εt
+
+
+
+The dummy indicators correspond to the periodic trading bursts identified earlier. This specifica-
+
+tion tests how the share of round-size orders systematically evolves during those specific bursts.
+
+   Table 2 reports the regression estimates. The dummy coefficients are negative and highly sig-
+
+nificant across nearly all combinations of asset and threshold, with the hierarchical attenuation
+
+predicted under the algorithmic-participation hypothesis: smallest at the b = 1 baseline of ordi-
+
+nary minutes, larger at 5-minute boundaries, larger still at quarter-hour boundaries, and largest at
+
+the top of the hour. For BTC at z ≥ 2, the cumulative effect strengthens from −0.04 standard devi-
+
+ations at ordinary openings to −0.20 standard deviations at the top of the hour; the same hierarchy
+
+holds for the other assets and for z ≥ 3. Taken together with the timing evidence in Section 3.1,
+
+the hierarchical decline in trade-size roundness provides diagnostic evidence of greater algorithmic
+
+participation at more salient clock-time boundaries.
+
+   A natural concern is whether this decline reflects algorithmic participation specifically or merely
+
+a shift in the composition of boundary order flow. Large institutional orders (which need not be
+
+round-sized), clustered liquidations, or funding-related arbitrage aligned with the eight-hour settle-
+
+ment schedule could each lower roundness without implying scheduled algorithms, and aggregate
+
+trade data cannot fully separate these channels. Two features are nonetheless difficult to attribute to
+
+such events alone: the decline strengthens monotonically with boundary salience, the prominence
+
+of a clock mark as a coordination point (ordinary < five-minute < quarter-hour < top-of-hour),
+
+
+                                                     12
+                      Table 2: Round-Number Bias at Periodic Boundary Openings
+
+                          Constant          Top-of-hour           Quarter-hour        5-minute         Every minute
+                                            open (b = 1)          open (b = 1)      open (b = 1)       open (b = 1)
+                             (β0 )        (β1 + β2 + β3 + β4 )    (β1 + β2 + β3 )     (β1 + β2 )            (β1 )
+
+ BTC
+ ≥ 3 trailing zeros      0.0058***          -0.1411***            -0.0976***        -0.0399***          -0.0265***
+ ≥ 2 trailing zeros      0.0090***          -0.2012***            -0.1447***        -0.0662***          -0.0428***
+ ≥ 1 trailing zero       0.0063***          -0.0716***            -0.0616***        -0.0401***          -0.0351***
+ ETH
+ ≥ 3 trailing zeros      0.0045***          -0.1112***            -0.0800***        -0.0379***          -0.0198***
+ ≥ 2 trailing zeros      0.0045***          -0.0771***            -0.0634***        -0.0355***          -0.0223***
+ ≥ 1 trailing zero       0.0032**           -0.0406***            -0.0383***        -0.0233***          -0.0169***
+ XRP
+ ≥ 3 trailing zeros      0.0075***          -0.1769***            -0.1136***        -0.0644***          -0.0348***
+ ≥ 2 trailing zeros      0.0073***          -0.1946***            -0.1122***        -0.0637***          -0.0329***
+ ≥ 1 trailing zero       0.0043***          -0.1173***            -0.0612***        -0.0350***          -0.0203***
+ SOL
+ ≥ 3 trailing zeros      0.0014             -0.0657***            -0.0281***        -0.0145***          -0.0032
+ ≥ 2 trailing zeros      0.0031***          -0.0540***            -0.0418***        -0.0230***          -0.0145***
+ ≥ 1 trailing zero       0.0027***          -0.0672***            -0.0403***        -0.0199***          -0.0128***
+ DOGE
+ ≥ 3 trailing zeros      0.0072***          -0.1515***            -0.0945***        -0.0622***          -0.0339***
+ ≥ 2 trailing zeros      0.0075***          -0.1576***            -0.0998***        -0.0651***          -0.0356***
+ ≥ 1 trailing zero       0.0049***          -0.1102***            -0.0683***        -0.0454***          -0.0225***
+  ADA
+  ≥ 3 trailing zeros       0.0069***         -0.1469***          -0.0968***           -0.0517***          -0.0325***
+  ≥ 2 trailing zeros       0.0089***         -0.1763***          -0.1245***           -0.0732***          -0.0428***
+  ≥ 1 trailing zero        0.0015***         -0.1252***          -0.0248***           -0.0494***           0.0010
+Notes: The table reports estimates from regressions using the full sample from January 1, 2021 to October 31, 2024.
+The dependent variable is TZshare(z)t , defined as the share of trades with at least z trailing zeros among mechanically
+eligible trades. It is standardized to mean zero and unit variance in each row before estimation. Observations in bins
+where z trailing zeros cannot mechanically arise because only small orders arrive were excluded from the sample.
+The reported columns correspond to the first 10 seconds of the top of the hour, quarter-hour marks excluding the top
+of the hour, 5-minute marks excluding quarter-hours, and ordinary minutes, respectively. The omitted category is all
+non-opening 10-second intervals. The coefficients shown are cumulative effects: (β1 + β2 + β3 + β4 ), (β1 + β2 + β3 ),
+(β1 + β2 ), and (β1 ). Standard errors are HAC with 30 lags. Statistical significance at the 1%, 5%, and 10% levels is
+indicated by ***, **, and *, respectively.
+
+
+
+tracking the standardized calendar grid rather than any single liquidation or funding event; and
+
+calendar-aligned execution is itself the mechanism of interest, whether run by automated systems
+
+or by execution desks following bar-based conventions. We therefore treat the decline as consistent
+
+with periodic algorithmic participation rather than as proof of it.
+
+
+
+                                                             13
+4     The Autocorrelation Map and Phase-Specific Dependence
+
+The conventional (Pearson) autocorrelation function (ACF) measures the correlation between re-
+
+turns at interval t and t + k by averaging across all t. When dependence varies with clock phase,
+
+this aggregation can obscure correlations concentrated at a small set of boundary locations. This
+
+concern is central in our setting because Section 3.2 shows that trading activity changes sharply
+
+at quarter-hour openings. A phase-resolved measure is therefore needed to determine whether se-
+
+rial dependence is similarly concentrated at those boundaries. Appendix Figure A.11 provides a
+
+preliminary illustration for 10-second BTC returns.
+
+
+
+4.1   The Autocorrelation Map (ACM)
+
+Periodic dependence in time series has long been studied as cyclostationary (periodically corre-
+
+lated) processes (Gladyshev, 1961; see Gardner et al., 2006; Napolitano, 2016 for surveys), and
+
+the phase-resolved autocovariance we use is a standard object in that literature. The diagnostic
+
+tools there, however, operate in the frequency domain: Hurd and Gerr (1991) detect periodici-
+
+ties from the discrete Fourier transform, and recent high-frequency work follows suit, with Wu
+
+et al. (2025) using Fourier analysis to identify dominant periodicities in equity volumes indexed
+
+by frequency rather than by within-cycle position.
+
+    Such summaries are well suited to identifying which cyclic frequencies are present but not
+
+where in the cycle the dependence concentrates, which is exactly the object of interest here: the
+
+quarter-hour boundary matters as a clock position, not merely as a 15-minute frequency. Our con-
+
+tribution is therefore methodological in a narrow sense. We use the term Autocorrelation Map
+
+(ACM) for the time-domain display of this object, a heatmap of the phase-resolved sign-based au-
+
+
+                                               14
+tocovariance indexed by lag k and clock phase m. The sign-based formulation makes the display
+
+informative: it admits an exact decomposition of the conventional robust ACF into phase-specific
+
+components, which Pearson-based autocorrelations do not under the pronounced heteroskedastic-
+
+ity of these markets.
+
+    Using the notation introduced earlier, let r(d,h,m) and OF(d,h,m) denote the one-minute log return
+
+and aggregate signed order flow for minute (d, h, m). To measure dependence robustly, we use the
+
+sign-based correlation measure,
+
+
+                                                                     
+                                  τ(k, m) ≡ E sign x(d,h,m) x(d,h,m+k) ,
+
+
+
+where x represents either returns or order flow. Here, m + k denotes advancing the clock by k
+
+minutes, with the hour and date indices updated as necessary. A key advantage of τ is that it
+
+is scale-invariant, so it does not require estimation of volatility or other scale parameters, which
+
+are themselves highly time-varying and strongly periodic in these markets. This sign-based mea-
+
+sure is closely related to the autocorrelation of order signs studied by Lillo and Farmer (2004),
+
+who analyze a ±1 symbolic order-flow series but do not explicitly cast it as a robust correlation
+
+measure.4
+
+
+Application to 1-minute bars          We estimate the ACM for returns using its sample analog:
+
+
+                                             1 D 23                               
+                             τ̂r (k, m) =        ∑   ∑   sign r(d,h,m) r(d,h,m+k)
+                                            Nk,m d=1 h=0
+   4 Under suitable symmetry conditions, this sign-based correlation admits a one-to-one mapping to the Pearson
+
+correlation; see Hansen and Luo (2023).
+
+
+
+
+                                                       15
+where k represents the lag in minutes and Nk,m is the number of valid origins, i.e., date-hour pairs
+
+(d, h) for which the observation at clock position m + k lies within the sample; Nk,m ≈ HD, with D
+
+the number of days in the sample and H = 24. The corresponding ACM estimator for signed order
+
+flow is:
+                                       1 D 23                                
+                       τ̂v (k, m) =        ∑   ∑   sign OF(d,h,m) OF(d,h,m+k) .
+                                      Nk,m d=1 h=0
+
+   An additional advantage of the sign-based ACM is that it admits a clean aggregation property.
+
+The conventional robust ACF at lag k is the weighted average of the phase-specific ACM rows,
+
+with weights given by the relative frequency of each clock phase. Thus, the ACM provides an ex-
+
+act decomposition of the aggregate robust ACF into its phase-specific components. This property
+
+does not generally hold for Pearson autocorrelations, because Pearson correlations require normal-
+
+ization by scale, and these scales vary systematically across clock phases. Under heteroskedastic-
+
+ity, the corresponding Pearson autocorrelation generally converges to a variance-weighted object
+
+rather than the simple average of phase-specific correlations; see Hansen and Luo (2023).
+
+
+
+4.2    One-Minute ACM Evidence
+
+Figure 3 presents the 1-minute ACM for BTC order flow and returns. Each row m corresponds to
+
+the minute-of-the-hour. To highlight the periodic structure, solid black lines connect all coordinates
+
+(k, m) where the destination minute m + k aligns with a quarter-hour mark (i.e., multiples of 15).
+
+   The 1-minute ACM reveals several salient patterns. First, the order-flow panel (top) displays
+
+a prominent red column at lag k = 1, consistent with the well-documented long-memory property
+
+of order flow. However, this k = 1 persistence weakens noticeably at m = 14, 29, 44, 59. These
+
+precise locations coincide with the bursts of algorithmic trading identified in Section 3, suggesting
+
+
+                                                   16
+Figure 3: Autocorrelation Map (ACM) for 1-minute signed order flow and returns. The ACM
+plots the robust phase-conditioned autocorrelation τ̂(k, m) as a function of lag k and minute-of-the-
+hour m. The top panel reports signed order flow and the bottom panel reports returns. The black
+guide lines connect locations associated with quarter-hour phases. The figure reveals a pronounced
+lattice-like 15-minute structure that is obscured in the conventional autocorrelation function.
+
+
+that periodic algorithms inject distinct temporal dynamics that disrupt the standard persistence
+
+observed in surrounding intervals.
+
+   Second, the return panel (bottom) reveals a starkly different pattern at lag k = 1. While most
+
+minutes show little correlation, the quarter-hour marks exhibit pronounced negative autocorrelation
+
+(blue cells). For instance, the blue cell at (k, m) = (1, 14) indicates a negative correlation between
+
+the 1-minute returns at m = 14 and m = 15. This divergence suggests a temporary market friction.
+
+Under normal conditions, adaptive liquidity provision absorbs persistent order flow, preventing
+
+
+
+                                                 17
+return autocorrelation (Lillo and Farmer, 2004). The sharp negative autocorrelation at quarter-hour
+
+marks is consistent with liquidity provision not fully absorbing the structural breaks in order flow
+
+at these boundaries, leaving price reversals that recur at the quarter-hour phase. Such reversals are
+
+consistent with the adverse selection that algorithmic order flow can impose on liquidity suppliers
+
+in equilibrium (Biais et al., 2015).
+
+   Lastly, both panels display a clear “lattice” structure of positive autocorrelation, visible as
+
+distinct red dots along the solid black lines. For example, at a lag of k = 15, strong positive
+
+autocorrelation is evident at minutes m = 0, 15, 30, 45. This pattern repeats at multiples of k = 15,
+
+linking the 15-minute volume periodicity to autocorrelated algorithmic trading strategies deployed
+
+at these specific times.
+
+
+
+4.3    High-Resolution 10-Second ACM Evidence
+
+While the 1-minute aggregation provides a clear overview, it intermingles the sharp algorithmic
+
+bursts with the subsequent 50 seconds of standard trading. To isolate the exact footprint of these
+
+algorithms, we apply the ACM at a higher temporal resolution.
+
+   We partition each minute into B = 6 subperiods of 10 seconds each, indexed by b. We calculate
+
+the 10-second return r(d,h,m;b) and 10-second signed volume v(d,h,m;b) . The high-resolution ACM
+
+estimator for returns is:
+
+
+                                              1 D 23                                  
+                           τ̂r (k, m; b) =        ∑   ∑   sign r(d,h,m;b) r(d,h,m+k;b) .
+                                             Nk,m d=1 h=0
+
+
+A parallel estimator, τ̂v (k, m; b), is constructed for signed order flow.
+
+   Figure 4 compares the 10-second ACM in the first and second 10-second intervals of each
+
+
+                                                         18
+minute for signed order flow and returns. The quarter-hour lattice is overwhelmingly concentrated
+
+in the b = 1 peak window and nearly disappears by b = 2, showing that periodic dependence is
+
+sharply localized within the minute. The same within-minute decay appears across all six Binance
+
+contracts and in BTC and ETH data from Bybit (Appendix Figures A.1–A.6).
+
+
+
+4.4    Interpreting the Lattice Structure in Order Flow and Returns
+
+Taken together, the heatmaps in Figures 3 and 4 show that the quarter-hour bursts documented in
+
+Section 3.1 do not merely reflect elevated trading volume; they also carry a structured pattern of
+
+phase-specific serial dependence in order flow and returns. Synthesizing the evidence across the
+
+order-flow and return panels yields three observations.
+
+    First, the usual one-minute persistence in opening-window order flow weakens across quarter-
+
+hour boundaries. In the b = 1 order-flow heatmap of Figure 4, the lag-one autocorrelations at
+
+m ∈ {14, 29, 44, 59} drop toward zero, indicating that order flow in the first 10 seconds of a quarter-
+
+hour is only weakly related to order flow in the corresponding 10-second window one minute
+
+earlier.
+
+    Second, the phase-specific dependence persists across longer horizons. The dark red dots at
+
+quarter-hour coordinates k ∈ {15, 30, . . .} and m ∈ {0, 15, 30, 45} indicate positive autocorrelation
+
+in order flow across successive quarter-hour cycles.
+
+    Finally, the return lattice raises the possibility that periodicity extends beyond synchronized
+
+taker flow to liquidity supply. In the b = 1 panels of Figure 4, return dependence forms a more ex-
+
+tensive lattice than signed order-flow dependence, appearing not only at quarter-hour coordinates
+
+but also along the finer five-minute grid. Our order-flow measure captures only the direction of
+
+
+
+                                                  19
+Figure 4: Autocorrelation Maps (ACM) for 10-second signed order flow and returns. The upper
+two panels plot the robust phase-conditioned autocorrelation τ̂v (k, m; b) for BTC signed order flow
+at the 10-second frequency; the lower two panels plot the corresponding map for returns. Within
+each panel, the heatmap uses either the first 10-second interval of each minute (b = 1) or the
+second interval (b = 2). The strongest phase-specific dependence is concentrated in the opening
+10 seconds of quarter-hour windows.
+
+
+                                                20
+taker-initiated trades, whereas returns reflect the interaction of taker flow with standing limit or-
+
+ders, which provide liquidity in a limit order book (Foucault et al., 2005). The additional structure
+
+may therefore reflect algorithmic liquidity provision that itself follows periodic schedules, through
+
+adjustments to limit-order placement, cancellation, or depth at salient clock-time boundaries. Be-
+
+cause our data do not include order-book updates, we do not examine this mechanism directly.
+
+    A natural concern is whether the lattice reflects genuine quarter-hour structure or merely an
+
+artifact of imposing any regularly spaced four-point grid. We therefore compare the true grid
+
+(minutes 0, 15, 30, 45) against shifted grids that preserve the 15-minute spacing but are anchored
+
+at non-boundary phases (e.g., minutes 2, 17, 32, 47), computing the mean ACM value at the
+
+corresponding phase points across lags that are multiples of 15. Were the dependence a generic
+
+feature of evenly spaced sampling, the shifted grids would concentrate comparably. Instead, across
+
+all six assets and for both order flow and returns, the phase-point mean is largest under the true
+
+alignment and falls sharply under every placebo shift, tying the dependence to the true boundary
+
+phase rather than to an arbitrary grid (Appendix Figure A.7).
+
+    The ACM establishes that the 15-minute periodicity reflects phase-specific serial dependence
+
+rather than a mere surge in average volume. A natural next question is whether this structured,
+
+predictable order flow translates into predictable returns, and if so, what information drives it.
+
+Section 5 addresses both questions.
+
+
+
+
+5    Forecasting Quarter-Hour Opening Returns
+
+The ACM in Section 4 shows that quarter-hour opening returns are autocorrelated in sample with
+
+their own same-phase lags; this section shows that they are also forecastable out of sample. We
+
+
+                                                 21
+compare three predictor sets: lagged quarter-hour opening returns (motivated by the ACM), techni-
+
+cal indicators (market-state predictors), and their combination. The combined model consistently
+
+outperforms either component alone. Thus, the predictability of the opening window is not ex-
+
+hausted by same-phase recurrence, but the technical indicators do not merely replace the lagged
+
+quarter-hour benchmark; rather, the two sources of information are complementary.
+
+   This result clarifies how to interpret phase-specific order-flow persistence. Prior work attributes
+
+persistent order flow either to order splitting by a single trader or to correlated decisions among
+
+traders who observe related signals (Cartea et al., 2015). Our evidence is more naturally aligned
+
+with the second channel, although it cannot rule out the first. Periodic rebalancing provides a
+
+related precedent, generating return autocorrelation and seasonality in equity markets (Bogous-
+
+slavsky, 2016). The fact that technical and market-state variables improve out-of-sample forecasts
+
+of quarter-hour opening returns indicates that the periodic burst is not merely a mechanical contin-
+
+uation of same-phase order flow. Rather, part of the ACM pattern is linked to information available
+
+before the boundary. Without trader identifiers, we cannot separate same-trader persistence from
+
+cross-trader correlation, but the evidence shows that the pattern contains more than lagged same-
+
+phase dependence. More broadly, high-frequency return forecasting models should account for
+
+clock-time periodicity rather than treating intraday time as homogeneous.
+
+
+
+5.1    Response and Predictor Variables
+
+We construct a calendar-time version of the open-to-transaction return in Ait-Sahalia et al. (2025).
+
+Let T denote the forecast origin, set ∆ = 10 seconds, and let D txn be the set of transaction times-
+
+tamps. For each s ∈ D txn , let Pstxn and Vstxn denote the transaction price and traded volume. Relative
+
+
+
+                                                  22
+to their construction, we make two adaptations. First, we evaluate the return on a fixed 10-second
+
+calendar-time grid. Second, we replace their equally weighted average of forward transaction
+
+prices with a volume-weighted average. Because the Binance aggregate-trade data do not con-
+
+tain matched contemporaneous quotes, we use the latest transaction price before T as the opening
+
+reference price,5
+
+                            PTopen = Pτ(T
+                                      txn
+                                          ),        τ(T ) = max{s ∈ D txn : s ≤ T }.
+
+
+The forward transaction set and its total traded volume are
+
+
+
+                       IT,∆
+                        txn
+                            = {s ∈ D txn : T < s ≤ T + ∆},                 VT,∆ =    ∑txn Vstxn.
+                                                                                    s∈IT,∆
+
+
+
+For VT,∆ > 0, the return response is
+
+
+                                            vwap
+                                           PT,∆                   vwap      1
+                     YTret = R(T, ∆) =            − 1,           PT,∆  =        ∑    Vstxn Pstxn ,
+                                           PTopen                          VT,∆  txn
+                                                                                s∈IT,∆
+
+
+
+the volume-weighted average transaction price over the forward window. Windows with VT,∆ = 0
+
+are dropped.
+
+    Two considerations motivate this forward-window construction. First, individual transaction
+
+prices are noisy at very short horizons, whereas aggregating all trades in (T, T + ∆] produces a
+
+more stable prediction target. Second, this target better matches the execution problem. A trader
+
+acting at T generally cannot control the exact instant of execution within the next few seconds, so
+
+the relevant object is the price realized over the window rather than the price at a single transaction
+   5 Ait-Sahalia et al. (2025) use the bid-ask mid-price.  Binance provides bid-ask data only from May 16, 2023 to
+March 30, 2024, which is substantially shorter than our full sample. A parallel analysis using the mid-price specifica-
+tion over this restricted window delivers similar conclusions (Appendix Table A.14).
+
+
+
+                                                            23
+time. Volume weighting gives larger trades proportionally greater influence, so the target reflects
+
+the distribution of traded quantity within the window rather than the distribution of transaction
+
+timestamps alone.
+
+   For directional classification, we use the binary response
+
+
+
+                                     YTdir = 1{R(T, ∆) > 0}.
+
+
+
+   We now turn to the predictor variables, which we group into two blocks. Let T denote a quarter-
+
+hour forecast origin and let RT ≡ R(T, ∆), with ∆ = 10 seconds, denote the response defined above.
+
+The predictor vector is
+
+                                         XT = (LT⊤ , ZT⊤ )⊤ ,
+
+
+where LT contains boundary-aligned lagged returns and ZT contains technical indicators con-
+
+structed from trailing price and volume information.
+
+   The two blocks are designed to isolate different sources of predictive content. The lag block
+
+captures phase-specific recurrence at the same quarter-hour clock phase, as suggested by the Auto-
+
+correlation Map. The technical-indicator block captures broader pre-boundary market conditions
+
+summarized by recent price and volume histories. This decomposition lets us ask whether quarter-
+
+hour return predictability is mainly a same-phase persistence effect, or whether it also reflects
+
+information already embedded in the market state before the boundary.
+
+   The first block consists of the 12 first-10-second returns at preceding quarter-hour boundaries:
+
+
+
+                             LT = (RT −15m , RT −30m , . . . , RT −180m ) .
+
+
+
+
+                                                  24
+Equivalently, for k = 1, . . . , 12, the k-th lag variable is
+
+
+
+                                      Lk,T = R(T − 15k minutes, ∆).
+
+
+
+Because T is restricted to quarter-hour boundaries, these lags align the response with its own
+
+prior realizations at the same within-hour phase. The block therefore provides a direct forecasting
+
+counterpart to the phase-specific dependence documented in Section 4.
+
+    The second block consists of 28 technical indicators (TI28) following Fieberg et al. (2025).
+
+This block is motivated by a growing empirical literature documenting predictive content in tech-
+
+nical indicators and technical trading rules in cryptocurrency markets. For example, Hudson and
+
+Urquhart (2021) document significant predictability and profitability for broad classes of technical
+
+trading rules across major cryptocurrencies, and Fieberg et al. (2025) show that price-volume trend
+
+signals constructed from technical indicators predict the cross-section of cryptocurrency returns.
+
+    We include technical indicators not to identify an optimal technical trading rule, but to proxy
+
+for publicly observable price-volume signals available to algorithmic traders before scheduled ex-
+
+ecution times. The incremental contribution of this block over the lag block therefore asks whether
+
+quarter-hour opening return predictability is exhausted by same-phase recurrence, or whether it
+
+also reflects pre-boundary market states that may trigger or shape periodic algorithmic trading.
+
+    At each quarter-hour forecast origin T , we compute the technical indicators from a rolling
+
+history of 15-minute OHLCV bars, with the most recent bar spanning [T − 30 min, T − 15 min).
+
+The baseline specification therefore excludes all price and volume information from the final 15
+
+minutes before the forecast boundary, ensuring that the predictors are fully observable well in
+
+advance. In an unreported robustness check, updating the predictors using information through
+
+
+                                                      25
+T − 1 minute generally improves out-of-sample forecasting performance, while leaving the overall
+
+conclusions unchanged. The stability of the results is unsurprising because technical indicators
+
+evolve relatively slowly and the two information sets share most of their rolling history.
+
+    The 28 indicators cover four dimensions of the pre-boundary market state. Momentum is
+
+summarized by RSI, stochastic oscillators, stochastic RSI, and CCI; trend by moving-average de-
+
+viations and MACD-based variables; volume pressure by volume moving-average deviations, vol-
+
+ume MACD variables, and a Chaikin-type money-flow measure; and volatility by Bollinger-band
+
+location and width measures. Where appropriate, the indicators are expressed as proportional de-
+
+viations or scale-adjusted quantities to improve comparability across assets and over time. The
+
+complete list of the 28 indicators and their exact formulas is provided in Section A.3 of the Ap-
+
+pendix.
+
+    The complete predictor vector contains 12 + 28 = 40 variables. The lag variables capture
+
+phase-specific persistence at quarter-hour boundaries, while TI28 captures broader market-state
+
+information over horizons ranging from one hour to one day. The nested specifications below
+
+use these blocks to evaluate the separate and joint contribution of same-phase return history and
+
+pre-boundary market-state variables.
+
+
+
+5.2    Out-of-Sample Forecasting Design
+
+We follow the experimental design of Ait-Sahalia et al. (2025). We describe in turn the prediction
+
+model, the out-of-sample evaluation metrics, and the rolling-window protocol used for tuning and
+
+testing.
+
+
+
+
+                                                 26
+5.2.1   Penalized Linear Regression Model
+
+
+We adopt a linear model for the response and estimate it by LASSO, an ℓ1 -penalized least-squares
+
+regression that shrinks coefficients toward, and often exactly to, zero, yielding a sparse and in-
+
+terpretable forecasting specification. All centering and scaling constants are estimated using the
+
+training sample only and held fixed throughout the test month, so the procedure contains no look-
+
+ahead information from the test period; the objective function and standardization details are given
+
+in Section A.4 of the Appendix. LASSO is a transparent benchmark for forecasting with many
+
+correlated predictors and is widely used in financial applications with high-dimensional data; see,
+
+among others, Fan et al. (2011), Chinco et al. (2019), Ait-Sahalia et al. (2025), and Aleti et al.
+
+(2025). Our objective is not to identify the globally best forecasting model, but to document pre-
+
+dictable content in a simple, reproducible specification.
+
+
+5.2.2   Evaluation Metrics
+
+
+We evaluate out-of-sample performance separately for the continuous-return regression and the
+
+binary direction classification. The return regression is assessed using the out-of-sample R2 relative
+
+to the zero forecast, R2OOS , which is positive whenever the model improves on the zero benchmark.
+
+The direction classification, estimated by L1 -penalized logistic regression, is assessed using two
+
+complementary metrics: the area under the ROC curve (AUC), a threshold-free measure of how
+
+well the predicted probabilities rank upward moves, with 0.5 corresponding to random ranking,
+
+and classification accuracy at the fixed 0.5 probability threshold. This separation is useful because
+
+return magnitude and return direction are distinct forecasting targets: a model may rank directional
+
+probabilities well even when its return-magnitude forecasts explain only a small fraction of realized
+
+
+
+                                                 27
+variation. Formal definitions of all three metrics are provided in Section A.4 of the Appendix.
+
+
+5.2.3   Rolling-Window Estimation and Evaluation
+
+
+Because the forecasting specifications contain many predictors and require regularization, we use
+
+a rolling-window procedure for both estimation and evaluation. The out-of-sample evaluation
+
+period runs from 2021-07-01 to 2024-10-31, yielding roughly 117,000 quarter-hour boundary ob-
+
+servations per asset. Models are refit on a monthly calendar grid. At each refit, the specification
+
+is estimated using only the trailing six months of observations strictly preceding the test month,
+
+and the fitted model is then used to forecast all boundary observations in that month. This design
+
+produces 40 monthly refits for each asset and specification, and ensures that every forecast is based
+
+only on information available at the forecast origin.
+
+   Hyperparameters are re-tuned at each monthly refit, using only the corresponding training win-
+
+dow. This allows the strength of regularization to adapt over time as the relationship between
+
+predictors and returns evolves. For the LASSO specifications, the penalty parameter λ is selected
+
+from the grid 10−5 to 10−1 . Within each training window, λ is chosen by a chronological split:
+
+the most recent 20% is held out as a tuning set on which each candidate is scored by mean squared
+
+error, and the earlier 80% is used for fitting. The model is then re-estimated on the full window at
+
+the selected λ before forecasting the test month.
+
+
+
+5.3     Out-of-Sample Predictability Results
+
+Table 3 summarizes the out-of-sample performance of the three predictor specifications. The re-
+
+sults show economically and statistically meaningful predictability of quarter-hour opening re-
+
+turns across all six assets. Panel A reports R2OOS for the continuous-return forecasts. The lag-only
+
+                                                 28
+model, which uses twelve quarter-hour-spaced lags of the opening 10-second return, delivers a
+
+positive R2OOS for every asset and a cross-sectional average of 2.464%. This confirms that the
+
+phase-specific persistence documented above has genuine out-of-sample forecasting content.
+
+   The TI28 specification is slightly weaker on average, with a cross-sectional mean R2OOS of
+
+2.090%, but its relative performance varies across assets. Technical indicators are the stronger
+
+standalone block for BTC, ETH, and DOGE, whereas lagged boundary returns are stronger for
+
+XRP, SOL, and ADA. ADA exhibits the largest lag-only R2OOS in the panel, at 5.2%.
+
+   The strongest results come from combining the two predictor blocks. The Lag + TI28 specifica-
+
+tion attains the highest R2OOS for all six assets and raises the cross-sectional average to 3.37%, more
+
+than one-third above the lag-only benchmark. This pattern indicates that quarter-hour opening re-
+
+turn predictability is not exhausted by same-phase lagged returns. Broader pre-boundary market-
+
+state information contributes incremental predictive content beyond boundary-aligned lagged re-
+
+turns, a claim formalized by the incremental tests in Section 5.4.
+
+   Panels B and C report direction-prediction performance. The Lag + TI28 specification also per-
+
+forms best for directional forecasts, delivering the highest average AUC, 0.6011, and the highest
+
+average 0.5-threshold accuracy, 57.12%. It attains the best AUC for every asset. The incremen-
+
+tal contribution of TI28 is smaller for direction prediction than for continuous-return prediction,
+
+which is natural because the binary outcome discards magnitude information. Even so, adding
+
+TI28 improves AUC relative to the lag-only model for every contract. Overall, the results sup-
+
+port a complementary-information interpretation: lagged boundary returns capture phase-specific
+
+persistence, while TI28 contributes additional information about the lower-frequency market state
+
+before the boundary.
+
+   The out-of-sample R2 values may appear modest, but two observations help place them in con-
+
+                                                  29
+text. First, the relevant comparison is not only the size of the predictable component, but also
+
+its implementability. The return predictability documented by Ait-Sahalia et al. (2025) for U.S.
+
+equities is larger, but it is concentrated at millisecond-to-second horizons and is highly sensitive to
+
+data timeliness. Exploiting that signal therefore requires low-latency feeds and co-location. Our
+
+forecasts are different. The baseline predictors are fixed at least 15 minutes before the scheduled
+
+boundary, allowing the signal to be computed and trading decisions to be prepared well in ad-
+
+vance. In an unreported robustness check, updating the predictors using information through T − 1
+
+minute generally improves out-of-sample performance. The reported results therefore provide a
+
+conservative assessment of predictability and do not rely on ultra-low-latency data processing.
+
+    Second, the forecast should be interpreted as an input to execution and liquidity provision
+
+rather than as a standalone trading strategy. The predictable component is small relative to trading
+
+costs. The sign-weighted realized forecast target, E[sign(Ybt )Yt ], averages about 0.5 bp per bound-
+
+ary, about one tenth of a single standard-tier taker fee and one twentieth of a round trip.6 This
+
+quantity measures the predictable component in return units rather than the return to a directly im-
+
+plementable strategy, since the opening reference price is not necessarily attainable. The forecast is
+
+close to well calibrated, with Mincer–Zarnowitz slopes between 0.77 and 0.94 across the six con-
+
+tracts (Table A.3 of the Appendix). Periodic activity is concentrated in the quarter-hour opening
+
+window, so a trader or quote-setter operating at the boundary can use the forecast to adjust aggres-
+
+siveness, delay submission, cancel quotes, or supply liquidity. Following Ait-Sahalia et al. (2025),
+
+we therefore assess economic relevance through the magnitude, robustness, and implementability
+
+of the predictable component itself, rather than through a net-of-cost trading strategy that would
+    6 Over the sample period, the standard-tier fee on Binance USDT-margined perpetual futures is 5.0 bp for takers
+
+(0.05%) and 2.0 bp for makers (0.02%); higher VIP tiers pay less. A round trip pays two fees.
+
+
+
+
+                                                        30
+require additional assumptions about market impact, queue priority, and execution rules.
+
+                          Table 3: Out-of-Sample Performance by Predictor Specification
+
+                      p              BTC            ETH        XRP      SOL        DOGE           ADA           mean
+ Panel A: continuous-return OOS R2 (%) vs zero
+Lag                  12              2.448          3.102       1.837    1.209      1.004         5.187          2.464
+TI28                 28              3.068          3.765       1.365    0.879      1.203         2.259          2.090
+Lag + TI28           40              3.822          4.772       2.244    1.595      1.926         5.846          3.367
+ Panel B: direction prediction AUC
+Lag                  12           0.5908           0.6090      0.5862   0.5756     0.5679        0.6153         0.5908
+TI28                 28           0.5900           0.6033      0.5573   0.5713     0.5647        0.5783         0.5775
+Lag + TI28           40           0.6035           0.6223      0.5904   0.5878     0.5793        0.6230         0.6011
+ Panel C: direction prediction accuracy at 0.5 threshold (%)
+Lag                  12              56.42          57.84       56.05    55.49      54.94         58.01          56.46
+TI28                 28              56.37          57.45       53.88    55.08      54.56         55.62          55.49
+Lag + TI28           40              57.30          58.56       56.27    56.35      55.61         58.67          57.12
+Notes. Each cell reports the OOS metric on the quarter-hour first-10s sample (2021-07-01 to 2024-10-31, ≈ 117,000
+observations per asset). Bold marks the best specification per asset (and in the mean column). The number of features
+p counts the predictors entering each specification before LASSO selection (Lag: 12 quarter-hour-spaced lags (3
+hours) of the first-10s return; TI28: 28 technical indicators on the 15-min boundary OHLCV grid). The estimation
+protocol is a rolling-window walk-forward LASSO (for the continuous return) or L1 -penalized logistic regression (for
+direction): the model is re-estimated each month on the trailing six months of data and used to forecast the following
+month, with the penalty parameter λ selected on the chronological 20% tail of each training window.
+
+
+
+
+5.4      Tests of Incremental Predictive Content
+
+Table 4 reports Diebold–Mariano tests for the pairwise forecast comparisons suggested by Table 3.
+                                                                                                          (a)   (b)
+For the quarter-hour first-10-second return forecast, we compute the loss differential Lt − Lt                        =
+         (a)            (b)
+(Yt − Ybt )2 − (Yt − Ybt )2 over the out-of-sample window. The DM statistic is the HAC t-statistic
+
+for the mean loss differential, using lag 6. A positive statistic indicates that model b has a lower
+
+mean squared forecast error than model a. We report the corresponding one-sided p-value. Al-
+
+though these are nested comparisons, the forecasts are generated from a fixed-length rolling win-
+
+dow, under which the Diebold–Mariano statistic remains asymptotically normal for nested models
+
+(Giacomini and White, 2006).
+
+     Two patterns emerge. First, Panel A shows that both standalone predictor blocks have signif-
+
+
+                                                                31
+icant out-of-sample content. The Lag specification significantly improves on the zero forecast for
+
+all six contracts, with p < 0.01 throughout and t-statistics ranging from 4.78 for SOL to 22.95
+
+for ADA. This confirms that the boundary-aligned return persistence documented in Section 4 car-
+
+ries out-of-sample predictive content for every contract. The TI28 specification is also significant
+
+against the zero forecast in all six contracts, again with p < 0.01 throughout. Its strength is more
+
+uneven across assets: the evidence is strongest for ETH, BTC, and ADA, and weaker for SOL,
+
+DOGE, and XRP.
+
+    Second, Panel B shows that TI28 contributes incremental information beyond the Lag specifi-
+
+cation. Adding TI28 to Lag reduces mean squared forecast error for every contract, with positive
+
+DM statistics ranging from 1.28 to 11.97. The improvement is significant at the 10% level in all
+
+six contracts and at the 1% level in five of the six. The increment is largest for ETH and BTC,
+
+which are also the contracts with the strongest standalone TI28 performance, and smallest for SOL
+
+and XRP.
+
+    Taken together, the DM evidence supports a complementary-information interpretation. Boundary-
+
+aligned lagged returns provide a strong and robust baseline, consistent with phase-specific persis-
+
+tence. Technical indicators add a separate component of predictive content that is not subsumed by
+
+same-phase own-history. Thus, quarter-hour opening return predictability is not purely a lagged-
+
+boundary phenomenon; it also reflects information in the pre-boundary market state.
+
+
+
+
+6    Information Content of Quarter-Hour Order Flow
+
+Sections 4 and 5 showed that periodic algorithmic order flow concentrates at quarter-hour bound-
+
+aries and that the opening returns are forecastable. This raises a sharper question: is the boundary
+
+
+                                                32
+          Table 4: Diebold–Mariano Tests for the Quarter-Hour First-10s Return Forecast
+
+                                   Panel A: each block vs. zero                        Panel B: increment on Lag
+Asset                                 Lag                       TI28                              +TI28
+BTC                             13.55∗∗∗                    12.33∗∗∗                                        9.65∗∗∗
+ETH                             15.63∗∗∗                    16.68∗∗∗                                       11.97∗∗∗
+XRP                              7.58∗∗∗                     6.33∗∗∗                                        2.46∗∗∗
+SOL                              4.78∗∗∗                     2.81∗∗∗                                        1.28∗
+DOGE                             7.13∗∗∗                     5.05∗∗∗                                        4.75∗∗∗
+ADA                             22.95∗∗∗                    10.76∗∗∗                                        4.81∗∗∗
+# assets with p < 0.05                6/6                         6/6                                           5/6
+Notes. Each cell reports the one-sided DM t-statistic (HAC standard errors with lag = 6), under the alternative hy-
+pothesis that the column model achieves a lower out-of-sample mean squared error than the row benchmark. Panel A
+tests each predictor block alone against the zero forecast. Panel B tests the increment of the TI28 block added on top
+of Lag. All models are estimated by the same rolling-window walk-forward LASSO as in Table 3 (six-month training
+window, monthly refit), on the QH first-10s sample (2021-07-01 to 2024-10-31; ≈ 117,000 observations per asset).
+Significance: ∗∗∗ p < 0.01, ∗∗ p < 0.05, ∗ p < 0.10.
+
+
+
+order flow informative? That is, does order imbalance at a quarter-hour opening carry information
+
+about subsequent returns, and over what horizon? Distinguishing order flow that contributes to
+
+price discovery from flow that moves prices only transiently is a central question in market mi-
+
+crostructure. We address it by asking whether order imbalance at salient clock-time boundaries
+
+predicts subsequent returns, and whether this predictive content differs across ordinary intervals,
+
+one-minute, five-minute, and quarter-hour openings.
+
+    Our empirical design follows the predictive-regression approach of Boehmer et al. (2021),
+
+adapted to an intraday periodic setting. We estimate horizon-specific regressions that relate current
+
+order imbalance to future cumulative returns. By interacting order imbalance with nested clock-
+
+time indicators, the specification compares baseline, one-minute, five-minute, and quarter-hour
+
+opening order flow within a single regression framework. The objective is not to estimate a struc-
+
+tural impulse response, but to characterize how the predictive association between order imbalance
+
+and future returns varies across horizons and clock-time frequencies.
+
+
+
+                                                         33
+    We proceed in two steps. Section 6.1 asks whether quarter-hour opening order imbalance
+
+predicts future returns, and compares its predictive content with order flow at non-periodic times
+
+and at one-minute and five-minute openings. This comparison shows whether the quarter-hour
+
+effect is distinct from more general periodic order-flow patterns, rather than simply a stronger
+
+manifestation of them. Section 6.2 then decomposes quarter-hour opening order imbalance into
+
+components spanned by same-phase lags, observable price-volume state variables, and residual
+
+variation, and examines which components account for the medium-horizon predictive association.
+
+
+
+6.1     Horizon-Specific Predictive Regressions (Baseline)
+
+We estimate each forecast horizon separately. This direct-regression design traces how the predic-
+
+tive association between current imbalance and future cumulative returns changes with the hori-
+
+zon, without imposing the joint-dynamics restrictions of a structural VAR. The nested clock-time
+
+interactions let the predictive slope on order imbalance differ across progressively more salient
+
+boundary regimes.
+
+    For each predictive horizon ℓ ∈ {30s, 1m, 5m, 15m, 30m, 1h, 2h, 4h, 8h, 12h, 24h}, we estimate
+
+the following specification7 at the 10-second frequency:
+
+
+                 rt,t+ℓ = αℓ + βℓ OIt +βℓ1min OIt I{bt =1} + βℓ5min OIt I{mod(mt ,5)=0 ∧ bt =1}
+                                                                                                                    (2)
+                           + βℓ15min OIt I{mod(mt ,15)=0 ∧ bt =1} + γℓ⊤ Wt + εt,ℓ ,
+
+
+where rt,t+ℓ = log Pt+ℓ − log Pt is the log return over horizon ℓ, measured from the last transaction
+   7 The four quarter-hour openings (minutes 0, 15, 30, and 45) enter a single fifteen-minute indicator. Because the
+
+round-number diagnostic of Section 3.2 peaks at the top of the hour, it is natural to ask whether the effect is confined
+to the minute-0 openings; the Appendix separates them with an additional top-of-hour interaction and finds the fifteen-
+minute effect essentially unchanged, while the incremental top-of-hour term carries no reliable predictive content
+especially at the medium horizons of interest, so we retain the more parsimonious specification here.
+
+
+                                                          34
+price observed within 10-second interval t, and OIt is order imbalance over interval t. The minute-
+
+of-the-hour mt and within-minute subperiod bt are read from the calendar tuple (dt , ht , mt ; bt ) as-
+
+sociated with interval t.
+
+   The microstructure control vector Wt contains two short-term reversal dummies, ηt+ and ηt− .
+
+These are constructed from the aggressor side of the last trade in each 10-second interval: one
+
+captures buyer-to-seller switches, and the other captures seller-to-buyer switches. These controls
+
+mitigate bid-ask-bounce effects so that the estimated predictive slopes are not driven by mechanical
+
+microstructure noise.
+
+   Because the periodic dummy indicators are hierarchically nested, the predictive slope for each
+
+clock-time regime is the corresponding cumulative coefficient, which we call the Cumulative Fore-
+
+casting Effect (CFE):
+                              CFEbase (ℓ) = βℓ
+
+                             CFE1min (ℓ) = βℓ + βℓ1min
+
+                             CFE5min (ℓ) = βℓ + βℓ1min + βℓ5min
+
+                            CFE15min (ℓ) = βℓ + βℓ1min + βℓ5min + βℓ15min
+
+The CFE should be interpreted as a horizon-specific predictive association between current order
+
+imbalance and future returns for the corresponding clock-time regime, not as a structural impulse
+
+response.
+
+   We estimate these predictive regressions by ordinary least squares, separately for each asset
+
+and horizon, using the full sample. Confidence intervals are constructed using heteroskedasticity-
+
+and autocorrelation-consistent standard errors with a Bartlett kernel. The bandwidth increases with
+
+the forecast horizon ℓ to account for the overlap in forward returns.
+
+
+
+                                                  35
+6.1.1   Predictive Content Across Frequencies
+
+
+Figure 5 presents the estimated CFEs for the six assets. Baseline order imbalance and order im-
+
+balance at one-minute openings exhibit little predictive association with subsequent returns. By
+
+contrast, CFE15min (ℓ) shows a clear horizon-dependent pattern in most markets: the coefficient
+
+is small or negative at short horizons but becomes positive at medium horizons in every market.
+
+Between four and twelve hours the estimates are significant at the 95% confidence level for four
+
+of the six contracts at every horizon; SOL (at four and twelve hours) and ADA (at four hours) are
+
+significant at the 90% level, and SOL at the eight-hour horizon is the only insignificant cell.
+
+   The horizon profile of the quarter-hour CFE is nonmonotonic. The CFE is negative over the
+
+first half hour, consistent with a short-run reversal following boundary imbalance. It subsequently
+
+turns positive and continues to rise, typically peaking between eight and twelve hours. Because
+
+OIt is an observed imbalance rather than an identified order-flow shock, this pattern should not be
+
+interpreted as the causal price impact of trades executed during the opening 10 seconds. Rather,
+
+it shows that the direction of boundary order flow predicts cumulative returns over the subsequent
+
+several hours.
+
+   The main findings are robust to several alternative specifications. First, dropping the nested
+
+one-minute and five-minute interactions and keeping only the 15-minute interaction leaves the 15-
+
+minute coefficients positive and significant over medium horizons (Appendix Table A.4). Second,
+
+replacing the symmetric quarter-hour interaction with separate positive- and negative-imbalance
+
+terms yields coefficients with consistent signs (Appendix Figure A.9). Third, the results are quali-
+
+tatively unchanged when order imbalance is replaced with its sign (Appendix Table A.5). Fourth,
+
+inference is similar under Hodrick (1992) standard errors, which are robust to the overlap in the for-
+
+
+
+                                                 36
+Figure 5: Cumulative Forecasting Effect (CFE) of order imbalance on future returns for six cryp-
+tocurrency markets. The plots show horizon-specific cumulative predictive slopes from direct fore-
+casting regressions. Compared with baseline, one-minute, and five-minute openings, order imbal-
+ance measured during 15-minute boundary windows exhibits stronger medium-horizon predictive
+content.
+
+
+ward returns (Appendix Table A.6). Fifth, the pattern is essentially unchanged when we exclude
+
+the three quarter-hours each day that coincide with funding settlement (00:00, 08:00, and 16:00
+
+UTC), so the effect is not driven by the funding-settlement events (Appendix Table A.7). Finally,
+
+augmenting the specification with a top-of-hour interaction that absorbs the minute-0 openings
+
+leaves the quarter-hour effect, then identified from the minute-15, -30, and -45 openings alone,
+
+essentially unchanged, so the pooled quarter-hour coefficient is not driven by the top of the hour
+
+(Appendix Figure A.10).
+
+   Why does return-predictive content surface at the quarter-hour frequency but not at the one-
+
+minute and five-minute frequencies, despite comparable algorithmic signatures? A familiar noise-
+
+signal trade-off in the high-frequency literature (Bandi and Russell, 2008; Hansen and Lunde,
+
+
+                                               37
+2006) suggests that signal extraction at very fine frequencies is dominated by microstructure
+
+noise. Recent intraday return forecasting models that adopt the 15-minute frequency explicitly
+
+cite higher-frequency microstructure violations as a reason to avoid finer sampling (Aleti et al.,
+
+2025). The quarter-hour boundary is also a focal coordination point in the standardized infor-
+
+mation architecture of electronic markets. The combination of noise attenuation favoring coarser
+
+frequencies and coordination conventions concentrating on the quarter-hour grid is consistent with
+
+the dissociation we document. Because the return-predictive content is concentrated at the quarter-
+
+hour frequency, the next section focuses on quarter-hour opening order imbalance and examines
+
+which components of that imbalance carry the medium-horizon predictive association.
+
+
+
+6.2   Decomposing Predictive Content of Quarter-Hour Order Flow
+
+Section 6.1 shows that quarter-hour opening order imbalance predicts returns over medium hori-
+
+zons. To examine which components of this imbalance carry the predictive association, we follow
+
+Boehmer et al. (2021) and project opening imbalance onto two blocks: its own twelve same-phase
+
+lags and the 28 technical indicators from Section 5. The fitted values define the lagged-flow and
+
+public-signal components, and the remaining variation defines the residual component. Estimated
+
+over the full quarter-hour opening sample (roughly 131,700 observations per asset), the two blocks
+
+jointly span about 6% of the variance of opening imbalance (4.6% lagged flow, 0.6% public signal),
+
+a non-negligible systematic component given the 10-second measurement window. The estimating
+
+equations, summary statistics of opening imbalance, and the full first-stage estimates are collected
+
+in Appendix Section A.8.
+
+   This decomposition is empirical rather than structural. The three components should not be
+
+
+
+                                                38
+read as mutually exclusive trading motives or information types. Lagged-flow variation may reflect
+
+repeated execution, responses to persistent public signals, or informed order splitting, while the
+
+residual may contain private information, omitted public signals, liquidity shocks, and noise.
+
+   In the second stage, we regress the forward cumulative return at four-, eight-, and twelve-
+
+hour horizons on the three estimated components, including the short-term reversal controls Wt
+
+of (2). Because the components are generated regressors (Pagan, 1984), inference is based on a
+
+moving-block bootstrap that re-estimates the entire two-stage procedure on each resample, with
+
+four-day calendar blocks drawn jointly across the six contracts (B = 1000) so that both serial
+
+and cross-asset dependence are preserved. Following Boehmer et al. (2021), we summarize each
+
+component’s economic magnitude by its interquartile effect, the change in the predicted horizon-ℓ
+
+return when the component moves from its 25th to its 75th percentile, and normalize these effects
+
+into contribution shares. In these terms, the lagged-flow component contributes a stable five to six
+
+basis points across horizons, whereas the public component grows from less than one basis point
+
+at four hours to 9.8 and 16.9 basis points at eight and twelve hours (Appendix Table A.10).
+
+   Table 5 summarizes the result. The salient feature is a rotation in the dominant component as
+
+the horizon lengthens: at four hours the predictive content is carried mainly by the lagged-flow
+
+component (cross-asset mean share 58 percent), whereas by twelve hours it is carried mainly by
+
+the public-signal component (65 percent). The rotation is not an artifact of one or two contracts
+
+driving the cross-asset average: between four and twelve hours, the public-signal share rises and
+
+the lagged-flow share falls in every one of the six contracts (Appendix Table A.11 reports the per-
+
+contract shares). Treating the cross-asset mean change in the public-signal share between the four-
+
+                                                                      b = 45 percentage points, with
+and twelve-hour horizons as a single statistic, the point estimate is ∆
+
+a 95 percent percentile-bootstrap interval of [12, 52] that excludes zero; the rotation is positive in
+
+                                                 39
+996 of the 1,000 resamples (Appendix Table A.12).
+
+                     Table 5: Sources of quarter-hour order-imbalance predictability
+
+                                               4h                            8h                             12h
+ Panel A. Cross-asset mean contribution shares (%)
+Lagged flow                        58 [34, 65]                          29 [17, 47]                     22 [13, 39]
+Public signal                      20 [12, 49]                          55 [29, 72]                     65 [41, 77]
+Residual                           22 [12, 30]                          16 [9, 27]                       13 [8, 24]
+
+ Panel B. Rotation statistic: change in the public-signal share, 4h → 12h
+ b = +45 pp; 95% percentile interval [12, 52]; positive in 996/1,000 resamples and in all six contracts
+ ∆
+ Notes: Panel A reports cross-asset mean per-interquartile-range contribution shares, in percent, from the second-
+stage regression: for component c, Mℓc = ecℓ IQR(OI  ctc ) and shares are sc = |M c |/ ∑ j |M j |, so they summarize relative
+                                                                           ℓ     ℓ           ℓ
+economic magnitudes rather than variance shares. Bold marks the largest component at each horizon. Panel B reports
+the rotation statistic ∆, the cross-asset mean of the within-contract change in the public-signal share between the
+four- and twelve-hour horizons. All intervals are from the joint moving-block bootstrap (common four-day calendar
+blocks across the six contracts, B = 1000) that re-estimates both stages; because the four- and twelve-hour shares
+are correlated within each resample, the interval for ∆ is computed from the bootstrap draws of the difference itself.
+Per-contract shares and the full rotation detail are reported in Appendix Tables A.11 and A.12.
+
+
+
+    We deliberately do not lean on per-cell point estimates or single-series significance. Because
+
+the forward returns overlap and the public-signal regressor is a persistent function of slow-moving
+
+technical indicators, single-series predictive t-statistics are prone to size distortion, and the point
+
+shares are imprecisely estimated. Inference therefore rests on the cross-asset replication of the
+
+rotation under the joint moving-block bootstrap, which preserves both serial and cross-asset de-
+
+pendence.
+
+    These results indicate that the component associated with quarter-hour predictability changes
+
+with the return horizon. At the four-hour horizon, the contribution is concentrated in the lagged-
+
+flow component, linking short-horizon predictability primarily to the persistence of periodic order
+
+flow. At longer horizons, the public-signal component dominates in every contract. The decom-
+
+position, however, does not cleanly separate the underlying information sources. Because public
+
+signals can themselves be persistent and correlated with lagged order flow, some of their predictive
+
+
+                                                            40
+content may be absorbed into the lagged-flow component. Moreover, public signals not captured
+
+by the 28 technical indicators may remain in either the lagged-flow or residual component. The
+
+estimated public-signal contribution should therefore be interpreted as a conservative measure of
+
+the predictive content associated with public signals.
+
+
+
+
+7    Conclusion
+
+We have documented a recurring quarter-hour microstructure pattern in cryptocurrency futures us-
+
+ing trade data for six liquid contracts. Four results tie the pattern to periodic algorithmic execution.
+
+Trade-size roundness declines hierarchically within the burst windows, consistent with heightened
+
+algorithmic participation. The Autocorrelation Map reveals lattice-like dependence in signed or-
+
+der flow and returns, anchored at quarter-hour boundaries and concentrated in the first 10 seconds.
+
+Quarter-hour opening returns are forecastable out of sample, with the combined lagged-return and
+
+technical-indicator specification attaining an average R2 of 3.4% and an AUC of 0.60, and with
+
+the technical indicators adding significantly to the lagged-return benchmark. Finally, quarter-hour
+
+opening order imbalance predicts returns over four to twelve hours, with the dominant contribu-
+
+tion rotating from persistent boundary flow to the component spanned by observable price-volume
+
+signals.
+
+    Two of our tools should be useful beyond this setting. The high-resolution roundness diagnostic
+
+adapts an established method for inferring trader type (Garvey and Wu, 2014; Cong et al., 2023) to
+
+a sub-minute scale, robust to compositional shifts in trade size as prices change, and can localize
+
+algorithmic intensity to the brief windows in which it concentrates. The Autocorrelation Map
+
+complements spectral approaches to cyclostationary processes (Hurd and Gerr, 1991; Wu et al.,
+
+
+                                                  41
+2025) by operating in the time-phase domain, making the location of phase-specific dependence
+
+visible and admitting an exact decomposition of the robust ACF into phase-specific components.
+
+   More broadly, our results show that trading synchronized around salient clock-time boundaries
+
+has consequences beyond localized bursts in activity. At quarter-hour openings, order-flow de-
+
+pendence is concentrated in the first few seconds, and boundary imbalance forecasts cumulative
+
+returns over four to twelve hours, while finer-frequency order flow carries little comparable predic-
+
+tive content. The predictive content of order flow—and potentially the adverse-selection exposure
+
+of liquidity suppliers—is therefore not uniform over clock time, giving liquidity providers an in-
+
+centive to adjust quotes and inventory around quarter-hour openings. Because the forecast relies
+
+only on information available before the boundary, its construction does not require low-latency
+
+infrastructure. Boundary salience therefore shapes not only the concentration of trading activity
+
+but also the predictive content of aggregate order flow.
+
+   This interpretation has an important limitation. Our data are aggregate trades without trader
+
+identifiers, order-level messages, or account labels, so we link the bursts to algorithmic partici-
+
+pation through timing and behavioral diagnostics rather than direct attribution. Order-level data
+
+would permit sharper tests and a finer decomposition across execution algorithms, market makers,
+
+and other trader types. A natural extension compares the same asset, for example a tokenized Trea-
+
+sury, equity, or commodity, across crypto-native and traditional venues to separate venue-specific
+
+from asset-specific effects.
+
+
+
+
+                                                 42
+Data Availability
+
+The analysis uses publicly available aggregate trade data for USDT-margined perpetual futures.
+
+Binance distributes its historical aggregate-trade files—each record containing a millisecond times-
+
+tamp, price, quantity, and the buyer-maker indicator—through its public data portal, and the Bybit
+
+records used in the robustness analysis are likewise publicly available. The sample covers six
+
+contracts (BTC, ETH, XRP, SOL, DOGE, and ADA) from January 1, 2021 to October 31, 2024.
+
+No proprietary or access-restricted data were used. Replication code will be made available in
+
+accordance with the journal’s code-sharing policy.
+
+
+References
+Ait-Sahalia, Y., Fan, J., Xue, L., and Zhu, X. (2025). How and when are high-frequency stock returns predictable?
+   Management Science.
+
+Aleti, S., Bollerslev, T., and Siggaard, M. (2025). Intraday market return predictability culled from the factor zoo.
+  Management Science, 71:7731–7751.
+
+Bandi, F. M. and Russell, J. R. (2008). Microstructure Noise, Realized Variance, and Optimal Sampling. Review of
+  Economic Studies, 75:339–69.
+
+Barclay, M. J. and Warner, J. B. (1993). Stealth trading and volatility: Which trades move prices? Journal of Financial
+  Economics, 34:281–305.
+
+Biais, B., Foucault, T., and Moinas, S. (2015). Equilibrium fast trading. Journal of Financial Economics, 116(2):292–
+   313.
+
+Boehmer, E., Jones, C. M., Zhang, X., and Zhang, X. (2021). Tracking retail investor activity. Journal of Finance,
+  76(5):2249–2305.
+
+Bogousslavsky, V. (2016). Infrequent rebalancing, return autocorrelation, and seasonality. Journal of Finance,
+  71(6):2967–3006.
+
+Brogaard, J., Nguyen, T. H., Putnins, T. J., and Wu, E. (2022). What moves stock prices? the roles of news, noise and
+  information. Review of Financial Studies, 35(9):4341–4386.
+
+Broussard, J. P. and Nikiforov, A. (2014). Intraday periodicity in algorithmic trading. Journal of International Finan-
+  cial Markets, Institutions & Money, 30:196–204.
+
+Cartea, A., Jaimungal, S., and Penalva, J. (2015). Algorithmic and High-Frequency Trading. Cambridge University
+  Press, Cambridge.
+
+Chen, T., Chan, K. C., and Chang, H. (2022). Periodicity of trading activity in foreign exchange markets. Journal of
+  Financial Research, 45:445–465.
+
+
+
+                                                         43
+Chinco, A., Clark-Joseph, A. D., and Ye, M. (2019). Sparse signals in the cross-section of returns. Journal of Finance,
+  74:449–492.
+
+Cong, L. W., Li, X., Tang, K., and Yang, Y. (2023). Crypto wash trading. Management Science, 69:6427–6454.
+
+Etula, E., Rinne, K., Suominen, M., and Vaittinen, L. (2020). Dash for cash: Monthly market impact of institutional
+   liquidity needs. Review of Financial Studies, 33(1):75–111.
+
+Fan, J., Lv, J., and Qi, L. (2011). Sparse high-dimensional models in economics. Annual Review of Economics,
+  3:291–317.
+
+Fieberg, C., Liedtke, G., Poddig, T., Walker, T., and Zaremba, A. (2025). A trend factor for the cross section of
+   cryptocurrency returns. Journal of Financial And Quantitative Analysis, 60.
+
+Foucault, T., Kadan, O., and Kandel, E. (2005). Limit order book as a market for liquidity. Review of Financial
+  Studies, 18:1171–1217.
+
+Gao, L., Han, Y., Li, S. Z., and Zhou, G. (2018). Market intraday momentum. Journal of Financial Economics,
+  129(2):394–414.
+
+Gardner, W. A., Napolitano, A., and Paura, L. (2006). Cyclostationarity: Half a century of research. Signal Processing,
+  86(4):639–697.
+
+Garvey, R. and Wu, F. (2014). Clustering of intraday order-sizes by uninformed versus informed traders. Journal of
+  Banking & Finance, 41:222–235.
+
+Giacomini, R. and White, H. (2006). Tests of conditional predictive ability. Econometrica, 74:1545–1578.
+
+Gladyshev, E. G. (1961). Periodically correlated random sequences. Soviet Mathematics Doklady, 2:385–388.
+
+Hansen, P. R., Kim, C., and Kimbrough, W. (2024). Periodicity in cryptocurrency volatility and liquidity. Journal of
+  Financial Econometrics, 22:224–251.
+
+Hansen, P. R. and Lunde, A. (2006). Realized Variance and Market Microstructure Noise. Journal of Business and
+  Economic Statistics, 24:127–161.
+
+Hansen, P. R. and Luo, Y. (2023). Robust estimation of realized correlation: New insight about intraday fluctuations
+  in market betas. arXiv:2310.19992, [econ.EM].
+
+Hasbrouck, J. (1991). Measuring the information content of stock trades. Journal of Finance, 46:179–207.
+
+Hasbrouck, J. and Saar, G. (2013). Low-latency trading. Journal of Financial Markets, 16:646–679.
+
+Hendershott, T., Jones, C. M., and Menkveld, A. J. (2011). Does algorithmic trading improve liquidity? Journal of
+  Finance, 66.
+
+Heston, S. L., Korajczyk, R. A., and Sadka, R. (2010). Intraday patterns in the cross-section of stock returns. Journal
+  of Finance, 65(4):1369–1407.
+
+Hodrick, R. J. (1992). Dividend yields and expected stock returns: Alternative procedures for inference and measure-
+  ment. Review of Financial Studies, 5(3):357–386.
+
+Huang, R. D. and Stoll, H. R. (1997). The components of the bid-ask spread: A general approach. Review of Financial
+  Studies, 10(4):995–1034.
+
+Hudson, R. and Urquhart, A. (2021). Technical trading and cryptocurrencies. Annals of Operations Research,
+  297(1):191–220.
+
+
+                                                         44
+Hurd, H. L. and Gerr, N. L. (1991). Graphical methods for determining the presence of periodic correlation. Journal
+  of Time Series Analysis, 12.
+
+Lillo, F. and Farmer, J. D. (2004). The long memory of the efficient market. Studies in Nonlinear Dynamics &
+   Econometrics, 8.
+
+Madhavan, A. (2000). Market microstructure: A survey. Journal of Financial Markets, 3(3):205–258.
+
+Muravyev, D. and Picard, J. (2022). Does trade clustering reduce trading costs? evidence from periodicity in algorith-
+  mic trading. Financial Management, 51:1201–1229.
+
+Napolitano, A. (2016). Cyclostationarity: New trends and applications. Signal Processing, 120:385–408.
+
+Pagan, A. (1984). Econometric issues in the analysis of regressions with generated regressors. International Economic
+  Review, 25(1):221–247.
+
+Shynkevich, A. (2026a). Price discovery in cryptocurrency markets: Sub-second evidence. Economics Letters,
+  266:113026.
+
+Shynkevich, A. (2026b). Trading periodicity and algorithmic divide in cryptocurrency markets. Journal of Futures
+  Markets, 46(5):904–930.
+
+Stoll, H. R. (1989). Inferring the components of the bid-ask spread: Theory and empirical tests. Journal of Finance,
+   44(1):115–134.
+
+Vigna, P. and Osipovich, A. (2018). Bots are manipulating price of bitcoin in ’wild west of crypto’. The Wall Street
+  Journal.
+
+Wang, J. and Yang, M. (2015). How well does the weighted price contribution measure price discovery? Journal of
+  Economic Dynamics & Control, 55:113–129.
+
+Wu, L., Zhang, R., and Dai, Y. (2025). Spectral volume models: Universal high-frequency periodicities in intraday
+  trading activities. Management Science.
+
+
+
+
+                                                         45
+                                          Appendix
+
+This Appendix collects supporting material for the main text: the extended descriptive statistics
+
+for the daily trading aggregates (Section 2), the magnitude of the quarter-hour trading bursts (Sec-
+
+tion 3), additional robustness checks for the Autocorrelation Map (Section 4), the full technical-
+
+indicator menu and the economic magnitude of the out-of-sample forecast (Section 5), and robust-
+
+ness checks for the horizon-specific regressions (Section 6).
+
+
+
+
+                                                46
+A.1         Additional Descriptive Statistics
+
+This section accompanies Section 2.2 of the main text. Table A.1 reports the range of the daily
+
+trading aggregates summarized in Table 1 of the main text.
+
+              Table A.1: Daily Trading Aggregates: Minimum, Median, and Maximum
+
+                          Trades          DV        Trade      Zero 10s        |r|10s       |r|1m       Buyer
+ Contract    Statistic     (M)           ($M)      Size ($)    Bins (%)        (bps)        (bps)       Share
+ BTC         Min            0.19        1,320        4,997         0.00         0.08         0.37        0.460
+             Median         1.38       13,455        9,768         0.00         1.66         4.83        0.499
+             Max            8.27       68,785       16,625         4.16        11.33        31.19        0.535
+ ETH         Min            0.15          672        2,569         0.00         0.11         0.52        0.458
+             Median         1.05        6,365        6,022         0.00         2.04         5.87        0.499
+             Max            9.63       63,463       10,372         4.16        16.48        47.83        0.565
+ XRP         Min            0.06           99          885         0.00         0.84         1.72        0.306
+             Median         0.19          586        3,033         0.01         2.34         6.56        0.504
+             Max            3.68       11,284        6,164         4.35        22.13        60.20        0.714
+ SOL         Min            0.05           29          263         0.00         0.80         2.36        0.407
+             Median         0.35          963        2,502         0.01         3.36         9.43        0.500
+             Max            5.57       17,287       10,753        11.08        30.51        85.12        0.637
+ DOGE        Min            0.04           11          205         0.00         0.77         1.66        0.340
+             Median         0.22          449        1,979         0.05         2.76         7.75        0.499
+             Max           18.92       20,378        4,245        14.81        58.43       157.30        0.701
+ ADA         Min            0.04           40          551         0.00         1.11         2.25        0.213
+             Median         0.15          344        2,010         0.09         2.59         7.24        0.500
+             Max            2.72        4,879        3,865         6.34        20.48        58.63        0.708
+Notes: For each contract, the columns of Table 1 of the main text are computed day by day over the 1,400
+calendar days of the sample (January 1, 2021 to October 31, 2024), and the table reports the minimum,
+median, and maximum of the resulting daily series. Trades is the daily number of trades in millions; DV is
+daily dollar volume in millions of dollars; Trade Size is daily dollar volume divided by the daily trade count;
+Zero 10s Bins is the percentage of 10-second intervals in the day with no trades; |r|10s and |r|1m are the daily
+means of absolute 10-second and 1-minute log returns in basis points; Buyer Share is the daily fraction of
+buyer-initiated trades.
+
+
+
+
+                                                      47
+A.2         Burst Intensity and Concentration
+
+This table accompanies Section 3 of the main text and quantifies the magnitude of the quarter-hour
+
+trading bursts documented there.
+
+                     Table A.2: Quarter-Hour Burst Intensity and Concentration
+
+                   Panel A: Burst Intensity & Concentration              Panel B: Economic Magnitude
+              10s Trade     Minute        QH Peak      Non-QH Peak         |r|    Dollar Volume Avg Trade
+ Contract       Ratio     Trade Ratio     Share (%)     Share (%)         Ratio       Ratio     Size Ratio
+ BTC              1.274         1.191          19.3           18.1        1.269         1.311          1.063
+ ETH              1.333         1.206          20.3           18.4        1.284         1.389          1.105
+ XRP              1.243         1.195          19.0           18.2        1.245         1.316          1.122
+ SOL              1.200         1.155          18.8           18.1        1.200         1.207          1.003
+ DOGE             1.200         1.194          18.4           18.3        1.232         1.233          1.013
+ ADA              1.319         1.230          20.1           18.8        1.298         1.482          1.211
+ Mean             1.261         1.195          19.3           18.3        1.255         1.323          1.086
+Notes: 10s Trade Ratio compares mean trade count in the first 10-second bin (b=1, seconds 0–9) of quarter-
+hour minutes (minutes 0, 15, 30, 45) to the corresponding bin of non-quarter-hour minutes. Minute Trade
+Ratio compares total trades across the full minute. QH Peak Share is the fraction of all quarter-hour-minute
+trades concentrated in the first 10 seconds; Non-QH Peak Share is the analogous fraction for ordinary
+minutes. |r| Ratio compares mean absolute 10-second log returns, |rt | = | log(Pt /Pt−1 )| × 10,000 (in basis
+points), where Pt is the last trade price of each 10-second bar. Dollar Volume Ratio compares mean dollar
+volume per 10-second bar. Avg Trade Size Ratio compares mean trade size (dollar volume divided by trade
+count). All ratios exceed unity at the 1% level (Welch t-test).
+
+
+
+
+A.3         Technical-Indicator Menu
+
+This section lists the 28 technical indicators (TI28) used in the forecasting design of Section 5 of
+
+the main text.
+
+    Momentum (5 indicators): the 6-hour Wilder RSI computed from rolling 15-minute closing
+
+prices; the 6-hour Stochastic oscillator %K, together with its 1.5-hour smoothed %D; the 6-hour
+
+Stochastic RSI with double 1.5-hour smoothing; and the 6-hour Commodity Channel Index (CCI)
+
+computed from the typical price.
+
+
+                                                      48
+   Trend (9 indicators): seven price SMA-relative variables of the form
+
+
+                                          closet
+                                                      − 1,
+                                        SMAh (close)t
+
+
+for horizons h ∈ {1h, 1.5h, 3h, 5h, 8h, 12h, 1day}; the price MACD line,
+
+
+                                       EMA2h (close)t − EMA8h (close)t
+                            MACDtp =                                   ;
+                                                   closet
+
+
+and the signal-line difference,
+
+
+
+                            MACDdifftp = MACDtp − EMA1.5h (MACD p )t .
+
+
+
+   Volume (10 indicators): seven volume SMA-relative variables of the form
+
+
+                                           volt
+                                                     − 1,
+                                         SMAh (vol)t
+
+
+for horizons h ∈ {1h, 1.5h, 3h, 4h, 6h, 8h, 12h}; a volume MACD line and its signal-line differ-
+
+ence using the same 2-hour, 8-hour, and 1.5-hour EMA spans as the price MACD; and a normal-
+
+ized Chaikin money-flow measure that contrasts the 1-hour and 8-hour EMAs of the cumulative
+
+accumulation–distribution line, scaled by the 8-hour rolling-mean volume.
+
+   Volatility (4 indicators): three proportional distances from the close to the lower, middle, and
+
+upper bands of a 6-hour, two-standard-deviation Bollinger envelope, together with the band width
+
+relative to the mid-band.
+
+
+
+
+                                                49
+A.4      Forecasting Model and Evaluation Details
+
+This section accompanies Section 5.2 of the main text and collects the formal definitions of the
+
+forecasting model and the out-of-sample evaluation metrics.
+
+
+LASSO objective and standardization.              The prediction model is linear in the predictors and
+
+estimated by LASSO. For a regularization parameter λ ≥ 0, the objective function is
+
+                                         (                                    )
+                                                                       p
+                                             1 n
+                          β̂ = arg min
+                                    β
+                                                ∑ (Ỹi − X̃i⊤β )2 + λ ∑ |β j | ,
+                                             2n i=1                   j=1
+
+
+
+where Ỹi and X̃i denote the centered and standardized response and predictors. The ℓ1 penalty
+
+shrinks coefficients toward, and often exactly to, zero, providing automatic variable selection and
+
+a sparse forecasting specification. At each monthly refit, predictor means and standard devia-
+
+tions, together with the response mean and standard deviation sy , are computed from the trailing
+
+six-month training window and then held fixed throughout the test month. Forecasts are formed
+
+in standardized units and converted back to return units using the training-window response mo-
+
+ments. Standardizing the response does not affect the out-of-sample forecasts: scaling Y by sy is
+
+exactly undone by the inverse transform, and is equivalent to leaving Y unscaled under the corre-
+
+spondingly rescaled penalty λ sy ; the standardization is a numerical convenience, not a modeling
+
+choice. The realized return in the test month is used only to evaluate forecast accuracy, not to
+
+construct predictors, standardization constants, or forecasts.
+
+
+Out-of-sample R2 .    For the return regression, let Yiret denote the realized return and Ybiret its fore-
+
+cast. The out-of-sample R2 compares the model’s squared forecast error with that of the zero
+
+
+
+                                                     50
+forecast,                                                         2
+                                                 ∑i Yiret − Ybiret
+                                     R2OOS = 1 −             2       .
+                                                    ∑i Yiret
+
+It is bounded above by one, with R2OOS = 1 for perfect prediction and R2OOS > 0 whenever the
+
+model improves on the zero forecast.
+
+
+AUC.       For the direction classification, the L1 -penalized logistic model produces a predicted prob-
+
+ability
+                                                               
+                                         pbi = Pr Yidir = 1 | Xi .
+
+
+AUC is computed from these predicted probabilities and measures the model’s ability to rank
+
+upward-move observations above non-upward observations. Equivalently, it can be interpreted as
+
+
+                                                                        
+                               AUC = Pr pbi > pbj | Yidir = 1, Y jdir = 0 ,
+
+
+
+up to the usual treatment of ties. A value of 0.5 corresponds to random ranking, while values above
+
+0.5 indicate positive directional ranking ability.
+
+
+Accuracy.      Classification accuracy applies the standard 0.5 probability threshold. The predicted
+
+class is
+
+                                          Ybidir = 1{ pbi ≥ 0.5},
+
+
+and accuracy is defined as
+                                                 1     n
+                                                           dir     dir
+                                                                       o
+                                   Accuracy =        1  Y      = Y       .
+                                                 n∑
+                                                         bi       i
+                                                   i
+
+
+
+
+                                                     51
+Accuracy is useful as a simple implementation metric, but it depends on the chosen threshold and
+
+on the unconditional class balance; AUC is the corresponding threshold-free measure.
+
+
+
+
+A.5         Economic Magnitude of the Out-of-Sample Forecast
+
+This section accompanies Section 5.3 of the main text and quantifies the economic size of the
+
+out-of-sample quarter-hour forecast relative to trading fees.
+
+            Table A.3: Economic Magnitude of the Out-of-Sample Quarter-Hour Forecast
+
+                Gross per            Hit                MZ              Mean               SD
+ Contract      Trade (bps)         Rate (%)            Slope         |Yb | (bps)      (Yb ) (bps)             N
+ BTC                 0.375             57.1            0.859            0.440             0.675         116,951
+ ETH                 0.532             58.1            0.908            0.587             0.889         116,951
+ XRP                 0.422             55.4            0.851            0.427             0.703         117,016
+ SOL                 0.543             55.6            0.774            0.615             0.941         117,016
+ DOGE                0.415             54.9            0.820            0.497             0.800         116,104
+ ADA                 0.775             58.2            0.940            0.785             1.132         116,655
+ Mean                0.510             56.6            0.859            0.559             0.857
+
+Notes: The table reports the economic magnitude of the out-of-sample Lag+TI28 forecast Yb of the quarter-
+hour first-10-second return. These are the same forecasts evaluated in Table 3 of the main text (rolling-
+window walk-forward LASSO, monthly refit, out-of-sample window July 1, 2021 to October 31, 2024).
+Gross per Trade, E[sign(Ybt )Yt ], is the realized average pre-fee return in basis points of trading the direction
+of the forecast at every quarter-hour boundary. It measures the forecast’s realized predictive content in return
+units, not the dispersion of the forecast. Hit Rate is the directional accuracy Pr[sign(Ybt ) = sign(Yt )]. MZ
+Slope is the Mincer–Zarnowitz calibration coefficient b from the out-of-sample regression Yt = a + b Ybt + εt .
+A value of b = 1 means the forecast is perfectly calibrated, and b < 1 means a forecast of a given size is
+followed on average by a realized move of b times that size. Since the slopes are near one, Gross per Trade
+is close to the calibration-adjusted mean absolute forecast, b × Mean |Yb |. Mean |Yb | and SD(Yb ) give the size
+and dispersion of the forecast itself. For scale, the standard-tier fee on Binance USDT-margined perpetual
+futures over the sample is 5.0 bps for takers and 2.0 bps for makers, and a round trip pays two fees. The
+average gross per trade of about 0.5 bps is roughly one-tenth of a single taker fee. N is the number of out-
+of-sample quarter-hour boundary observations.
+
+
+
+
+                                                       52
+A.6      Additional Robustness Checks
+
+This appendix collects robustness checks for the Autocorrelation Map (ACM) evidence in the
+
+main text: the cross-asset generalization of the main-text BTC maps, a cross-exchange replication
+
+on Bybit, a placebo phase-alignment check, and the within-minute block profile.
+
+   Figures A.1–A.3 reproduce the one-minute and 10-second ACMs for all six contracts. The
+
+lattice-like quarter-hour structure documented for BTC in the main text is present across assets, for
+
+both signed order flow and returns.
+
+
+
+
+                                                 53
+Figure A.1: One-minute Autocorrelation Map (ACM) for the six contracts (BTC, ETH, XRP, SOL,
+DOGE, ADA).
+
+                                            54
+Figure A.2: Ten-second signed order-flow ACM for the six contracts (BTC, ETH, XRP, SOL,
+DOGE, ADA).
+
+
+
+
+                                          55
+Figure A.3: Ten-second return ACM for the six contracts (BTC, ETH, XRP, SOL, DOGE, ADA).
+
+
+   Figures A.4–A.6 replicate the maps for BTC and ETH on Bybit, a second major perpetual-
+
+futures venue. The same phase-specific dependence appears, indicating that the pattern is not
+
+
+                                             56
+specific to Binance.
+
+
+
+
+            Figure A.4: One-minute ACM for BTC and ETH on the Bybit exchange.
+
+
+
+
+                                           57
+Figure A.5: Ten-second signed order-flow ACM for BTC and ETH on the Bybit exchange.
+
+
+
+
+     Figure A.6: Ten-second return ACM for BTC and ETH on the Bybit exchange.
+
+
+Figure A.7 reports the placebo phase-alignment check discussed in the main text. Across assets,
+
+                                            58
+the concentration of dependence at the true quarter-hour phase points exceeds that under shifted
+
+placebo grids.
+
+
+
+
+Figure A.7: For each asset, the figure reports the mean ACM value at quarter-hour phase points,
+evaluated at lags k = 15, 30, 45, . . . , 120, where both the current phase and the implied future
+phase lie on the candidate phase grid. The top row uses one-minute ACMs for signed order
+flow and signed returns; the bottom row uses 10-second b = 1 ACMs for signed order flow and
+signed returns. The true quarter-hour grid {0, 15, 30, 45} is compared with placebo phase shifts
+{2, 17, 32, 47}, {5, 20, 35, 50}, and {7, 22, 37, 52}. Across assets, the point mean is generally
+largest under the true quarter-hour alignment and weakens under placebo shifts, indicating that
+the concentration of dependence is tied to the true phase rather than to an arbitrary four-point grid.
+
+
+   Finally, Figure A.8 summarizes the within-minute profile of phase-specific dependence across
+
+the six 10-second blocks.
+
+
+
+
+                                                 59
+Figure A.8: For each asset, the figure reports the mean ACM value at quarter-hour phase points
+for the 10-second blocks b = 1 through b = 6, shown separately for signed order flow and signed
+returns. For each ACM, the statistic averages the cells at lags k = 15, 30, 45, . . . , 120 for which
+both the current phase and the implied future phase lie on the true quarter-hour grid {0, 15, 30, 45}.
+Across assets, the point mean is largest in b = 1, declines sharply in b = 2, and remains much
+smaller in later blocks, especially for signed order flow. This shows that phase-specific dependence
+is concentrated in the first 10-second interval after the quarter-hour boundary rather than being
+spread uniformly across the minute.
+
+
+
+
+                                                 60
+A.7      Horizon-Specific Regression: Additional Robustness
+
+This section reports robustness checks for the horizon-specific regressions in Section 6.1 of the
+
+main text. Figure A.9 estimates the quarter-hour opening order-imbalance interaction separately
+
+for positive and negative imbalance rather than as a single symmetric term. Tables A.4–A.7 report
+
+the fifteen-minute cumulative forecasting effect, CFE15 min (ℓ), at the four-, eight-, and twelve-hour
+
+horizons under four alternative specifications: dropping the nested one- and five-minute interac-
+
+tions, replacing order imbalance with its sign, computing Hodrick (1992) standard errors, and
+
+excluding the quarter-hours that coincide with funding settlement. Every specification includes the
+
+short-term reversal controls Wt = (ηt+ , ηt− ) of eq. (2) of the main text; because returns are com-
+
+puted from traded prices rather than mid-quotes, these controls absorb bid-ask-bounce reversals.
+
+Across all four checks the medium-horizon effect is positive in every contract-horizon cell. SOL
+
+at the eight-hour horizon is insignificant throughout, as in the main text, and a few additional cells
+
+weaken to or slightly below the 10% level in the most demanding variants, most visibly at the four-
+
+hour horizon of the sign specification, where the sign of imbalance overlaps with the sign-based
+
+reversal controls.
+
+
+
+
+                                                 61
+Figure A.9: Sign-split horizon-specific regression of quarter-hour order imbalance. For each of the
+six contracts, the cumulative forecasting effect (CFE) is estimated separately for positive (blue)
+and negative (red) quarter-hour opening imbalance, with the non-periodic baseline in black; shaded
+bands are 95% Newey–West HAC confidence intervals at the full overlap lag. At medium horizons,
+predictive content is present in many of the contracts for both positive and negative imbalance.
+
+
+            Table A.4: Quarter-Hour CFE Robustness: Fifteen-Minute-Only Specification
+
+ Contract                               4h                                8h                              12h
+ BTC                         3.84∗∗∗ [4.21]                    5.55∗∗∗ [3.78]                   6.39∗∗∗ [3.34]
+ ETH                          2.76∗∗ [2.46]                    4.68∗∗∗ [2.62]                    5.40∗∗ [2.28]
+ XRP                          2.68∗∗ [2.11]                    6.20∗∗∗ [2.82]                    7.78∗∗ [2.51]
+ SOL                           3.29∗ [1.84]                       2.41 [0.79]                     6.73∗ [1.79]
+ DOGE                        5.02∗∗∗ [3.63]                    8.49∗∗∗ [4.11]                  11.33∗∗∗ [3.82]
+ ADA                           2.07∗ [1.72]                    5.39∗∗∗ [2.80]                    5.10∗∗ [2.01]
+Notes: The table reports CFE15 min (ℓ), the cumulative predictive slope of quarter-hour opening order im-
+balance on future returns, at horizons ℓ ∈ {4h, 8h, 12h}, in basis points per unit of order imbalance, with
+t-statistics in brackets. The specification drops the nested one- and five-minute interactions of eq. (2) of
+the main text and keeps only the fifteen-minute interaction, so that CFE15 min (ℓ) = βℓ + βℓ15 min ; the rever-
+sal controls Wt = (ηt+ , ηt− ) are retained. Standard errors are Newey–West HAC with a Bartlett kernel and
+bandwidth equal to the forecast horizon in ten-second steps. Sample: January 1, 2021 to October 31, 2024.
+Significance: ∗∗∗ p < 0.01, ∗∗ p < 0.05, ∗ p < 0.10.
+
+
+
+
+                                                      62
+                 Table A.5: Quarter-Hour CFE Robustness: Sign of Order Imbalance
+
+ Contract                                 4h                                8h                               12h
+ BTC                          1.64∗∗∗ [3.58]                     2.37∗∗∗ [3.32]                    2.73∗∗∗ [2.95]
+ ETH                             0.78 [1.27]                       1.65∗ [1.77]                     2.38∗∗ [1.98]
+ XRP                             0.75 [0.99]                      2.61∗∗ [2.12]                      3.08∗ [1.83]
+ SOL                             1.44 [1.60]                        0.78 [0.55]                     3.64∗∗ [2.01]
+ DOGE                          2.08∗∗ [2.37]                     4.16∗∗∗ [3.01]                     4.80∗∗ [2.51]
+ ADA                             0.75 [1.00]                     3.07∗∗∗ [2.65]                     3.44∗∗ [2.25]
+
+Notes: The table reports CFE15 min (ℓ) = βℓ + βℓ1 min + βℓ5 min + βℓ15 min from the nested specification of eq. (2)
+of the main text with order imbalance OIt replaced by its sign sign(OIt ) throughout. Coefficients are in
+basis points per unit of sign(OI), so magnitudes are not directly comparable to the raw-imbalance tables;
+t-statistics are in brackets. Standard errors are Newey–West HAC with a Bartlett kernel and bandwidth equal
+to the forecast horizon in ten-second steps. Sample: January 1, 2021 to October 31, 2024. Significance:
+∗∗∗ p < 0.01, ∗∗ p < 0.05, ∗ p < 0.10.
+
+
+             Table A.6: Quarter-Hour CFE Robustness: Hodrick (1992) Standard Errors
+
+ Contract                                 4h                                8h                               12h
+ BTC                          3.85∗∗∗ [3.62]                     5.56∗∗∗ [3.34]                    6.40∗∗∗ [3.02]
+ ETH                           2.76∗∗ [2.18]                      4.69∗∗ [2.36]                     5.40∗∗ [2.14]
+ XRP                            2.69∗ [1.92]                     6.20∗∗∗ [2.88]                    7.78∗∗∗ [2.79]
+ SOL                            3.29∗ [1.68]                        2.42 [0.75]                       6.73 [1.58]
+ DOGE                         5.03∗∗∗ [3.22]                     8.50∗∗∗ [3.54]                   11.34∗∗∗ [3.62]
+ ADA                             2.08 [1.40]                      5.40∗∗ [2.33]                      5.10∗ [1.77]
+
+Notes: The table reports CFE15 min (ℓ) = βℓ + βℓ1 min + βℓ5 min + βℓ15 min from the nested specification of eq. (2)
+of the main text, in basis points per unit of order imbalance. Point estimates are identical to the baseline;
+the t-statistics in brackets instead use Hodrick (1992) 1B standard errors, which are robust to the overlap
+in the forward returns: the covariance sums the regressors backward over the ten-second steps spanned by
+the horizon against the one-step-ahead return innovation. Sample: January 1, 2021 to October 31, 2024.
+Significance: ∗∗∗ p < 0.01, ∗∗ p < 0.05, ∗ p < 0.10.
+
+
+A.8         Decomposition of Quarter-Hour Opening Order Imbalance:
+
+            Details and Supporting Tables
+
+This section accompanies Section 6.2 of the main text. It states the two-stage decomposition,
+
+reports summary statistics of quarter-hour opening order imbalance (Table A.8), the first-stage
+
+estimates (Table A.9), the second-stage estimates (Table A.10), the per-contract contribution shares
+
+(Table A.11), and the full block-bootstrap rotation test (Table A.12).
+
+
+
+                                                        63
+       Table A.7: Quarter-Hour CFE Robustness: Excluding Funding-Settlement Openings
+
+ Contract                                4h                                  8h                              12h
+ BTC                          3.97∗∗∗ [4.33]                      5.54∗∗∗ [3.76]                   6.61∗∗∗ [3.45]
+ ETH                           2.79∗∗ [2.47]                       4.35∗∗ [2.42]                    5.01∗∗ [2.12]
+ XRP                           2.87∗∗ [2.22]                      6.18∗∗∗ [2.78]                    7.79∗∗ [2.52]
+ SOL                            3.35∗ [1.84]                         2.36 [0.76]                     6.49∗ [1.69]
+ DOGE                         5.10∗∗∗ [3.65]                      8.24∗∗∗ [3.92]                  10.93∗∗∗ [3.60]
+ ADA                            2.03∗ [1.68]                      5.31∗∗∗ [2.76]                     4.93∗ [1.94]
+
+Notes: The table reports CFE15 min (ℓ) = βℓ + βℓ1 min + βℓ5 min + βℓ15 min from the nested specification of eq. (2)
+of the main text, including the reversal controls Wt = (ηt+ , ηt− ), in basis points per unit of order imbalance,
+with Newey–West t-statistics in brackets. The estimation sample excludes the three quarter-hour openings
+each day that coincide with perpetual funding settlement, which Binance applies at fixed UTC times (00:00,
+08:00, and 16:00; Section 2 of the main text). These are 3 of the 96 daily quarter-hour events, about 4,200
+openings per contract over the sample. Forward returns are computed on the full ten-second panel before
+the exclusion, so horizons remain aligned, and the quarter-hour coefficients are identified from the 93 non-
+settlement openings per day. The HAC bandwidth equals the forecast horizon in ten-second steps. Sample:
+January 1, 2021 to October 31, 2024. Significance: ∗∗∗ p < 0.01, ∗∗ p < 0.05, ∗ p < 0.10.
+
+
+Stage 1.    Let OIt denote quarter-hour opening order imbalance. In the first stage, we estimate
+
+
+                                         K
+                            OIt = a + ∑ φk OIt−k + ψ ⊤ Xt + ut ,             K = 12,                        (A.1)
+                                        k=1
+
+
+
+by ordinary least squares over the full quarter-hour opening sample (roughly 131,700 observations
+
+per asset; this exceeds the count in Section 5 of the main text, where the out-of-sample evaluation
+
+window begins on July 1, 2021). The first block consists of 12 lags of the same first-window
+
+quarter-hour imbalance, and the second block consists of the 28 technical indicators Xt constructed
+
+from past prices and volumes, using the same lag length and technical-indicator specification as in
+
+Section 5 of the main text. The three estimated components are
+
+
+                K
+     ctlag = ∑ φ̂k OIt−k ,
+     OI                             ctpub = ψ̂ ⊤ Xt ,
+                                    OI                       ctres = â + ût = OIt − OI
+                                                             OI                       ctlag − OI
+                                                                                              ctpub ,       (A.2)
+               k=1
+
+
+
+
+                                                        64
+where the residual component absorbs the estimated intercept â, which is numerically negligible,
+
+              ctlag + OI
+so that OIt = OI      ctpub + OI
+                              ctres holds exactly.
+
+
+
+Stage 2.   For each horizon ℓ, we estimate
+
+
+                                     lag c lag pub c pub res c res ′
+                  rt+1,t+1+ℓ = αℓ + eℓ OI t + eℓ OIt + eℓ OIt + γℓ Wt + εt,ℓ ,                        (A.3)
+
+
+
+by ordinary least squares, where Wt is the same vector of short-term reversal controls as in eq. (2)
+
+of the main text. Because the three imbalance components are generated from the first-stage projec-
+
+tion (A.1), conventional standard errors understate sampling uncertainty by ignoring the first-stage
+
+estimation. Inference is therefore based on a moving-block bootstrap that re-estimates the entire
+
+two-stage procedure (both (A.1) and (A.3)) on each resample. Blocks are four trading days of
+
+quarter-hour observations, long enough to span the overlapping forward-return horizons, and are
+
+drawn jointly across the six contracts (the same calendar blocks for every asset) so that cross-asset
+
+dependence of the estimates is preserved; we use B = 1000 replications. The economic magnitude
+
+of component c ∈ {lag, pub, res} at horizon ℓ is summarized by the interquartile effect
+
+
+                                                          c
+                                          Mℓc = ecℓ IQR   ct ,
+                                                          OI                                          (A.4)
+
+
+                                                     j
+and the contribution shares are scℓ ≡ |Mℓc |/ ∑ j |Mℓ |. The rotation statistic of the main text is
+
+
+                                         1 6 h pub           pub
+                                                                      i
+                                  ∆ ≡      ∑ i s   (12h) − s i   (4h)  .                              (A.5)
+                                         6 i=1
+
+
+
+
+                                                    65
+             Table A.8: Summary Statistics of Quarter-Hour Opening Order Imbalance
+
+Asset          Mean          SD          IQR             Min         Median           Max          AR(1)
+BTC            0.016        0.48         0.78           −0.999        0.022          1.000         0.135
+ETH            0.013        0.51         0.82           −1.000        0.019          1.000         0.200
+XRP            0.015        0.58         0.98           −1.000        0.018          1.000         0.163
+SOL            0.006        0.50         0.78           −1.000        0.009          1.000         0.054
+DOGE           0.007        0.56         0.91           −1.000        0.007          1.000         0.076
+ADA            0.009        0.59         1.00           −1.000        0.016          1.000         0.211
+Mean           0.011        0.54         0.88           −1.000        0.015          1.000         0.140
+Notes: OI denotes quarter-hour opening order imbalance, measured over the first ten seconds of each quarter
+hour. OI is bounded in [−1, 1]; the extreme values correspond to openings in which all first-ten-second
+volume is on one side of the market. AR(1) denotes the first-order autocorrelation at the quarter-hour
+frequency. The last row is the cross-asset mean.
+
+
+
+
+        Table A.9: First-Stage Decomposition of Quarter-Hour Opening Order Imbalance
+
+                                          Variance share (%)
+Asset                    Lag                    Public                  Residual                  R2 (%)
+BTC                     4.3∗∗∗                  0.6∗∗∗                    94.2                      5.76
+ETH                     7.7∗∗∗                  0.6∗∗∗                    90.6                      9.35
+XRP                     5.5∗∗∗                  0.4∗∗∗                    93.6                      6.42
+SOL                     0.8∗∗∗                  0.5∗∗∗                    98.4                      1.64
+DOGE                    1.3∗∗∗                  0.7∗∗∗                    97.6                      2.41
+ADA                     8.1∗∗∗                  0.7∗∗∗                    90.2                      9.84
+Mean                      4.6                     0.6                     94.1                      5.90
+Notes: The decomposition estimates equation (A.1) in sample for each asset. The first three columns give
+the share of the variance of OIt carried by the lagged-flow component (its twelve own quarter-hour lags),
+the public-signal component (the 28 technical indicators), and the residual. A block’s variance share is
+zero only if all of its coefficients are zero, so ∗∗∗ marks joint significance of that block at the 1% level
+from a Newey–West HAC Wald test; the lagged-flow and public blocks are significant at the 1% level for
+every asset. Variance shares need not sum to exactly 100 because the lagged-flow and public blocks are not
+orthogonal, and R2 equals 100 minus the residual share. The last row is the cross-asset mean.
+
+
+
+
+                                                    66
+Table A.10: Second-Stage Predictive Regression on the Components of Quarter-Hour Opening
+Order Imbalance
+
+                                                                      Horizon
+                                            4h                          8h                          12h
+ Coefficient ecℓ (bp per unit), block-bootstrap t in parentheses
+  Lagged-flow OIlag                   46.1 (2.6)               52.2 (1.9)                        61.5 (1.6)
+            pub
+  Public OI                           17.6 (0.4)              184.8 (2.0)                       310.5 (2.5)
+  Residual OIres                       2.3 (2.0)                3.6 (2.2)                         4.3 (2.0)
+ Interquartile effect ecℓ IQR(OIc ) (bp)
+  Lagged-flow                            5.0                            5.9                          6.4
+  Public                                 0.9                            9.8                         16.9
+  Residual                               1.9                            3.1                          3.5
+R2 (%)                                   0.046                        0.126                        0.176
+N                                       131,728                      131,712                      131,696
+Notes: The regression relates the forward cumulative return to the three components of quarter-hour open-
+ing order imbalance, equation (A.3), estimated in sample for each asset; entries are cross-asset means. The
+regression includes the reversal controls Wt of eq. (2) of the main text. The top panel reports the regres-
+sion coefficients ecℓ in basis points per unit of the component, with block-bootstrap t-statistics in parenthe-
+ses; because the components differ in scale, the bottom panel reports the comparable interquartile effect
+ecℓ IQR(OIc ) in basis points. The t-statistics are from a joint moving-block bootstrap (common four-day
+blocks across the six contracts, B = 1000) that re-estimates both stages. R2 is the in-sample fit and N the
+per-asset number of quarter-hour observations on the common grid. Horizons of four, eight, and twelve
+hours.
+
+
+
+
+                                                      67
+ Table A.11: Per-Contract Contribution Shares of Quarter-Hour Order-Imbalance Predictability
+
+Asset                        Lagged flow                        Public signal                       Residual
+ Panel A. 4-hour horizon
+BTC                               62                                 14                                 24
+ETH                               57                                 29                                 14
+XRP                               72                                  4                                 24
+SOL                               55                                 18                                 27
+DOGE                              63                                 12                                 25
+ADA                               42                                 40                                 18
+Mean                          58 [34, 65]                        20 [12, 49]                       22 [12, 30]
+
+ Panel B. 8-hour horizon
+BTC                               28                                 57                                 15
+ETH                               21                                 67                                 12
+XRP                               43                                 33                                 24
+SOL                               15                                 70                                 15
+DOGE                              45                                 37                                 18
+ADA                               20                                 69                                 11
+Mean                          29 [17, 47]                        55 [29, 72]                        16 [9, 27]
+
+ Panel C. 12-hour horizon
+BTC                               19                                 64                                 17
+ETH                               15                                 75                                  9
+XRP                               39                                 40                                 21
+SOL                               23                                 63                                 14
+DOGE                              26                                 62                                 12
+ADA                               12                                 84                                  4
+Mean                          22 [13, 39]                        65 [41, 77]                        13 [8, 24]
+ Notes: This table reports per-interquartile-range contribution shares, in percent, from the second-stage
+regression (A.3). For component c, Mℓc = ecℓ IQR(OIctc ), equation (A.4), and shares are sc = |M c |/ ∑ j |M j |,
+                                                                                          ℓ     ℓ           ℓ
+so they summarize relative economic magnitudes rather than variance shares. The last row in each panel
+reports the cross-asset mean, with a 95 percent interval in brackets from a joint moving-block bootstrap
+(common four-day blocks across the six contracts, B = 1000) that re-estimates both stages. Per-asset entries
+are point estimates; their bootstrap intervals are wide and omitted for brevity. Bold entries indicate the
+largest component within each asset-horizon row.
+
+
+
+
+                                                       68
+                      Table A.12: Block-Bootstrap Test of the Rotation Statistic
+                                         pub        pub
+ Panel A. Cross-asset rotation ∆ = 16 ∑i si (12h) − si (4h)
+                                                           
+
+b (pp)
+∆                      95% percentile interval                             Resamples with ∆ > 0
++45                            [12, 52]                                          996/1,000
+ Panel B. Within-contract change ∆i (pp); positive in all six
+BTC               ETH                     XRP                   SOL             DOGE                  ADA
++50               +46                     +35                   +44               +50                 +43
+ Notes: The rotation statistic ∆, equation (A.5), is the cross-asset mean of the within-contract change in the
+public-signal contribution share between the four- and twelve-hour horizons; the public-signal share rises
+from a cross-asset mean of 20 to 65 percent (Table A.11). All inference is from the joint moving-block
+bootstrap: common four-day calendar blocks across the six contracts, B = 1000 replications, re-estimating
+both stages (A.1)–(A.3) on each resample. Because the four- and twelve-hour shares are correlated within
+each resample, the percentile interval is computed from the bootstrap draws of the difference ∆, not from the
+separate level intervals in Table A.11; the level intervals (twelve-hour public share 65 with interval [41, 77],
+four-hour 20 with [12, 49]) overlap, whereas the interval for their difference, [12, 52], excludes zero. Panel B
+reports the point change ∆i for each contract.
+
+
+
+
+                                                      69
+A.9        Variable Definitions
+
+Table A.13 collects the notation used throughout the paper.
+
+                                        Table A.13: Variable definitions.
+
+Symbol                          Definition
+Panel A: prices, returns, and order flow (main text, Section 2)
+Pt , rt                         Last traded price in calendar-time interval t and the log return rt = ln Pt − ln Pt−1 (10-
+                                second or 1-minute interval).
+Vk , Dk                         Size of trade k in interval t and its direction: Dk = +1 if buyer-initiated
+                                (isBuyerMaker=False), −1 if seller-initiated.
+OFt                             Net signed order flow, OFt = ∑k∈t Vk Dk .
+OIt                             Order imbalance, OIt = OFt / ∑k∈t Vk ∈ [−1, 1].
+dt , ht , mt , bt               Calendar coordinates of t: day, hour, minute-of-hour m ∈ {0, . . . , 59}, within-minute
+                                10-second block b ∈ {1, . . . , 6}.
+Panel B: trade-size roundness (main text, Section 3)
+TZ(Vk )                        Number of trailing zeros in the base-asset size of trade k, measured relative to the
+                               minimum order increment smin (e.g., 0.001 BTC).
+TZshare(z)t                    Share of mechanically-eligible trades in t with ≥ z trailing zeros, z ∈ {1, 2, 3}; stan-
+                               dardized per asset and per z.
+Panel C: Autocorrelation Map (main text, Section 4)
+τ(k, m)                      Sign-based phase-conditioned autocorrelation, E[sign(x(d,h,m) x(d,h,m+k) )], x ∈ {r, OF};
+                             τ̂r , τ̂v denote the sample estimators for returns and signed order flow (lag k, phase m,
+                             block b).
+Panel D: forecasting design (main text, Section 5)
+∆                             Forecast horizon, ∆ = 10 seconds.
+YTret , YTdir                 Return response YTret = R(T, ∆), the forward return from the pre-T price to the volume-
+                              weighted average price over (T, T + ∆], and its direction indicator YTdir = 1{R(T, ∆) >
+                              0}.
+LT                            Lag block: 12 quarter-hour-spaced first-10s returns, R(T − 15km, ∆), k = 1, . . . , 12.
+ZT (TI28)                     28 technical indicators (momentum, trend, volume, volatility) on the trailing 15-minute
+                              OHLCV grid, following Fieberg et al. (2025).
+R2OOS , ROC AUC, Accuracy Out-of-sample R2 vs. the zero-return benchmark; direction-forecast ranking and 0.5-
+                              threshold classification metrics.
+Panel E: informational content (main text, Section 6)
+CFE(ℓ)                        Cumulative forecasting effect: cumulative predictive slope on OIt for a clock-time
+                              regime, on the forward cumulative log return rt+1,t+1+ℓ over horizon ℓ.
+         +     −
+Wt = (ηt , ηt )               Microstructure controls: short-term reversal dummies from the last-trade aggressor
+                              side.
+OI      ctpub , OI
+ctlag , OI      ctres         Lagged-flow, public-signal, and residual components of quarter-hour opening imbal-
+                              ance (first-stage projection, main text).
+Mℓc                                                                                              ctc ).
+                              Interquartile economic effect of component c at horizon ℓ, ecℓ IQR(OI
+
+
+
+
+                                                           70
+A.10      Mid-Price versus Trade-Price Anchoring
+
+This section accompanies the discussion of the opening reference price in Section 5.1 of the main
+
+text, where we anchor the quarter-hour return on the last transaction price because the aggregate-
+
+trade data lack matched quotes over the full sample. Ait-Sahalia et al. (2025) instead use the
+
+bid-ask mid-price. On the window for which Binance bid-ask data are available, Table A.14 re-
+
+estimates the out-of-sample design under both anchors. The choice does not affect the conclusions
+
+of Section 5.
+
+
+
+
+A.11      Is the Quarter-Hour Effect a Top-of-Hour Effect?
+
+The round-number diagnostic of Section 3 is strongest at the top of the hour, yet the regressions
+
+of Sections 5 and 6 pool the four quarter-hour openings (minutes 0, 15, 30, and 45). One might
+
+therefore ask whether the pooled quarter-hour coefficient is driven by the minute-0 phase alone
+
+rather than by a genuine fifteen-minute periodicity. The funding-settlement exclusion (Appendix
+
+Table A.7) does not answer this, because it removes only 3 of the 24 daily top-of-hour openings.
+
+   We augment the nested specification of eq. (2) of the main text with a top-of-hour interaction,
+
+OIt I{mt = 0 ∧ bt = 1}, which absorbs the minute-0 openings. The fifteen-minute cumulative effect
+
+is then identified from the minute-15, -30, and -45 openings alone, and a fifth curve adds the top-
+
+of-hour increment:
+
+
+
+                          CFE15 min (ℓ) = βℓ + βℓ1 min + βℓ5 min + βℓ15 min ,
+
+                            CFEhour (ℓ) = CFE15 min (ℓ) + βℓ60 min .
+
+
+
+
+                                                  71
+     Table A.14: Out-of-Sample Performance under Mid-Price versus Trade-Price Anchoring
+
+ Anchor        Specification       BTC         ETH           XRP      SOL     DOGE         ADA         Mean
+ Panel A: continuous-return out-of-sample R2 (%) vs. zero
+ Mid-price     Lag                  5.17        6.80         7.66     0.39      3.04        6.78        4.97
+ Mid-price     TI28                 0.10        0.12        −0.19     0.11     −0.52        0.77        0.07
+ Mid-price     Lag+TI28             5.34        6.91         7.88     0.64      2.72        6.93        5.07
+ Trade-price   Lag                  3.65        5.17         0.56     0.34     −0.11        4.58        2.36
+ Trade-price   TI28                 1.37        1.90        −0.36    −0.05      0.93        1.51        0.88
+ Trade-price   Lag+TI28             3.77        5.54         0.41     0.21      1.67        4.37        2.66
+ Panel B: direction-prediction AUC
+ Mid-price     Lag               0.6087      0.6406         0.6163   0.5624   0.5518      0.6376      0.6029
+ Mid-price     TI28              0.5741      0.5825         0.5380   0.5413   0.5464      0.5830      0.5609
+ Mid-price     Lag+TI28          0.6133      0.6479         0.6189   0.5649   0.5648      0.6449      0.6091
+ Trade-price Lag                 0.6087      0.6399         0.5914   0.5645   0.5506      0.6311      0.5977
+ Trade-price TI28                0.5703      0.5829         0.5233   0.5397   0.5421      0.5753      0.5556
+ Trade-price Lag+TI28            0.6113      0.6478         0.5895   0.5676   0.5599      0.6371      0.6022
+ Panel C: direction-prediction accuracy at the 0.5 threshold (%)
+ Mid-price     Lag                 58.24        60.43       59.24     54.67     54.15      60.27       57.83
+ Mid-price     TI28                55.52        56.22       52.89     53.29     53.45      56.10       54.58
+ Mid-price     Lag+TI28            58.65        60.95       59.64     55.01     54.65      60.53       58.24
+ Trade-price Lag                   58.26        60.42       56.27     54.74     54.21      59.52       57.24
+ Trade-price TI28                  55.34        56.19       51.68     53.19     52.87      55.79       54.18
+ Trade-price Lag+TI28              58.39        60.99       56.20     55.13     54.37      60.06       57.52
+Notes: The table repeats the out-of-sample forecasting design of Section 5 of the main text on the window
+for which Binance bid-ask data are available, May 16, 2023 to March 30, 2024 (roughly 14,500 quarter-
+hour boundary observations per asset). Mid-price anchors the quarter-hour return on the bid-ask mid-price
+immediately before the boundary; Trade-price anchors it on the last transaction price, as in the main text.
+Both are estimated on the identical window with the same rolling-window walk-forward protocol (six-month
+training, monthly refit, LASSO for the continuous return and ℓ1 -penalized logistic regression for direction).
+Lag uses the 12 quarter-hour lags, TI28 the 28 technical indicators, and Lag+TI28 the 40-feature union.
+Panel A reports the out-of-sample R2 against the zero forecast; the shorter window is not comparable to the
+full-sample R2 of Table 3 and is used only to compare the two anchors. Under both anchors the combined
+specification is strongest for every asset, and the direction metrics are nearly identical (mean AUC 0.609
+versus 0.602); if anything the mid-price anchor is slightly stronger, consistent with the trade-price anchor
+carrying bid-ask-bounce noise that the mid-price removes.
+
+
+The reversal controls Wt = (ηt+ , ηt− ) are included as in the main text. Figure A.10 shows that
+
+the quarter-hour curve, now purged of the hour, is essentially unchanged: positive and peaking at
+
+medium horizons in every market. The top-of-hour increment is statistically insignificant at the
+
+four-hour horizon for every contract and mixed in sign at longer horizons, with a sharp negative
+
+excursion for SOL at eight hours. The quarter-hour predictability is therefore not a top-of-hour
+
+
+
+                                                        72
+effect; the strongest medium-horizon content sits at the fifteen-minute phase, and the minute-0
+
+openings add noise rather than signal.
+
+
+
+
+Figure A.10: Cumulative forecasting effect (CFE) of quarter-hour opening order imbalance, with
+the top of the hour separated out, at horizons from 30 seconds to 24 hours. The five nested curves
+are Baseline, 1min, 5min, 15min, and Hour. Shaded bands are 95% Newey–West HAC intervals
+(FFT-Bartlett kernel, bandwidth equal to the forecast horizon) on the 15min and Hour curves.
+Sample: January 1, 2021 to October 31, 2024.
+
+
+
+
+                                               73
+A.12       Conventional versus Phase-Specific Autocorrelations
+
+This section accompanies Section 4.1 of the main text. Panel (d) of Figure A.11 plots the con-
+
+ventional robust autocorrelation function (ACF) for the sign of 10-second BTC returns. The ag-
+
+gregate plot displays a positive autocorrelation at k = 1, a standard finding in high-frequency data,
+
+followed by a series of small but regular spikes at lags corresponding to one-minute intervals
+
+(k = 6, 12, 18, . . .). Conditioning on clock time reveals the underlying structure. Panel (a) isolates
+
+returns observed exclusively during the first 10 seconds of each hour (seconds 0–9); despite the
+
+much smaller effective sample, the correlations exhibit a pronounced and regular periodic struc-
+
+ture, with the spike at k = 90 corresponding to 15 minutes. Panels (b) and (c) apply the same logic
+
+to the second and third 10-second intervals of the hour, showing that this dependence weakens
+
+substantially just seconds later. Panels (e) and (f) show that the same phase-specific pattern arises
+
+in windows away from the top of the hour.
+
+
+
+
+                                                  74
+     (a) First 10s of each hour           (b) Second 10s of each hour        (c) Third 10s of hour
+
+
+
+
+                                                                        (e) Minute 22, seconds 30–39
+
+
+
+
+                        (d) All 10-second returns
+                                                                         (f) Minute 52, seconds 30–39
+
+Figure A.11: Conventional versus phase-specific autocorrelation in 10-second BTC returns. Panels
+(a), (b), and (c) report the phase-specific autocorrelations for the first, second, and third 10-second
+intervals of each hour, respectively. The spike at k = 90 corresponds to 15 minutes. Panel (d)
+reports the conventional robust autocorrelation function (ACF) for the sign of 10-second returns.
+Panels (e) and (f) present autocorrelations for two other 10-second windows (minute 22, seconds
+30–39, and minute 52, seconds 30–39) to illustrate the persistence of the phase-specific depen-
+dence across different times of the hour. Conditioning on the recurrent clock phase reveals strong,
+persistent dependence concentrated at the start of the 15-minute intervals that is almost entirely
+obscured in the aggregate autocorrelation.
+
+
+
+
+                                                      75
+A.13       Trade Counts by Second of the Hour
+
+This section accompanies Section 3.1 of the main text. Figure A.12 displays the average number
+
+of trades by second of the hour for the six contracts, corroborating the layered intrahour periodicity
+
+described there.
+
+
+
+
+Figure A.12: Each panel plots the average number of trades by second of the hour for BTC,
+ETH, XRP, SOL, DOGE, and ADA. Trading activity peaks sharply at the start of each hour, with
+additional recurring surges at the 15-, 30-, and 45-minute marks. Smaller micro-spikes also appear
+at one-minute intervals throughout the hour, revealing a layered intrahour periodic structure in
+trade arrival intensity. Sample period: January 1, 2021 to October 31, 2024.
+
+
+
+
+                                                 76
+

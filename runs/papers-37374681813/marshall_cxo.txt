@@ -1,0 +1,131 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Evidence-based investing research
+Login Join
+
+
+[CXO_Advisory]
+
+    * Research
+    * Strategies
+          o Strategy_Overview
+          o What_Works_Best?
+          o Momentum_Strategy
+          o Value_Strategy
+          o Strategy_Tools
+          o Value_+_Momentum
+    * Live_Tests
+    * Research_Assistant_Beta
+    * More
+          o Inflation
+          o Calendar
+          o Guru_Grades
+
+
+[_s                  ]
+
+
+    * Research
+    * Strategies
+          o Strategy_Overview
+          o What_Works_Best?
+          o Momentum_Strategy
+          o Value_Strategy
+          o Strategy_Tools
+          o Value_+_Momentum
+    * Live_Tests
+    * Research_Assistant_Beta
+    * More
+          o Inflation
+          o Calendar
+          o Guru_Grades
+[_s                  ]
+Value Investing Strategy (Strategy_Overview)
+Allocations for October 2026 (Final)
+Cash TLT LQD SPY
+Momentum Investing Strategy (Strategy_Overview)
+Allocations for October 2026 (Final)
+1st ETF 2nd ETF 3rd ETF
+
+
+****** Does Technical Trading Work with Commodity Futures? ******
+Steve LeCompte | July 31, 2007 | Posted in:Commodity_Futures, Technical_Trading
+
+Do relatively low transaction costs and ease of short selling enable profitable
+technical trading in commodity futures markets? In their recent paper entitled
+“Can_Commodity_Futures_be_Profitably_Traded_with_Quantitative_Market_Timing
+Strategies?”, Ben Marshall, Rochester Cahan and Jared Cahan investigate the
+effectiveness of 7,846 quantitative trading rules from five rule families
+(Filter, Moving Average, Support and Resistance, Channel Breakouts, and On-
+Balance Volume) for 15 kinds of commodity futures contracts. They test these
+rules for cocoa, coffee, cotton, crude oil, feeder cattle, gold, heating oil,
+live cattle, oats, platinum, silver, soy beans, soy oil, sugar and wheat
+futures. Their testing includes two bootstrapping methodologies, adjustment for
+data_snooping_bias and evaluations over different time periods. Using daily
+price and volume data for 1984-2005, they conclude that:
+    * Across the entire sample, nine of 15 commodities have positive mean daily
+      returns, and all exhibit positive kurtosis (fat tails).
+    * The best trading rule for each commodity yields statistically significant
+      profits. However, adjustment for data snooping bias eliminates reliable
+      profits for 14 of 15 commodities.
+    * The best moving average rule generates profits in excess of reasonable
+      transactions costs for oats even after adjusting for data snooping bias.
+      However, this profitability disappears in the 1995-2005 subperiod.
+    * Overall, results indicate that technical rules are not profitable as
+      standalone commodity futures trading methods, but they do not rule out
+      the possibility that such rules might compliment some other trading
+      strategy.
+In summary, market timing based on technical analysis is not reliably
+profitable for commodity futures.
+
+***** Further Reading *****
+Commodity_Futures,_Currency_Trading___Are_Managed_Futures_ETFs_Working?__Are
+managed_futures,_as_implemented_by_exchange-traded_funds_(ETF),_attractive?_To
+investigate,_we_consider_six_managed_futures_ETFs,..._Sep_30,_2026 Calendar
+Effects___Does_the_Turn-of-the-Month_Effect_Work_for_Asset_Classes?__Does the
+Turn-of-the-Month_Effect,_a_concentration_of_positive_stock_market_returns
+around_the_turns_of_calendar_months,_work_across..._Sep_4,_2026 Calendar
+Effects___Does_the_Turn-of-the-Month_Effect_Work_for_Sectors?__A_reader
+inquired_whether_the_Turn-of-the-Month_Effect,_a_concentration_of_positive
+stock_market_returns_around_the_turns_of..._Sep_3,_2026 Equity_Premium,
+Fundamental_Valuation,_Momentum_Investing___When_Equity_Market_Momentum_Does
+and_Does_Not_Work__Under_what_conditions_does_equity_market_time_series
+momentum_(TSMOM)_work_and_not_work?_In_their_June_2026..._Jul_10,_2026 Mutual/
+Hedge_Funds___Are_Hedge_Fund_ETFs_Working?__Are_hedge_fund-oriented_strategies,
+as_implemented_by_exchange-traded_funds_(ETF),_attractive?_To_investigate,_we
+consider_10_ETFs,_five..._Sep_29,_2026 Individual_Investing,_Investing
+Expertise___Do_Sophisticated_Retail_Investors_Trade_Profitably?__Do
+sophisticated_retail_investors_make_money_with_their_news-driven_stock_trades?
+In_his_September_2026_paper_entitled_“Heterogeneous..._Sep_24,_2026
+About_CXO Disclaimer Privacy_Policy Terms_of_Service Contact_CXO
+© 2004-2026 The CXO Advisory Group, LLC. All Rights Reserved.
+
+
