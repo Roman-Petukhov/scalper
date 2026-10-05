@@ -59,17 +59,24 @@ def period_of(day: str) -> str:
     return "is" if day < "2024-07-01" else "val" if day < "2025-07-01" else "ho"
 
 
-def sample(src: Path, out: Path, n: int = N_SAMPLE, seed: int = 7) -> None:
+def sample(src: Path, out: Path, n: int = N_SAMPLE, seed: int = 7, focus: str = "", exclude: Path | None = None) -> None:
     """Пробои 4h с FROM: одна сделка на (монета, время, сторона) — линии «чистая» и «по значимым точкам» дают одни
-    и те же входы; затем случайные N монето-дней (все входы этих дней)."""
+    и те же входы; затем случайные N монето-дней (все входы этих дней). focus="short55" — только шорты с долей
+    продавцов >= 55% (проверка гипотезы); exclude — события прошлой выборки: их монето-дни не берутся."""
     df = pd.read_parquet(src)
     df["t"] = pd.to_datetime(df["t"], utc=True)
     df = df[(df.tf == "4h") & (df.t >= FROM)]
+    if focus == "short55":
+        df = df[(df.side < 0) & (df.aggr >= 0.55)]
     df = df.sort_values("line").drop_duplicates(["symbol", "t", "side"])
     df["t_close"] = df["t"] + pd.Timedelta(hours=4)
     df["probe_ms"] = (df["t_close"] - pd.Timestamp(0, tz="UTC")) // pd.Timedelta(milliseconds=1) - PROBE_LAG_MS
     df["day"] = pd.to_datetime(df["probe_ms"], unit="ms", utc=True).dt.strftime("%Y-%m-%d")
-    days = df[["symbol", "day"]].drop_duplicates().sample(frac=1.0, random_state=seed).head(n)
+    days = df[["symbol", "day"]].drop_duplicates()
+    if exclude is not None:
+        old_days = pd.read_csv(exclude)[["symbol", "day"]].drop_duplicates()
+        days = days.merge(old_days, how="left", indicator=True).query("_merge == 'left_only'").drop(columns="_merge")
+    days = days.sample(frac=1.0, random_state=seed).head(n)
     ev = df.merge(days, on=["symbol", "day"])
     cols = ["symbol", "day", "probe_ms", "side", "line", "R", "aggr", "with_trend", "per"]
     ev[cols].sort_values(["symbol", "day", "probe_ms"]).to_csv(out / "tlbook_events.csv", index=False)
@@ -166,6 +173,22 @@ def _cell(g: pd.DataFrame) -> str:
     return f"{r.mean():+.2f}R (t {t:.1f}, n {len(r)})"
 
 
+def hypothesis(df: pd.DataFrame) -> None:
+    """Гипотезы, заявленные по первой выборке (шорты 4h, продавцов >= 55%, ρ ≈ −0.33 для thin_100) и проверяемые
+    на новых монето-днях: H1 — пустой стакан впереди (thin_100 ниже медианы) лучше; H2 — перекос заявок в 1%
+    за нами (imb100_d выше медианы) лучше. Медианы — по проверочной выборке."""
+    g = df[(df.side < 0) & (df.aggr >= 0.55)]
+    if len(g) < 100:
+        return
+    print(f"\n  ПРОВЕРКА ГИПОТЕЗ (шорты, агрессоры >= 55%, n {len(g)}):")
+    for f, better_low, name in (("thin_100", True, "H1: заявок впереди в 1% мало"), ("imb100_d", False, "H2: за нами плотнее")):
+        med = g[f].median()
+        lo, hi = g[g[f] <= med], g[g[f] > med]
+        good, bad = (lo, hi) if better_low else (hi, lo)
+        print(f"    {name}: да {_cell(good)}, нет {_cell(bad)}; по периодам: " +
+              "; ".join(f"{p}: да {_cell(good[good.period == p])}, нет {_cell(bad[bad.period == p])}" for p in ("is", "val", "ho")))
+
+
 def report(df: pd.DataFrame) -> None:
     df = df[df["mid"].notna()].copy()
     df["period"] = df["day"].map(period_of)
@@ -192,6 +215,7 @@ def report(df: pd.DataFrame) -> None:
         print("  по периодам: " + "; ".join(f"{p}: " + ", ".join(f"{k} {_cell(gp[classify(gp) == k])}"
                                                                   for k in ("confirmed", "fake"))
                                            for p, gp in g.groupby("period")))
+    hypothesis(df)
 
 
 if __name__ == "__main__":
@@ -204,10 +228,13 @@ if __name__ == "__main__":
     ap.add_argument("--report", default=None, help="папка с tlbook_*.parquet")
     ap.add_argument("--out", default=".")
     ap.add_argument("--workers", type=int, default=2)
+    ap.add_argument("--focus", default="")
+    ap.add_argument("--exclude", default=None)
+    ap.add_argument("--n", type=int, default=N_SAMPLE)
     a = ap.parse_args()
     walls.BANDS_BPS = BANDS                                  # снимок глубины в 50 / 100 б.п. вместо 10 / 25
     if a.sample:
-        sample(Path(a.sample), Path(a.out))
+        sample(Path(a.sample), Path(a.out), a.n, focus=a.focus, exclude=Path(a.exclude) if a.exclude else None)
         sys.exit(0)
     if a.report:
         files = sorted(Path(a.report).rglob("tlbook_*.parquet"))
