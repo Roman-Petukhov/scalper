@@ -1,6 +1,10 @@
 @echo off
 chcp 65001 >nul
 cd /d "%~dp0"
+where git >nul 2>nul && git rev-parse --is-inside-work-tree >nul 2>nul && (
+  echo Обновляю панель с GitHub...
+  git pull --ff-only --quiet || echo Обновиться не удалось ^(нет сети или есть свои правки^) — запускаю текущую версию.
+)
 where py >nul 2>nul && (set PY=py -3) || (set PY=python)
 if not exist .venv (
   echo Создаю окружение Python...

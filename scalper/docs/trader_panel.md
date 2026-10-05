@@ -20,8 +20,11 @@
 ## На своём компьютере (без Docker)
 Нужен Python 3.12 (python.org; на Windows при установке отметить «Add python.exe to PATH").
 
-1. GitHub → ветка `main-t2qdvg` → Code → Download ZIP, распаковать.
-2. Открыть папку `scalper` внутри архива и запустить:
+1. Один раз склонировать (нужен Git for Windows с git-scm.com; при первом клонировании откроется вход в GitHub):
+   `git clone -b main-t2qdvg https://github.com/Roman-Petukhov/scalper.git %USERPROFILE%\Desktop\scalper-git`
+   Дальше `run_panel` при каждом запуске сам делает `git pull` — скачивать архивы больше не нужно.
+   (Можно и ZIP: GitHub → ветка `main-t2qdvg` → Code → Download ZIP, но тогда без автообновления.)
+2. Открыть папку `scalper` внутри и запустить:
    - Windows: двойной клик по `run_panel.bat`;
    - Mac / Linux: `./run_panel.sh` в терминале.
 3. Первый запуск ставит зависимости (2–5 минут) и спрашивает пароль панели. Настройки сохраняются в `panel.env`,
