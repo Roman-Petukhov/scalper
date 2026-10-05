@@ -986,6 +986,36 @@ def _years(g: pd.DataFrame, col: str = "R3") -> str:
     return ", ".join(f"{k}: {v['mean']:+.2f} ({int(v['size'])})" for k, v in yy.iterrows())
 
 
+def bot_rule_report(df: pd.DataFrame, line_name: dict) -> None:
+    """Правило бота (trader/domain/strategy.py) на всех трёх ТФ: обычные линии по значимым точкам, пробой без
+    закрепления, агрессоры >= 55%, тренд старшего ТФ, цель — всё на 3R; варианты уверенности свечи и входа."""
+    print("\n=== ПРАВИЛО БОТА по таймфреймам: линии по значимым точкам, агрессоры >= 55% + тренд старшего ТФ, "
+          "всё на 3R; ячейка — R на сделку (t, прибыльных, сделок в месяц на весь набор монет) ===")
+    base = df[(df.line == "zz") & ~df.confirm & (df.aggr >= 0.55) & df.with_trend]
+    rules = [("все пробои", lambda g: g),
+             ("закрытие в верхних 20% (по умолчанию)", lambda g: g[g.close_loc >= 0.8]),
+             ("закрытие в верхней трети", lambda g: g[g.close_loc >= 0.67]),
+             ("верхние 20% + за линией >= 0.2 ATR", lambda g: g[(g.close_loc >= 0.8) & (g.brk_atr >= 0.2)]),
+             ("верхние 20% + за линией >= 0.3 ATR", lambda g: g[(g.close_loc >= 0.8) & (g.brk_atr >= 0.3)])]
+    rows = []
+    for tf in ("4h", "1h", "15m"):
+        for entry in ("retest", "market"):
+            g = base[(base.tf == tf) & (base.entry == entry)]
+            if not len(g):
+                continue
+            for nm, f in rules:
+                z = f(g).assign(R=lambda x: x["R3"])
+                rows.append({"ТФ": tf, "вход": "ретест" if entry == "retest" else "рынок", "свеча": nm,
+                             **{p: _cell(z[z.per == p]) for p in PER}})
+    print(pd.DataFrame(rows).to_string(index=False))
+    for tf in ("4h", "1h", "15m"):
+        for entry in ("retest", "market"):
+            g = base[(base.tf == tf) & (base.entry == entry)]
+            if len(g):
+                for nm, f in rules[:2]:
+                    print(f"  {tf}, {'ретест' if entry == 'retest' else 'рынок'}, {nm}: {_years(f(g))}")
+
+
 def conviction_report(df: pd.DataFrame, line_name: dict) -> None:
     """Уверенный пробой: закрытие далеко за линией (ATR), у края свечи, с крупным телом — против пробоев «на чуть-чуть».
     База — сигнал бота: агрессоры >= 55% + тренд старшего ТФ, пробой (без закрепления), цель — всё на 3R."""
@@ -1296,6 +1326,7 @@ def report() -> None:
     if "R3" in df.columns:
         target_report(df, line_name)
     if "R3" in df.columns and "brk_atr" in df.columns:
+        bot_rule_report(df, line_name)
         conviction_report(df, line_name)
     if "R3x0" in df.columns:
         filters_report(df, line_name)
