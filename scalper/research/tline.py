@@ -1297,8 +1297,10 @@ def lowtf_report(df: pd.DataFrame) -> None:
     # пробой 4h известен только после закрытия его свечи: сравниваем время закрытия свечи 4h с закрытием свечи
     # младшего ТФ (раньше бралось открытие 4h — заглядывание до 4 часов вперёд)
     b4 = df[(df.line == "zz") & ~df.confirm & (df.tf == "4h")][["symbol", "side", "t"]].drop_duplicates()
-    b4 = b4.assign(t4=b4.t + pd.Timedelta(minutes=BAR_MIN["4h"]))[["symbol", "side", "t4"]].sort_values("t4")
-    base = base.assign(tclose=base.t + pd.to_timedelta(base.tf.map(BAR_MIN), unit="min")).sort_values("tclose")
+    b4 = b4.assign(t4=(b4.t + pd.Timedelta(minutes=BAR_MIN["4h"])).astype("datetime64[ns, UTC]"))[
+        ["symbol", "side", "t4"]].sort_values("t4")
+    base = base.assign(tclose=(base.t + pd.to_timedelta(base.tf.map(BAR_MIN), unit="min")).astype(
+        "datetime64[ns, UTC]")).sort_values("tclose")
     parts = []
     for (sym, sd), g in base.groupby(["symbol", "side"], sort=False):
         h = b4[(b4.symbol == sym) & (b4.side == sd)]
