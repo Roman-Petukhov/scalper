@@ -462,7 +462,7 @@ def report() -> None:
         shutil.copy(png, out / png.name)
     print(f"===== TLINE: сделок {len(df):,}, монет {df.symbol.nunique()}, частей {len(parts)} =====")
     print("ячейка: средний R на сделку (t по дням, прибыльных, сделок в месяц на весь набор монет); выход 1/2 на 3R + 1/2 на 5R")
-    line_name = {"last2": "2 последние", "clean": "чистая", "clean3": "чистая, 3 касания"}
+    line_name = {"last2": "2 последние", "clean": "чистая", "clean3": "чистая, 3 касания", "major": "от главного экстремума"}
     filters = lambda g: (("все", g), ("по тренду старшего ТФ", g[g.with_trend]),
                          ("объём пробоя >= 1.5x", g[g.vol_ratio >= 1.5]), ("OI рос 4 бара", g[g.oi_chg > 0]),
                          ("сильная свеча", g[(g.body >= 0.6) & (g.close_loc >= 0.75) & (g.brk_atr >= 0.3)]),
