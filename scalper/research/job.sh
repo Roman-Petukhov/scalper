@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"prept tline fade donch"}
+TASKS=${TASKS:-"prepw wide15"}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
 FILTER="Pandas4Warning\|pd.concat\|файлов$\|мес. свечей"
@@ -87,6 +87,10 @@ tline_report() {
   echo "===== TLINE: линия тренда по закрытиям, пробой с закреплением, ретест, лесенка 3R / 5R ====="
   pip install -q lightgbm && python -m research.tline report
 }
+prepw_collect() { python -m research.prepare 1h-qualified 15m-wide; }
+prepw_report() { :; }
+wide15_collect() { python -m research.wide15 collect --symbols "$(cat /tmp/syms_15m-wide.txt)"; }
+wide15_report() { python -m research.wide15 report; }
 fade_collect() { python -m research.fade15 collect --symbols15 "$(cat /tmp/syms_15m-core70.txt)"; }
 fade_report() { python -m research.fade15 report; }
 donch_collect() { python -m research.donchian collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
