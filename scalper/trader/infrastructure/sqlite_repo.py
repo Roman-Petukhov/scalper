@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from ..domain.execution import Trade, TradeStatus
-from ..domain.models import (DEFAULT_TF_PARAMS, RETIRED_TIMEFRAMES, STRATEGY_RESETS, TF_FIELDS, EntryKind, EntryPolicy, Mode, Settings,
+from ..domain.models import (DEFAULT_TF_PARAMS, RETIRED_TIMEFRAMES, SETTINGS_ONCE, STRATEGY_RESETS, TF_FIELDS, EntryKind, EntryPolicy, Mode, Settings,
                              Side, SideFilter, Signal, SignalStatus, TfParams, Timeframe, TradePlan)
 
 SCHEMA = """
@@ -51,6 +51,7 @@ class SqliteStore:
             self.db.executescript(SCHEMA)
             self._drop_retired()
             self._reset_strategies(STRATEGY_RESETS)
+            self._set_once(SETTINGS_ONCE)
             self.db.commit()
 
     def _reset_strategies(self, once: dict[str, Timeframe]) -> None:
@@ -66,6 +67,17 @@ class SqliteStore:
                 p["timeframes"] = sorted(set(p.get("timeframes", [])) | {tf.value})
                 p["auto_timeframes"] = [x for x in p.get("auto_timeframes", []) if x != tf.value]
                 p.setdefault("tf_params", {})[tf.value] = self._tf_payload(DEFAULT_TF_PARAMS[tf])
+                self.db.execute("UPDATE settings SET payload = ? WHERE id = 1", (json.dumps(p),))
+            self.db.execute("INSERT INTO kv(key, value) VALUES (?, ?)", (key, "done"))
+
+    def _set_once(self, once: dict[str, dict[str, object]]) -> None:
+        """Один раз поменять общие поля сохранённых настроек; метка в kv — дальше их меняет только трейдер."""
+        for key, fields in once.items():
+            if self.db.execute("SELECT 1 FROM kv WHERE key = ?", (key,)).fetchone():
+                continue
+            row = self.db.execute("SELECT payload FROM settings WHERE id = 1").fetchone()
+            if row is not None:
+                p = json.loads(row["payload"]) | fields
                 self.db.execute("UPDATE settings SET payload = ? WHERE id = 1", (json.dumps(p),))
             self.db.execute("INSERT INTO kv(key, value) VALUES (?, ?)", (key, "done"))
 

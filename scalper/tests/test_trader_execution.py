@@ -36,7 +36,7 @@ def test_market_order_sized_from_risk_and_rounded():
 
 @pytest.mark.parametrize("acc,price,day,msg", [
     (replace(ACC, positions=(Position("SOLUSDT", Side.LONG, 1, 100, 101, 1),)), 101.0, 1000.0, "уже есть"),
-    (replace(ACC, pending_symbols=frozenset({f"X{i}USDT" for i in range(5)})), 101.0, 1000.0, "открыто 5 из 5"),
+    (replace(ACC, pending_symbols=frozenset({f"X{i}USDT" for i in range(12)})), 101.0, 1000.0, "открыто 12 из 12"),
     (replace(ACC, equity=950.0), 101.0, 1000.0, "дневной стоп"),
     (ACC, 97.0, 1000.0, "за стопом"),
     (ACC, 111.0, 1000.0, "до цели"),

@@ -114,6 +114,8 @@ RETIRED_TIMEFRAMES = ("1h",)            # были в панели раньше:
 # один раз при запуске перевести таймфрейм на новую стратегию в сохранённых настройках: правило — из DEFAULT_TF_PARAMS,
 # сигналы ищутся, автоторговля по нему выключена до проверки на демо; дальше трейдер меняет всё сам
 STRATEGY_RESETS: dict[str, Timeframe] = {"m15_gentle_shorts_2026_10": Timeframe.M15}
+# один раз при запуске поменять общие поля в сохранённых настройках (дальше — как поставит трейдер)
+SETTINGS_ONCE: dict[str, dict[str, object]] = {"max_positions_12_2026_10": {"max_positions": 12}}
 TF_FIELDS = tuple(TfParams.__dataclass_fields__)
 
 
@@ -124,7 +126,7 @@ class Settings:
     auto_timeframes: frozenset[Timeframe] = frozenset({Timeframe.H4})   # по каким ТФ автобот входит сам
     tf_params: dict[Timeframe, TfParams] = field(default_factory=lambda: dict(DEFAULT_TF_PARAMS))
     leverage: int = 5                   # плечо на бирже и потолок номинала позиции (×капитал); риск задаёт стоп
-    max_positions: int = 5
+    max_positions: int = 12             # 4h: обычно открыто 3, в пике истории 12; лимит 5 терял ~14% сигналов
     daily_loss_pct: float = 4.0         # дневной лимит убытка, % капитала: дальше авто не открывает
     min_turnover_usd: float = 20e6      # оборот монеты за 24 ч
 

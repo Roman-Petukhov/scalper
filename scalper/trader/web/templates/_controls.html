@@ -100,7 +100,7 @@
     <div class="row" style="margin-top:14px">
       <button class="btn primary" type="submit">Сохранить</button>
       <button type="button" class="btn ghost" hx-post="/settings/reset" hx-target="#controls"
-            hx-confirm="Вернуть настройки к стандартным? Для обоих ТФ: агрессоры 55%, цель 3R, закрытие у края свечи 50%; 4h — ретест, обе стороны, риск 1%; 15m — по рынку, только шорт, линия не круче 0.025 ATR/свечу, риск 0.25%; плечо 5×, до 5 позиций, дневной стоп 4%. Таймфреймы и режим ручной / авто не изменятся.">По умолчанию</button>
+            hx-confirm="Вернуть настройки к стандартным? Для обоих ТФ: агрессоры 55%, цель 3R, закрытие у края свечи 50%; 4h — ретест, обе стороны, риск 1%; 15m — по рынку, только шорт, линия не круче 0.025 ATR/свечу, риск 0.25%; плечо 5×, до 12 позиций, дневной стоп 4%. Таймфреймы и режим ручной / авто не изменятся.">По умолчанию</button>
       {% if params_error %}<span class="err" role="alert">{{ params_error }}</span>
       {% elif params_saved %}<span class="ok" role="status">Сохранено</span>
       {% elif reset_done %}<span class="ok" role="status">Стандартные настройки восстановлены</span>{% endif %}
