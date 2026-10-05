@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hmac
 import logging
+import re
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -33,6 +34,14 @@ REMEMBER_S = 365 * 24 * 3600          # «запомнить на этом ус�
 SHORT_LOGIN_S = 12 * 3600
 STATUS_LABEL = {SignalStatus.NEW: "новый", SignalStatus.TAKEN: "в работе", SignalStatus.SKIPPED: "пропущен",
                 SignalStatus.EXPIRED: "истёк"}
+
+
+def chart_name(path: str) -> str:
+    """Имя файла графика из сохранённого пути: на Windows путь с «\\», поэтому режем по обоим разделителям."""
+    return re.split(r"[\\/]", path)[-1]
+
+
+templates.env.filters["chart_name"] = chart_name
 templates.env.globals.update(STATUS_LABEL=STATUS_LABEL, Timeframe=Timeframe, Mode=Mode, EntryPolicy=EntryPolicy,
                              SignalStatus=SignalStatus)
 

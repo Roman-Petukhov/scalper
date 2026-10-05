@@ -2,7 +2,7 @@
 <article class="card signal" id="signal-{{ sig.id }}">
   <div>
     {% if sig.chart_path %}
-    <img src="/charts/{{ sig.chart_path.split('/')[-1] }}" alt="График {{ sig.symbol }} {{ sig.timeframe.value }}" loading="lazy">
+    <img src="/charts/{{ sig.chart_path | chart_name }}" alt="График {{ sig.symbol }} {{ sig.timeframe.value }}" loading="lazy">
     {% else %}<div class="empty">График не построился</div>{% endif %}
   </div>
   <div class="meta">

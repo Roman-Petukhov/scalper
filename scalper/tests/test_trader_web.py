@@ -161,3 +161,9 @@ def test_scan_result_shows_time_and_count(env):
     _login(c)
     r = c.post("/scan/4h", headers=HX)
     assert r.headers["HX-Trigger"] == "feed-refresh" and "UTC" in r.text and "scan-result" in r.text
+
+
+def test_chart_name_handles_windows_paths():
+    from trader.web.app import chart_name
+    assert chart_name(r"C:\Users\R\scalper\data_panel\charts\ETHUSDT_15m_1.png") == "ETHUSDT_15m_1.png"
+    assert chart_name("/srv/data/charts/SOLUSDT_4h_2.png") == "SOLUSDT_4h_2.png"
