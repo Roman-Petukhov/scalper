@@ -121,6 +121,7 @@ def vis_lines(d: pd.DataFrame, n: int, launch: bool = False, minor: int = 0, bos
     return out
 
 BASE = "https://fapi.binance.com"
+SPOT = "https://data-api.binance.vision"
 MODES = {"сейчас: зигзаг 3 ATR": lambda d: zz_lines(d),
          "видимые вершины ±10 свечей": lambda d: vis_lines(d, 10),
          "A: видимые ±10 + полка + слом структуры, B: мини-экстремум ±3 (касательная)":
@@ -129,10 +130,20 @@ MODES = {"сейчас: зигзаг 3 ATR": lambda d: zz_lines(d),
 SHOW = 300
 
 
-def klines(client: httpx.Client, sym: str, tf: str) -> pd.DataFrame:
-    rows = client.get("/fapi/v1/klines", params={"symbol": sym, "interval": tf, "limit": 1500}).json()
-    df = pd.DataFrame(rows, columns=["ot", "open", "high", "low", "close", "volume", "ct", "qv", "n", "taker_buy_volume",
-                                     "tbq", "ig"])
+def klines(client: httpx.Client, sym: str, tf: str) -> pd.DataFrame | None:
+    """Свечи фьючерса; с серверов в США fapi закрыт (HTTP 451) — тогда спот с зеркала data-api.binance.vision."""
+    params = {"symbol": sym, "interval": tf, "limit": 1500}
+    r = client.get("/fapi/v1/klines", params=params)
+    src = "фьючерс"
+    if r.status_code != 200:
+        r = httpx.get(f"{SPOT}/api/v3/klines", params={**params, "limit": 1000}, timeout=30)
+        src = "спот (fapi недоступен)"
+    if r.status_code != 200 or not isinstance(r.json(), list) or len(r.json()) < 200:
+        print(f"\n--- {sym} {tf}: нет данных (HTTP {r.status_code})")
+        return None
+    print(f"\n=== {sym} {tf}: {src}")
+    df = pd.DataFrame(r.json(), columns=["ot", "open", "high", "low", "close", "volume", "ct", "qv", "n",
+                                         "taker_buy_volume", "tbq", "ig"])
     df.index = pd.to_datetime(df["ot"], unit="ms", utc=True)
     return df[["open", "high", "low", "close", "volume", "taker_buy_volume"]].astype("float64").iloc[:-1]
 
@@ -175,7 +186,11 @@ def draw(d: pd.DataFrame, sym: str, tf: str, out: Path) -> None:
 
 
 def coin_kinds(client: httpx.Client) -> None:
-    info = client.get("/fapi/v1/exchangeInfo").json()
+    r = client.get("/fapi/v1/exchangeInfo")
+    if r.status_code != 200:
+        print(f"\nexchangeInfo фьючерсов недоступен отсюда (HTTP {r.status_code})")
+        return
+    info = r.json()
     usdt = [s for s in info["symbols"] if s.get("quoteAsset") == "USDT" and s.get("contractType") == "PERPETUAL"
             and s.get("status") == "TRADING"]
     print("\n=== exchangeInfo: underlyingType / underlyingSubType ===")
@@ -196,7 +211,9 @@ def main() -> None:
     with httpx.Client(base_url=BASE, timeout=30) as client:
         for item in sys.argv[1:]:
             sym, tf = item.split(":")
-            draw(klines(client, sym, tf), sym, tf, out)
+            d = klines(client, sym, tf)
+            if d is not None:
+                draw(d, sym, tf, out)
         coin_kinds(client)
 
 
