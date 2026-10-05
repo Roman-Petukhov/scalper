@@ -64,7 +64,7 @@ def detect(d: pd.DataFrame, tf: Timeframe, symbol: str, settings: Settings) -> l
         brk = int(side) * (c[last] - float(r["line_t"])) / atr[last]          # насколько закрылась за линией
         rng = hi[last] - lo[last]
         loc = ((c[last] - lo[last]) if side is Side.LONG else (hi[last] - c[last])) / rng if rng > 0 else 0.0
-        if brk < settings.min_break_atr or loc < settings.min_close_loc:
+        if brk < settings.min_break_atr or loc < settings.close_loc_for(tf):
             continue                                                           # пробой «на чуть-чуть»
         sw = sw_lo[last] if side is Side.LONG else sw_hi[last]
         if sw < 0:

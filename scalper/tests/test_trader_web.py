@@ -82,6 +82,10 @@ def test_params_validation_message(env):
     form["leverage"] = "8"
     r = c.post("/settings/params", data=form, headers=HX).text
     assert "Сохранено" in r and 'name="leverage" type="number" step="1" min="1" max="10" value="8"' in r
+    form |= {"risk_pct_1h": "0.5", "min_close_loc_1h_pct": "70"}
+    r = c.post("/settings/params", data=form, headers=HX).text
+    assert 'name="risk_pct_1h" type="number" step="0.05" min="0.05" max="5" value="0.5"' in r
+    assert 'name="min_close_loc_1h_pct" type="number" step="5" min="0" max="90" value="70"' in r
 
 
 def test_signal_take_skip_and_feed(env):

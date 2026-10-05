@@ -145,7 +145,8 @@ def build_order(signal: Signal, settings: Settings, account: Account, instrument
 
     entry = round_price(entry, instrument.tick)
     stop, target = round_price(plan.stop, instrument.tick), round_price(plan.target, instrument.tick)
-    sized = position_size(account.equity, settings.risk_pct,
+    risk_pct = settings.risk_for(signal.timeframe)
+    sized = position_size(account.equity, risk_pct,
                           TradePlan(plan.entry_kind, entry, stop, target, plan.valid_bars), settings.leverage)
     lev = int(max(1, min(settings.leverage, instrument.max_leverage)))
     margin_cap = max(account.available, 0.0) * 0.95 * lev / entry      # запас 5% на комиссию и проскальзывание
@@ -153,7 +154,7 @@ def build_order(signal: Signal, settings: Settings, account: Account, instrument
     if margin_cap < instrument.min_qty:
         raise ExecutionRefused("не хватает свободной маржи на счёте")
     if qty < instrument.min_qty or qty <= 0:
-        raise ExecutionRefused(f"при риске {settings.risk_pct:g}% объём меньше минимального для {sym} "
+        raise ExecutionRefused(f"при риске {risk_pct:g}% объём меньше минимального для {sym} "
                                f"({_fmt(instrument.min_qty)})")
     if qty * entry < instrument.min_notional:
         raise ExecutionRefused(f"ордер меньше минимальных ${instrument.min_notional:g}")

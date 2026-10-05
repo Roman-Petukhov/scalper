@@ -58,13 +58,17 @@ class SignalStatus(str, Enum):
 class Settings:
     mode: Mode = Mode.MANUAL
     timeframes: frozenset[Timeframe] = frozenset({Timeframe.H4})
-    risk_pct: float = 1.0               # риск на сделку, % капитала
+    risk_pct: float = 1.0               # риск на сделку 4h, % капитала (основная стратегия)
+    risk_pct_1h: float = 0.25           # 1h: плюс по бэктесту тонкий — риск меньше
+    risk_pct_15m: float = 0.25          # 15m: без преимущества в бэктесте
     leverage: int = 5                   # плечо на бирже и потолок номинала позиции (×капитал); риск задаёт стоп
     max_positions: int = 5
     daily_loss_pct: float = 4.0         # дневной лимит убытка, % капитала: дальше авто не открывает
     min_aggr: float = 0.55              # доля агрессоров в сторону пробоя
     min_break_atr: float = 0.0          # уверенный пробой: закрытие за линией не ближе, чем столько ATR
-    min_close_loc: float = 0.8          # закрытие в верхних 20% свечи в сторону пробоя (бэктест 4h: лучше во всех периодах)
+    min_close_loc: float = 0.8          # 4h: закрытие в верхних 20% свечи в сторону пробоя (лучше во всех периодах)
+    min_close_loc_1h: float = 0.0       # 1h: фильтр не помогает в бэктесте — выключен
+    min_close_loc_15m: float = 0.0      # 15m: не помогает
     target_r: float = 3.0
     entry_policy: EntryPolicy = EntryPolicy.RETEST
     hybrid_range_atr: float = 2.5       # для гибрида: свеча пробоя длиннее (в ATR) — ретест, короче — по рынку
@@ -72,7 +76,7 @@ class Settings:
     min_turnover_usd: float = 20e6      # оборот монеты за 24 ч
 
     def __post_init__(self) -> None:
-        if not 0.05 <= self.risk_pct <= 5.0:
+        if not all(0.05 <= r <= 5.0 for r in (self.risk_pct, self.risk_pct_1h, self.risk_pct_15m)):
             raise ValueError("риск на сделку — от 0.05% до 5%")
         if not (isinstance(self.leverage, int) and 1 <= self.leverage <= MAX_LEVERAGE):
             raise ValueError(f"плечо — целое от 1× до {MAX_LEVERAGE}×")
@@ -84,12 +88,19 @@ class Settings:
             raise ValueError("порог агрессоров — от 50% до 80%")
         if not 0.0 <= self.min_break_atr <= 1.0:
             raise ValueError("закрытие за линией — от 0 до 1 ATR")
-        if not 0.0 <= self.min_close_loc <= 0.9:
+        if not all(0.0 <= v <= 0.9 for v in (self.min_close_loc, self.min_close_loc_1h, self.min_close_loc_15m)):
             raise ValueError("место закрытия в свече — от 0% до 90%")
         if not 1.0 <= self.target_r <= 10.0:
             raise ValueError("цель — от 1R до 10R")
         if not 0.5 <= self.hybrid_range_atr <= 10.0:
             raise ValueError("порог длинной свечи — от 0.5 до 10 ATR")
+
+    def risk_for(self, tf: Timeframe) -> float:
+        return {Timeframe.H4: self.risk_pct, Timeframe.H1: self.risk_pct_1h, Timeframe.M15: self.risk_pct_15m}[tf]
+
+    def close_loc_for(self, tf: Timeframe) -> float:
+        return {Timeframe.H4: self.min_close_loc, Timeframe.H1: self.min_close_loc_1h,
+                Timeframe.M15: self.min_close_loc_15m}[tf]
 
     def toggle(self, tf: Timeframe) -> Settings:
         tfs = set(self.timeframes)

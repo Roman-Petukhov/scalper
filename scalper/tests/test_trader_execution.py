@@ -298,3 +298,10 @@ def test_credentials_and_holder(tmp_path):
     assert "api-demo" in str(b1.ex.urls["api"])
     h.forget()
     assert h() is None
+
+
+def test_order_uses_timeframe_risk():
+    o4 = build_order(_sig(), Settings(), ACC, INST, 101.0, None, NOW)
+    o1 = build_order(_sig(timeframe=Timeframe.H1, bar_time=NOW - timedelta(hours=1, minutes=1)), Settings(), ACC, INST,
+                     101.0, None, NOW)
+    assert o4.risk_usd == pytest.approx(9.99, abs=0.02) and o1.risk_usd == pytest.approx(2.49, abs=0.02)

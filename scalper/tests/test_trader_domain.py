@@ -123,3 +123,13 @@ def test_conviction_filter_drops_weak_closes():
     assert len(kept) < len(found) and all(k.extra["break_atr"] >= strict.min_break_atr for k in kept)
     with pytest.raises(ValueError):
         Settings(min_break_atr=1.5)
+
+
+def test_per_timeframe_risk_and_close_filter():
+    s = Settings()
+    assert (s.risk_for(Timeframe.H4), s.risk_for(Timeframe.H1), s.risk_for(Timeframe.M15)) == (1.0, 0.25, 0.25)
+    assert (s.close_loc_for(Timeframe.H4), s.close_loc_for(Timeframe.H1)) == (0.8, 0.0)
+    with pytest.raises(ValueError):
+        Settings(risk_pct_15m=7.0)
+    with pytest.raises(ValueError):
+        Settings(min_close_loc_1h=0.95)
