@@ -1015,11 +1015,17 @@ def filters_report(df: pd.DataFrame, line_name: dict) -> None:
     feats = [f for f in MODEL_FEATS if f in tr_all.columns]
     X = tr_all[feats].astype("float64")
     is_m = (tr_all.per == "is").to_numpy()
-    model = lgb.LGBMRegressor(n_estimators=300, learning_rate=0.03, num_leaves=15, min_child_samples=200,
-                              subsample=0.8, subsample_freq=1, colsample_bytree=0.8, reg_lambda=5.0, verbose=-1)
-    model.fit(X[is_m], tr_all.loc[is_m, "R3"].clip(-1.5, 3.5))
+    y = tr_all["R3"].clip(-1.5, 3.5).to_numpy()
+    ok_y = is_m & np.isfinite(y)
+    if ok_y.sum() < 1000:
+        print("    мало сделок для обучения — модель пропущена")
+        return
+    params = {"objective": "regression", "learning_rate": 0.03, "num_leaves": 15, "min_data_in_leaf": 200,
+              "bagging_fraction": 0.8, "bagging_freq": 1, "feature_fraction": 0.8, "lambda_l2": 5.0,
+              "verbose": -1, "seed": 7}
+    model = lgb.train(params, lgb.Dataset(X[ok_y], y[ok_y]), num_boost_round=300)
     tr_all["score"] = model.predict(X)
-    imp = pd.Series(model.feature_importances_, index=feats).sort_values(ascending=False)
+    imp = pd.Series(model.feature_importance(), index=feats).sort_values(ascending=False)
     print("    важность: " + ", ".join(f"{k} {v}" for k, v in imp.head(12).items()))
     for ln in ("zz", "fan", "fan2", "clean"):
         g = tr_all[tr_all.line == ln]
