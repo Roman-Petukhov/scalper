@@ -30,13 +30,17 @@ SHELF_ATR = 0.3             # «полка» у экстремума: закры
 
 
 def launch_points(c: np.ndarray, atr: np.ndarray, piv: np.ndarray, side: int) -> np.ndarray:
-    """Для каждой вершины — последняя свеча «полки» у экстремума перед движением: идём вперёд от экстремума, пока
-    закрытия держатся в пределах SHELF_ATR ATR от него (не дальше бара подтверждения)."""
+    """Для каждой вершины — свеча, с которой пошло движение: последняя свеча «полки» у экстремума (закрытия в
+    пределах SHELF_ATR ATR от него), после которой цена больше не закрывалась ниже (для вершины — выше) вплоть до
+    бара подтверждения."""
     out = piv[:, 0].copy()
     for k, (p, conf) in enumerate(piv):
+        end = min(conf, len(c) - 1)
         q = p
-        while q + 1 <= min(conf, len(c) - 1) and side * (c[p] - c[q + 1]) <= SHELF_ATR * atr[p]:
-            q += 1
+        while q + 1 <= end and side * (c[p] - c[q + 1]) <= SHELF_ATR * atr[p]:
+            q += 1                                          # конец полки
+        while q > p and np.any(side * (c[q + 1: end + 1] - c[q]) > 0):
+            q -= 1                                          # после неё были закрытия ниже — берём раньше
         out[k] = q
     return out
 
