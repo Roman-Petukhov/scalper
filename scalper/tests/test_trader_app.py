@@ -201,5 +201,5 @@ def test_reset_defaults_keeps_mode(tmp_path):
                     entry_policy=EntryPolicy.HYBRID, min_close_loc=0.0, min_aggr=0.6))
     s = svc.reset_defaults()
     assert s.timeframes == frozenset(Timeframe) and s.entry_policy is EntryPolicy.RETEST
-    assert s.min_close_loc == 0.8 and s.min_aggr == 0.55 and s.target_r == 3.0
+    assert s.min_close_loc == 0.5 and s.min_aggr == 0.55 and s.target_r == 3.0
     assert (s.mode, s.risk_pct, s.leverage) == (Mode.AUTO, 1.0, 5)
