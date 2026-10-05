@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"prepall precursors"}
+TASKS=${TASKS:-"prepq smc"}
 MODE=${1:-collect}
 FILTER="Pandas4Warning\|pd.concat\|файлов$\|мес. свечей"
 
@@ -74,6 +74,13 @@ precursors_collect() { python -m research.precursors collect --symbols "$(cat /t
 precursors_report() {
   echo "===== PRECURSORS: стакан и крупные сделки перед иксами ====="
   python -m research.precursors report
+}
+prepq_collect() { python -m research.prepare 1h-qualified; }
+prepq_report() { :; }
+smc_collect() { python -m research.smc collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
+smc_report() {
+  echo "===== SMC: ордер-блоки, имбалансы и пробои на 1h, сетка на ретесте, ML на нескольких ТФ ====="
+  pip install -q lightgbm && python -m research.smc report
 }
 moonshake_collect() { python -m research.moonshake collect --symbols "$(cat /tmp/syms_1h-all.txt)"; }
 moonshake_report() {
