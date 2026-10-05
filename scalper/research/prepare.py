@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -22,6 +23,7 @@ from .universe import EXTRA
 
 ROOT = Path.home() / "bn"
 START, END = "2022-01", "2026-09"
+METRICS = os.environ.get("RESEARCH_METRICS", "1") != "0"   # 0 — без OI/LSR: ~1.2 млн дневных архивов, на VPS долго
 
 
 def build(name: str) -> list[str]:
@@ -29,7 +31,7 @@ def build(name: str) -> list[str]:
         syms = json.loads(Path(__file__).with_name("symbols_qualified.json").read_text())
         part = mine(syms)
         D.METRICS_FREQ = "1h"
-        D.build(sorted(set(part) | ALWAYS), "1h", START, END, ROOT, 64, metrics=True)
+        D.build(sorted(set(part) | ALWAYS), "1h", START, END, ROOT, 64, metrics=METRICS)
     elif name == "15m-core70":
         part = mine(list(dict.fromkeys(D.UNIVERSE + list(EXTRA))))
         D.build(sorted(set(part) | ALWAYS), "1h", START, END, ROOT, 64)          # 1h — для фильтра оборота
