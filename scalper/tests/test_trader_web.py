@@ -300,7 +300,7 @@ def test_reset_to_best_button(env):
     _login(c)
     c.post("/settings/entry/hybrid", headers=HX)
     r = c.post("/settings/reset", headers=HX)
-    assert r.status_code == 200 and "как в лучшем бэктесте" in r.text and r.headers["HX-Trigger"] == "feed-refresh"
+    assert r.status_code == 200 and "Стандартные настройки восстановлены" in r.text and r.headers["HX-Trigger"] == "feed-refresh"
     from trader.domain.models import EntryPolicy
     from trader.infrastructure.sqlite_repo import SqliteStore
     assert SqliteStore(tmp / "trader.db").load().entry_policy is EntryPolicy.RETEST

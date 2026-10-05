@@ -174,14 +174,10 @@ class SettingsService:
         self.repo.save(s)
         return s
 
-    STRATEGY_FIELDS = ("timeframes", "entry_policy", "min_aggr", "target_r", "hybrid_range_atr", "retest_bars",
-                       "min_break_atr", "min_close_loc", "min_turnover_usd")
-
-    def reset_strategy(self) -> Settings:
-        """Правило входа — к лучшему по бэктесту (значения по умолчанию Settings); режим и личный риск
-        (риск на сделку, плечо, число позиций, дневной стоп) не трогаем."""
-        best = Settings()
-        s = replace(self.repo.load(), **{k: getattr(best, k) for k in self.STRATEGY_FIELDS})
+    def reset_defaults(self) -> Settings:
+        """Все настройки — к стандартным (лучшие по бэктесту, риск 1%, плечо 5×); режим ручной / авто
+        не меняем, чтобы сброс не включил и не выключил бота неожиданно."""
+        s = replace(Settings(), mode=self.repo.load().mode)
         self.repo.save(s)
         return s
 

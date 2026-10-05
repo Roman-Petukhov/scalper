@@ -240,7 +240,7 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
     @app.post("/settings/reset", response_class=HTMLResponse)
     async def reset_settings(request: Request):
         guard(request, mutate=True)
-        settings_svc.reset_strategy()
+        settings_svc.reset_defaults()
         return templates.TemplateResponse(request, "_controls.html", page_context(request) | {"reset_done": True},
                                           headers={"HX-Trigger": "feed-refresh"})
 
