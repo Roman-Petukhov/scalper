@@ -81,7 +81,6 @@ def test_settings_validation_and_toggle():
     assert Timeframe.H4 not in s.toggle(Timeframe.H4).timeframes
     with pytest.raises(ValueError):
         replace(s, risk_pct=10.0)
-    assert not Timeframe.M15.has_edge and Timeframe.H4.has_edge
 
 
 def test_position_size_risk_and_leverage_cap():

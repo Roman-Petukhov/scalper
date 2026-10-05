@@ -19,11 +19,10 @@
     <button type="button" class="chip" aria-pressed="{{ 'true' if tf in s.timeframes else 'false' }}"
             hx-post="/settings/tf/{{ tf.value }}" hx-target="#controls">
       <span class="dot" aria-hidden="true"></span>{{ tf.value }}
-      {% if not tf.has_edge %}<span class="tag" title="В бэктесте 2022–2026 без преимущества">без преимущества</span>{% endif %}
     </button>
     {% endfor %}
   </div>
-  <p class="hint">4h — основная стратегия, 1h — более частая и слабее, 15m — для наблюдения.</p>
+  <p class="hint">Все три таймфрейма работают по одному правилу. Младше таймфрейм — чаще сигналы и короче сделки.</p>
 </div>
 
 <div class="card">

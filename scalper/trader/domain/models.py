@@ -15,11 +15,6 @@ class Timeframe(str, Enum):
     def minutes(self) -> int:
         return {"15m": 15, "1h": 60, "4h": 240}[self.value]
 
-    @property
-    def has_edge(self) -> bool:
-        """По исследованию (docs/research_report.md): на 15m пробои линий без преимущества на VAL / HOLDOUT."""
-        return self is not Timeframe.M15
-
 
 class Mode(str, Enum):
     MANUAL = "manual"

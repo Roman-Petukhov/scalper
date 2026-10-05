@@ -47,7 +47,7 @@ def test_login_required_and_wrong_password(env):
     assert r.status_code == 401 and r.headers["HX-Redirect"] == "/login"
     _login(c)
     r = c.get("/")
-    assert r.status_code == 200 and "Какие сигналы присылать" in r.text and "без преимущества" in r.text
+    assert r.status_code == 200 and "Какие сигналы присылать" in r.text and "без преимущества" not in r.text
 
 
 def test_chips_mode_and_csrf_header(env):
