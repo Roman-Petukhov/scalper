@@ -175,9 +175,10 @@ class SettingsService:
         return s
 
     def reset_defaults(self) -> Settings:
-        """Все настройки — к стандартным (лучшие по бэктесту, риск 1%, плечо 5×); режим ручной / авто
-        не меняем, чтобы сброс не включил и не выключил бота неожиданно."""
-        s = replace(Settings(), mode=self.repo.load().mode)
+        """Все настройки — к стандартным (лучшие по бэктесту, риск 1%, плечо 5×). Режим ручной / авто и
+        включённые таймфреймы не меняем: это выбор трейдера, а не параметры правила."""
+        cur = self.repo.load()
+        s = replace(Settings(), mode=cur.mode, timeframes=cur.timeframes)
         self.repo.save(s)
         return s
 
