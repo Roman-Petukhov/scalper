@@ -102,16 +102,18 @@ class TfParams:
 
 
 # Лучшее по бэктесту (docs/research_report.md): 4h — основная стратегия (ретест, закрытие в верхней половине свечи);
-# 15m в ноль и сам, и после свежего пробоя 4h (оставлен для ручных проверок, по умолчанию выключен). Риск 1% / 0.25%.
+# 15m: обычный пробой в ноль (и после свежего пробоя 4h тоже), но шорт от пологой линии держит плюс на всех трёх
+# периодах — порог наклона 0.025 ATR/свечу взят как нижняя треть по IS (2022–2024.06), вход по рынку. Риск 1% / 0.25%.
 DEFAULT_TF_PARAMS: dict[Timeframe, TfParams] = {
     Timeframe.H4: TfParams(risk_pct=1.0, min_close_loc=0.5),
-    Timeframe.M15: TfParams(risk_pct=0.25, min_close_loc=0.5, htf_confirm_h=12),
+    Timeframe.M15: TfParams(risk_pct=0.25, min_close_loc=0.5, entry_policy=EntryPolicy.MARKET, sides=SideFilter.SHORT,
+                            max_slope_atr=0.025),
 }
 HTF_CONFIRM: dict[Timeframe, Timeframe] = {Timeframe.M15: Timeframe.H4}   # чей пробой подтверждает сигнал младшего ТФ
 RETIRED_TIMEFRAMES = ("1h",)            # были в панели раньше: сигналы и настройки этих ТФ при загрузке убираются
-# выключить один раз в сохранённых настройках (трейдер может включить обратно): 15m после исправления бэктеста
-# (пробой 4h брался до закрытия его свечи) и с подтверждением 4h — шум, 1–2 сделки в месяц около нуля
-OFF_ONCE: dict[str, tuple[str, ...]] = {"off_15m_2026_10": ("15m",)}
+# один раз при запуске перевести таймфрейм на новую стратегию в сохранённых настройках: правило — из DEFAULT_TF_PARAMS,
+# сигналы ищутся, автоторговля по нему выключена до проверки на демо; дальше трейдер меняет всё сам
+STRATEGY_RESETS: dict[str, Timeframe] = {"m15_gentle_shorts_2026_10": Timeframe.M15}
 TF_FIELDS = tuple(TfParams.__dataclass_fields__)
 
 

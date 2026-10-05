@@ -342,7 +342,7 @@ def test_15m_signal_only_after_fresh_4h_breakout(tmp_path, monkeypatch):
     from trader.domain.models import Side
     b = FakeBroker()
     st, ex = _exec(tmp_path, b)
-    st.save(replace(Settings(), timeframes=frozenset({Timeframe.H4, Timeframe.M15})))     # 15m: 12 ч после 4h
+    st.save(replace(Settings(), timeframes=frozenset({Timeframe.H4, Timeframe.M15})).with_tf(Timeframe.M15, htf_confirm_h=12))
     idx = pd.date_range("2026-01-01", periods=10, freq="15min", tz="UTC")
     bars = pd.DataFrame({"open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0, "volume": 1.0,
                          "taker_buy_volume": 0.5}, index=idx)

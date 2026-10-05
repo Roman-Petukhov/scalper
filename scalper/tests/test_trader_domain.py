@@ -129,7 +129,11 @@ def test_per_timeframe_risk_and_close_filter():
     s = Settings()
     assert tuple(s.p(t).risk_pct for t in (Timeframe.H4, Timeframe.M15)) == (1.0, 0.25)
     assert (s.p(Timeframe.H4).min_close_loc, s.p(Timeframe.M15).min_close_loc) == (0.5, 0.5)
-    assert (s.p(Timeframe.H4).htf_confirm_h, s.p(Timeframe.M15).htf_confirm_h) == (0, 12)
+    from trader.domain.models import SideFilter
+    assert (s.p(Timeframe.H4).htf_confirm_h, s.p(Timeframe.M15).htf_confirm_h) == (0, 0)
+    assert (s.p(Timeframe.M15).sides, s.p(Timeframe.M15).max_slope_atr, s.p(Timeframe.M15).entry_policy) == (
+        SideFilter.SHORT, 0.025, EntryPolicy.MARKET)
+    assert (s.p(Timeframe.H4).sides, s.p(Timeframe.H4).max_slope_atr) == (SideFilter.BOTH, 0.0)
     s2 = s.with_tf(Timeframe.M15, target_r=2.0, entry_policy=EntryPolicy.MARKET)
     assert s2.p(Timeframe.M15).target_r == 2.0 and s2.p(Timeframe.H4).target_r == 3.0 and s.p(Timeframe.M15).target_r == 3.0
     with pytest.raises(ValueError):

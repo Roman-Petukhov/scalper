@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from ..domain.execution import Trade, TradeStatus
-from ..domain.models import (DEFAULT_TF_PARAMS, OFF_ONCE, RETIRED_TIMEFRAMES, TF_FIELDS, EntryKind, EntryPolicy, Mode, Settings,
+from ..domain.models import (DEFAULT_TF_PARAMS, RETIRED_TIMEFRAMES, STRATEGY_RESETS, TF_FIELDS, EntryKind, EntryPolicy, Mode, Settings,
                              Side, SideFilter, Signal, SignalStatus, TfParams, Timeframe, TradePlan)
 
 SCHEMA = """
@@ -50,23 +50,28 @@ class SqliteStore:
         with self.lock:
             self.db.executescript(SCHEMA)
             self._drop_retired()
-            self._switch_off(OFF_ONCE)
+            self._reset_strategies(STRATEGY_RESETS)
             self.db.commit()
 
-    def _switch_off(self, once: dict[str, tuple[str, ...]]) -> None:
-        """Один раз выключить таймфреймы в сохранённых настройках (сканирование и авто): ключ — метка в kv, чтобы
-        трейдер мог включить их обратно. Сигналы и сделки остаются."""
-        for key, tfs in once.items():
+    def _reset_strategies(self, once: dict[str, Timeframe]) -> None:
+        """Один раз перевести таймфрейм на новую стратегию в сохранённых настройках: правило — по умолчанию, сигналы
+        ищутся, автоторговля выключена. Метка в kv — чтобы дальнейшие правки трейдера не перетирались. Сигналы и сделки
+        остаются."""
+        for key, tf in once.items():
             if self.db.execute("SELECT 1 FROM kv WHERE key = ?", (key,)).fetchone():
                 continue
             row = self.db.execute("SELECT payload FROM settings WHERE id = 1").fetchone()
             if row is not None:
                 p = json.loads(row["payload"])
-                for k in ("timeframes", "auto_timeframes"):
-                    if k in p:
-                        p[k] = [x for x in p[k] if x not in tfs]
+                p["timeframes"] = sorted(set(p.get("timeframes", [])) | {tf.value})
+                p["auto_timeframes"] = [x for x in p.get("auto_timeframes", []) if x != tf.value]
+                p.setdefault("tf_params", {})[tf.value] = self._tf_payload(DEFAULT_TF_PARAMS[tf])
                 self.db.execute("UPDATE settings SET payload = ? WHERE id = 1", (json.dumps(p),))
             self.db.execute("INSERT INTO kv(key, value) VALUES (?, ?)", (key, "done"))
+
+    @staticmethod
+    def _tf_payload(v: TfParams) -> dict:
+        return {**asdict(v), "entry_policy": v.entry_policy.value, "sides": v.sides.value}
 
     def _drop_retired(self) -> None:
         """Сигналы убранных таймфреймов (1h) и их записи о сделках: панель их больше не показывает и не ведёт."""
@@ -208,8 +213,7 @@ class SqliteStore:
         p["mode"] = settings.mode.value
         p["timeframes"] = sorted(t.value for t in settings.timeframes)
         p["auto_timeframes"] = sorted(t.value for t in settings.auto_timeframes)
-        p["tf_params"] = {t.value: {**asdict(v), "entry_policy": v.entry_policy.value, "sides": v.sides.value}
-                          for t, v in settings.tf_params.items()}
+        p["tf_params"] = {t.value: self._tf_payload(v) for t, v in settings.tf_params.items()}
         with self.lock:
             self.db.execute("INSERT INTO settings(id, payload) VALUES (1, ?) "
                             "ON CONFLICT(id) DO UPDATE SET payload = excluded.payload", (json.dumps(p),))
