@@ -28,6 +28,20 @@ VIS_TOL = 0.05              # закрытия между точками кас�
 
 
 ZONE_MIN = 0.25             # зона не уже 0.25 ATR
+ZONE_DEPTH = 1.0            # скопление закрытий ищем не дальше 1 ATR от линии
+ZONE_WIN = 0.3              # окно плотности: 0.3 ATR
+
+
+def _dense(res: np.ndarray, atr_b: float) -> float:
+    """Нижняя граница самого плотного скопления закрытий под линией: res — расстояния закрытий от линии (>= 0) в
+    пределах ZONE_DEPTH ATR; окно ZONE_WIN ATR с наибольшим числом закрытий, при равенстве — ближе к линии."""
+    r = np.sort(res[(res >= 0) & (res <= ZONE_DEPTH * atr_b)])
+    if len(r) < 3:
+        return 0.0
+    win = ZONE_WIN * atr_b
+    hi_idx = np.searchsorted(r, r + win, side="right")
+    k = int(np.argmax(hi_idx - np.arange(len(r))))          # окно [r[k], r[k] + win]
+    return float(r[min(hi_idx[k], len(r)) - 1])              # дальняя от линии граница скопления
 
 
 def _wick(ext: np.ndarray, c: np.ndarray, p: int, side: int) -> float:
@@ -37,9 +51,9 @@ def _wick(ext: np.ndarray, c: np.ndarray, p: int, side: int) -> float:
 
 
 def zone_lines(d: pd.DataFrame) -> list[dict]:
-    """Зона вместо линии: вершины — зигзаг по закрытиям 3 ATR (как сейчас), ближняя граница — линия по закрытиям
-    вершин, дальняя — параллельная ей через тени у тех же вершин (ширина — наибольший хвост за закрытием вершины среди
-    свечей ±2 вокруг точек A и B, не уже ZONE_MIN ATR).
+    """Зона вместо линии по ликвидному месту: наклон — линия по закрытиям вершин зигзага 3 ATR (как сейчас); внешняя
+    граница — параллельно через тени у вершин A и B (свечи ±2); внутренняя — по самому плотному скоплению закрытий
+    у линии (до ZONE_DEPTH ATR от неё). Зона не уже ZONE_MIN ATR.
     Пробой — первое закрытие за дальней границей; закрытие внутри зоны — тест, линия живёт дальше."""
     c = d["close"].to_numpy(dtype="float64")
     hi, lo = d["high"].to_numpy(dtype="float64"), d["low"].to_numpy(dtype="float64")
@@ -56,7 +70,7 @@ def zone_lines(d: pd.DataFrame) -> list[dict]:
                 continue
             cand = piv[(piv[:, 0] >= a + ZZ_SPAN) & (side * (c[a] - c[piv[:, 0]]) > 0)]
             later = piv[piv[:, 0] > a]
-            best, b_best, width, rec, ci, li = None, -1, 0.0, None, 0, 0
+            best, b_best, width, inner, rec, ci, li = None, -1, 0.0, 0.0, None, 0, 0
             for t in range(conf_a + 1, min(a + ZZ_LIFE, m - 1)):
                 changed = False
                 while li < len(later) and later[li][1] <= t - 1:
@@ -72,15 +86,22 @@ def zone_lines(d: pd.DataFrame) -> list[dict]:
                             if best is None or side * sl > side * best:
                                 best, b_best = sl, int(b)
                     if b_best >= 0:
-                        width = max(_wick(ext, c, a, side), _wick(ext, c, b_best, side), ZONE_MIN * atr[b_best])
+                        outer = max(_wick(ext, c, a, side), _wick(ext, c, b_best, side))
+                        span = np.arange(a, t)
+                        inner = _dense(side * (c[a] + best * (span - a) - c[span]), atr[b_best])
+                        if outer + inner < ZONE_MIN * atr[b_best]:
+                            outer = ZONE_MIN * atr[b_best] - inner
+                        width = outer
                 if best is None or not (side * best < 0):
                     continue
                 lt, lp = c[a] + best * (t - a), c[a] + best * (t - 1 - a)
                 if side * (c[t] - lt) > width and side * (c[t - 1] - lp) <= width:
-                    rec = {"side": side, "a": int(a), "b": b_best, "t": t, "line_t": lt, "width": width}
+                    rec = {"side": side, "a": int(a), "b": b_best, "t": t, "line_t": lt, "width": width,
+                           "inner": inner}
                     break
             if rec is None and best is not None and side * best < 0:
-                rec = {"side": side, "a": int(a), "b": b_best, "t": -1, "line_t": np.nan, "width": width}
+                rec = {"side": side, "a": int(a), "b": b_best, "t": -1, "line_t": np.nan, "width": width,
+                       "inner": inner}
             if rec is not None and (rec["t"] < 0 or rec["t"] not in seen):
                 seen.add(rec["t"])
                 out.append(rec)
@@ -199,7 +220,7 @@ def vis_lines(d: pd.DataFrame, n: int, launch: bool = False, minor: int = 0, bos
 BASE = "https://fapi.binance.com"
 SPOT = "https://data-api.binance.vision"
 MODES = {"сейчас: зигзаг 3 ATR, линия": lambda d: zz_lines(d),
-         "зигзаг 3 ATR, зона: закрытия — тени; пробой — закрытие за всей зоной": lambda d: zone_lines(d)}
+         "зигзаг 3 ATR, зона по скоплению закрытий (пунктир — линия по закрытиям вершин); пробой — закрытие за зоной": lambda d: zone_lines(d)}
 SHOW = 480
 
 
@@ -242,11 +263,15 @@ def draw(d: pd.DataFrame, sym: str, tf: str, out: Path) -> None:
             xs = [max(a, off) - off, end + 3 - off]
             ys = [c[a] + sl * (max(a, off) - a), c[a] + sl * (end + 3 - a)]
             col = "#1e88e5" if r["side"] < 0 else "#fb8c00"
-            ax.plot(xs, ys, color=col, lw=1.4)
-            if r.get("width"):
-                ys2 = [y + r["side"] * r["width"] for y in ys]
-                ax.plot(xs, ys2, color=col, lw=1.0)
-                ax.fill_between(xs, ys, ys2, color=col, alpha=0.18)
+            if "width" not in r:
+                ax.plot(xs, ys, color=col, lw=1.4)
+            else:
+                ys_out = [y + r["side"] * r["width"] for y in ys]
+                ys_in = [y - r["side"] * r["inner"] for y in ys]
+                ax.plot(xs, ys, color=col, lw=0.8, ls="--")
+                ax.plot(xs, ys_out, color=col, lw=1.2)
+                ax.plot(xs, ys_in, color=col, lw=1.2)
+                ax.fill_between(xs, ys_in, ys_out, color=col, alpha=0.18)
             if r["t"] > 0:
                 ax.annotate("v" if r["side"] < 0 else "^", (r["t"] - off, c[r["t"]]), color="k", fontsize=14,
                             ha="center")
