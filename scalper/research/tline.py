@@ -676,10 +676,16 @@ def coin_trades(root: Path, sym: str, tf: str, ctx: pd.DataFrame | None = None) 
                                           slope_l, 0.0)
                     r3x25, _ = target_exit(o, hi, lo, c, f, fill, side, px, stop, 3.0, HOLD[tf], fee, line_b, tb,
                                            slope_l, 0.25 * a[e])
+                    tg = {}
+                    if mode == "zz":                                     # другие цели — для отчёта по 1h / 15m
+                        for nm, k1, k2, b_ in (("R15", 1.5, 1.5, False), ("R2", 2.0, 2.0, False),
+                                               ("R1_2be", 1.0, 2.0, True), ("R15_3be", 1.5, 3.0, True),
+                                               ("R2_4be", 2.0, 4.0, True)):
+                            tg[nm] = two_targets(o, hi, lo, c, f, fill, side, px, stop, k1, k2, b_, HOLD[tf], fee)[0]
                     rows.append({"symbol": sym, "tf": tf, "line": mode, "t": d.index[e], "side": side, "confirm": confirm,
                                  "risk_pct": side * (px - stop) / px,
                                  "entry": entry_kind, "be": be, "with_trend": trend[e] == side, "with_trend2": trend2[e] == side,
-                                 "with_struct": struct[e] == side, "R": r, "R3": r3, "R3x0": r3x0, "R3x25": r3x25,
+                                 "with_struct": struct[e] == side, "R": r, "R3": r3, "R3x0": r3x0, "R3x25": r3x25, **tg,
                                  "vol_ratio": vol_ratio[tb], "oi_chg": oi_chg[tb], "body": body[tb],
                                  "close_loc": loc[tb] if side > 0 else 1 - loc[tb],
                                  "aggr": buy_share[tb] if side > 0 else 1 - buy_share[tb],
@@ -984,6 +990,78 @@ def add_breadth(df: pd.DataFrame) -> pd.DataFrame:
 def _years(g: pd.DataFrame, col: str = "R3") -> str:
     yy = g.groupby(g.t.dt.year)[col].agg(["size", "mean"])
     return ", ".join(f"{k}: {v['mean']:+.2f} ({int(v['size'])})" for k, v in yy.iterrows())
+
+
+LOWTF_TARGETS = (("R3", "всё на 3R"), ("R2", "всё на 2R"), ("R15", "всё на 1.5R"), ("R", "1/2 на 3R + 1/2 на 5R"),
+                 ("R1_2be", "1/2 на 1R, стоп в б/у, 1/2 на 2R"), ("R15_3be", "1/2 на 1.5R, б/у, 1/2 на 3R"),
+                 ("R2_4be", "1/2 на 2R, б/у, 1/2 на 4R"))
+
+
+def _per_month(g: pd.DataFrame, col: str) -> str:
+    out = []
+    for p, (a, b) in PER.items():
+        z = g[g.per == p][col].dropna()
+        months = (pd.Timestamp(b) - pd.Timestamp(a)).days / 30.4
+        out.append(f"{z.sum() / months:+.1f}")
+    return " / ".join(out)
+
+
+def lowtf_report(df: pd.DataFrame) -> None:
+    """Как поднять 1h и 15m: база — правило бота (линии по значимым точкам, пробой, агрессоры >= 55% + тренд старшего
+    ТФ). Размер стопа (доля комиссий в R), цели и безубыток, совпадение со свежим пробоем 4h в ту же сторону, второй
+    старший тренд, время суток. Ячейка — R на сделку; «R/мес» — сумма R в месяц IS / VAL / HO."""
+    print("\n=== 1h и 15m: что поднимает результат (база — правило бота) ===")
+    base = df[(df.line == "zz") & ~df.confirm & (df.aggr >= 0.55) & df.with_trend & df.tf.isin(["1h", "15m"])].copy()
+    if not len(base):
+        print("  нет сделок 1h / 15m")
+        return
+    b4 = df[(df.line == "zz") & ~df.confirm & (df.tf == "4h")][["symbol", "side", "t"]].drop_duplicates()
+    b4 = b4.rename(columns={"t": "t4"}).sort_values("t4")
+    base = base.sort_values("t")
+    parts = []
+    for (sym, sd), g in base.groupby(["symbol", "side"], sort=False):
+        h = b4[(b4.symbol == sym) & (b4.side == sd)]
+        if len(h):
+            g = pd.merge_asof(g, h[["t4"]], left_on="t", right_on="t4", direction="backward")
+        else:
+            g = g.assign(t4=pd.NaT)
+        parts.append(g)
+    base = pd.concat(parts, ignore_index=True)
+    age_h = (base.t - base.t4).dt.total_seconds() / 3600
+    hr = base.t.dt.hour
+    rules = [("база", lambda g: g)]
+    rules += [(f"стоп >= {k:.1f}% цены", lambda g, k=k: g[g.risk_pct >= k / 100]) for k in (0.3, 0.5, 0.8, 1.2)]
+    rules += [(f"пробой 4h в ту же сторону за {k} ч", lambda g, k=k: g[(age_h.loc[g.index] >= 0) & (age_h.loc[g.index] <= k)])
+              for k in (4, 12, 24)]
+    rules += [("тренд 2 старших ТФ", lambda g: g[g.with_trend2]),
+              ("сессия: Азия 00–07 UTC", lambda g: g[hr.loc[g.index] < 7]),
+              ("сессия: Европа 07–13 UTC", lambda g: g[(hr.loc[g.index] >= 7) & (hr.loc[g.index] < 13)]),
+              ("сессия: США 13–21 UTC", lambda g: g[(hr.loc[g.index] >= 13) & (hr.loc[g.index] < 21)]),
+              ("сессия: 21–24 UTC", lambda g: g[hr.loc[g.index] >= 21]),
+              ("стоп >= 0.5% + тренд 2 ТФ", lambda g: g[(g.risk_pct >= 0.005) & g.with_trend2]),
+              ("стоп >= 0.5% + пробой 4h за 24 ч", lambda g: g[(g.risk_pct >= 0.005) & (age_h.loc[g.index] >= 0) &
+                                                               (age_h.loc[g.index] <= 24)])]
+    for tf in ("1h", "15m"):
+        for entry in ("retest", "market"):
+            g0 = base[(base.tf == tf) & (base.entry == entry)]
+            if not len(g0):
+                continue
+            print(f"\n  --- {tf}, {'ретест' if entry == 'retest' else 'рынок'}: фильтры, всё на 3R ---")
+            rows = []
+            for nm, f in rules:
+                z = f(g0)
+                rows.append({"фильтр": nm, **{p: _cell(z[z.per == p].assign(R=z["R3"])) for p in PER},
+                             "R/мес IS / VAL / HO": _per_month(z, "R3")})
+            print(pd.DataFrame(rows).to_string(index=False))
+            print(f"  --- {tf}, {'ретест' if entry == 'retest' else 'рынок'}: цели (все сделки базы / стоп >= 0.5%) ---")
+            rows = []
+            for col, nm in LOWTF_TARGETS:
+                if col not in g0.columns:
+                    continue
+                for fn_, z in (("все", g0), ("стоп >= 0.5%", g0[g0.risk_pct >= 0.005])):
+                    rows.append({"выход": nm, "сделки": fn_, **{p: _cell(z[z.per == p].assign(R=z[col])) for p in PER},
+                                 "R/мес IS / VAL / HO": _per_month(z, col)})
+            print(pd.DataFrame(rows).to_string(index=False))
 
 
 def bot_rule_report(df: pd.DataFrame, line_name: dict) -> None:
@@ -1327,6 +1405,7 @@ def report() -> None:
         target_report(df, line_name)
     if "R3" in df.columns and "brk_atr" in df.columns:
         bot_rule_report(df, line_name)
+        lowtf_report(df)
         conviction_report(df, line_name)
     if "R3x0" in df.columns:
         filters_report(df, line_name)
