@@ -119,7 +119,7 @@ def last_confirmed(piv: np.ndarray, m: int) -> np.ndarray:
     return out
 
 
-LINES = ("last2", "clean", "clean3", "major", "zz", "fan")
+LINES = ("last2", "clean", "clean3", "major", "zz", "fan", "fan2")
 MAJOR_L = 12          # главный экстремум: тень выше (ниже) 12 свечей с каждой стороны
 MINOR_N = 3           # точки касания: фрактал 3 свечи
 ZZ_K = 3.0            # зигзаг по закрытиям: разворот >= 3 ATR
@@ -127,6 +127,7 @@ ZZ_ANCHOR = 60        # опорная вершина — самое высок�
 ZZ_SPAN = 20          # между точками линии не меньше 20 свечей
 ZZ_LIFE = 300         # линия живёт не дольше 300 свечей от опорной вершины
 FAN_K = (3.0, 6.0)    # «веер»: соседние вершины зигзага на двух масштабах разворота, ATR
+FAN2_K = (2.0, 3.0, 6.0)  # «веер» с мелким масштабом (короткие линии внутри движения)
 
 
 def _lines(c: np.ndarray, atr: np.ndarray, piv: np.ndarray, side: int, mode: str) -> list[tuple | None]:
@@ -278,7 +279,7 @@ def zz_lines(d: pd.DataFrame) -> list[dict]:
     return out
 
 
-def fan_lines(d: pd.DataFrame) -> list[dict]:
+def fan_lines(d: pd.DataFrame, scales: tuple[float, ...] = FAN_K) -> list[dict]:
     """Линии через две СОСЕДНИЕ вершины зигзага по закрытиям (так трейдер ведёт линию по движению: после пробоя —
     новая, более крутая, от следующей вершины), на масштабах разворота FAN_K ATR одновременно. Нисходящая — если
     вторая вершина ниже первой и ни одно закрытие между ними не выше линии; восходящая — зеркально по впадинам.
@@ -288,7 +289,7 @@ def fan_lines(d: pd.DataFrame) -> list[dict]:
     atr = _atr(d).to_numpy() if {"high", "low"} <= set(d.columns) else np.full(len(c), np.inf)
     m = len(c)
     out, seen = [], set()
-    for k in FAN_K:
+    for k in scales:
         hs, ls = zigzag(c, atr, k)
         for side, piv in ((1, hs), (-1, ls)):
             for q in range(1, len(piv)):
@@ -319,8 +320,9 @@ def fan_lines(d: pd.DataFrame) -> list[dict]:
 def signals(d: pd.DataFrame, mode: str = "last2") -> list[tuple[int, int, int, float, float, int, int]]:
     """(бар пробоя, бар закрепления или −1, сторона, линия на баре пробоя, линия на баре закрепления,
     индексы двух точек линии)."""
-    if mode in ("major", "zz", "fan"):
-        recs = {"major": major_lines, "zz": zz_lines, "fan": fan_lines}[mode](d)
+    if mode in ("major", "zz", "fan", "fan2"):
+        recs = {"major": major_lines, "zz": zz_lines, "fan": fan_lines,
+                "fan2": lambda x: fan_lines(x, FAN2_K)}[mode](d)
         return [(r["t"], r["tc"], r["side"], r["line_t"], r["line_n"], r["a"], r["b"]) for r in recs if r["t"] > 0]
     c = d["close"].to_numpy(dtype="float64")
     atr = _atr(d).to_numpy() if {"high", "low"} <= set(d.columns) else np.full(len(c), np.inf)
@@ -595,7 +597,7 @@ WINDOWS = [("NEARUSDT", "15m", "2026-09-24 18:00", "2026-10-04 03:00"),
            ("NEARUSDT", "1h", "2026-09-21 00:00", "2026-10-04 20:00")]
 
 
-def chart(root: Path, sym: str, tf: str, bars: int, out: Path, mode: str = "fan", start: str | None = None,
+def chart(root: Path, sym: str, tf: str, bars: int, out: Path, mode: str = "fan2", start: str | None = None,
           end: str | None = None) -> None:
     """Свечи последних `bars` баров (или окна start..end), вершины зигзага, линии `mode` с пробоем в окне
     (серым пунктиром — линии по значимым точкам), вход / стоп / цели."""
@@ -631,7 +633,8 @@ def chart(root: Path, sym: str, tf: str, bars: int, out: Path, mode: str = "fan"
         xs = np.arange(max(i1, w0), tb + 2)
         ax.plot(xs, c[i2] + slope * (xs - i2), color="#9e9e9e", linewidth=0.8, linestyle="--")
     n_tr = 0
-    for rec in {"zz": zz_lines, "fan": fan_lines, "major": major_lines}[mode](d):
+    for rec in {"zz": zz_lines, "fan": fan_lines, "major": major_lines,
+                "fan2": lambda x: fan_lines(x, FAN2_K)}[mode](d):
         i1, i2, side, tb, tc = rec["a"], rec["b"], rec["side"], rec["t"], rec["tc"]
         if i1 < w0 - 300 or (tb > 0 and tb < w0):
             continue
@@ -671,6 +674,7 @@ def chart(root: Path, sym: str, tf: str, bars: int, out: Path, mode: str = "fan"
     ticks = np.linspace(w0, len(c) - 1, 8).astype(int)
     ax.set_xticks(ticks, [d.index[i].strftime("%m-%d %H:%M") for i in ticks])
     what = {"fan": f"через соседние явные вершины зигзага по закрытиям (разворот >= {' и '.join(f'{k:g}' for k in FAN_K)} ATR)",
+            "fan2": f"через соседние явные вершины зигзага по закрытиям (разворот >= {', '.join(f'{k:g}' for k in FAN2_K)} ATR)",
             "zz": f"через вершины зигзага (разворот >= {ZZ_K:g} ATR, опора — экстремум {ZZ_ANCHOR} свечей)",
             "major": f"от главного экстремума ({MAJOR_L} свечей с каждой стороны)"}[mode]
     ax.set_title(f"{sym} {tf}: синие / оранжевые — линии {what}; серый пунктир — для сравнения прежние;\n"
@@ -719,7 +723,7 @@ def collect(root: Path, syms: list[str], syms15: list[str]) -> None:
 def diagnose_2026(df: pd.DataFrame, line_name: dict) -> None:
     """Почему шорт на 4h с перевесом продавцов ослаб в 2026: рынок, состояние монеты, исход сделок, помесячно."""
     base = df[(df.tf == "4h") & (df.side == -1) & df.confirm & (df.entry == "market") & (df.aggr >= 0.55)
-              & df.line.isin(["clean", "zz", "fan"])].copy()
+              & df.line.isin(["clean", "zz", "fan", "fan2"])].copy()
     if not len(base):
         return
     base["year"] = base.t.dt.year
@@ -764,7 +768,7 @@ def strength_report(df: pd.DataFrame, line_name: dict) -> None:
     groups = [("4h шорт, агрессоры >= 55%", (x0.tf == "4h") & (x0.side == -1) & (x0.aggr >= 0.55)),
               ("4h обе стороны", x0.tf == "4h"), ("1h обе стороны", x0.tf == "1h")]
     print("\n=== Сила пробоя: средний R по квинтилям признака (1 — слабее для нас, 5 — сильнее; границы по IS) ===")
-    for (gname, mask), ln in itertools.product(groups, ("clean", "zz", "fan")):
+    for (gname, mask), ln in itertools.product(groups, ("clean", "zz", "fan", "fan2")):
         g = x0[mask & (x0.line == ln)]
         if g.per.eq("is").sum() < 200:
             continue
@@ -806,7 +810,7 @@ def target_report(df: pd.DataFrame, line_name: dict) -> None:
     print("\n=== Цель: вся позиция на 3R против лесенки (половина 3R, половина 5R); "
           "ячейка — средний R (t, доля прибыльных, сделок в месяц) ===")
     rows = []
-    for tf, ln, entry, confirm in itertools.product(("15m", "1h", "4h"), ("clean", "zz", "fan"), ("market", "retest"),
+    for tf, ln, entry, confirm in itertools.product(("15m", "1h", "4h"), ("clean", "zz", "fan", "fan2"), ("market", "retest"),
                                                     (False, True)):
         g = df[(df.tf == tf) & (df.line == ln) & (df.entry == entry) & (df.confirm == confirm)]
         if not len(g):
@@ -850,7 +854,7 @@ def report() -> None:
         shutil.copy(png, out / png.name)
     print(f"===== TLINE: сделок {len(df):,}, монет {df.symbol.nunique()}, частей {len(parts)} =====")
     print("ячейка: средний R на сделку (t по дням, прибыльных, сделок в месяц на весь набор монет); выход 1/2 на 3R + 1/2 на 5R")
-    line_name = {"last2": "2 последние", "clean": "чистая", "clean3": "чистая, 3 касания", "major": "от главного экстремума", "zz": "по значимым точкам", "fan": "веер: соседние вершины"}
+    line_name = {"last2": "2 последние", "clean": "чистая", "clean3": "чистая, 3 касания", "major": "от главного экстремума", "zz": "по значимым точкам", "fan": "веер: соседние вершины", "fan2": "веер 2/3/6 ATR"}
     filters = lambda g: (("все", g), ("по тренду старшего ТФ", g[g.with_trend]),
                          ("объём пробоя >= 1.5x", g[g.vol_ratio >= 1.5]), ("OI рос 4 бара", g[g.oi_chg > 0]),
                          ("сильная свеча", g[(g.body >= 0.6) & (g.close_loc >= 0.75) & (g.brk_atr >= 0.3)]),
@@ -894,7 +898,7 @@ def report() -> None:
         target_report(df, line_name)
     if "effort" in df.columns:
         strength_report(df, line_name)
-        ev = df[df.confirm & (df.entry == "market") & (df.tf == "4h") & df.line.isin(["clean", "zz", "fan"])]
+        ev = df[df.confirm & (df.entry == "market") & (df.tf == "4h") & df.line.isin(["clean", "zz", "fan", "fan2"])]
         if len(ev):
             out = Path(os.environ.get("OUT", "../out"))
             out.mkdir(parents=True, exist_ok=True)
