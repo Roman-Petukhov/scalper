@@ -81,6 +81,7 @@ class TfParams:
     max_slope_atr: float = 0.0          # линия не круче стольких ATR за свечу (пологие линии надёжнее); 0 — любая
     top_n: int = 0                      # только столько самых ликвидных монет (по обороту за 24 ч); 0 — все с порогом
     max_hold_bars: int = 60             # позиция закрывается по рынку через столько свечей (как в бэктесте)
+    max_positions: int = 0              # не больше стольких позиций этого ТФ сразу (внутри общего лимита); 0 — только общий
 
     def __post_init__(self) -> None:
         if not 0.05 <= self.risk_pct <= 5.0:
@@ -105,15 +106,19 @@ class TfParams:
             raise ValueError("число монет — от 0 (все) до 1000")
         if not (isinstance(self.max_hold_bars, int) and 1 <= self.max_hold_bars <= 1000):
             raise ValueError("срок сделки — от 1 до 1000 свечей")
+        if not (isinstance(self.max_positions, int) and 0 <= self.max_positions <= 50):
+            raise ValueError("позиций таймфрейма — от 0 (только общий лимит) до 50")
 
 
 # Лучшее по бэктесту (docs/research_report.md): 4h — основная стратегия (ретест, закрытие в верхней половине свечи);
-# 15m: обычный пробой в ноль (и после свежего пробоя 4h тоже), но шорт от пологой линии держит плюс на всех трёх
-# периодах — порог наклона 0.025 ATR/свечу взят как нижняя треть по IS (2022–2024.06), вход по рынку. Риск 1% / 0.25%.
+# 15m: обычный пробой в ноль (и после свежего пробоя 4h тоже), шорт от пологой линии — тонкий плюс: порог наклона
+# 0.025 ATR/свечу — нижняя треть по IS (2022–2024.06), вход по рынку. На 725 монетах с местом в рейтинге оборота на день
+# сигнала (research/wide15.py) топ-150 лучше топ-70 (HO +0.08R против +0.02R на сделку), но сигналов ~100 в месяц и
+# держатся до 2 суток — свой лимит 3 позиции, чтобы 15m не занимал места 4h. Риск 1% / 0.25%.
 DEFAULT_TF_PARAMS: dict[Timeframe, TfParams] = {
     Timeframe.H4: TfParams(risk_pct=1.0, min_close_loc=0.5),
     Timeframe.M15: TfParams(risk_pct=0.25, min_close_loc=0.5, entry_policy=EntryPolicy.MARKET, sides=SideFilter.SHORT,
-                            max_slope_atr=0.025, top_n=70, max_hold_bars=200),   # бэктест 15m — 70 ликвидных монет
+                            max_slope_atr=0.025, top_n=150, max_hold_bars=200, max_positions=3),
 }
 HTF_CONFIRM: dict[Timeframe, Timeframe] = {Timeframe.M15: Timeframe.H4}   # чей пробой подтверждает сигнал младшего ТФ
 RETIRED_TIMEFRAMES = ("1h",)            # были в панели раньше: сигналы и настройки этих ТФ при загрузке убираются
@@ -122,6 +127,9 @@ RETIRED_TIMEFRAMES = ("1h",)            # были в панели раньше:
 STRATEGY_RESETS: dict[str, Timeframe] = {"m15_gentle_shorts_2026_10": Timeframe.M15}
 # один раз при запуске поменять общие поля в сохранённых настройках (дальше — как поставит трейдер)
 SETTINGS_ONCE: dict[str, dict[str, object]] = {"max_positions_12_2026_10": {"max_positions": 12}}
+# один раз при запуске поменять поля правила таймфрейма в сохранённых настройках
+TF_SETTINGS_ONCE: dict[str, tuple[Timeframe, dict[str, object]]] = {
+    "m15_top150_pos3_2026_10": (Timeframe.M15, {"top_n": 150, "max_positions": 3})}
 TF_FIELDS = tuple(TfParams.__dataclass_fields__)
 
 

@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from ..domain.execution import Trade, TradeStatus
-from ..domain.models import (DEFAULT_TF_PARAMS, RETIRED_TIMEFRAMES, SETTINGS_ONCE, STRATEGY_RESETS, TF_FIELDS, EntryKind, EntryPolicy, Mode, Settings,
+from ..domain.models import (DEFAULT_TF_PARAMS, RETIRED_TIMEFRAMES, SETTINGS_ONCE, STRATEGY_RESETS, TF_FIELDS, TF_SETTINGS_ONCE, EntryKind, EntryPolicy, Mode, Settings,
                              Side, SideFilter, Signal, SignalStatus, TfParams, Timeframe, TradePlan)
 
 SCHEMA = """
@@ -52,6 +52,7 @@ class SqliteStore:
             self._drop_retired()
             self._reset_strategies(STRATEGY_RESETS)
             self._set_once(SETTINGS_ONCE)
+            self._set_tf_once(TF_SETTINGS_ONCE)
             self.db.commit()
 
     def _reset_strategies(self, once: dict[str, Timeframe]) -> None:
@@ -78,6 +79,19 @@ class SqliteStore:
             row = self.db.execute("SELECT payload FROM settings WHERE id = 1").fetchone()
             if row is not None:
                 p = json.loads(row["payload"]) | fields
+                self.db.execute("UPDATE settings SET payload = ? WHERE id = 1", (json.dumps(p),))
+            self.db.execute("INSERT INTO kv(key, value) VALUES (?, ?)", (key, "done"))
+
+    def _set_tf_once(self, once: dict[str, tuple[Timeframe, dict[str, object]]]) -> None:
+        """Один раз поменять поля правила таймфрейма в сохранённых настройках; дальше — как поставит трейдер."""
+        for key, (tf, fields) in once.items():
+            if self.db.execute("SELECT 1 FROM kv WHERE key = ?", (key,)).fetchone():
+                continue
+            row = self.db.execute("SELECT payload FROM settings WHERE id = 1").fetchone()
+            if row is not None:
+                p = json.loads(row["payload"])
+                tfp = p.setdefault("tf_params", {})
+                tfp[tf.value] = {**tfp.get(tf.value, self._tf_payload(DEFAULT_TF_PARAMS[tf])), **fields}
                 self.db.execute("UPDATE settings SET payload = ? WHERE id = 1", (json.dumps(p),))
             self.db.execute("INSERT INTO kv(key, value) VALUES (?, ?)", (key, "done"))
 

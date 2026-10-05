@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from datetime import timedelta
 
 from ..domain.execution import Account, ExecutionRefused, Trade, TradeStatus, build_order, target_reached
-from ..domain.models import Signal, SignalStatus
+from ..domain.models import Signal, SignalStatus, Timeframe
 from .ports import Broker, Notifier, SettingsRepository, SignalRepository, TradeRepository
 
 log = logging.getLogger(__name__)
@@ -66,6 +66,19 @@ class Executor:
         acc = await b.account()
         return Wallet(b.network, acc, self._day_start(acc.equity), self.clock())
 
+    def _tf_open(self, acc: Account, tf: Timeframe) -> int:
+        """Сколько занятых монет (позиция или лимитка) заняты сделками таймфрейма tf: по монете — последняя сделка."""
+        latest: dict[str, Trade] = {}
+        for t in sorted(self.trades.pending_trades() + self.trades.filled_trades(),
+                        key=lambda t: t.id or 0, reverse=True):
+            latest.setdefault(t.symbol, t)
+        n = 0
+        for sym in acc.busy_symbols:
+            t = latest.get(sym)
+            sig = self.signals.get(t.signal_id) if t is not None else None
+            n += sig is not None and sig.timeframe is tf
+        return n
+
     async def execute(self, signal: Signal) -> Trade:
         """Отправить ордер по сигналу. ExecutionRefused — не отправлен (причина в тексте); сигнал тогда не меняется."""
         b = self.broker()
@@ -81,7 +94,7 @@ class Executor:
                     raise ExecutionRefused(f"{signal.symbol} не торгуется на Bybit")
                 acc, price = await asyncio.gather(b.account(), b.price(signal.symbol))
                 req = build_order(signal, self.settings.load(), acc, inst, price, self._day_start(acc.equity),
-                                  self.clock())
+                                  self.clock(), self._tf_open(acc, signal.timeframe))
                 order_id = await b.place(req)
             except ExecutionRefused:
                 raise

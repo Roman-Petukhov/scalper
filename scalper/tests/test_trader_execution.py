@@ -419,3 +419,26 @@ def test_scanner_takes_only_top_n_liquid_symbols(tmp_path, monkeypatch):
     asyncio.run(sc.scan(Timeframe.H4))
     assert sorted(s for tf, s in seen if tf is Timeframe.M15) == list(m.frames)[:2]
     assert len([s for tf, s in seen if tf is Timeframe.H4]) == 3
+
+
+def test_timeframe_position_limit_inside_common_limit():
+    s15 = replace(_sig(), timeframe=Timeframe.M15)
+    with pytest.raises(ExecutionRefused, match="по 15m открыто 3 из 3"):
+        build_order(s15, Settings(), ACC, INST, 101.0, 1000.0, NOW, tf_open=3)
+    assert build_order(s15, Settings(), ACC, INST, 101.0, 1000.0, NOW, tf_open=2).qty > 0
+    assert build_order(_sig(), Settings(), ACC, INST, 101.0, 1000.0, NOW, tf_open=11).qty > 0   # 4h: только общий
+
+
+def test_executor_counts_open_positions_per_timeframe(tmp_path):
+    b = FakeBroker()
+    st, ex = _exec(tmp_path, b)
+    syms = ["AUSDT", "BUSDT", "CUSDT"]
+    for sym in syms:
+        asyncio.run(ex.execute(st.add(_signal(sym, Timeframe.M15))))
+    b.acc = replace(ACC, positions=tuple(Position(x, Side.LONG, 1, 100, 101, 1) for x in syms))
+    with pytest.raises(ExecutionRefused, match="по 15m открыто 3 из 3"):
+        asyncio.run(ex.execute(st.add(_signal("DUSDT", Timeframe.M15))))
+    asyncio.run(ex.execute(st.add(_signal("EUSDT", Timeframe.H4))))           # 4h места 15m не занимает
+    b.acc = replace(ACC, positions=tuple(Position(x, Side.LONG, 1, 100, 101, 1) for x in syms[:2]))
+    asyncio.run(ex.execute(st.get(st.add(_signal("FUSDT", Timeframe.M15)).id)))   # одна закрылась — место есть
+    assert [o.symbol for o in b.placed] == syms + ["EUSDT", "FUSDT"]

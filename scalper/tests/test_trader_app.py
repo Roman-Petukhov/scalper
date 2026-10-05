@@ -252,3 +252,16 @@ def test_reset_defaults_keeps_mode(tmp_path):
     assert s.timeframes == frozenset(Timeframe) and h4.entry_policy is EntryPolicy.RETEST
     assert h4.min_close_loc == 0.5 and h4.min_aggr == 0.55 and h4.target_r == 3.0
     assert (s.mode, h4.risk_pct, s.leverage) == (Mode.AUTO, 1.0, 5)
+
+
+def test_15m_gets_top150_and_own_position_limit_once(tmp_path):
+    st = SqliteStore(tmp_path / "t.db")
+    st.db.execute("DELETE FROM kv WHERE key = 'm15_top150_pos3_2026_10'")    # 15m уже на новой стратегии, топ-70
+    st.save(Settings().with_tf(Timeframe.M15, top_n=70, max_positions=0, risk_pct=0.4))
+    st.db.commit()
+    s = SqliteStore(tmp_path / "t.db").load()
+    assert s.p(Timeframe.M15).top_n == 150 and s.p(Timeframe.M15).max_positions == 3
+    assert s.p(Timeframe.M15).risk_pct == 0.4 and s.p(Timeframe.H4).max_positions == 0
+    st2 = SqliteStore(tmp_path / "t.db")
+    st2.save(s.with_tf(Timeframe.M15, top_n=100))
+    assert SqliteStore(tmp_path / "t.db").load().p(Timeframe.M15).top_n == 100   # правка трейдера остаётся

@@ -117,8 +117,9 @@ def day_loss_hit(equity: float, day_start_equity: float | None, daily_loss_pct: 
 
 
 def build_order(signal: Signal, settings: Settings, account: Account, instrument: Instrument, price: float,
-                day_start_equity: float | None, now: datetime) -> OrderRequest:
-    """Ордер по сигналу или ExecutionRefused с понятной причиной."""
+                day_start_equity: float | None, now: datetime, tf_open: int = 0) -> OrderRequest:
+    """Ордер по сигналу или ExecutionRefused с понятной причиной. tf_open — сколько из занятых монет заняты
+    сделками того же таймфрейма."""
     if signal.id is None:
         raise ExecutionRefused("сигнал не сохранён")
     sym, side, plan = signal.symbol, signal.side, signal.plan
@@ -126,6 +127,9 @@ def build_order(signal: Signal, settings: Settings, account: Account, instrument
         raise ExecutionRefused(f"по {sym} уже есть позиция или ордер")
     if account.open_count >= settings.max_positions:
         raise ExecutionRefused(f"открыто {account.open_count} из {settings.max_positions} позиций")
+    tf_limit = settings.p(signal.timeframe).max_positions
+    if tf_limit and tf_open >= tf_limit:
+        raise ExecutionRefused(f"по {signal.timeframe.value} открыто {tf_open} из {tf_limit} позиций")
     if day_loss_hit(account.equity, day_start_equity, settings.daily_loss_pct):
         raise ExecutionRefused(f"дневной стоп −{settings.daily_loss_pct:g}% достигнут, до 00:00 UTC новых входов нет")
     if account.equity <= 0:

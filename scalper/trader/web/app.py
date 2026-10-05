@@ -272,7 +272,8 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
                               "hybrid_range_atr": float(f("hybrid_range_atr")), "retest_bars": int(f("retest_bars")),
                               "htf_confirm_h": int(form.get(f"{tf.value}__htf_confirm_h", "0")),
                               "sides": SideFilter(f("sides")), "max_slope_atr": float(f("max_slope_atr")),
-                              "top_n": int(f("top_n")), "max_hold_bars": int(f("max_hold_bars"))}
+                              "top_n": int(f("top_n")), "max_hold_bars": int(f("max_hold_bars")),
+                              "max_positions": int(f("tf_max_positions"))}
             settings_svc.update(g, per_tf)
         except KeyError as e:
             err = f"не заполнено поле {e.args[0]}"
