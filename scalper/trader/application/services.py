@@ -6,8 +6,10 @@ import logging
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 
-from ..domain.models import Mode, Settings, Signal, SignalStatus, Timeframe
-from ..domain.strategy import detect
+from datetime import timedelta
+
+from ..domain.models import HTF_CONFIRM, Mode, Settings, Signal, SignalStatus, Timeframe
+from ..domain.strategy import detect, htf_breakouts, htf_confirmation
 from ..domain.execution import ExecutionRefused
 from .execution import Executor
 from .ports import ChartRenderer, MarketData, Notifier, SettingsRepository, SignalRepository
@@ -38,8 +40,20 @@ class Scanner:
     async def _one(self, symbol: str, tf: Timeframe, s: Settings) -> list[Signal]:
         async with self.sem:
             bars = await self.market.closed_bars(symbol, tf)
+        found = detect(bars, tf, symbol, s)
+        hours, htf = s.p(tf).htf_confirm_h, HTF_CONFIRM.get(tf)
+        if found and hours and htf is not None:                     # только вслед за свежим пробоем старшего ТФ
+            async with self.sem:
+                hbars = await self.market.closed_bars(symbol, htf)
+            brk = htf_breakouts(hbars, htf)
+            kept = []
+            for sig in found:
+                age = htf_confirmation(brk, sig.side, sig.bar_time + timedelta(minutes=tf.minutes), hours)
+                if age is not None:
+                    kept.append(replace(sig, extra={**sig.extra, "htf": htf.value, "htf_age_h": round(age, 1)}))
+            found = kept
         new = []
-        for sig in detect(bars, tf, symbol, s):
+        for sig in found:
             saved = self.signals.add(sig)
             if saved is None:
                 continue

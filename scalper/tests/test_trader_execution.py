@@ -319,7 +319,7 @@ def test_auto_mode_trades_only_selected_timeframes(tmp_path, monkeypatch):
     b = FakeBroker()
     st, ex = _exec(tmp_path, b)
     st.save(replace(Settings(), mode=Mode.AUTO, timeframes=frozenset({Timeframe.H4, Timeframe.M15}),
-                    auto_timeframes=frozenset({Timeframe.H4})))
+                    auto_timeframes=frozenset({Timeframe.H4})).with_tf(Timeframe.M15, htf_confirm_h=0))
     idx = pd.date_range("2026-01-01", periods=10, freq="1h", tz="UTC")
     bars = pd.DataFrame({"open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0, "volume": 1.0,
                          "taker_buy_volume": 0.5}, index=idx)
@@ -335,3 +335,28 @@ def test_auto_mode_trades_only_selected_timeframes(tmp_path, monkeypatch):
     out = asyncio.run(SignalDecisions(st, st, ex).take(rep.signals[0].id))  # но вручную войти можно
     assert out.status is SignalStatus.TAKEN and len(b.placed) == 1
     assert Settings().toggle_auto(Timeframe.M15).auto_timeframes == {Timeframe.H4, Timeframe.M15}
+
+
+def test_15m_signal_only_after_fresh_4h_breakout(tmp_path, monkeypatch):
+    import trader.application.services as svc_mod
+    from trader.domain.models import Side
+    b = FakeBroker()
+    st, ex = _exec(tmp_path, b)
+    st.save(replace(Settings(), timeframes=frozenset({Timeframe.H4, Timeframe.M15})))     # 15m: 12 ч после 4h
+    idx = pd.date_range("2026-01-01", periods=10, freq="15min", tz="UTC")
+    bars = pd.DataFrame({"open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0, "volume": 1.0,
+                         "taker_buy_volume": 0.5}, index=idx)
+    bar_time = _fresh_15m()
+    monkeypatch.setattr(svc_mod, "detect", lambda d, tf, sym, s: [replace(_signal(sym, tf), bar_time=bar_time)])
+
+    class _Charts:
+        def render(self, signal, bb):
+            return "x.png"
+
+    sc = Scanner(_Market({"SOLUSDT": bars}), st, st, _Charts(), None, "", executor=ex)
+    monkeypatch.setattr(svc_mod, "htf_breakouts", lambda d, tf: [])
+    assert asyncio.run(sc.scan(Timeframe.M15)).signals == []                 # пробоя 4h не было — сигнала нет
+    seen = bar_time + timedelta(minutes=15) - timedelta(hours=3)
+    monkeypatch.setattr(svc_mod, "htf_breakouts", lambda d, tf: [(seen, Side.LONG)])
+    rep = asyncio.run(sc.scan(Timeframe.M15))
+    assert len(rep.signals) == 1 and rep.signals[0].extra["htf_age_h"] == 3.0 and rep.signals[0].extra["htf"] == "4h"

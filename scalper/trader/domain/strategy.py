@@ -14,6 +14,8 @@ import pandas as pd
 from research.smc import _atr
 from research.tline import PIV, htf_trend, last_confirmed, pivots, zz_lines
 
+from datetime import datetime, timedelta
+
 from .models import EntryKind, EntryPolicy, Settings, Side, Signal, Timeframe, TradePlan
 
 REQUIRED = ("open", "high", "low", "close", "volume", "taker_buy_volume")
@@ -91,3 +93,22 @@ def detect(d: pd.DataFrame, tf: Timeframe, symbol: str, settings: Settings) -> l
                           extra={"log_line": LOG_LINES, "break_atr": round(float(brk), 3), "close_loc": round(float(loc), 3)}))
         seen.add(side)
     return out
+
+
+def htf_breakouts(d: pd.DataFrame, tf: Timeframe) -> list[tuple[datetime, Side]]:
+    """Пробои линий старшего ТФ (то же построение, что в detect, без фильтров свечи): время закрытия свечи пробоя и
+    сторона. `d` — только закрытые свечи."""
+    if len(d) < 400:
+        return []
+    x = _with_probe_bar(d)
+    step = timedelta(minutes=tf.minutes)
+    return [((d.index[r["t"]] + step).to_pydatetime(), Side(r["side"])) for r in zz_lines(x, log=LOG_LINES)
+            if 0 < r["t"] < len(d)]
+
+
+def htf_confirmation(breakouts: list[tuple[datetime, Side]], side: Side, at: datetime, hours: int) -> float | None:
+    """Сколько часов назад закрылась свеча последнего пробоя старшего ТФ в сторону `side` (не позже `at` — закрытия
+    свечи сигнала и не раньше `hours` часов до него); None — такого пробоя нет."""
+    ages = [(at - t).total_seconds() / 3600 for t, sd in breakouts if sd is side and t <= at]
+    ages = [h for h in ages if h <= hours]
+    return min(ages) if ages else None

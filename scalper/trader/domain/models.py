@@ -65,6 +65,8 @@ class TfParams:
     min_break_atr: float = 0.0          # закрытие за линией не ближе, чем столько ATR
     hybrid_range_atr: float = 2.5       # гибрид: свеча пробоя длиннее (в ATR) — ретест, короче — по рынку
     retest_bars: int = 12               # сколько свечей ждём ретест
+    htf_confirm_h: int = 0              # только если старший ТФ (HTF_CONFIRM) пробил линию в ту же сторону не раньше
+                                        # стольких часов назад (по закрытию его свечи); 0 — без этого условия
 
     def __post_init__(self) -> None:
         if not 0.05 <= self.risk_pct <= 5.0:
@@ -81,14 +83,17 @@ class TfParams:
             raise ValueError("порог длинной свечи — от 0.5 до 10 ATR")
         if not (isinstance(self.retest_bars, int) and 1 <= self.retest_bars <= 48):
             raise ValueError("ожидание ретеста — от 1 до 48 свечей")
+        if not (isinstance(self.htf_confirm_h, int) and 0 <= self.htf_confirm_h <= 48):
+            raise ValueError("окно пробоя старшего ТФ — от 0 до 48 часов")
 
 
 # Лучшее по бэктесту (docs/research_report.md): 4h — основная стратегия (ретест, закрытие в верхней половине свечи);
-# 15m — плюса не нашли, поэтому риск меньше и тот же фильтр уверенной свечи. Риск 1% / 0.25%.
+# 15m сам по себе в ноль на любых линиях и фильтрах — только как уточнение входа после свежего пробоя 4h. Риск 1% / 0.25%.
 DEFAULT_TF_PARAMS: dict[Timeframe, TfParams] = {
     Timeframe.H4: TfParams(risk_pct=1.0, min_close_loc=0.5),
-    Timeframe.M15: TfParams(risk_pct=0.25, min_close_loc=0.5, min_break_atr=0.1),
+    Timeframe.M15: TfParams(risk_pct=0.25, min_close_loc=0.5, htf_confirm_h=12),
 }
+HTF_CONFIRM: dict[Timeframe, Timeframe] = {Timeframe.M15: Timeframe.H4}   # чей пробой подтверждает сигнал младшего ТФ
 RETIRED_TIMEFRAMES = ("1h",)            # были в панели раньше: сигналы и настройки этих ТФ при загрузке убираются
 TF_FIELDS = tuple(TfParams.__dataclass_fields__)
 

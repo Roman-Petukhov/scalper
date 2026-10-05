@@ -173,7 +173,8 @@ class SqliteStore:
     def _tf(p: dict, tf: Timeframe) -> TfParams:
         """Параметры ТФ из базы; старый формат (одно правило на все ТФ, риск и фильтр свечи по ТФ) переносится."""
         if "tf_params" in p and tf.value in p["tf_params"]:
-            d = dict(p["tf_params"][tf.value])
+            # поля, которых не было в сохранённой версии, — из значений по умолчанию этого ТФ
+            d = {**{k: getattr(DEFAULT_TF_PARAMS[tf], k) for k in TF_FIELDS}, **p["tf_params"][tf.value]}
         else:
             sfx = {Timeframe.H4: "", Timeframe.M15: "_15m"}[tf]
             d = {k: p[k] for k in ("min_aggr", "target_r", "min_break_atr", "hybrid_range_atr", "retest_bars",

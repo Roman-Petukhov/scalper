@@ -24,7 +24,7 @@ from ..application.ports import Broker, MarketData, Notifier
 from ..application.services import Scanner, SettingsService, SignalDecisions
 from ..config import AppConfig
 from ..domain.execution import TradeStatus
-from ..domain.models import EntryPolicy, Mode, SignalStatus, Timeframe
+from ..domain.models import HTF_CONFIRM, EntryPolicy, Mode, SignalStatus, Timeframe
 from ..infrastructure.binance_data import BinanceMarketData
 from ..infrastructure.bybit import BrokerHolder, BybitBroker, BybitCredentials
 from ..infrastructure.charts import MatplotlibCharts
@@ -53,7 +53,7 @@ templates.env.filters["chart_name"] = chart_name
 templates.env.globals.update(ARCHIVED=ARCHIVED, TRADE_LABEL={TradeStatus.PLACED: "лимитка ждёт", TradeStatus.FILLED: "на бирже",
                                           TradeStatus.EXPIRED: "лимитка снята", TradeStatus.CANCELLED: "снят / закрыт"},
                              FEED_TABS=[("all", "Все")] + [(t.value, t.value) for t in Timeframe] + [("archive", "Архив")],
-                             STATUS_LABEL=STATUS_LABEL, Timeframe=Timeframe, Mode=Mode, EntryPolicy=EntryPolicy,
+                             STATUS_LABEL=STATUS_LABEL, Timeframe=Timeframe, Mode=Mode, EntryPolicy=EntryPolicy, HTF_CONFIRM=HTF_CONFIRM,
                              SignalStatus=SignalStatus)
 
 
@@ -268,7 +268,8 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
                               "min_aggr": float(f("min_aggr_pct")) / 100, "target_r": float(f("target_r")),
                               "min_close_loc": float(f("min_close_loc_pct")) / 100,
                               "min_break_atr": float(f("min_break_atr")),
-                              "hybrid_range_atr": float(f("hybrid_range_atr")), "retest_bars": int(f("retest_bars"))}
+                              "hybrid_range_atr": float(f("hybrid_range_atr")), "retest_bars": int(f("retest_bars")),
+                              "htf_confirm_h": int(form.get(f"{tf.value}__htf_confirm_h", "0"))}
             settings_svc.update(g, per_tf)
         except KeyError as e:
             err = f"не заполнено поле {e.args[0]}"

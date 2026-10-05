@@ -111,6 +111,7 @@ main { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 20px; pa
 .per-tf select:focus-visible, .per-tf input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .per-tf input { width: 100%; min-width: 0; background: var(--surface-2); border: 1px solid var(--line); color: var(--text);
   font: inherit; padding: 8px 6px; border-radius: var(--radius-sm); text-align: center; }
+.per-tf .cell-na { text-align: center; color: var(--muted); }
 .per-acct input { grid-column: span var(--cols, 2); }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .ok { color: var(--long); font-size: 13px; }

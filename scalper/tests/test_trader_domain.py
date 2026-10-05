@@ -129,7 +129,7 @@ def test_per_timeframe_risk_and_close_filter():
     s = Settings()
     assert tuple(s.p(t).risk_pct for t in (Timeframe.H4, Timeframe.M15)) == (1.0, 0.25)
     assert (s.p(Timeframe.H4).min_close_loc, s.p(Timeframe.M15).min_close_loc) == (0.5, 0.5)
-    assert (s.p(Timeframe.H4).min_break_atr, s.p(Timeframe.M15).min_break_atr) == (0.0, 0.1)
+    assert (s.p(Timeframe.H4).htf_confirm_h, s.p(Timeframe.M15).htf_confirm_h) == (0, 12)
     s2 = s.with_tf(Timeframe.M15, target_r=2.0, entry_policy=EntryPolicy.MARKET)
     assert s2.p(Timeframe.M15).target_r == 2.0 and s2.p(Timeframe.H4).target_r == 3.0 and s.p(Timeframe.M15).target_r == 3.0
     with pytest.raises(ValueError):
@@ -138,3 +138,14 @@ def test_per_timeframe_risk_and_close_filter():
         TfParams(min_close_loc=0.95)
     with pytest.raises(ValueError):
         TfParams(retest_bars=0)
+
+
+def test_htf_confirmation_uses_closed_candles_and_window():
+    from datetime import datetime, timezone
+    from trader.domain.strategy import htf_confirmation
+    t = lambda h, m=0: datetime(2026, 10, 5, h, m, tzinfo=timezone.utc)     # noqa: E731
+    brk = [(t(8), Side.LONG), (t(12), Side.SHORT)]                  # время закрытия свечи 4h с пробоем
+    assert htf_confirmation(brk, Side.LONG, t(13, 15), 12) == 5.25
+    assert htf_confirmation(brk, Side.LONG, t(21), 12) is None      # старше 12 часов
+    assert htf_confirmation(brk, Side.SHORT, t(11, 45), 12) is None  # свеча 4h ещё не закрылась
+    assert htf_confirmation(brk, Side.SHORT, t(12, 15), 12) == 0.25
