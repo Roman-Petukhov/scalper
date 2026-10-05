@@ -71,6 +71,19 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         s = settings_svc.get()
         return {"s": s, "signals": store.recent(80), "last": scanner.last, "notify": notifier is not None}
 
+    @app.get("/manifest.webmanifest")
+    async def manifest():
+        return FileResponse(HERE / "static" / "manifest.webmanifest", media_type="application/manifest+json")
+
+    @app.get("/sw.js")
+    async def service_worker():
+        return FileResponse(HERE / "static" / "sw.js", media_type="text/javascript",
+                            headers={"Cache-Control": "no-cache", "Service-Worker-Allowed": "/"})
+
+    @app.get("/favicon.ico")
+    async def favicon():
+        return FileResponse(HERE / "static" / "icons" / "favicon-32.png", media_type="image/png")
+
     @app.get("/health")
     async def health() -> dict:
         return {"ok": True}

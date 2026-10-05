@@ -114,3 +114,15 @@ def test_next_close_on_utc_grid():
     assert next_close(t, Timeframe.H1) == datetime(2026, 10, 5, 10, 0, tzinfo=timezone.utc)
     assert next_close(t, Timeframe.H4) == datetime(2026, 10, 5, 12, 0, tzinfo=timezone.utc)
     assert next_close(datetime(2026, 10, 5, 12, 0, tzinfo=timezone.utc), Timeframe.H4) == datetime(2026, 10, 5, 16, 0, tzinfo=timezone.utc)
+
+
+def test_installable_app_assets_are_public(env):
+    c, _ = env
+    m = c.get("/manifest.webmanifest")
+    assert m.status_code == 200 and m.headers["content-type"].startswith("application/manifest+json")
+    icons = m.json()["icons"]
+    assert {i["purpose"] for i in icons} == {"any", "maskable"}
+    for i in icons:
+        assert c.get(i["src"]).status_code == 200
+    assert c.get("/sw.js").status_code == 200 and c.get("/favicon.ico").status_code == 200
+    assert 'rel="manifest"' in c.get("/login").text

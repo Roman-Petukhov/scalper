@@ -8,6 +8,8 @@ from __future__ import annotations
 import getpass
 import os
 import secrets
+import shutil
+import subprocess
 import sys
 import threading
 import webbrowser
@@ -53,6 +55,39 @@ def _first_run() -> None:
     print(f"Сохранено в {ENV_FILE.name}. Сменить пароль — удалите этот файл и запустите снова.")
 
 
+def _browsers() -> list[str]:
+    """Chromium-браузеры, которые умеют открывать страницу отдельным окном (--app)."""
+    found = []
+    if sys.platform == "win32":
+        for base in (os.environ.get("PROGRAMFILES(X86)", ""), os.environ.get("PROGRAMFILES", ""),
+                     os.environ.get("LOCALAPPDATA", "")):
+            for rel in (r"Microsoft\Edge\Application\msedge.exe", r"Google\Chrome\Application\chrome.exe",
+                        r"Yandex\YandexBrowser\Application\browser.exe"):
+                p = Path(base) / rel
+                if base and p.exists():
+                    found.append(str(p))
+    elif sys.platform == "darwin":
+        for app in ("Google Chrome", "Microsoft Edge", "Yandex"):
+            p = Path("/Applications") / f"{app}.app" / "Contents" / "MacOS" / app
+            if p.exists():
+                found.append(str(p))
+    else:
+        found += [p for p in (shutil.which(x) for x in ("google-chrome", "chromium", "microsoft-edge")) if p]
+    return found
+
+
+def open_app_window(url: str) -> None:
+    """Открыть панель отдельным окном без адресной строки, как приложение; если Chromium-браузера нет — вкладкой."""
+    for exe in _browsers():
+        try:
+            subprocess.Popen([exe, f"--app={url}", "--window-size=1280,860"], stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL)
+            return
+        except OSError:
+            continue
+    webbrowser.open(url)
+
+
 def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     if not ENV_FILE.exists():
@@ -63,7 +98,7 @@ def main() -> None:
     url = f"http://{HOST}:{PORT}"
     print(f"\nПанель: {url}  (остановить — Ctrl+C)\nПервый скан — сразу после ближайшего закрытия свечи "
           f"включённого таймфрейма; кнопка «Скан» в панели проверит рынок сейчас.\n")
-    threading.Timer(2.0, lambda: webbrowser.open(url)).start()
+    threading.Timer(2.5, lambda: open_app_window(url)).start()
     uvicorn.run("trader.web.app:main", factory=True, host=HOST, port=PORT, log_level="info")
 
 
