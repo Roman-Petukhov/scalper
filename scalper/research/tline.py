@@ -678,7 +678,7 @@ def coin_trades(root: Path, sym: str, tf: str, ctx: pd.DataFrame | None = None) 
                                  "vol_ratio": vol_ratio[tb], "oi_chg": oi_chg[tb], "body": body[tb],
                                  "close_loc": loc[tb] if side > 0 else 1 - loc[tb],
                                  "aggr": buy_share[tb] if side > 0 else 1 - buy_share[tb],
-                                 "brk_atr": side * (c[tb] - line_b) / a[tb],
+                                 "brk_atr": side * (c[tb] - line_b) / a[tb], "rng_atr": (hi[tb] - lo[tb]) / a[tb],
                                  "stop_atr": dist_atr, "ret30": ret30[e], "btc_trend": btc_trend[e],
                                  "btc_ret7": btc_ret7[e], "hold_bars": ex - fill,
                                  **strength_row(st, tb, tc, side, px, stop, zl if side > 0 else zh, c),
@@ -1159,6 +1159,49 @@ def mtf_report(line_name: dict) -> None:
     print(pd.DataFrame(rows).to_string(index=False))
 
 
+def entry_by_candle_report(df: pd.DataFrame, line_name: dict) -> None:
+    """Длинная свеча пробоя: вход по рынку на закрытии пробоя против лимитки на ретесте линии. Сравнение по сигналам:
+    у ретеста неисполненная лимитка — 0R (сделки нет), поэтому средний R ретеста считается на сигнал. Гибрид — по
+    рынку, если диапазон свечи пробоя < порога (ATR), иначе ретест; порог — квантиль, выбранный на IS."""
+    if "rng_atr" not in df.columns:
+        return
+    key = ["symbol", "tf", "line", "t", "side"]
+    print("\n=== Длинная свеча пробоя: рынок или ретест (агрессоры >= 55% + тренд, цель 3R; ретест без исполнения = 0R) ===")
+    for tf, ln in itertools.product(("4h", "1h"), ("zz", "fan")):
+        g = df[(df.tf == tf) & (df.line == ln) & ~df.confirm & (df.aggr >= 0.55) & df.with_trend]
+        mk = g[g.entry == "market"].drop_duplicates(key)
+        rt = g[g.entry == "retest"].drop_duplicates(key)[key + ["R3"]].rename(columns={"R3": "R3_rt"})
+        x = mk.merge(rt, on=key, how="left")
+        if x.per.eq("is").sum() < 100:
+            continue
+        x["filled"] = x["R3_rt"].notna()
+        x["R3_rt0"] = x["R3_rt"].fillna(0.0)
+        edges = x.loc[x.per == "is", "rng_atr"].quantile([0.2, 0.4, 0.6, 0.8]).to_numpy()
+        x["q"] = np.digitize(x["rng_atr"], edges) + 1
+        print(f"\n  {tf}, {line_name[ln]}: квинтили диапазона свечи пробоя (ATR), границы IS {np.round(edges, 2).tolist()}")
+        rows = []
+        for q, gq in x.groupby("q"):
+            for nm, col in (("рынок", "R3"), ("ретест", "R3_rt0")):
+                z = gq.assign(R=gq[col])
+                rows.append({"кв.": q, "вход": nm, "исполнено": f"{gq.filled.mean():.0%}" if col == "R3_rt0" else "100%",
+                             **{p: _cell(z[z.per == p]) for p in PER}, "2026": _cell(z[z.t.dt.year == 2026])})
+        print(pd.DataFrame(rows).to_string(index=False))
+        best = None
+        xi = x[x.per == "is"]
+        for qq in (0.4, 0.5, 0.6, 0.7, 0.8, 0.9):
+            thr = xi["rng_atr"].quantile(qq)
+            v = np.where(xi["rng_atr"] < thr, xi["R3"], xi["R3_rt0"]).mean()
+            if best is None or v > best[0]:
+                best = (v, qq, thr)
+        _, qq, thr = best
+        hyb = x.assign(R=np.where(x["rng_atr"] < thr, x["R3"], x["R3_rt0"]))
+        print(f"  гибрид (рынок, если свеча < {thr:.2f} ATR — квантиль {qq:.0%} по IS, иначе ретест): " +
+              ", ".join(f"{p} {_cell(hyb[hyb.per == p])}" for p in PER) + f"; по годам: {_years(hyb, 'R')}")
+        for nm, col in (("всё по рынку", "R3"), ("всё ретест", "R3_rt0")):
+            z = x.assign(R=x[col])
+            print(f"  {nm}: " + ", ".join(f"{p} {_cell(z[z.per == p])}" for p in PER) + f"; по годам: {_years(z, 'R')}")
+
+
 def report() -> None:
     parts = all_parts("tline")
     if not parts:
@@ -1221,6 +1264,7 @@ def report() -> None:
     if "R3x0" in df.columns:
         filters_report(df, line_name)
     mtf_report(line_name)
+    entry_by_candle_report(df, line_name)
     if "effort" in df.columns:
         strength_report(df, line_name)
         ev = df[df.confirm & (df.entry == "market") & (df.tf == "4h") & df.line.isin(["clean", "zz", "fan", "fan2"])]
