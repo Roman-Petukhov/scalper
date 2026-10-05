@@ -30,6 +30,7 @@ VIS_TOL = 0.05              # закрытия между точками кас�
 ZONE_MIN = 0.25             # зона не уже 0.25 ATR
 ZONE_DEPTH = 1.0            # скопление закрытий ищем не дальше 1 ATR от линии
 ZONE_WIN = 0.3              # окно плотности: 0.3 ATR
+ZONE_OUT = 1.5              # внешний край — не дальше 1.5 ATR от линии
 
 
 def _dense(res: np.ndarray, atr_b: float) -> float:
@@ -51,10 +52,13 @@ def _wick(ext: np.ndarray, c: np.ndarray, p: int, side: int) -> float:
 
 
 def zone_lines(d: pd.DataFrame) -> list[dict]:
-    """Зона вместо линии по ликвидному месту: наклон — линия по закрытиям вершин зигзага 3 ATR (как сейчас); внешняя
-    граница — параллельно через тени у вершин A и B (свечи ±2); внутренняя — по самому плотному скоплению закрытий
-    у линии (до ZONE_DEPTH ATR от неё). Зона не уже ZONE_MIN ATR.
-    Пробой — первое закрытие за дальней границей; закрытие внутри зоны — тест, линия живёт дальше."""
+    """Зона вместо линии по ликвидному месту.
+    Направление — вершины зигзага по закрытиям 3 ATR: от вершины A линия появляется, когда подтвердилась следующая
+    вершина зигзага ниже A (для впадин — выше). Вторая точка — касательная: из мини-экстремумов (±3 свечи) не раньше
+    этой вершины берём самую пологую линию по закрытиям, над которой не закрылась ни одна мини-вершина после A и
+    между точками нет закрытий за линией. Внутренний край зоны — самое плотное скопление закрытий у линии
+    (до ZONE_DEPTH ATR), внешний — самая дальняя тень среди свечей, касавшихся зоны (не дальше ZONE_OUT ATR).
+    Зона не уже ZONE_MIN ATR. Пробой — первое закрытие за внешним краем; закрытие внутри зоны — тест."""
     c = d["close"].to_numpy(dtype="float64")
     hi, lo = d["high"].to_numpy(dtype="float64"), d["low"].to_numpy(dtype="float64")
     atr = _atr(d).to_numpy()
@@ -63,15 +67,20 @@ def zone_lines(d: pd.DataFrame) -> list[dict]:
     out = []
     for side, piv in ((1, hs), (-1, ls)):
         ext = hi if side > 0 else lo
+        mini = pivots(c, 3, side > 0)
         seen = set()
         for a, conf_a in piv:
             w = c[max(0, a - ZZ_ANCHOR): a]
             if len(w) < ZZ_ANCHOR or side * (c[a] - (w.max() if side > 0 else w.min())) <= 0:
                 continue
-            cand = piv[(piv[:, 0] >= a + ZZ_SPAN) & (side * (c[a] - c[piv[:, 0]]) > 0)]
-            later = piv[piv[:, 0] > a]
+            big = piv[(piv[:, 0] >= a + ZZ_SPAN) & (side * (c[a] - c[piv[:, 0]]) > 0)]
+            if not len(big):
+                continue
+            b0, conf_b0 = int(big[0][0]), int(big[0][1])          # вершина, задающая направление
+            cand = mini[(mini[:, 0] >= b0) & (side * (c[a] - c[mini[:, 0]]) > 0)]
+            later = mini[mini[:, 0] > a]
             best, b_best, width, inner, rec, ci, li = None, -1, 0.0, 0.0, None, 0, 0
-            for t in range(conf_a + 1, min(a + ZZ_LIFE, m - 1)):
+            for t in range(max(conf_a, conf_b0) + 1, min(a + ZZ_LIFE, m - 1)):
                 changed = False
                 while li < len(later) and later[li][1] <= t - 1:
                     li, changed = li + 1, True
@@ -82,16 +91,22 @@ def zone_lines(d: pd.DataFrame) -> list[dict]:
                     pts = later[:li, 0]
                     for b in cand[:ci, 0]:
                         sl = (c[b] - c[a]) / (b - a)
-                        if np.all(side * (c[pts] - (c[a] + sl * (pts - a))) <= 1e-12):
-                            if best is None or side * sl > side * best:
-                                best, b_best = sl, int(b)
+                        tol = VIS_TOL * atr[b]
+                        if np.any(side * (c[pts] - (c[a] + sl * (pts - a))) > tol):
+                            continue                                # мини-вершина закрылась за линией
+                        seg = np.arange(a + 1, b)
+                        if len(seg) and np.any(side * (c[seg] - (c[a] + sl * (seg - a))) > tol):
+                            continue
+                        if best is None or side * sl > side * best:
+                            best, b_best = sl, int(b)
                     if b_best >= 0:
-                        outer = max(_wick(ext, c, a, side), _wick(ext, c, b_best, side))
                         span = np.arange(a, t)
-                        inner = _dense(side * (c[a] + best * (span - a) - c[span]), atr[b_best])
-                        if outer + inner < ZONE_MIN * atr[b_best]:
-                            outer = ZONE_MIN * atr[b_best] - inner
-                        width = outer
+                        line = c[a] + best * (span - a)
+                        inner = _dense(side * (line - c[span]), atr[b_best])
+                        touch = span[side * (line - c[span]) <= inner + 1e-12]
+                        outer = float(np.max(side * (ext[touch] - (c[a] + best * (touch - a))))) if len(touch) else 0.0
+                        outer = min(max(outer, 0.0), ZONE_OUT * atr[b_best])
+                        width = max(outer, ZONE_MIN * atr[b_best] - inner)
                 if best is None or not (side * best < 0):
                     continue
                 lt, lp = c[a] + best * (t - a), c[a] + best * (t - 1 - a)
@@ -220,7 +235,7 @@ def vis_lines(d: pd.DataFrame, n: int, launch: bool = False, minor: int = 0, bos
 BASE = "https://fapi.binance.com"
 SPOT = "https://data-api.binance.vision"
 MODES = {"сейчас: зигзаг 3 ATR, линия": lambda d: zz_lines(d),
-         "зигзаг 3 ATR, зона по скоплению закрытий (пунктир — линия по закрытиям вершин); пробой — закрытие за зоной": lambda d: zone_lines(d)}
+         "зона: направление — зигзаг 3 ATR, касательная к мини-вершинам, края — скопление закрытий / дальняя тень": lambda d: zone_lines(d)}
 SHOW = 480
 
 
