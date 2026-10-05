@@ -5,7 +5,7 @@
 Вход — по настройке: лимитка на линии (ретест, по умолчанию), по рынку на закрытии свечи пробоя или гибрид
 (свеча пробоя короче hybrid_range_atr ATR — по рынку, длиннее — ретест).
 
-Построение линий берётся из research.tline (один источник правды с бэктестом); линии — на лог-шкале."""
+Построение линий берётся из research.tline (один источник правды с бэктестом); линии — в обычной шкале (лог-вариант — LOG_LINES)."""
 from __future__ import annotations
 
 import numpy as np
@@ -18,7 +18,7 @@ from .models import EntryKind, EntryPolicy, Settings, Side, Signal, Timeframe, T
 
 REQUIRED = ("open", "high", "low", "close", "volume", "taker_buy_volume")
 STOP_ATR = (0.3, 4.0)
-LOG_LINES = True            # линии прямые на логарифмической шкале (как трейдер ведёт их на лог-графике)
+LOG_LINES = False           # обычные линии: по бэктесту 4h сильнее лог-шкалы (HOLDOUT +0.40R против +0.32R)
 
 
 def _with_probe_bar(d: pd.DataFrame) -> pd.DataFrame:
