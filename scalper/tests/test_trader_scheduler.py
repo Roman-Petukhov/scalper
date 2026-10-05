@@ -50,3 +50,18 @@ def test_wake_from_sleep_catches_up_once_per_timeframe():
     sc = FakeScanner(stop, limit=3)
     asyncio.run(asyncio.wait_for(scheduler.run(sc, 20, stop, poll_s=0.01, clock=_clock([t0, t0, wake])), 5))
     assert [tf.value for tf in sc.calls] == ["4h", "1h", "15m"]
+
+
+def test_tick_runs_background_work_and_survives_errors():
+    t0 = datetime(2026, 10, 5, 11, 59, 50, tzinfo=timezone.utc)
+    stop = asyncio.Event()
+    sc = FakeScanner(stop, limit=3)
+    ticks = []
+
+    async def tick():
+        ticks.append(1)
+        raise RuntimeError("биржа недоступна")
+
+    clock = _clock([t0, t0, t0 + timedelta(seconds=40)])
+    asyncio.run(asyncio.wait_for(scheduler.run(sc, 20, stop, poll_s=0.01, clock=clock, tick=tick, tick_s=30), 5))
+    assert len(ticks) == 2 and len(sc.calls) == 3

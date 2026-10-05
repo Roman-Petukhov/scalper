@@ -1,0 +1,38 @@
+{% if w %}
+{% set a = w.account %}
+<div class="card wallet">
+  <div class="wallet-head">
+    <h2>Кошелёк · {{ exchange }}</h2>
+    <span class="hint num" style="margin:0">{{ w.updated.strftime('%H:%M:%S') }} UTC</span>
+  </div>
+  <div class="stats num">
+    <div class="stat"><span>Капитал</span><b>{{ '{:,.2f}'.format(a.equity).replace(',', ' ') }}</b><small>USDT</small></div>
+    <div class="stat"><span>Свободно</span><b>{{ '{:,.2f}'.format(a.available).replace(',', ' ') }}</b><small>USDT</small></div>
+    <div class="stat {{ 'up' if a.upnl > 0 else ('down' if a.upnl < 0 else '') }}"><span>Открытые позиции</span>
+      <b>{{ '%+.2f' | format(a.upnl) }}</b><small>нереализ. PnL</small></div>
+    <div class="stat {{ 'up' if w.day_pnl > 0 else ('down' if w.day_pnl < 0 else '') }}"><span>Сегодня</span>
+      <b>{{ '%+.2f' | format(w.day_pnl) }}</b><small>{{ '%+.2f' | format(w.day_pnl_pct) }}% с 00:00 UTC</small></div>
+  </div>
+  {% if a.positions %}
+  <table class="positions num">
+    <thead><tr><th>Монета</th><th>Сторона</th><th>Объём</th><th>Вход</th><th>Цена</th><th>Стоп</th><th>Цель</th><th>PnL</th></tr></thead>
+    <tbody>
+    {% for p in a.positions %}
+      <tr>
+        <td>{{ p.symbol }}</td>
+        <td class="{{ 'long' if p.side.value > 0 else 'short' }}">{{ p.side.label }}</td>
+        <td>{{ '%.6g' | format(p.qty) }}</td>
+        <td>{{ '%.6g' | format(p.entry) }}</td>
+        <td>{{ '%.6g' | format(p.mark) }}</td>
+        <td>{{ '%.6g' | format(p.stop) if p.stop else '—' }}</td>
+        <td>{{ '%.6g' | format(p.target) if p.target else '—' }}</td>
+        <td class="{{ 'up' if p.upnl > 0 else ('down' if p.upnl < 0 else '') }}">{{ '%+.2f' | format(p.upnl) }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="hint">Открытых позиций нет{% if a.pending_symbols %} · лимитки ждут ретеста: {{ a.pending_symbols | sort | join(', ') }}{% endif %}.</p>{% endif %}
+</div>
+{% elif error %}
+<div class="card wallet"><p class="err" style="margin:0">{{ error }}</p></div>
+{% endif %}

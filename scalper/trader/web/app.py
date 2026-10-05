@@ -7,6 +7,7 @@ import hmac
 import logging
 import re
 import time
+from collections.abc import Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -17,11 +18,14 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from .. import scheduler
-from ..application.ports import MarketData, Notifier
+from ..application.execution import Executor
+from ..application.ports import Broker, MarketData, Notifier
 from ..application.services import Scanner, SettingsService, SignalDecisions
 from ..config import AppConfig
+from ..domain.execution import TradeStatus
 from ..domain.models import EntryPolicy, Mode, SignalStatus, Timeframe
 from ..infrastructure.binance_data import BinanceMarketData
+from ..infrastructure.bybit import BrokerHolder, BybitBroker, BybitCredentials
 from ..infrastructure.charts import MatplotlibCharts
 from ..infrastructure.sqlite_repo import SqliteStore
 from ..infrastructure.telegram import TelegramNotifier
@@ -42,30 +46,38 @@ def chart_name(path: str) -> str:
 
 
 templates.env.filters["chart_name"] = chart_name
-templates.env.globals.update(FEED_TABS=[("all", "Все")] + [(t.value, t.value) for t in Timeframe],
+templates.env.globals.update(TRADE_LABEL={TradeStatus.PLACED: "лимитка ждёт", TradeStatus.FILLED: "на бирже",
+                                          TradeStatus.EXPIRED: "лимитка снята", TradeStatus.CANCELLED: "снят / закрыт"},
+                             FEED_TABS=[("all", "Все")] + [(t.value, t.value) for t in Timeframe],
                              STATUS_LABEL=STATUS_LABEL, Timeframe=Timeframe, Mode=Mode, EntryPolicy=EntryPolicy,
                              SignalStatus=SignalStatus)
 
 
-def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notifier | None = None) -> FastAPI:
+def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notifier | None = None,
+               broker: Callable[[], Broker | None] | None = None) -> FastAPI:
     store = SqliteStore(cfg.data_dir / "trader.db")
     charts = MatplotlibCharts(cfg.data_dir / "charts")
     market = market or BinanceMarketData()
     push = WebPushNotifier(store, cfg.data_dir / "vapid_private.pem")
     telegram = (TelegramNotifier(cfg.telegram_token, cfg.telegram_chat_id)
                 if cfg.telegram_token and cfg.telegram_chat_id else None)
-    scanner = Scanner(market, store, store, charts, MultiNotifier(push, telegram, notifier), cfg.panel_url)
+    notify = MultiNotifier(push, telegram, notifier)
+    holder = BrokerHolder(store)
+    executor = Executor(broker or holder, store, store, store, notify)
+    scanner = Scanner(market, store, store, charts, notify, cfg.panel_url, executor=executor)
     settings_svc = SettingsService(store)
-    decisions = SignalDecisions(store, store)
+    decisions = SignalDecisions(store, store, executor)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         stop = asyncio.Event()
-        task = asyncio.create_task(scheduler.run(scanner, cfg.scan_delay_s, stop)) if cfg.scheduler else None
+        task = (asyncio.create_task(scheduler.run(scanner, cfg.scan_delay_s, stop, tick=executor.housekeep))
+                if cfg.scheduler else None)
         yield
         stop.set()
         if task is not None:
             await task
+        await holder.close()
 
     app = FastAPI(title="Trendline Trader", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.add_middleware(SessionMiddleware, secret_key=cfg.session_secret, session_cookie="tt_session",
@@ -94,7 +106,14 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         s = settings_svc.get()
         view = feed_view(request)
         shown = set(s.timeframes) & ({view} if view else set(Timeframe))
-        return {"s": s, "signals": store.recent(80, shown), "view": view, "last": scanner.last}
+        signals = store.recent(80, shown)
+        return {"s": s, "signals": signals, "view": view, "last": scanner.last,
+                "trades": store.trades_for([x.id for x in signals if x.id is not None]),
+                "exchange": exchange_label(), "creds": holder.credentials if broker is None else None}
+
+    def exchange_label() -> str | None:
+        b = executor.broker()
+        return None if b is None else ("Bybit демо" if b.network == "demo" else "Bybit реальный счёт")
 
     @app.get("/manifest.webmanifest")
     async def manifest():
@@ -231,13 +250,15 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         if action not in ("take", "skip"):
             raise HTTPException(404)
         try:
-            sig = decisions.take(signal_id) if action == "take" else decisions.skip(signal_id)
+            sig = await decisions.take(signal_id) if action == "take" else decisions.skip(signal_id)
             err = None
         except LookupError:
             raise HTTPException(404, "сигнал не найден")
         except ValueError as e:
             sig, err = store.get(signal_id), str(e)
-        return templates.TemplateResponse(request, "_signal.html", {"sig": sig, "s": settings_svc.get(), "error": err})
+        return templates.TemplateResponse(request, "_signal.html", {
+            "sig": sig, "s": settings_svc.get(), "error": err, "trades": store.trades_for([signal_id]),
+            "exchange": exchange_label()}, headers={"HX-Trigger": "wallet-refresh"} if err is None else None)
 
     @app.post("/scan/{tf}", response_class=HTMLResponse)
     async def scan_now(request: Request, tf: Timeframe):
@@ -246,6 +267,48 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         disabled = tf not in settings_svc.get().timeframes
         return templates.TemplateResponse(request, "_scan_result.html", {"tf": tf, "rep": rep, "disabled": disabled},
                                           headers={"HX-Trigger": "feed-refresh"})
+
+    @app.get("/wallet", response_class=HTMLResponse)
+    async def wallet(request: Request):
+        guard(request)
+        err = None
+        try:
+            w = await executor.wallet()
+        except Exception as e:
+            log.warning("кошелёк: %s", e)
+            w, err = None, f"Bybit не ответил: {str(e)[:140]}"
+        return templates.TemplateResponse(request, "_wallet.html", {"w": w, "error": err,
+                                                                    "exchange": exchange_label()})
+
+    @app.post("/exchange/keys", response_class=HTMLResponse)
+    async def exchange_keys(request: Request, api_key: str = Form(...), secret: str = Form(...),
+                            network: str = Form("demo")):
+        guard(request, mutate=True)
+        ctx = page_context(request)
+        try:
+            creds = BybitCredentials(api_key.strip(), secret.strip(), network)
+        except ValueError as e:
+            return templates.TemplateResponse(request, "_controls.html", ctx | {"keys_error": str(e)})
+        probe = BybitBroker(creds)
+        try:
+            acc = await probe.account()                           # проверяем ключи до сохранения
+        except Exception as e:
+            log.warning("проверка ключей Bybit: %s", e)
+            return templates.TemplateResponse(request, "_controls.html", ctx | {
+                "keys_error": f"Bybit не принял ключи: {str(e)[:160]}"})
+        finally:
+            await probe.close()
+        holder.save(creds)
+        return templates.TemplateResponse(request, "_controls.html", page_context(request) | {
+            "keys_saved": f"Подключено · капитал {acc.equity:,.2f} USDT".replace(",", " ")},
+            headers={"HX-Trigger": "wallet-refresh"})
+
+    @app.post("/exchange/forget", response_class=HTMLResponse)
+    async def exchange_forget(request: Request):
+        guard(request, mutate=True)
+        holder.forget()
+        return templates.TemplateResponse(request, "_controls.html", page_context(request),
+                                          headers={"HX-Trigger": "wallet-refresh"})
 
     @app.get("/charts/{name}")
     async def chart(request: Request, name: str):

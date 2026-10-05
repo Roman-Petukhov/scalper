@@ -21,10 +21,21 @@
       <dt>Свеча</dt><dd>{{ '%.1f' | format(sig.range_atr) }} ATR</dd>
       {% if sig.plan.valid_bars %}<dt>Лимитка живёт</dt><dd>{{ sig.plan.valid_bars }} свечей</dd>{% endif %}
     </dl>
+    {% set t = trades.get(sig.id) if trades else none %}
+    {% if t %}
+    <div class="trade-box num">
+      <span class="badge status-taken">{{ TRADE_LABEL[t.status] }}</span>
+      {{ 'демо' if t.network == 'demo' else 'реальный' }} · {{ 'лимит' if t.kind.value == 'retest' else 'рынок' }}
+      {{ '%.6g' | format(t.qty) }} @ {{ '%.6g' | format(t.price) }}
+      {% if t.status.value == 'placed' and t.expires_at %}<span class="hint" style="margin:0">· до {{ t.expires_at.strftime('%d.%m %H:%M') }} UTC</span>{% endif %}
+    </div>
+    {% endif %}
     {% if sig.status == SignalStatus.NEW and s.mode == Mode.MANUAL %}
+    <p class="hint" style="margin:0">{% if exchange %}«Вхожу» отправит ордер на {{ exchange }} с риском {{ s.risk_pct }}%.{% else %}Bybit не подключён — «Вхожу» только отметит вход.{% endif %}</p>
     <div class="row">
       <button class="btn {{ 'long' if long else 'short' }}" hx-post="/signals/{{ sig.id }}/take"
-              hx-target="#signal-{{ sig.id }}" hx-swap="outerHTML">Вхожу</button>
+              hx-target="#signal-{{ sig.id }}" hx-swap="outerHTML" hx-disabled-elt="this"
+              {% if exchange and exchange != 'Bybit демо' %}hx-confirm="Отправить ордер на реальный счёт Bybit?"{% endif %}>Вхожу</button>
       <button class="btn" hx-post="/signals/{{ sig.id }}/skip" hx-target="#signal-{{ sig.id }}" hx-swap="outerHTML">Пропустить</button>
     </div>
     {% elif sig.note %}<span class="hint" style="margin:0">{{ sig.note }}</span>{% endif %}

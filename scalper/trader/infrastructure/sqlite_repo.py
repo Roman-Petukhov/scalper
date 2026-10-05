@@ -8,6 +8,7 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 
+from ..domain.execution import Trade, TradeStatus
 from ..domain.models import (EntryKind, EntryPolicy, Mode, Settings, Side, Signal, SignalStatus, Timeframe,
                              TradePlan)
 
@@ -24,6 +25,13 @@ CREATE TABLE IF NOT EXISTS settings (id INTEGER PRIMARY KEY CHECK (id = 1), payl
 CREATE TABLE IF NOT EXISTS push_subscriptions (
     endpoint TEXT PRIMARY KEY, payload TEXT NOT NULL, created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS trades (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    signal_id INTEGER NOT NULL UNIQUE, symbol TEXT NOT NULL, side INTEGER NOT NULL, kind TEXT NOT NULL,
+    qty REAL NOT NULL, price REAL NOT NULL, stop REAL NOT NULL, target REAL NOT NULL, order_id TEXT NOT NULL,
+    network TEXT NOT NULL, status TEXT NOT NULL, expires_at TEXT, created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 """
 
 
@@ -32,7 +40,7 @@ def _dt(s: str) -> datetime:
 
 
 class SqliteStore:
-    """Реализует SignalRepository и SettingsRepository."""
+    """Реализует SignalRepository, SettingsRepository и TradeRepository."""
 
     def __init__(self, path: str | Path) -> None:
         Path(path).parent.mkdir(parents=True, exist_ok=True)
@@ -148,3 +156,60 @@ class SqliteStore:
         with self.lock:
             rows = self.db.execute("SELECT payload FROM push_subscriptions").fetchall()
         return [json.loads(r["payload"]) for r in rows]
+
+    # ---------- сделки на бирже ----------
+    @staticmethod
+    def _trade(r: sqlite3.Row) -> Trade:
+        return Trade(signal_id=r["signal_id"], symbol=r["symbol"], side=Side(r["side"]), kind=EntryKind(r["kind"]),
+                     qty=r["qty"], price=r["price"], stop=r["stop"], target=r["target"], order_id=r["order_id"],
+                     network=r["network"], status=TradeStatus(r["status"]),
+                     expires_at=_dt(r["expires_at"]) if r["expires_at"] else None,
+                     created_at=_dt(r["created_at"]), id=r["id"])
+
+    def add_trade(self, trade: Trade) -> Trade:
+        created = trade.created_at or datetime.now(timezone.utc)
+        with self.lock:
+            cur = self.db.execute(
+                "INSERT INTO trades(signal_id, symbol, side, kind, qty, price, stop, target, order_id, network, status,"
+                " expires_at, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (trade.signal_id, trade.symbol, int(trade.side), trade.kind.value, trade.qty, trade.price, trade.stop,
+                 trade.target, trade.order_id, trade.network, trade.status.value,
+                 trade.expires_at.isoformat() if trade.expires_at else None, created.isoformat()))
+            self.db.commit()
+            row = self.db.execute("SELECT * FROM trades WHERE id = ?", (cur.lastrowid,)).fetchone()
+        return self._trade(row)
+
+    def trades_for(self, signal_ids: list[int]) -> dict[int, Trade]:
+        if not signal_ids:
+            return {}
+        with self.lock:
+            rows = self.db.execute(f"SELECT * FROM trades WHERE signal_id IN ({','.join('?' * len(signal_ids))})",
+                                   signal_ids).fetchall()
+        return {r["signal_id"]: self._trade(r) for r in rows}
+
+    def pending_trades(self) -> list[Trade]:
+        with self.lock:
+            rows = self.db.execute("SELECT * FROM trades WHERE status = ?", (TradeStatus.PLACED.value,)).fetchall()
+        return [self._trade(r) for r in rows]
+
+    def set_trade_status(self, trade_id: int, status: TradeStatus) -> None:
+        with self.lock:
+            self.db.execute("UPDATE trades SET status = ? WHERE id = ?", (status.value, trade_id))
+            self.db.commit()
+
+    # ---------- ключ-значение: ключи биржи, капитал на начало дня ----------
+    def kv_get(self, key: str) -> str | None:
+        with self.lock:
+            row = self.db.execute("SELECT value FROM kv WHERE key = ?", (key,)).fetchone()
+        return row["value"] if row else None
+
+    def kv_set(self, key: str, value: str) -> None:
+        with self.lock:
+            self.db.execute("INSERT INTO kv(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                            (key, value))
+            self.db.commit()
+
+    def kv_delete(self, key: str) -> None:
+        with self.lock:
+            self.db.execute("DELETE FROM kv WHERE key = ?", (key,))
+            self.db.commit()

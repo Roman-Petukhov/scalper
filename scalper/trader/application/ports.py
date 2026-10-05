@@ -5,6 +5,7 @@ from typing import Protocol
 
 import pandas as pd
 
+from ..domain.execution import Account, Instrument, OrderRequest, Trade, TradeStatus
 from ..domain.models import Settings, Signal, SignalStatus, Timeframe
 
 
@@ -45,3 +46,39 @@ class Notifier(Protocol):
     async def signal(self, signal: Signal, chart_path: str | None, panel_url: str) -> None: ...
 
     async def text(self, message: str) -> None: ...
+
+
+class Broker(Protocol):
+    """Биржа для исполнения (Bybit). Все суммы в USDT."""
+    network: str                                          # "demo" / "live"
+
+    async def account(self) -> Account:
+        """Капитал, свободная маржа, открытые позиции и монеты с неисполненными лимитками входа."""
+
+    async def instrument(self, symbol: str) -> Instrument | None:
+        """Правила монеты; None — такой USDT-перпетуал на бирже не торгуется."""
+
+    async def price(self, symbol: str) -> float: ...
+
+    async def place(self, order: OrderRequest) -> str:
+        """Отправить ордер входа со стопом и целью на бирже; вернуть id ордера."""
+
+    async def open_order_ids(self) -> set[str]: ...
+
+    async def cancel(self, symbol: str, order_id: str) -> None: ...
+
+    async def close(self) -> None: ...
+
+
+class TradeRepository(Protocol):
+    def add_trade(self, trade: Trade) -> Trade: ...
+
+    def trades_for(self, signal_ids: list[int]) -> dict[int, Trade]: ...
+
+    def pending_trades(self) -> list[Trade]: ...
+
+    def set_trade_status(self, trade_id: int, status: TradeStatus) -> None: ...
+
+    def kv_get(self, key: str) -> str | None: ...
+
+    def kv_set(self, key: str, value: str) -> None: ...

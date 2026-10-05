@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 
 from ..domain.models import EntryPolicy, Mode, Settings, Signal, SignalStatus, Timeframe
 from ..domain.strategy import detect
+from ..domain.execution import ExecutionRefused
+from .execution import Executor
 from .ports import ChartRenderer, MarketData, Notifier, SettingsRepository, SignalRepository
 
 log = logging.getLogger(__name__)
@@ -25,8 +27,10 @@ class ScanReport:
 
 class Scanner:
     def __init__(self, market: MarketData, signals: SignalRepository, settings: SettingsRepository,
-                 charts: ChartRenderer, notifier: Notifier | None, panel_url: str, concurrency: int = 8) -> None:
+                 charts: ChartRenderer, notifier: Notifier | None, panel_url: str, concurrency: int = 8,
+                 executor: Executor | None = None) -> None:
         self.market, self.signals, self.settings = market, signals, settings
+        self.executor = executor
         self.charts, self.notifier, self.panel_url = charts, notifier, panel_url
         self.sem = asyncio.Semaphore(concurrency)
         self.last: dict[Timeframe, ScanReport] = {}
@@ -71,19 +75,39 @@ class Scanner:
                     await self.notifier.signal(sig, sig.chart_path, self.panel_url)
                 except Exception:
                     log.exception("уведомление %s", sig.symbol)
+        if s.mode is Mode.AUTO and self.executor is not None and self.executor.connected:
+            found = [await self._auto(sig) for sig in found]
         rep = ScanReport(tf, len(symbols), found, errors, started, datetime.now(timezone.utc))
         self.last[tf] = rep
         log.info("скан %s: монет %d, сигналов %d, ошибок %d", tf.value, len(symbols), len(found), errors)
         return rep
 
 
+    async def _auto(self, sig: Signal) -> Signal:
+        """Авто-режим: бот сам отправляет ордер; отказ по правилам риска — сигнал пропущен с причиной."""
+        assert self.executor is not None and sig.id is not None
+        try:
+            await self.executor.execute(sig)
+            msg = f"Бот вошёл: {sig.symbol} {sig.timeframe.value} {sig.side.label}"
+        except ExecutionRefused as e:
+            self.signals.set_status(sig.id, SignalStatus.SKIPPED, f"бот не вошёл: {e}")
+            msg = f"Бот не вошёл в {sig.symbol} {sig.timeframe.value}: {e}"
+        if self.notifier is not None:
+            try:
+                await self.notifier.text(msg)
+            except Exception:
+                log.exception("уведомление")
+        return self.signals.get(sig.id) or sig
+
+
 class SignalDecisions:
     """Ручной режим: трейдер принимает или пропускает сигнал. В авто-режиме решение принимает исполнитель."""
 
-    def __init__(self, signals: SignalRepository, settings: SettingsRepository) -> None:
-        self.signals, self.settings = signals, settings
+    def __init__(self, signals: SignalRepository, settings: SettingsRepository,
+                 executor: Executor | None = None) -> None:
+        self.signals, self.settings, self.executor = signals, settings, executor
 
-    def _decide(self, signal_id: int, status: SignalStatus, note: str) -> Signal:
+    def _check(self, signal_id: int) -> Signal:
         sig = self.signals.get(signal_id)
         if sig is None:
             raise LookupError("сигнал не найден")
@@ -91,15 +115,28 @@ class SignalDecisions:
             raise ValueError(f"сигнал уже обработан: {sig.status.value}")
         if self.settings.load().mode is not Mode.MANUAL:
             raise ValueError("включён авто-режим: сигналы исполняет бот")
-        out = self.signals.set_status(signal_id, status, note)
+        return sig
+
+    async def take(self, signal_id: int) -> Signal:
+        """«Вхожу»: с подключённой биржей — ордер со стопом и целью на Bybit; без неё — только отметка.
+        ValueError — ордер не отправлен (причина в тексте), сигнал остаётся новым."""
+        sig = self._check(signal_id)
+        if self.executor is not None and self.executor.connected:
+            try:
+                await self.executor.execute(sig)
+            except ExecutionRefused as e:
+                raise ValueError(f"Ордер не отправлен: {e}") from e
+            out = self.signals.get(signal_id)
+        else:
+            out = self.signals.set_status(signal_id, SignalStatus.TAKEN, "вход вручную · биржа не подключена")
         assert out is not None
         return out
 
-    def take(self, signal_id: int) -> Signal:
-        return self._decide(signal_id, SignalStatus.TAKEN, "вход вручную")
-
     def skip(self, signal_id: int) -> Signal:
-        return self._decide(signal_id, SignalStatus.SKIPPED, "пропущен")
+        self._check(signal_id)
+        out = self.signals.set_status(signal_id, SignalStatus.SKIPPED, "пропущен")
+        assert out is not None
+        return out
 
 
 class SettingsService:

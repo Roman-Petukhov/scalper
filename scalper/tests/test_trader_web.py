@@ -185,3 +185,38 @@ def test_chart_name_handles_windows_paths():
     from trader.web.app import chart_name
     assert chart_name(r"C:\Users\R\scalper\data_panel\charts\ETHUSDT_15m_1.png") == "ETHUSDT_15m_1.png"
     assert chart_name("/srv/data/charts/SOLUSDT_4h_2.png") == "SOLUSDT_4h_2.png"
+
+
+def test_exchange_wallet_take_and_keys(tmp_path):
+    from test_trader_execution import FakeBroker
+    from trader.domain.execution import Account, Position
+    from trader.domain.models import Side
+    from trader.infrastructure.sqlite_repo import SqliteStore
+    cfg = AppConfig(panel_password="correct-horse-battery", session_secret="x" * 40, data_dir=tmp_path,
+                    panel_url="http://test", telegram_token=None, telegram_chat_id=None, scan_delay_s=0.0,
+                    scheduler=False)
+    b = FakeBroker(acc=Account(1000.0, 900.0, 4.2, (Position("ETHUSDT", Side.SHORT, 0.5, 2500, 2490, 4.2, 2550, 2350),)))
+    app = create_app(cfg, market=_Market(), broker=lambda: b)
+    with TestClient(app) as c:
+        _login(c)
+        w = c.get("/wallet").text
+        assert "Кошелёк · Bybit демо" in w and "1 000.00" in w and "+4.20" in w and "ETHUSDT" in w and "2550" in w
+        st = SqliteStore(tmp_path / "trader.db")
+        s = st.add(_signal())
+        b.acc = Account(1000.0, 900.0, 0.0)
+        feed = c.get("/feed").text
+        assert "отправит ордер на Bybit демо" in feed
+        r = c.post(f"/signals/{s.id}/take", headers=HX)
+        assert "на бирже" in r.text and "демо · рынок" in r.text and r.headers["HX-Trigger"] == "wallet-refresh"
+        assert len(b.placed) == 1
+
+
+def test_wallet_hidden_without_exchange(env):
+    c, _ = env
+    _login(c)
+    r = c.get("/wallet")
+    assert r.status_code == 200 and r.text.strip() == ""
+    assert "API Key" in c.get("/").text
+    r = c.post("/exchange/keys", data={"api_key": "short", "secret": "x", "network": "demo"}, headers=HX)
+    assert "неполными" in r.text
+    assert c.post("/exchange/keys", data={"api_key": "k" * 20, "secret": "s" * 30}).status_code == 403

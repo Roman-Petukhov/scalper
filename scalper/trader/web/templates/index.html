@@ -24,6 +24,7 @@
       </div>
     </div>
     <div id="scan-status" class="scan-status" aria-live="polite"></div>
+    <div id="wallet" hx-get="/wallet" hx-trigger="load, every 15s, wallet-refresh from:body" hx-swap="innerHTML"></div>
     <div id="feed" hx-get="/feed" hx-trigger="every 60s, feed-refresh from:body" hx-swap="innerHTML">
       {% include "_feed.html" %}
     </div>

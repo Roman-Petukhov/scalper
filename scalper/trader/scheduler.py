@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta, timezone
 
 from .application.services import Scanner
@@ -36,14 +36,23 @@ def _utcnow() -> datetime:
 
 
 async def run(scanner: Scanner, delay_s: float, stop: asyncio.Event, poll_s: float = 20.0,
-              clock: Callable[[], datetime] = _utcnow) -> None:
+              clock: Callable[[], datetime] = _utcnow, tick: Callable[[], Awaitable[None]] | None = None,
+              tick_s: float = 60.0) -> None:
     """Бесконечный цикл: как только прошло delay_s после закрытия свечи, сканируем этот ТФ (старшие первыми).
-    Выключенные кнопками ТФ сканер пропускает сам, поэтому переключение действует со следующей свечи."""
+    Выключенные кнопками ТФ сканер пропускает сам, поэтому переключение действует со следующей свечи.
+    tick — фоновая работа раз в tick_s секунд (снятие просроченных лимиток на бирже)."""
     lag = timedelta(seconds=delay_s)
     start = clock() - lag
     done = {tf: last_close(start, tf) for tf in Timeframe}           # при старте уже закрытые свечи не трогаем
+    last_tick: datetime | None = None
     while not stop.is_set():
         now = clock()
+        if tick is not None and (last_tick is None or (now - last_tick).total_seconds() >= tick_s):
+            last_tick = now
+            try:
+                await tick()
+            except Exception:
+                log.exception("фоновая проверка ордеров")
         ref = now - lag
         due = [tf for tf in Timeframe if last_close(ref, tf) > done[tf]]
         for tf in sorted(due, key=lambda x: -x.minutes):

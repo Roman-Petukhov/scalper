@@ -55,13 +55,13 @@ def test_decisions_only_in_manual_mode_and_once(tmp_path):
     st = SqliteStore(tmp_path / "t.db")
     dec = SignalDecisions(st, st)
     s = st.add(_signal())
-    assert dec.take(s.id).status is SignalStatus.TAKEN
+    assert asyncio.run(dec.take(s.id)).status is SignalStatus.TAKEN
     with pytest.raises(ValueError):
         dec.skip(s.id)
     s2 = st.add(_signal(side=Side.SHORT))
     st.save(replace(Settings(), mode=Mode.AUTO))
     with pytest.raises(ValueError):
-        dec.take(s2.id)
+        asyncio.run(dec.take(s2.id))
 
 
 class _Market:

@@ -8,7 +8,8 @@
   </div>
   <p class="hint">
     {% if s.mode == Mode.MANUAL %}Сигнал приходит в ленту — входите сами или пропускаете.
-    {% else %}Бот входит сам по каждому сигналу включённых таймфреймов. Исполнение на Bybit подключается на этапе 2: сейчас сигналы только записываются.{% endif %}
+    {% elif exchange %}Бот сам отправляет ордер со стопом и целью на {{ exchange }} по каждому сигналу включённых таймфреймов.
+    {% else %}Бот входит сам, когда подключена биржа. Сейчас Bybit не подключён — сигналы только записываются.{% endif %}
   </p>
 </div>
 
@@ -64,6 +65,35 @@
     </div>
   </form>
   <p class="hint">Проверено в бэктесте: агрессоры 55%, цель 3R. Изменения действуют со следующей свечи.</p>
+</div>
+
+<div class="card">
+  <h2>Биржа</h2>
+  {% if exchange %}
+    <p class="ok" style="margin:0 0 10px">● {{ exchange }}{% if creds %} · ключ {{ creds.masked_key }}{% endif %}</p>
+    {% if keys_saved %}<p class="ok" role="status" style="margin:0 0 10px">{{ keys_saved }}</p>{% endif %}
+    <p class="hint" style="margin:0 0 12px">«Вхожу» и авто-режим ставят ордер со стопом и целью прямо на бирже.</p>
+    {% if creds %}
+    <button type="button" class="btn ghost" hx-post="/exchange/forget" hx-target="#controls"
+            hx-confirm="Отключить Bybit? Открытые позиции и ордера на бирже останутся.">Отключить</button>
+    {% endif %}
+  {% else %}
+  <form hx-post="/exchange/keys" hx-target="#controls" hx-disabled-elt="find button[type=submit]">
+    <div class="segmented" role="radiogroup" aria-label="Счёт Bybit" style="margin-bottom:12px">
+      <label class="seg-radio"><input type="radio" name="network" value="demo" checked><span>Демо</span></label>
+      <label class="seg-radio"><input type="radio" name="network" value="live"><span>Реальный</span></label>
+    </div>
+    <div class="field"><label for="api_key">API Key</label>
+      <input id="api_key" name="api_key" autocomplete="off" spellcheck="false" required></div>
+    <div class="field" style="margin-top:10px"><label for="secret">API Secret</label>
+      <input id="secret" name="secret" type="password" autocomplete="off" required></div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn primary" type="submit">Подключить</button>
+      {% if keys_error %}<span class="err" role="alert">{{ keys_error }}</span>{% endif %}
+    </div>
+  </form>
+  <p class="hint">Ключ с правами только «Contract — Orders, Positions», без вывода средств. Для демо: Bybit → Demo Trading → API. Ключи хранятся только на этом компьютере.</p>
+  {% endif %}
 </div>
 
 <div class="card">
