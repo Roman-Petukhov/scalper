@@ -119,13 +119,14 @@ def last_confirmed(piv: np.ndarray, m: int) -> np.ndarray:
     return out
 
 
-LINES = ("last2", "clean", "clean3", "major", "zz")
+LINES = ("last2", "clean", "clean3", "major", "zz", "fan")
 MAJOR_L = 12          # главный экстремум: тень выше (ниже) 12 свечей с каждой стороны
 MINOR_N = 3           # точки касания: фрактал 3 свечи
 ZZ_K = 3.0            # зигзаг по закрытиям: разворот >= 3 ATR
 ZZ_ANCHOR = 60        # опорная вершина — самое высокое закрытие за 60 свечей до неё
 ZZ_SPAN = 20          # между точками линии не меньше 20 свечей
 ZZ_LIFE = 300         # линия живёт не дольше 300 свечей от опорной вершины
+FAN_K = (3.0, 6.0)    # «веер»: соседние вершины зигзага на двух масштабах разворота, ATR
 
 
 def _lines(c: np.ndarray, atr: np.ndarray, piv: np.ndarray, side: int, mode: str) -> list[tuple | None]:
@@ -277,11 +278,49 @@ def zz_lines(d: pd.DataFrame) -> list[dict]:
     return out
 
 
+def fan_lines(d: pd.DataFrame) -> list[dict]:
+    """Линии через две СОСЕДНИЕ вершины зигзага по закрытиям (так трейдер ведёт линию по движению: после пробоя —
+    новая, более крутая, от следующей вершины), на масштабах разворота FAN_K ATR одновременно. Нисходящая — если
+    вторая вершина ниже первой и ни одно закрытие между ними не выше линии; восходящая — зеркально по впадинам.
+    Линия известна после подтверждения второй вершины, живёт до пробоя, но не дольше ZZ_LIFE свечей; пробой,
+    совпавший по бару и стороне с уже учтённым, не дублируется. Формат — как у major_lines."""
+    c = d["close"].to_numpy(dtype="float64")
+    atr = _atr(d).to_numpy() if {"high", "low"} <= set(d.columns) else np.full(len(c), np.inf)
+    m = len(c)
+    out, seen = [], set()
+    for k in FAN_K:
+        hs, ls = zigzag(c, atr, k)
+        for side, piv in ((1, hs), (-1, ls)):
+            for q in range(1, len(piv)):
+                a, b, conf_b = int(piv[q - 1][0]), int(piv[q][0]), int(piv[q][1])
+                if not (side * (c[a] - c[b]) > 0):
+                    continue
+                sl = (c[b] - c[a]) / (b - a)
+                seg = np.arange(a + 1, b)
+                if len(seg) and np.any(side * (c[seg] - (c[a] + sl * (seg - a))) > 1e-12):
+                    continue
+                rec = {"side": side, "a": a, "b": b, "slope": sl, "t": -1, "tc": -1, "line_t": np.nan,
+                       "line_n": np.nan, "k": k}
+                for t in range(conf_b + 1, min(a + ZZ_LIFE, m - 1)):
+                    lt, lp = c[a] + sl * (t - a), c[a] + sl * (t - 1 - a)
+                    if side * (c[t] - lt) > 0:
+                        if side * (c[t - 1] - lp) <= 0:
+                            ln = c[a] + sl * (t + 1 - a)
+                            rec |= {"t": t, "tc": t + 1 if side * (c[t + 1] - ln) > 0 else -1, "line_t": lt,
+                                    "line_n": ln}
+                        break
+                if rec["t"] >= 0 and (rec["t"], side) in seen:
+                    continue
+                seen.add((rec["t"], side))
+                out.append(rec)
+    return out
+
+
 def signals(d: pd.DataFrame, mode: str = "last2") -> list[tuple[int, int, int, float, float, int, int]]:
     """(бар пробоя, бар закрепления или −1, сторона, линия на баре пробоя, линия на баре закрепления,
     индексы двух точек линии)."""
-    if mode in ("major", "zz"):
-        recs = major_lines(d) if mode == "major" else zz_lines(d)
+    if mode in ("major", "zz", "fan"):
+        recs = {"major": major_lines, "zz": zz_lines, "fan": fan_lines}[mode](d)
         return [(r["t"], r["tc"], r["side"], r["line_t"], r["line_n"], r["a"], r["b"]) for r in recs if r["t"] > 0]
     c = d["close"].to_numpy(dtype="float64")
     atr = _atr(d).to_numpy() if {"high", "low"} <= set(d.columns) else np.full(len(c), np.inf)
@@ -309,15 +348,15 @@ def signals(d: pd.DataFrame, mode: str = "last2") -> list[tuple[int, int, int, f
     return out
 
 
-def _extend_daily(sym: str, df: pd.DataFrame) -> pd.DataFrame:
-    """Дописать часовые свечи из дневных архивов после конца месячных (для свежих графиков)."""
+def _extend_daily(sym: str, df: pd.DataFrame, interval: str = "1h") -> pd.DataFrame:
+    """Дописать свечи из дневных архивов после конца месячных (для свежих графиков)."""
     from . import data as D
     D.set_host("cdn")
-    start = (df.index.max() + pd.Timedelta(hours=1)).normalize()
+    start = (df.index.max() + pd.Timedelta(minutes=1)).normalize()
     days = pd.date_range(start, pd.Timestamp.now(tz="UTC").normalize() - pd.Timedelta(days=1), freq="D")
     extra = []
     for day in days:
-        blob = D._get(f"{D.DAILY}/klines/{sym}/1h/{sym}-1h-{day:%Y-%m-%d}.zip")
+        blob = D._get(f"{D.DAILY}/klines/{sym}/{interval}/{sym}-{interval}-{day:%Y-%m-%d}.zip")
         if blob is None:
             continue
         k = D._read_zip_csv(blob, D.KCOLS)
@@ -338,8 +377,8 @@ def tf_frame(root: Path, sym: str, tf: str, extend: bool = False) -> pd.DataFram
     df.index = pd.to_datetime(df["open_time"], unit="ms", utc=True)
     df = df.drop(columns=["open_time"])
     df = df[~df.index.duplicated()].sort_index()
-    if extend and tf != "15m":
-        df = _extend_daily(sym, df)
+    if extend:
+        df = _extend_daily(sym, df, "15m" if tf == "15m" else "1h")
     if tf == "4h":
         df = resample(df, "4h")
     df["funding"] = funding_on_bars(sym, root, df.index, BAR_MIN[tf])
@@ -511,12 +550,23 @@ EXAMPLES = [("NEARUSDT", "1h", 300), ("NEARUSDT", "4h", 200), ("SOLUSDT", "15m",
             ("NEARUSDT", "15m", 400), ("ETHUSDT", "15m", 400), ("DOGEUSDT", "15m", 400)]
 
 
-def chart(root: Path, sym: str, tf: str, bars: int, out: Path) -> None:
-    """Свечи последних `bars` баров, экстремумы закрытий, все линии с пробоем в окне, вход / стоп / цели."""
+# окна для сверки с ручной разметкой (NEAR 15m на TradingView: 24.09 вечер — 04.10 ночь, МСК = UTC+3)
+WINDOWS = [("NEARUSDT", "15m", "2026-09-24 18:00", "2026-10-04 03:00"),
+           ("NEARUSDT", "1h", "2026-09-21 00:00", "2026-10-04 20:00")]
+
+
+def chart(root: Path, sym: str, tf: str, bars: int, out: Path, mode: str = "fan", start: str | None = None,
+          end: str | None = None) -> None:
+    """Свечи последних `bars` баров (или окна start..end), вершины зигзага, линии `mode` с пробоем в окне
+    (серым пунктиром — линии по значимым точкам), вход / стоп / цели."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     d = tf_frame(root, sym, tf, extend=True)
+    if d is not None and end is not None:
+        d = d[d.index <= pd.Timestamp(end, tz="UTC")]
+    if d is not None and start is not None:
+        bars = int((d.index >= pd.Timestamp(start, tz="UTC")).sum())
     if d is None or len(d) < bars + 50:
         return
     o, hi, lo, c = (d[k].to_numpy(dtype="float64") for k in ("open", "high", "low", "close"))
@@ -534,14 +584,14 @@ def chart(root: Path, sym: str, tf: str, bars: int, out: Path) -> None:
         pv = pv[pv[:, 0] >= w0]
         ax.scatter(pv[:, 0], c[pv[:, 0]] * (1 + side * 0.004), marker=mk, color=col, s=36,
                    zorder=5, label="вершины зигзага" if side > 0 else "впадины зигзага")
-    for tb, tc, side, line_b, line_c, i1, i2 in signals(d, "major"):
+    for tb, tc, side, line_b, line_c, i1, i2 in signals(d, "zz" if mode != "zz" else "major"):
         if tb < w0 or i1 < w0 - 200:
             continue
         slope = (c[i2] - c[i1]) / (i2 - i1)
         xs = np.arange(max(i1, w0), tb + 2)
         ax.plot(xs, c[i2] + slope * (xs - i2), color="#9e9e9e", linewidth=0.8, linestyle="--")
     n_tr = 0
-    for rec in zz_lines(d):
+    for rec in {"zz": zz_lines, "fan": fan_lines, "major": major_lines}[mode](d):
         i1, i2, side, tb, tc = rec["a"], rec["b"], rec["side"], rec["t"], rec["tc"]
         if i1 < w0 - 300 or (tb > 0 and tb < w0):
             continue
@@ -580,9 +630,10 @@ def chart(root: Path, sym: str, tf: str, bars: int, out: Path) -> None:
     ax.set_ylim(lo[vis].min() * 0.985, hi[vis].max() * 1.015)
     ticks = np.linspace(w0, len(c) - 1, 8).astype(int)
     ax.set_xticks(ticks, [d.index[i].strftime("%m-%d %H:%M") for i in ticks])
-    ax.set_title(f"{sym} {tf}: синие / оранжевые — линии по закрытиям через вершины зигзага (разворот >= {ZZ_K:g} ATR, "
-                 f"опора — экстремум {ZZ_ANCHOR} свечей, точки >= {ZZ_SPAN} свечей друг от друга); серый пунктир — "
-                 f"прежние линии от экстремума {MAJOR_L} свечей;\n"
+    what = {"fan": f"через соседние явные вершины зигзага по закрытиям (разворот >= {' и '.join(f'{k:g}' for k in FAN_K)} ATR)",
+            "zz": f"через вершины зигзага (разворот >= {ZZ_K:g} ATR, опора — экстремум {ZZ_ANCHOR} свечей)",
+            "major": f"от главного экстремума ({MAJOR_L} свечей с каждой стороны)"}[mode]
+    ax.set_title(f"{sym} {tf}: синие / оранжевые — линии {what}; серый пунктир — для сравнения прежние;\n"
                  f"○ точки линии, ★ пробой (закрытие за линией), вход — закрытие свечи закрепления; — вход, -- стоп за "
                  f"свингом (×), ··· цели 3R / 5R; сделок {n_tr}")
     ax.legend(loc="upper left")
@@ -602,6 +653,13 @@ def collect(root: Path, syms: list[str], syms15: list[str]) -> None:
                 chart(root, sym, tf, bars, part_path("tline").parent / "tline_examples" / f"{sym}_{tf}.png")
             except Exception as e:
                 print(f"  график {sym} {tf}: {e}", flush=True)
+    for sym, tf, w0, w1 in (WINDOWS if os.environ.get("TL_CHARTS", "1") == "1" else []):
+        if tf in tfs and sym in set(mine(syms15 if tf == "15m" else syms)):
+            try:
+                chart(root, sym, tf, 0, part_path("tline").parent / "tline_examples" / f"{sym}_{tf}_window.png",
+                      start=w0, end=w1)
+            except Exception as e:
+                print(f"  график {sym} {tf} (окно): {e}", flush=True)
     parts = []
     for tf, lst in (("15m", syms15), ("1h", syms), ("4h", syms)):
         if tf not in tfs:
@@ -621,7 +679,7 @@ def collect(root: Path, syms: list[str], syms15: list[str]) -> None:
 def diagnose_2026(df: pd.DataFrame, line_name: dict) -> None:
     """Почему шорт на 4h с перевесом продавцов ослаб в 2026: рынок, состояние монеты, исход сделок, помесячно."""
     base = df[(df.tf == "4h") & (df.side == -1) & df.confirm & (df.entry == "market") & (df.aggr >= 0.55)
-              & df.line.isin(["clean", "major", "zz"])].copy()
+              & df.line.isin(["clean", "zz", "fan"])].copy()
     if not len(base):
         return
     base["year"] = base.t.dt.year
@@ -666,7 +724,7 @@ def strength_report(df: pd.DataFrame, line_name: dict) -> None:
     groups = [("4h шорт, агрессоры >= 55%", (x0.tf == "4h") & (x0.side == -1) & (x0.aggr >= 0.55)),
               ("4h обе стороны", x0.tf == "4h"), ("1h обе стороны", x0.tf == "1h")]
     print("\n=== Сила пробоя: средний R по квинтилям признака (1 — слабее для нас, 5 — сильнее; границы по IS) ===")
-    for (gname, mask), ln in itertools.product(groups, ("clean", "zz")):
+    for (gname, mask), ln in itertools.product(groups, ("clean", "zz", "fan")):
         g = x0[mask & (x0.line == ln)]
         if g.per.eq("is").sum() < 200:
             continue
@@ -719,7 +777,7 @@ def report() -> None:
         shutil.copy(png, out / png.name)
     print(f"===== TLINE: сделок {len(df):,}, монет {df.symbol.nunique()}, частей {len(parts)} =====")
     print("ячейка: средний R на сделку (t по дням, прибыльных, сделок в месяц на весь набор монет); выход 1/2 на 3R + 1/2 на 5R")
-    line_name = {"last2": "2 последние", "clean": "чистая", "clean3": "чистая, 3 касания", "major": "от главного экстремума", "zz": "по значимым точкам"}
+    line_name = {"last2": "2 последние", "clean": "чистая", "clean3": "чистая, 3 касания", "major": "от главного экстремума", "zz": "по значимым точкам", "fan": "веер: соседние вершины"}
     filters = lambda g: (("все", g), ("по тренду старшего ТФ", g[g.with_trend]),
                          ("объём пробоя >= 1.5x", g[g.vol_ratio >= 1.5]), ("OI рос 4 бара", g[g.oi_chg > 0]),
                          ("сильная свеча", g[(g.body >= 0.6) & (g.close_loc >= 0.75) & (g.brk_atr >= 0.3)]),
@@ -761,7 +819,7 @@ def report() -> None:
         diagnose_2026(df, line_name)
     if "effort" in df.columns:
         strength_report(df, line_name)
-        ev = df[df.confirm & (df.entry == "market") & (df.tf == "4h") & df.line.isin(["clean", "zz"])]
+        ev = df[df.confirm & (df.entry == "market") & (df.tf == "4h") & df.line.isin(["clean", "zz", "fan"])]
         if len(ev):
             out = Path(os.environ.get("OUT", "../out"))
             out.mkdir(parents=True, exist_ok=True)

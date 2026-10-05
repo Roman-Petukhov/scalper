@@ -52,3 +52,17 @@ def test_zz_line_skips_nearby_minor_touch():
     finally:
         tline.ZZ_ANCHOR = old
     assert recs and recs[0]["b"] >= 79 + tline.ZZ_SPAN and recs[0]["t"] > recs[0]["b"]
+
+
+def test_fan_line_through_adjacent_lower_highs():
+    from research.tline import fan_lines
+    seg = [np.linspace(60, 100, 40), np.linspace(100, 80, 20), np.linspace(80, 95, 15), np.linspace(95, 75, 20),
+           np.linspace(75, 90, 15), np.linspace(90, 70, 20), np.linspace(70, 100, 30)]
+    c = np.concatenate([seg[0]] + [x[1:] for x in seg[1:]]) + np.random.default_rng(1).normal(0, 0.01, 154)
+    d = pd.DataFrame({"open": c, "high": c + 0.5, "low": c - 0.5, "close": c})
+    recs = [r for r in fan_lines(d) if r["side"] == 1 and r["k"] == 3.0]
+    tops = [39, 72, 105]                                             # вершины 100, 95, 90
+    first = [r for r in recs if (r["a"], r["b"]) == (tops[0], tops[1])]
+    assert first and first[0]["t"] > tops[1] and c[first[0]["t"]] > first[0]["line_t"]
+    # более крутая линия 95 -> 90 пробита на том же баре, что и 100 -> 95, — сигнал не дублируется
+    assert len({(r["t"], r["side"]) for r in recs}) == len(recs)
