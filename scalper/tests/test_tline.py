@@ -66,3 +66,14 @@ def test_fan_line_through_adjacent_lower_highs():
     assert first and first[0]["t"] > tops[1] and c[first[0]["t"]] > first[0]["line_t"]
     # более крутая линия 95 -> 90 пробита на том же баре, что и 100 -> 95, — сигнал не дублируется
     assert len({(r["t"], r["side"]) for r in recs}) == len(recs)
+
+
+def test_higher_tf_trend_and_structure_use_only_closed_bars():
+    from research.tline import htf_structure, htf_trend
+    idx = pd.date_range("2024-01-01", periods=24 * 200, freq="1h", tz="UTC")
+    c = 100 + np.cumsum(np.random.default_rng(3).normal(0, 0.5, len(idx))) + np.sin(np.arange(len(idx)) / 200) * 20
+    d = pd.DataFrame({"open": c, "high": c + 0.3, "low": c - 0.3, "close": c}, index=idx)
+    cut = 24 * 150 + 7
+    for f, args in ((htf_trend, ("1h", "1D")), (htf_structure, ("1h",)), (htf_trend, ("1h",))):
+        full, part = f(d, *args), f(d.iloc[:cut], *args)
+        assert np.array_equal(full[:cut], part, equal_nan=True)     # будущее не меняет прошлые значения

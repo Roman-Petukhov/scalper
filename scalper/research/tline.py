@@ -385,15 +385,51 @@ def tf_frame(root: Path, sym: str, tf: str, extend: bool = False) -> pd.DataFram
     return df
 
 
-def htf_trend(d: pd.DataFrame, tf: str) -> np.ndarray:
-    """+1 / −1: close последней закрытой свечи старшего ТФ выше / ниже её EMA50 (известно на закрытии бара)."""
-    rule = HTF[tf]
-    agg = d[["open", "high", "low", "close"]].resample(rule, label="left", closed="left").agg(
+HTF2 = {"15m": "4h", "1h": "1D", "4h": "1W"}          # тренд ещё на ступень старше
+
+
+def _htf_bars(d: pd.DataFrame, rule: str) -> pd.DataFrame:
+    agg = d[["open", "high", "low", "close"]].resample("W-MON" if rule == "1W" else rule, label="left",
+                                                      closed="left").agg(
         {"open": "first", "high": "max", "low": "min", "close": "last"}).dropna()
-    st = np.sign(agg["close"] - agg["close"].ewm(span=50, adjust=False).mean())
-    st.index = st.index + pd.tseries.frequencies.to_offset(rule)            # известно после закрытия
-    bar_close = d.index + pd.Timedelta(minutes=BAR_MIN[tf])
+    return agg
+
+
+def _to_bars(st: pd.Series, d: pd.DataFrame, rule: str, tf: str) -> np.ndarray:
+    st.index = st.index + {"1h": pd.Timedelta(hours=1), "4h": pd.Timedelta(hours=4), "1D": pd.Timedelta(days=1),
+                           "1W": pd.Timedelta(days=7)}[rule]
+    bar_close = d.index + pd.Timedelta(minutes=BAR_MIN[tf])                  # известно после закрытия свечи ст. ТФ
     return st.reindex(bar_close, method="ffill").to_numpy()
+
+
+def htf_trend(d: pd.DataFrame, tf: str, rule: str | None = None) -> np.ndarray:
+    """+1 / −1: close последней закрытой свечи старшего ТФ выше / ниже её EMA50 (известно на закрытии бара)."""
+    rule = rule or HTF[tf]
+    agg = _htf_bars(d, rule)
+    st = np.sign(agg["close"] - agg["close"].ewm(span=50, adjust=False).mean())
+    return _to_bars(st, d, rule, tf)
+
+
+def htf_structure(d: pd.DataFrame, tf: str, rule: str | None = None) -> np.ndarray:
+    """Структурный тренд старшего ТФ по явным вершинам (зигзаг по закрытиям, разворот >= ZZ_K ATR): +1 — последняя
+    вершина и последняя впадина выше предыдущих (HH + HL), −1 — обе ниже (LH + LL), 0 — иначе. Известно на
+    закрытии свечи старшего ТФ, подтвердившей последнюю точку."""
+    rule = rule or HTF[tf]
+    agg = _htf_bars(d, rule)
+    c = agg["close"].to_numpy(dtype="float64")
+    hs, ls = zigzag(c, _atr(agg).to_numpy(), ZZ_K)
+    ev = sorted([(int(cf), 1, int(i)) for i, cf in hs] + [(int(cf), -1, int(i)) for i, cf in ls])
+    st = np.zeros(len(c))
+    last = {1: [], -1: []}
+    k = 0
+    for t in range(len(c)):
+        while k < len(ev) and ev[k][0] <= t:
+            last[ev[k][1]].append(c[ev[k][2]])
+            k += 1
+        if len(last[1]) >= 2 and len(last[-1]) >= 2:
+            up_h, up_l = last[1][-1] > last[1][-2], last[-1][-1] > last[-1][-2]
+            st[t] = 1 if (up_h and up_l) else -1 if (not up_h and not up_l) else 0
+    return _to_bars(pd.Series(st, index=agg.index), d, rule, tf)
 
 
 def market_context(root: Path) -> pd.DataFrame | None:
@@ -479,6 +515,8 @@ def coin_trades(root: Path, sym: str, tf: str, ctx: pd.DataFrame | None = None) 
     a = _atr(d).to_numpy()
     sw_lo, sw_hi = last_confirmed(pivots(lo, PIV, False), len(c)), last_confirmed(pivots(hi, PIV, True), len(c))
     trend = htf_trend(d, tf)
+    trend2 = htf_trend(d, tf, HTF2[tf])
+    struct = htf_structure(d, tf)
     ok = np.ones(len(c), bool)
     if tf != "15m":
         adv = adv30(root, sym)
@@ -535,7 +573,8 @@ def coin_trades(root: Path, sym: str, tf: str, ctx: pd.DataFrame | None = None) 
                     r3, _ = two_targets(o, hi, lo, c, f, fill, side, px, stop, 3.0, 3.0, be, HOLD[tf], fee)
                     rows.append({"symbol": sym, "tf": tf, "line": mode, "t": d.index[e], "side": side, "confirm": confirm,
                                  "risk_pct": side * (px - stop) / px,
-                                 "entry": entry_kind, "be": be, "with_trend": trend[e] == side, "R": r, "R3": r3,
+                                 "entry": entry_kind, "be": be, "with_trend": trend[e] == side, "with_trend2": trend2[e] == side,
+                                 "with_struct": struct[e] == side, "R": r, "R3": r3,
                                  "vol_ratio": vol_ratio[tb], "oi_chg": oi_chg[tb], "body": body[tb],
                                  "close_loc": loc[tb] if side > 0 else 1 - loc[tb],
                                  "aggr": buy_share[tb] if side > 0 else 1 - buy_share[tb],
@@ -772,7 +811,14 @@ def target_report(df: pd.DataFrame, line_name: dict) -> None:
         g = df[(df.tf == tf) & (df.line == ln) & (df.entry == entry) & (df.confirm == confirm)]
         if not len(g):
             continue
-        for fname, x in (("агрессоры >= 55%", g[g.aggr >= 0.55]), ("агрессоры >= 55% + тренд", g[(g.aggr >= 0.55) & g.with_trend])):
+        a55 = g[g.aggr >= 0.55]
+        fl = [("агрессоры >= 55%", a55), ("агрессоры >= 55% + тренд", a55[a55.with_trend])]
+        if "with_trend2" in g.columns:
+            fl += [("агр. + тренд 2 старших ТФ", a55[a55.with_trend & a55.with_trend2]),
+                   ("агр. + структура старшего ТФ", a55[a55.with_struct]),
+                   ("агр. + структура + тренд 2 ТФ", a55[a55.with_struct & a55.with_trend & a55.with_trend2]),
+                   ("тренд 2 старших ТФ, без агрессоров", g[g.with_trend & g.with_trend2])]
+        for fname, x in fl:
             for tgt in ("R", "R3"):
                 z = x.assign(R=x[tgt])
                 rows.append({"ТФ": tf, "линия": line_name[ln], "вход": ("закрепл., " if confirm else "пробой, ") +
