@@ -23,6 +23,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 from research.smc import _atr  # noqa: E402
 from research.tline import ZZ_ANCHOR, ZZ_LIFE, ZZ_SPAN, pivots, zz_lines  # noqa: E402
 
+BRK_ATR = 0.2               # пробой — закрытие за линией не ближе 0.2 ATR; ближе — касание, линия перестраивается
 VIS_TOL = 0.05              # закрытия между точками касания не заходят за линию дальше 0.05 ATR
 
 
@@ -45,7 +46,8 @@ def launch_points(c: np.ndarray, atr: np.ndarray, piv: np.ndarray, side: int) ->
     return out
 
 
-def vis_lines(d: pd.DataFrame, n: int, launch: bool = False, minor: int = 0, bos: bool = False) -> list[dict]:
+def vis_lines(d: pd.DataFrame, n: int, launch: bool = False, minor: int = 0, bos: bool = False,
+              brk: float = 0.0) -> list[dict]:
     """Как zz_lines, но вершины — «видимые на этом ТФ»: закрытие — экстремум среди n свечей с каждой стороны
     (известно через n свечей), и между двумя точками линии ни одно закрытие не заходит за линию.
     launch=True — точка линии не самое крайнее закрытие, а последнее закрытие «полки» у экстремума перед движением.
@@ -53,7 +55,9 @@ def vis_lines(d: pd.DataFrame, n: int, launch: bool = False, minor: int = 0, bos
     как трейдер ведёт её по направлению и прижимает к ближайшему мини-экстремуму, чтобы не резать свечи.
     bos=True — опорная вершина считается экстремумом, только когда цена после неё обновила противоположный
     экстремум (закрылась ниже последнего мини-минимума перед вершиной; для впадины — выше мини-максимума);
-    линия известна с этого бара."""
+    линия известна с этого бара.
+    brk=k — пробой только закрытием дальше k ATR за линией; закрытие ближе — касание: линия живёт дальше и
+    перестраивается через новый мини-экстремум."""
     c = d["close"].to_numpy(dtype="float64")
     atr = _atr(d).to_numpy()
     m = len(c)
@@ -110,7 +114,7 @@ def vis_lines(d: pd.DataFrame, n: int, launch: bool = False, minor: int = 0, bos
                 if best is None or not (side * best < 0):
                     continue
                 lt, lp = c[a] + best * (t - a), c[a] + best * (t - 1 - a)
-                if side * (c[t] - lt) > 0 and side * (c[t - 1] - lp) <= 0:
+                if side * (c[t] - lt) > brk * atr[t] and side * (c[t - 1] - lp) <= brk * atr[t - 1]:
                     rec = {"side": side, "a": a, "b": b_best, "t": t, "line_t": lt}
                     break
             if rec is None and best is not None and side * best < 0:
@@ -123,11 +127,11 @@ def vis_lines(d: pd.DataFrame, n: int, launch: bool = False, minor: int = 0, bos
 BASE = "https://fapi.binance.com"
 SPOT = "https://data-api.binance.vision"
 MODES = {"сейчас: зигзаг 3 ATR": lambda d: zz_lines(d),
-         "видимые вершины ±10 свечей": lambda d: vis_lines(d, 10),
          "A: видимые ±10 + полка + слом структуры, B: мини-экстремум ±3 (касательная)":
              lambda d: vis_lines(d, 10, launch=True, minor=3, bos=True),
-         "видимые ±10 + последнее закрытие перед движением": lambda d: vis_lines(d, 10, launch=True)}
-SHOW = 300
+         "то же + пробой только закрытием >= 0.2 ATR за линией (ближе — касание, линия перестраивается)":
+             lambda d: vis_lines(d, 10, launch=True, minor=3, bos=True, brk=BRK_ATR)}
+SHOW = 480
 
 
 def klines(client: httpx.Client, sym: str, tf: str) -> pd.DataFrame | None:
@@ -213,6 +217,7 @@ def main() -> None:
             sym, tf = item.split(":")
             d = klines(client, sym, tf)
             if d is not None:
+                d.to_csv(out / f"{sym}_{tf}.csv")
                 draw(d, sym, tf, out)
         coin_kinds(client)
 
