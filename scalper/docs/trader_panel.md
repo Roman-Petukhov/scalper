@@ -81,7 +81,7 @@ Binance и Bybit режут доступ по IP: целые страны (Binan
 для ЕС фьючерсы глобального Bybit ограничиваются) и часть дата-центров. Перед оплатой сервера на месяц:
 
     python -m trader.check                                   # на сервере без Docker
-    docker compose run --rm panel python -m trader.check     # в Docker
+    docker compose -f docker-compose.tailscale.yml run --rm trader python -m trader.check   # в Docker
     check_exchanges.bat                                      # Windows, двойной клик
 
 Команда покажет IP и страну выхода, получит свечи Binance, проверит публичный API Bybit (обычный и демо) и, если ключи
@@ -103,6 +103,19 @@ docker compose logs -f trader             # первые сканы — посл
 Без домена: `DOMAIN=localhost`, вход по `https://<IP>` с предупреждением браузера о сертификате.
 
 Обновление: `git pull && docker compose up -d --build`. База и графики — в томе `trader-data`.
+
+Без домена, только для своих устройств (рекомендуется): Tailscale на сервере, панель на 127.0.0.1:
+
+```bash
+curl -fsSL https://tailscale.com/install.sh | sh && tailscale up          # войти тем же аккаунтом, что на ПК и телефоне
+cd scalper/scalper/deploy && cp env.example .env && nano .env              # PANEL_URL=https://<сервер>.<tailnet>.ts.net
+docker compose -f docker-compose.tailscale.yml run --rm trader python -m trader.check
+docker compose -f docker-compose.tailscale.yml up -d --build
+tailscale serve --bg localhost:8000
+```
+
+Когда панель на сервере заработала — закройте панель на ПК: иначе сигналы и уведомления придут дважды, а в авто-режиме
+обе копии отправят ордера.
 
 ## Безопасность
 - Пароль и секрет сессий — только в `deploy/.env` на сервере.
