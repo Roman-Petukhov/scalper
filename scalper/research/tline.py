@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import argparse
 import itertools
+import json
 import os
 import shutil
 import sys
@@ -967,6 +968,9 @@ FILTERS = {"atr_ratio": "1 сжатие: ATR / средний за 100", "range1
            "rs7": "6 сила к BTC за 7 дней", "wait_bars": "7 ретест: свечей до исполнения",
            "wait_vol": "7 ретест: объём, пока ждали", "wait_against": "7 ретест: агрессоры против нас, пока ждали",
            "cvd20": "сила: дельта за 20 свечей до пробоя"}
+# признаки, которые бот может посчитать на закрытии свечи пробоя по данным Binance (без спота, толпы и ожидания ретеста)
+LIVE_FEATS = ["aggr", "vol_ratio", "body", "close_loc", "brk_atr", "stop_atr", "ret30", "effort", "cvd20", "atr_ratio",
+              "range10", "approach", "rs7", "breadth", "with_trend2"]
 MODEL_FEATS = ["aggr", "vol_ratio", "oi_chg", "body", "close_loc", "brk_atr", "stop_atr", "ret30", "effort", "cvd20",
                "atr_ratio", "range10", "approach", "hbreak", "crowd_fund", "crowd_lsr", "crowd_top", "rs7", "spot_aggr",
                "spot_share_z", "breadth", "wait_bars", "wait_vol", "wait_against", "with_trend", "with_trend2"]
@@ -1197,6 +1201,35 @@ def _filters_tf(df: pd.DataFrame, tf: str, line_name: dict) -> None:
             zz = z.assign(R=z.R3)
             print(f"    {line_name[ln]}, {nm}: " + ", ".join(f"{p} {_cell(zz[zz.per == p])}" for p in PER) +
                   f"; по годам: {_years(z)}")
+    live_model(tr_all, tf, params, lgb)
+
+
+def live_model(tr_all: pd.DataFrame, tf: str, params: dict, lgb) -> None:
+    """Модель для бота: только LIVE_FEATS, обучение на IS (линии по значимым точкам и соседние, ретест, цель 3R), порог —
+    верхние 40% прогноза по IS на базе бота (по значимым точкам, агрессоры >= 55% + тренд). Файл модели и порог —
+    в OUT/models для переноса в бота."""
+    feats = [f for f in LIVE_FEATS if f in tr_all.columns]
+    X = tr_all[feats].astype("float64")
+    y = tr_all["R3"].clip(-1.5, 3.5).to_numpy()
+    ok_y = (tr_all.per == "is").to_numpy() & np.isfinite(y)
+    model = lgb.train(params, lgb.Dataset(X[ok_y], y[ok_y]), num_boost_round=300)
+    sc = pd.Series(model.predict(X), index=tr_all.index)
+    imp = pd.Series(model.feature_importance(), index=feats).sort_values(ascending=False)
+    print(f"\n  9б модель для бота ({len(feats)} признаков, доступных в момент сигнала): важность " +
+          ", ".join(f"{k} {v}" for k, v in imp.head(10).items()))
+    g = tr_all[(tr_all.line == "zz") & (tr_all.aggr >= 0.55) & tr_all.with_trend].assign(score=sc)
+    if not len(g):
+        return
+    thr = float(g.loc[g.per == "is", "score"].quantile(0.6))
+    for nm, z in (("правило бота", g), ("правило бота + верх 40% модели", g[g.score >= thr]),
+                  ("правило бота + верх 60% модели", g[g.score >= float(g.loc[g.per == "is", "score"].quantile(0.4))])):
+        zz = z.assign(R=z.R3)
+        print(f"    {tf}, {nm}: " + ", ".join(f"{p} {_cell(zz[zz.per == p])}" for p in PER) + f"; по годам: {_years(z)}")
+    out = Path(os.environ.get("OUT", "../out")) / "models"
+    out.mkdir(parents=True, exist_ok=True)
+    model.save_model(str(out / f"tline_{tf}.txt"))
+    (out / f"tline_{tf}.json").write_text(json.dumps({"tf": tf, "features": feats, "threshold_top40": thr,
+                                                      "trained_on": "IS 2022-01..2024-06, retest, R3 clipped"}))
 
 
 MTF_WINDOW_H = 48       # после сигнала 4h ждём пробой 15m-линии в ту же сторону не дольше 48 ч
