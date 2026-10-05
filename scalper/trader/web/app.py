@@ -73,7 +73,11 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         stop = asyncio.Event()
-        task = (asyncio.create_task(scheduler.run(scanner, cfg.scan_delay_s, stop, tick=executor.housekeep))
+        async def tick() -> None:
+            decisions.expire_stale()
+            await executor.housekeep()
+
+        task = (asyncio.create_task(scheduler.run(scanner, cfg.scan_delay_s, stop, tick=tick))
                 if cfg.scheduler else None)
         yield
         stop.set()
@@ -105,6 +109,7 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         return Timeframe(v) if v in {t.value for t in Timeframe} else None
 
     def page_context(request: Request) -> dict:
+        decisions.expire_stale()
         s = settings_svc.get()
         view = feed_view(request)
         shown = set(s.timeframes) & ({view} if view else set(Timeframe))

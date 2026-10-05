@@ -1,7 +1,7 @@
 import asyncio
 import json
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import httpx
@@ -16,7 +16,8 @@ from trader.infrastructure.charts import MatplotlibCharts
 from trader.infrastructure.sqlite_repo import SqliteStore
 from trader.infrastructure.telegram import caption
 
-T0 = datetime(2026, 10, 1, 8, tzinfo=timezone.utc)
+_NOW = datetime.now(timezone.utc)
+T0 = _NOW.replace(hour=_NOW.hour // 4 * 4, minute=0, second=0, microsecond=0) - timedelta(hours=4)   # свеча пробоя — прошлая 4h
 
 
 def _signal(symbol: str = "SOLUSDT", tf: Timeframe = Timeframe.H4, side: Side = Side.LONG) -> Signal:
@@ -177,3 +178,17 @@ def test_png_chart_log_scale(tmp_path):
                   line_points=((idx[20].to_pydatetime(), float(px[20])), (idx[120].to_pydatetime(), float(px[120]))))
     path = MatplotlibCharts(tmp_path).render(sig, bars)
     assert Path(path).stat().st_size > 10_000
+
+
+def test_stale_signals_expire_and_cannot_be_taken(tmp_path):
+    st = SqliteStore(tmp_path / "t.db")
+    dec = SignalDecisions(st, st)
+    old = st.add(replace(_signal("OLDUSDT"), bar_time=T0 - timedelta(days=2)))
+    fresh = st.add(_signal("NEWUSDT"))
+    assert old.valid_until() == old.bar_time + timedelta(hours=8)
+    assert dec.expire_stale() == 1
+    assert st.get(old.id).status is SignalStatus.EXPIRED and st.get(fresh.id).status is SignalStatus.NEW
+    stale = st.add(replace(_signal("ETHUSDT"), bar_time=T0 - timedelta(days=1)))
+    with pytest.raises(ValueError, match="устарел"):
+        asyncio.run(dec.take(stale.id))
+    assert st.get(stale.id).status is SignalStatus.EXPIRED

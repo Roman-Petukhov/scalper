@@ -121,6 +121,9 @@ class SignalDecisions:
         """«Вхожу»: с подключённой биржей — ордер со стопом и целью на Bybit; без неё — только отметка.
         ValueError — ордер не отправлен (причина в тексте), сигнал остаётся новым."""
         sig = self._check(signal_id)
+        if datetime.now(timezone.utc) >= sig.valid_until():
+            self.signals.set_status(signal_id, SignalStatus.EXPIRED, "время на вход вышло")
+            raise ValueError("Сигнал устарел: время на вход вышло")
         if self.executor is not None and self.executor.connected:
             try:
                 await self.executor.execute(sig)
@@ -131,6 +134,16 @@ class SignalDecisions:
             out = self.signals.set_status(signal_id, SignalStatus.TAKEN, "вход вручную · биржа не подключена")
         assert out is not None
         return out
+
+    def expire_stale(self, now: datetime | None = None) -> int:
+        """Новые сигналы, по которым время входа вышло, помечаем «истёк» — чтобы не висели с точкой входа."""
+        now = now or datetime.now(timezone.utc)
+        n = 0
+        for sig in self.signals.recent(500):
+            if sig.status is SignalStatus.NEW and sig.id is not None and now >= sig.valid_until():
+                self.signals.set_status(sig.id, SignalStatus.EXPIRED, "время на вход вышло")
+                n += 1
+        return n
 
     def skip(self, signal_id: int) -> Signal:
         self._check(signal_id)

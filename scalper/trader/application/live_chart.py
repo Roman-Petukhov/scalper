@@ -40,6 +40,7 @@ def chart_payload(signal: Signal, bars: pd.DataFrame, trade: Trade | None = None
     p = trade or signal.plan
     return {
         "symbol": signal.symbol, "tf": signal.timeframe.value, "side": int(signal.side),
+        "active": signal.status.value in ("new", "taken"),             # истёкший / пропущенный — без уровней
         "candles": candles, "line": line, "log": log,
         "breakout": _ts(signal.bar_time),
         "levels": {"entry": p.price if trade else p.entry, "stop": p.stop, "target": p.target},

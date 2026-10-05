@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
 
 
@@ -131,6 +131,12 @@ class Signal:
     chart_path: str | None = None
     note: str = ""
     extra: dict = field(default_factory=dict, compare=False)
+
+    def valid_until(self) -> datetime:
+        """До какого момента по сигналу ещё можно входить: вход по рынку — до закрытия следующей свечи,
+        ретест — пока живёт лимитка (valid_bars свечей после свечи пробоя)."""
+        bars = 1 + max(1, self.plan.valid_bars)
+        return self.bar_time + timedelta(minutes=self.timeframe.minutes * bars)
 
     @property
     def key(self) -> tuple[str, str, str, int]:
