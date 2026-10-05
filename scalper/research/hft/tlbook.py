@@ -67,7 +67,7 @@ def sample(src: Path, out: Path, n: int = N_SAMPLE, seed: int = 7) -> None:
     df = df[(df.tf == "4h") & (df.t >= FROM)]
     df = df.sort_values("line").drop_duplicates(["symbol", "t", "side"])
     df["t_close"] = df["t"] + pd.Timedelta(hours=4)
-    df["probe_ms"] = (df["t_close"].astype("int64") // 10**6) - PROBE_LAG_MS
+    df["probe_ms"] = (df["t_close"] - pd.Timestamp(0, tz="UTC")) // pd.Timedelta(milliseconds=1) - PROBE_LAG_MS
     df["day"] = pd.to_datetime(df["probe_ms"], unit="ms", utc=True).dt.strftime("%Y-%m-%d")
     days = df[["symbol", "day"]].drop_duplicates().sample(frac=1.0, random_state=seed).head(n)
     ev = df.merge(days, on=["symbol", "day"])
