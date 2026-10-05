@@ -1,0 +1,50 @@
+name: linecheck
+
+# Сверка линий с ручной разметкой на свежих свечах: картинки и лог — в ветку research-results (runs/linecheck-<id>).
+on:
+  workflow_dispatch:
+  push:
+    branches: [main-t2qdvg]
+    paths: ["scalper/tools/linecheck.py", ".github/workflows/linecheck.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: scalper
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: scalper/requirements.txt
+      - run: pip install -r requirements.txt
+      - name: Lines
+        env:
+          OUT: ../out
+        run: |
+          mkdir -p ../out
+          set -o pipefail
+          python -m tools.linecheck DOTUSDT:15m XAUTUSDT:1h 牛来USDT:15m ETHUSDT:15m 2>&1 | tee ../out/log.txt
+      - name: Publish
+        working-directory: .
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898277+github-actions[bot]@users.noreply.github.com"
+          git fetch origin research-results
+          git worktree add rr origin/research-results
+          git -C rr checkout -B research-results
+          mkdir -p "rr/runs/linecheck-${GITHUB_RUN_ID}"
+          cp -r out/* "rr/runs/linecheck-${GITHUB_RUN_ID}/"
+          git -C rr add runs
+          git -C rr commit -qm "linecheck run ${GITHUB_RUN_ID} (${GITHUB_SHA::7})"
+          for i in 1 2 3 4; do
+            git -C rr push origin research-results && break
+            git -C rr pull --rebase -q origin research-results
+          done
