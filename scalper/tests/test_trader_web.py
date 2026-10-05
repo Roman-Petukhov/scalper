@@ -259,3 +259,37 @@ def test_live_chart_log_line_is_geometric(env):
     t = np.array([p["time"] for p in d["line"]], dtype=float)
     k = np.diff(np.log(v)) / np.diff(t)
     assert np.allclose(k, k[0], rtol=1e-6)                             # прямая в логарифме цены
+
+
+def test_old_signals_collapse_into_rows(env):
+    c, tmp = env
+    _login(c)
+    from trader.infrastructure.sqlite_repo import SqliteStore
+    st = SqliteStore(tmp / "trader.db")
+    a = st.add(_signal())
+    b = st.add(_signal(symbol="ETHUSDT"))
+    r = c.post(f"/signals/{b.id}/skip", headers=HX).text
+    assert r.lstrip().startswith('<details class="card signal-row" id="signal-%d"' % b.id) and "пропущен" in r
+    feed = c.get("/feed").text
+    assert '<article class="card signal" id="signal-%d"' % a.id in feed and 'id="signal-%d"' % b.id in feed
+
+
+def test_delete_archived_signals(env):
+    c, tmp = env
+    _login(c)
+    from trader.infrastructure.sqlite_repo import SqliteStore
+    st = SqliteStore(tmp / "trader.db")
+    a, b, d = st.add(_signal()), st.add(_signal(symbol="ETHUSDT")), st.add(_signal(symbol="XRPUSDT"))
+    chart = tmp / "charts" / "x.png"
+    chart.parent.mkdir(exist_ok=True)
+    chart.write_bytes(b"png")
+    st.set_chart(b.id, str(chart))
+    assert c.post(f"/signals/{a.id}/delete", headers=HX).status_code == 409        # новый — удалять нельзя
+    c.post(f"/signals/{b.id}/skip", headers=HX)
+    c.post(f"/signals/{d.id}/skip", headers=HX)
+    assert "Очистить старые" in c.get("/feed").text
+    r = c.post(f"/signals/{b.id}/delete", headers=HX)
+    assert r.status_code == 200 and r.text == "" and st.get(b.id) is None and not chart.exists()
+    assert c.post(f"/signals/{b.id}/delete").status_code == 403                       # без заголовка панели
+    r = c.post("/signals/archive/clear", headers=HX)
+    assert r.headers["HX-Trigger"] == "feed-refresh" and st.get(d.id) is None and st.get(a.id) is not None

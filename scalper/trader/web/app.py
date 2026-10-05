@@ -254,6 +254,33 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         ctx = page_context(request) | {"params_error": ctx_error, "params_saved": ctx_error is None}
         return templates.TemplateResponse(request, "_controls.html", ctx)
 
+    ARCHIVED = {SignalStatus.EXPIRED, SignalStatus.SKIPPED}
+
+    def drop_charts(paths: list[str]) -> None:
+        base = (cfg.data_dir / "charts").resolve()
+        for p in paths:
+            f = (base / chart_name(p)).resolve()
+            if f.parent == base:
+                f.unlink(missing_ok=True)
+
+    @app.post("/signals/archive/clear")
+    async def clear_archive(request: Request):
+        """Удалить все истёкшие и пропущенные сигналы (сделки «в работе» не трогаем)."""
+        guard(request, mutate=True)
+        drop_charts(store.delete_signals(ARCHIVED))
+        return HTMLResponse("", headers={"HX-Trigger": "feed-refresh"})
+
+    @app.post("/signals/{signal_id}/delete")
+    async def delete_signal(request: Request, signal_id: int):
+        guard(request, mutate=True)
+        sig = store.get(signal_id)
+        if sig is None:
+            raise HTTPException(404, "сигнал не найден")
+        if sig.status not in ARCHIVED:
+            raise HTTPException(409, "удалять можно только истёкшие и пропущенные сигналы")
+        drop_charts(store.delete_signals(ARCHIVED, signal_id))
+        return HTMLResponse("")
+
     @app.post("/signals/{signal_id}/{action}", response_class=HTMLResponse)
     async def decide(request: Request, signal_id: int, action: str):
         guard(request, mutate=True)

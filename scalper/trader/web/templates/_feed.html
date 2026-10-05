@@ -1,3 +1,4 @@
+<div class="feed-bar">
 <div class="feed-tabs segmented" role="tablist" aria-label="Какие сигналы показать в ленте">
   {% for key, label in FEED_TABS %}
   {% set on = (view is none and key == 'all') or (view is not none and view.value == key) %}
@@ -6,6 +7,11 @@
           class="{{ 'is-off' if off else '' }}" hx-get="/feed?view={{ key }}" hx-target="#feed"
           {% if off %}title="{{ label }} выключен в «Какие сигналы присылать»"{% endif %}>{{ label }}</button>
   {% endfor %}
+</div>
+{% if signals | selectattr("status", "in", [SignalStatus.EXPIRED, SignalStatus.SKIPPED]) | list %}
+  <button type="button" class="btn ghost small" hx-post="/signals/archive/clear" hx-swap="none"
+          hx-confirm="Удалить все истёкшие и пропущенные сигналы? Сигналы «в работе» останутся.">Очистить старые</button>
+{% endif %}
 </div>
 {% if signals %}
 <div class="feed">

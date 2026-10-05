@@ -111,6 +111,23 @@ class SqliteStore:
             self.db.commit()
         return self.get(signal_id)
 
+    def delete_signals(self, statuses: set[SignalStatus], signal_id: int | None = None) -> list[str]:
+        """Удалить сигналы с данными статусами (все или один); вернуть пути их PNG-графиков."""
+        q = f"WHERE status IN ({','.join('?' * len(statuses))})"
+        args: list = [s.value for s in statuses]
+        if signal_id is not None:
+            q += " AND id = ?"
+            args.append(signal_id)
+        with self.lock:
+            rows = self.db.execute(f"SELECT id, chart_path FROM signals {q}", args).fetchall()
+            ids = [r["id"] for r in rows]
+            if ids:
+                marks = ",".join("?" * len(ids))
+                self.db.execute(f"DELETE FROM trades WHERE signal_id IN ({marks})", ids)
+                self.db.execute(f"DELETE FROM signals WHERE id IN ({marks})", ids)
+                self.db.commit()
+        return [r["chart_path"] for r in rows if r["chart_path"]]
+
     def set_chart(self, signal_id: int, path: str) -> None:
         with self.lock:
             self.db.execute("UPDATE signals SET chart_path = ? WHERE id = ?", (path, signal_id))

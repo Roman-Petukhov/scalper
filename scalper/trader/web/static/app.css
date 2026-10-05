@@ -103,7 +103,7 @@ main { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 20px; pa
 /* Лента сигналов */
 .feed-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .feed-head h1 { font-size: 20px; margin: 0; letter-spacing: -.01em; }
-.feed-tabs { margin-bottom: 12px; }
+
 .feed-tabs button.is-off { opacity: .45; }
 .feed { display: grid; gap: 14px; }
 .signal { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 16px; animation: rise .35s var(--ease); }
@@ -184,6 +184,23 @@ dl.plan dd { margin: 0; text-align: right; }
 .seg-radio input:checked + span { background: var(--accent); color: var(--accent-ink); }
 .seg-radio input[value="live"]:checked + span { background: var(--warn); color: #1a1205; }
 .seg-radio input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Старые сигналы (истёк / пропущен): компактная строка, график по нажатию */
+.signal-row { padding: 10px 14px; }
+.signal-row > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; }
+.signal-row > summary::-webkit-details-marker { display: none; }
+.signal-row .row-sym { font-weight: 650; }
+.signal-row .row-time { margin: 0 0 0 auto; }
+.signal-row .row-open { font-size: 12px; color: var(--accent); }
+.signal-row[open] .row-open { visibility: hidden; }
+.signal-row[open] > article { margin-top: 12px; }
+.feed .signal-row + .signal-row { margin-top: -6px; }
+.row-del { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 14px; line-height: 1;
+  padding: 6px 8px; margin: -6px -6px -6px 0; border-radius: var(--radius-sm); cursor: pointer; }
+@media (hover: hover) { .row-del:hover { color: var(--short); background: color-mix(in srgb, var(--short) 12%, transparent); } }
+.row-del:focus-visible { outline: 2px solid var(--accent); }
+.feed-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.btn.small { padding: 6px 12px; font-size: 13px; }
 
 /* Живой график */
 .live-chart { position: relative; height: 360px; border-radius: var(--radius-sm); border: 1px solid var(--line); overflow: hidden; background: var(--surface); }
