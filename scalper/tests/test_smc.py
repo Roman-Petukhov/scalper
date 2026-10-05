@@ -66,3 +66,11 @@ def test_fade_and_trap():
     r = trap(o, h, lo, c, np.zeros(6), 0, 1, 98.0, 97.5, 1.0, 48, 6, 3.0, 120)
     d = 98.5 - (96 - 0.1)
     assert np.isclose(r, (3 * d - (5.5e-4 + 2e-4) * 98.5) / d)
+
+
+def test_series_number_resets_after_sweep_and_opposite_signal():
+    from research.smc import series_number
+    t = pd.date_range("2024-01-01", periods=7, freq="1h", tz="UTC")
+    df = pd.DataFrame({"symbol": "X", "t": t, "kind": ["FVG", "FVG", "FVG", "OB+SWEEP", "FVG", "FVG", "FVG"],
+                       "side": [1, 1, 1, 1, 1, -1, 1]})
+    assert list(series_number(df)) == [1, 2, 3, 1, 1, 1, 1]

@@ -446,6 +446,26 @@ def _cell(x: pd.DataFrame) -> str:
     return f"{r.mean():+.3f}R (t {t_day:.1f}, {np.mean(r > 0):.0%}, {len(r) / months:.0f}/мес)"
 
 
+def series_number(df: pd.DataFrame) -> np.ndarray:
+    """Номер сетапа в серии: подряд идущие сетапы одного типа и стороны на монете; серия обнуляется после OB+SWEEP
+    той же стороны (вытряхивание) или любого сетапа (кроме BRK) в обратную сторону. OB+SWEEP сам — №1."""
+    d = df[df.kind != "BRK"].sort_values(["symbol", "t"])
+    out = pd.Series(0, index=df.index, dtype="int64")
+    for _, g in d.groupby("symbol", sort=False):
+        cnt: dict[tuple[str, int], int] = {}
+        for i, k, sd in zip(g.index, g["kind"].to_numpy(), g["side"].to_numpy()):
+            for key in list(cnt):
+                if key[1] != sd:
+                    cnt[key] = 0
+            if k == "OB+SWEEP":
+                for key in list(cnt):
+                    if key[1] == sd:
+                        cnt[key] = 0
+            cnt[(k, sd)] = cnt.get((k, sd), 0) + 1
+            out[i] = cnt[(k, sd)]
+    return out.to_numpy()
+
+
 def report() -> None:
     parts = all_parts("smc")
     if not parts:
@@ -501,6 +521,18 @@ def report() -> None:
             x = g.assign(R=g[col])
             rows.append({"тип": k, "сетап": "лонг" if sd > 0 else "шорт", "вариант": nm,
                          **{p: _cell(x[x.per == p]) for p in PER}})
+    print(pd.DataFrame(rows).to_string(index=False))
+
+    print("\n=== 1d. Номер сигнала в серии: №1 / №2 / №3+ одного типа в одну сторону; серия обнуляется после "
+          "вытряхивания (OB+SWEEP той же стороны) или сигнала в обратную сторону ===")
+    df["nth"] = series_number(df)
+    rows = []
+    for (k, sd), g in df[df.kind != "BRK"].groupby(["kind", "side"]):
+        for col, nm in (("R", "по SMC, 5R"), ("R_fade1", "FADE 1:1"), ("R_trap", "TRAP 1:3")):
+            for nth, lab in ((1, "№1"), (2, "№2"), (3, "№3+")):
+                x = g[g.nth == nth if nth < 3 else g.nth >= 3].assign(R=lambda d: d[col])
+                rows.append({"тип": k, "сетап": "лонг" if sd > 0 else "шорт", "вариант": nm, "номер": lab,
+                             **{p: _cell(x[x.per == p]) for p in PER}})
     print(pd.DataFrame(rows).to_string(index=False))
 
     print("\n=== 2. ML-фильтр (LightGBM на IS, признаки 1h / 4h / 1d / 1w), отбор по прогнозу R ===")
