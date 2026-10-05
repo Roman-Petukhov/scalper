@@ -895,6 +895,9 @@ def coin_trades(root: Path, sym: str, tf: str, ctx: pd.DataFrame | None = None) 
     body = np.abs(c - o) / np.where(rng > 0, rng, np.nan)                     # доля тела в свече
     loc = (c - lo) / np.where(rng > 0, rng, np.nan)                         # где закрылась: 1 — у максимума
     buy_share = (d["taker_buy_volume"] / v.replace(0, np.nan)).to_numpy()
+    tbv = d["taker_buy_volume"]                     # доля покупателей за 2 и 3 свечи до пробоя включительно (8 / 12 ч на 4h)
+    share2 = (tbv.rolling(2).sum() / v.rolling(2).sum().replace(0, np.nan)).to_numpy()
+    share3 = (tbv.rolling(3).sum() / v.rolling(3).sum().replace(0, np.nan)).to_numpy()
     bars30 = 30 * 24 * 60 // BAR_MIN[tf]
     ret30 = (d["close"] / d["close"].shift(bars30) - 1).to_numpy()
     close_t = d.index + pd.Timedelta(minutes=BAR_MIN[tf])
@@ -964,6 +967,8 @@ def coin_trades(root: Path, sym: str, tf: str, ctx: pd.DataFrame | None = None) 
                                  "vol_ratio": vol_ratio[tb], "oi_chg": oi_chg[tb], "body": body[tb],
                                  "close_loc": loc[tb] if side > 0 else 1 - loc[tb],
                                  "aggr": buy_share[tb] if side > 0 else 1 - buy_share[tb],
+                                 "aggr2": share2[tb] if side > 0 else 1 - share2[tb],
+                                 "aggr3": share3[tb] if side > 0 else 1 - share3[tb],
                                  "brk_atr": side * (c[tb] - line_b) / a[tb], "rng_atr": (hi[tb] - lo[tb]) / a[tb],
                                  "stop_atr": dist_atr, "ret30": ret30[e], "btc_trend": btc_trend[e],
                                  "btc_ret7": btc_ret7[e], "hold_bars": ex - fill,
@@ -1489,8 +1494,22 @@ def more_signals_report(df: pd.DataFrame) -> None:
                      for lo, hi in ((5e6, 10e6), (10e6, 20e6), (20e6, 50e6), (50e6, 200e6), (200e6, np.inf))]
                     + [("от $10M (порог вдвое ниже)", b4[b4.adv >= 10e6]), ("от $20M (сейчас)", b4[b4.adv >= 20e6])])
 
+        if "aggr3" in df.columns:
+            raw = df[~df.confirm & df.with_trend & (df.close_loc >= 0.5) & (df.adv >= ADV_MIN) & (df.entry == entry)
+                     & (df.tf == "4h") & (df.line == "zz")]
+            print(f"\n  --- 4. агрессоры за 8–12 ч (Kim & Hansen 2026: перевес агрессоров продолжается 4–12 ч), "
+                  f"4h, {en}; тренд + верхняя половина ---")
+            _more_table([("без фильтра агрессоров", raw),
+                         ("свеча пробоя >= 55% (сейчас)", raw[raw.aggr >= 0.55]),
+                         ("2 свечи (8 ч) >= 55%", raw[raw.aggr2 >= 0.55]),
+                         ("3 свечи (12 ч) >= 55%", raw[raw.aggr3 >= 0.55]),
+                         ("3 свечи (12 ч) >= 53%", raw[raw.aggr3 >= 0.53]),
+                         ("свеча >= 55% и 3 свечи >= 52%", raw[(raw.aggr >= 0.55) & (raw.aggr3 >= 0.52)]),
+                         ("свеча >= 55% или 3 свечи >= 55%", raw[(raw.aggr >= 0.55) | (raw.aggr3 >= 0.55)]),
+                         ("свеча >= 52% и 3 свечи >= 55%", raw[(raw.aggr >= 0.52) & (raw.aggr3 >= 0.55)])])
+
         lg = zz[zz.side == 1]
-        print(f"\n  --- 4. лонги, 4h, {en} (шорты для сравнения в конце) ---")
+        print(f"\n  --- 5. лонги, 4h, {en} (шорты для сравнения в конце) ---")
         _more_table([("все лонги", lg),
                      ("BTC выше EMA50 дневок", lg[lg.btc_trend == 1]),
                      ("BTC вырос за 7 дней", lg[lg.btc_ret7 > 0]),
