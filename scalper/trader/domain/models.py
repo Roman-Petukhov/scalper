@@ -64,7 +64,7 @@ class Settings:
     daily_loss_pct: float = 4.0         # дневной лимит убытка, % капитала: дальше авто не открывает
     min_aggr: float = 0.55              # доля агрессоров в сторону пробоя
     min_break_atr: float = 0.0          # уверенный пробой: закрытие за линией не ближе, чем столько ATR
-    min_close_loc: float = 0.0          # и у края свечи в сторону пробоя: 0 — у противоположного, 1 — у края
+    min_close_loc: float = 0.8          # закрытие в верхних 20% свечи в сторону пробоя (бэктест 4h: лучше во всех периодах)
     target_r: float = 3.0
     entry_policy: EntryPolicy = EntryPolicy.RETEST
     hybrid_range_atr: float = 2.5       # для гибрида: свеча пробоя длиннее (в ATR) — ретест, короче — по рынку

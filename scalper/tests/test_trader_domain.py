@@ -48,7 +48,7 @@ def test_detect_matches_research_rule_on_the_last_closed_bar(seed, stop_atr, mon
     import trader.domain.strategy as st
     monkeypatch.setattr(st, "STOP_ATR", stop_atr)          # широкий диапазон — сверка всего остального правила
     d = _frame(seed=seed)
-    s = Settings(min_aggr=0.55, entry_policy=EntryPolicy.MARKET)
+    s = Settings(min_aggr=0.55, entry_policy=EntryPolicy.MARKET, min_close_loc=0.0)   # паритет с правилом исследования
     expected = _expected(d, 0.55, stop_atr)
     candidates = sorted({r["t"] for r in zz_lines(d, log=strategy.LOG_LINES) if r["t"] >= 400})
     found = set()
@@ -69,7 +69,7 @@ def test_long_breakout_candle_switches_to_retest_on_the_line():
     buy = (d.taker_buy_volume / d.volume).to_numpy()
     t, sd, line = next((r["t"], r["side"], r["line_t"]) for r in zz_lines(d, log=strategy.LOG_LINES) if r["t"] >= 400 and trend[r["t"]] == r["side"]
                        and (buy[r["t"]] if r["side"] > 0 else 1 - buy[r["t"]]) >= 0.55)
-    sig = [x for x in detect(d.iloc[: t + 1], Timeframe.H4, "X", Settings(entry_policy=EntryPolicy.HYBRID, hybrid_range_atr=0.5))
+    sig = [x for x in detect(d.iloc[: t + 1], Timeframe.H4, "X", Settings(entry_policy=EntryPolicy.HYBRID, hybrid_range_atr=0.5, min_close_loc=0.0))
            if int(x.side) == sd]
     if sig:                                               # стоп от линии может выйти за 0.3–4 ATR
         assert sig[0].plan.entry_kind is EntryKind.RETEST and sig[0].plan.entry == pytest.approx(line)
@@ -107,7 +107,7 @@ def test_log_lines_are_straight_in_log_price():
 
 def test_conviction_filter_drops_weak_closes():
     d = _frame(seed=7)
-    s0 = Settings(timeframes=frozenset({Timeframe.H4}), min_aggr=0.5)
+    s0 = Settings(timeframes=frozenset({Timeframe.H4}), min_aggr=0.5, min_close_loc=0.0)
     found = []
     for t in sorted({r["t"] for r in zz_lines(d, log=strategy.LOG_LINES) if r["t"] >= 400})[:40]:
         found += detect(d.iloc[: t + 1], Timeframe.H4, "X", s0)
