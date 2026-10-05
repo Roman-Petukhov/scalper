@@ -16,6 +16,9 @@ import argparse
 import io
 import lzma
 import struct
+import time
+import urllib.error
+import urllib.request
 import sys
 import warnings
 from concurrent.futures import ThreadPoolExecutor
@@ -38,10 +41,25 @@ TFS = ("4h", "12h", "1d")
 DUMMY_TURNOVER = 1e12          # coin_trades отсекает неликвидные монеты по обороту; у этих рынков он не ограничение
 
 
+def _fetch(url: str, timeout: float = 20.0, tries: int = 2) -> bytes | None:
+    """Короткий таймаут и две попытки: недоступный источник не должен держать прогон часами."""
+    for _ in range(tries):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return r.read()
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return None
+        except Exception:
+            pass
+    return None
+
+
 def _duka_month(sym: str, year: int, month0: int) -> pd.DataFrame | None:
     """Часовые свечи одного месяца: файл LZMA, записи по 24 байта (секунды от начала месяца, open, close, low,
     high — целые в пунктах, объём — float), big-endian."""
-    blob = D._get(f"{DUKA}/{sym}/{year}/{month0:02d}/BID_candles_hour_1.bi5")
+    blob = _fetch(f"{DUKA}/{sym}/{year}/{month0:02d}/BID_candles_hour_1.bi5")
     if not blob:
         return None
     try:
@@ -69,6 +87,10 @@ def _scale(df: pd.DataFrame, lo: float, hi: float) -> pd.DataFrame:
 
 
 def fetch_duka(sym: str, end: pd.Timestamp) -> pd.DataFrame | None:
+    t0 = time.monotonic()
+    if _duka_month(sym, end.year - 1, 0) is None:                     # проба: источник недоступен — сразу дальше
+        print(f"  {sym}: Dukascopy не отдал пробный месяц за {time.monotonic() - t0:.0f} с", flush=True)
+        return None
     jobs = [(y, m) for y in range(START_YEAR, end.year + 1) for m in range(12)
             if pd.Timestamp(year=y, month=m + 1, day=1, tz="UTC") < end]
     with ThreadPoolExecutor(8) as ex:
@@ -84,7 +106,7 @@ def fetch_duka(sym: str, end: pd.Timestamp) -> pd.DataFrame | None:
 def fetch_paxg(end: pd.Timestamp) -> pd.DataFrame | None:
     parts = []
     for m in pd.period_range("2020-09", end.strftime("%Y-%m"), freq="M"):
-        blob = D._get(f"{D.HOSTS['cdn']}/data/spot/monthly/klines/{PAXG}/1h/{PAXG}-1h-{m}.zip")
+        blob = _fetch(f"{D.HOSTS['cdn']}/data/spot/monthly/klines/{PAXG}/1h/{PAXG}-1h-{m}.zip", 60.0)
         if blob is None:
             continue
         k = D._read_zip_csv(blob, D.KCOLS)
