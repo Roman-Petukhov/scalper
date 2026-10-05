@@ -45,12 +45,15 @@ def launch_points(c: np.ndarray, atr: np.ndarray, piv: np.ndarray, side: int) ->
     return out
 
 
-def vis_lines(d: pd.DataFrame, n: int, launch: bool = False, minor: int = 0) -> list[dict]:
+def vis_lines(d: pd.DataFrame, n: int, launch: bool = False, minor: int = 0, bos: bool = False) -> list[dict]:
     """Как zz_lines, но вершины — «видимые на этом ТФ»: закрытие — экстремум среди n свечей с каждой стороны
     (известно через n свечей), и между двумя точками линии ни одно закрытие не заходит за линию.
     launch=True — точка линии не самое крайнее закрытие, а последнее закрытие «полки» у экстремума перед движением.
     minor=k — вторая точка из мини-экстремумов (±k свечей): линия от крупного экстремума — касательная к закрытиям,
-    как трейдер ведёт её по направлению и прижимает к ближайшему мини-экстремуму, чтобы не резать свечи."""
+    как трейдер ведёт её по направлению и прижимает к ближайшему мини-экстремуму, чтобы не резать свечи.
+    bos=True — опорная вершина считается экстремумом, только когда цена после неё обновила противоположный
+    экстремум (закрылась ниже последнего мини-минимума перед вершиной; для впадины — выше мини-максимума);
+    линия известна с этого бара."""
     c = d["close"].to_numpy(dtype="float64")
     atr = _atr(d).to_numpy()
     m = len(c)
@@ -59,10 +62,25 @@ def vis_lines(d: pd.DataFrame, n: int, launch: bool = False, minor: int = 0) -> 
         piv = pivots(c, n, side > 0)
         x = launch_points(c, atr, piv, side) if launch else piv[:, 0]     # где точка линии
         seen = set()
+        opp = pivots(c, 3, side < 0)[:, 0]                       # мини-экстремумы противоположной стороны
         for ka, (pa, conf_a) in enumerate(piv):
             w = c[max(0, pa - ZZ_ANCHOR): pa]
             if len(w) < ZZ_ANCHOR or side * (c[pa] - (w.max() if side > 0 else w.min())) <= 0:
                 continue
+            if bos:
+                prev = opp[opp < pa]
+                if not len(prev):
+                    continue
+                lvl, conf_bos = c[prev[-1]], -1
+                for j in range(pa + 1, min(pa + ZZ_LIFE, m)):
+                    if side * (c[j] - c[pa]) > 0:
+                        break                                       # вершину обновили раньше — не экстремум
+                    if side * (lvl - c[j]) > 0:
+                        conf_bos = j
+                        break
+                if conf_bos < 0:
+                    continue
+                conf_a = max(conf_a, conf_bos)
             a = int(x[ka])
             pb_all = pivots(c, minor, side > 0) if minor else piv
             xb_all = pb_all[:, 0] if minor else x
@@ -105,7 +123,8 @@ def vis_lines(d: pd.DataFrame, n: int, launch: bool = False, minor: int = 0) -> 
 BASE = "https://fapi.binance.com"
 MODES = {"сейчас: зигзаг 3 ATR": lambda d: zz_lines(d),
          "видимые вершины ±10 свечей": lambda d: vis_lines(d, 10),
-         "A: видимые ±10 + полка, B: мини-экстремум ±3 (касательная)": lambda d: vis_lines(d, 10, launch=True, minor=3),
+         "A: видимые ±10 + полка + слом структуры, B: мини-экстремум ±3 (касательная)":
+             lambda d: vis_lines(d, 10, launch=True, minor=3, bos=True),
          "видимые ±10 + последнее закрытие перед движением": lambda d: vis_lines(d, 10, launch=True)}
 SHOW = 300
 
