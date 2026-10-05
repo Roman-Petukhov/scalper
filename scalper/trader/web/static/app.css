@@ -100,15 +100,18 @@ main { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 20px; pa
   width: 100%; background: var(--surface-2); border: 1px solid var(--line); color: var(--text); font: inherit;
   padding: 8px 10px; border-radius: var(--radius-sm);
 }
-.per-tf { display: grid; grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr)); gap: 8px; align-items: center; }
-.per-tf b { font-size: 12px; color: var(--muted); text-align: center; font-weight: 600; }
-.per-tf label { font-size: 13px; color: var(--muted); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.per-tf { display: grid; grid-template-columns: minmax(0, 1.7fr) repeat(var(--cols, 2), minmax(0, 1fr));
+  column-gap: 8px; row-gap: 6px; align-items: center; }
+.per-tf .tf-head { font-size: 13px; color: var(--text); text-align: center; font-weight: 700; padding-bottom: 2px; }
+.per-tf label { font-size: 13px; line-height: 1.25; color: var(--muted);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 .per-tf select { width: 100%; min-width: 0; background: var(--surface-2); border: 1px solid var(--line); color: var(--text);
   font: inherit; font-size: 13px; padding: 8px 2px; border-radius: var(--radius-sm); appearance: none; -webkit-appearance: none;
   text-align: center; text-align-last: center; cursor: pointer; }
 .per-tf select:focus-visible, .per-tf input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .per-tf input { width: 100%; min-width: 0; background: var(--surface-2); border: 1px solid var(--line); color: var(--text);
   font: inherit; padding: 8px 6px; border-radius: var(--radius-sm); text-align: center; }
+.per-acct input { grid-column: span var(--cols, 2); }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .ok { color: var(--long); font-size: 13px; }
 .err { color: var(--short); font-size: 13px; }
