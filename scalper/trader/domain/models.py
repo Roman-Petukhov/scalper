@@ -11,13 +11,13 @@ MARKET_VALID_BARS = 2                   # вход по рынку возмож�
 
 
 class Timeframe(str, Enum):
+    """Таймфреймы панели. 1h убран по решению трейдера (на бэктесте — лишь тонкий плюс)."""
     M15 = "15m"
-    H1 = "1h"
     H4 = "4h"
 
     @property
     def minutes(self) -> int:
-        return {"15m": 15, "1h": 60, "4h": 240}[self.value]
+        return {"15m": 15, "4h": 240}[self.value]
 
 
 class Mode(str, Enum):
@@ -84,12 +84,12 @@ class TfParams:
 
 
 # Лучшее по бэктесту (docs/research_report.md): 4h — основная стратегия (ретест, закрытие в верхней половине свечи);
-# 1h — тонкий плюс, фильтр свечи не помогает; 15m — плюса не нашли. Отсюда риск 1% / 0.25% / 0.25%.
+# 15m — плюса не нашли, поэтому риск меньше и тот же фильтр уверенной свечи. Риск 1% / 0.25%.
 DEFAULT_TF_PARAMS: dict[Timeframe, TfParams] = {
     Timeframe.H4: TfParams(risk_pct=1.0, min_close_loc=0.5),
-    Timeframe.H1: TfParams(risk_pct=0.25),
-    Timeframe.M15: TfParams(risk_pct=0.25),
+    Timeframe.M15: TfParams(risk_pct=0.25, min_close_loc=0.5, min_break_atr=0.1),
 }
+RETIRED_TIMEFRAMES = ("1h",)            # были в панели раньше: сигналы и настройки этих ТФ при загрузке убираются
 TF_FIELDS = tuple(TfParams.__dataclass_fields__)
 
 

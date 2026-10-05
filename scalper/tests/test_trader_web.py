@@ -49,7 +49,7 @@ def test_login_required_and_wrong_password(env):
     c, _ = env
     assert c.get("/", follow_redirects=False).headers["location"] == "/login"
     assert c.post("/login", data={"password": "nope"}).status_code == 401
-    r = c.post("/settings/tf/1h", headers=HX, follow_redirects=False)
+    r = c.post("/settings/tf/15m", headers=HX, follow_redirects=False)
     assert r.status_code == 401 and r.headers["HX-Redirect"] == "/login"
     _login(c)
     r = c.get("/")
@@ -59,19 +59,19 @@ def test_login_required_and_wrong_password(env):
 def test_chips_mode_and_csrf_header(env):
     c, tmp = env
     _login(c)
-    assert c.post("/settings/tf/1h").status_code == 403                 # без заголовка HTMX — отказ
-    r = c.post("/settings/tf/1h", headers=HX)
-    assert r.status_code == 200 and 'hx-post="/settings/tf/1h"' in r.text
+    assert c.post("/settings/tf/15m").status_code == 403                 # без заголовка HTMX — отказ
+    r = c.post("/settings/tf/15m", headers=HX)
+    assert r.status_code == 200 and 'hx-post="/settings/tf/15m"' in r.text
     r = c.post("/settings/mode/auto", headers=HX)
     assert "Бот входит сам" in r.text
     from trader.infrastructure.sqlite_repo import SqliteStore
     s = SqliteStore(tmp / "trader.db").load()
-    assert Timeframe.H1 in s.timeframes and s.mode is Mode.AUTO
+    assert Timeframe.M15 in s.timeframes and s.mode is Mode.AUTO
 
 
 def _params_form(**over):
     f = {"leverage": "5", "max_positions": "5", "daily_loss_pct": "4"}
-    for tf, risk, loc in (("4h", "1", "50"), ("1h", "0.25", "0"), ("15m", "0.25", "0")):
+    for tf, risk, loc in (("4h", "1", "50"), ("15m", "0.25", "50")):
         f |= {f"{tf}__risk_pct": risk, f"{tf}__entry_policy": "retest", f"{tf}__min_aggr_pct": "55",
               f"{tf}__target_r": "3", f"{tf}__min_close_loc_pct": loc, f"{tf}__min_break_atr": "0",
               f"{tf}__hybrid_range_atr": "2.5", f"{tf}__retest_bars": "12"}
@@ -82,16 +82,17 @@ def test_params_per_timeframe(env):
     c, tmp = env
     _login(c)
     r = c.get("/").text
-    assert 'name="1h__entry_policy"' in r and 'name="15m__target_r"' in r and 'name="4h__min_close_loc_pct"' in r
-    assert "от 0.05% до 5%" in c.post("/settings/params", data=_params_form(**{"1h__risk_pct": "9"}), headers=HX).text
+    assert 'name="15m__entry_policy"' in r and 'name="15m__target_r"' in r and 'name="4h__min_close_loc_pct"' in r
+    assert 'name="1h__' not in r
+    assert "от 0.05% до 5%" in c.post("/settings/params", data=_params_form(**{"15m__risk_pct": "9"}), headers=HX).text
     assert "плечо — целое от 1× до 10×" in c.post("/settings/params", data=_params_form(leverage="15"), headers=HX).text
-    form = _params_form(leverage="8", **{"15m__target_r": "2", "15m__entry_policy": "market", "1h__min_close_loc_pct": "70"})
+    form = _params_form(leverage="8", **{"15m__target_r": "2", "15m__entry_policy": "market", "4h__min_close_loc_pct": "70"})
     r = c.post("/settings/params", data=form, headers=HX).text
     assert "Сохранено" in r and 'name="15m__target_r" type="number" step="0.5" min="1" max="10"' in r
     from trader.infrastructure.sqlite_repo import SqliteStore
     s = SqliteStore(tmp / "trader.db").load()
     assert s.leverage == 8 and s.p(Timeframe.M15).target_r == 2.0 and s.p(Timeframe.H4).target_r == 3.0
-    assert s.p(Timeframe.M15).entry_policy.value == "market" and s.p(Timeframe.H1).min_close_loc == 0.7
+    assert s.p(Timeframe.M15).entry_policy.value == "market" and s.p(Timeframe.H4).min_close_loc == 0.7
     bad = _params_form()
     del bad["4h__target_r"]
     assert "не заполнено поле" in c.post("/settings/params", data=bad, headers=HX).text
@@ -121,15 +122,16 @@ def test_feed_tabs_show_one_timeframe_and_chips_hide_it(env):
     from trader.infrastructure.sqlite_repo import SqliteStore
     st = SqliteStore(tmp / "trader.db")
     st.add(_signal())                                                    # 4h
-    now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
-    st.add(replace(_signal(symbol="ETHUSDT", tf=Timeframe.H1), bar_time=now - pd.Timedelta(hours=1)))   # свежий 1h
-    c.post("/settings/tf/1h", headers=HX)                                # по умолчанию включён только 4h
-    feed = c.get("/feed?view=1h").text
+    now = datetime.now(timezone.utc)
+    now = now.replace(minute=now.minute - now.minute % 15, second=0, microsecond=0)
+    st.add(replace(_signal(symbol="ETHUSDT", tf=Timeframe.M15), bar_time=now - pd.Timedelta(minutes=15)))  # свежий 15m
+    c.post("/settings/tf/15m", headers=HX)                                # по умолчанию включён только 4h
+    feed = c.get("/feed?view=15m").text
     assert "ETHUSDT" in feed and "SOLUSDT" not in feed and 'aria-selected="true"' in feed
     assert "SOLUSDT" not in c.get("/feed").text                         # вкладка запомнилась в сессии
-    r = c.post("/settings/tf/1h", headers=HX)                            # выключили 1h — лента обновится
+    r = c.post("/settings/tf/15m", headers=HX)                            # выключили 15m — лента обновится
     assert r.headers["HX-Trigger"] == "feed-refresh"
-    assert "1h выключен" in c.get("/feed").text
+    assert "15m выключен" in c.get("/feed").text
     feed = c.get("/feed?view=all").text
     assert "SOLUSDT" in feed and "ETHUSDT" not in feed
 
@@ -147,14 +149,13 @@ def test_chart_route_blocks_traversal(env):
 def test_scan_now_reports_disabled_timeframe(env):
     c, _ = env
     _login(c)
-    assert "выключен" in c.post("/scan/1h", headers=HX).text
+    assert "выключен" in c.post("/scan/15m", headers=HX).text
     assert "нет данных" in c.post("/scan/4h", headers=HX).text
 
 
 def test_next_close_on_utc_grid():
     t = datetime(2026, 10, 5, 9, 59, 30, tzinfo=timezone.utc)
     assert next_close(t, Timeframe.M15) == datetime(2026, 10, 5, 10, 0, tzinfo=timezone.utc)
-    assert next_close(t, Timeframe.H1) == datetime(2026, 10, 5, 10, 0, tzinfo=timezone.utc)
     assert next_close(t, Timeframe.H4) == datetime(2026, 10, 5, 12, 0, tzinfo=timezone.utc)
     assert next_close(datetime(2026, 10, 5, 12, 0, tzinfo=timezone.utc), Timeframe.H4) == datetime(2026, 10, 5, 16, 0, tzinfo=timezone.utc)
 
@@ -179,9 +180,9 @@ def test_new_signals_api_for_app_notifications(env):
     st = SqliteStore(tmp / "trader.db")
     a = st.add(_signal())
     b = st.add(_signal(symbol="ETHUSDT"))
-    h1 = st.add(_signal(symbol="XRPUSDT", tf=Timeframe.H1))           # 1h выключен — не уведомляем
+    m15 = st.add(_signal(symbol="XRPUSDT", tf=Timeframe.M15))         # 15m выключен — не уведомляем
     r = c.get(f"/api/signals/new?after={a.id}").json()
-    assert r["last_id"] == h1.id and [x["symbol"] for x in r["signals"]] == ["ETHUSDT"]
+    assert r["last_id"] == m15.id and [x["symbol"] for x in r["signals"]] == ["ETHUSDT"]
     assert r["signals"][0]["side"] == "лонг" and r["signals"][0]["entry_kind"] == "рынок"
 
 
@@ -326,7 +327,7 @@ def test_reset_to_best_button(env):
 def test_auto_timeframe_chips(env):
     c, tmp = env
     _login(c)
-    r = c.post("/settings/auto-tf/1h", headers=HX)
-    assert r.status_code == 200 and 'hx-post="/settings/auto-tf/1h"' in r.text and "нет сигналов" in r.text
+    r = c.post("/settings/auto-tf/15m", headers=HX)
+    assert r.status_code == 200 and 'hx-post="/settings/auto-tf/15m"' in r.text and "нет сигналов" in r.text
     from trader.infrastructure.sqlite_repo import SqliteStore
-    assert SqliteStore(tmp / "trader.db").load().auto_timeframes == {Timeframe.H4, Timeframe.H1}
+    assert SqliteStore(tmp / "trader.db").load().auto_timeframes == {Timeframe.H4, Timeframe.M15}

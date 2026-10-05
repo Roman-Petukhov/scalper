@@ -17,6 +17,22 @@ BASE = "https://fapi.binance.com"
 HISTORY = 1500                    # 4h: 250 дней — хватает на EMA50 дневок и жизнь линий (300 свечей)
 TAIL = 6
 LIVE_TTL_S = 3.0                  # живой график: не чаще одного запроса к Binance за 3 с на монету и ТФ
+# Не крипта: золото и металлы, акции, индексы, валюты, токенизированные активы — у них свои сессии и драйверы,
+# правило по ним не проверялось. Binance помечает их в exchangeInfo (underlyingType / underlyingSubType);
+# известные тикеры — на случай, если пометки нет.
+NON_CRYPTO_TYPES = {"COMMODITY", "EQUITY", "STOCK", "INDEX", "FOREX", "TRADFI"}
+NON_CRYPTO_SUBTYPES = {"tradfi", "rwa", "commodity", "commodities", "metal", "metals", "gold", "stock", "stocks",
+                       "equity", "index", "forex", "fx"}
+NON_CRYPTO_BASES = {"XAU", "XAUT", "PAXG", "XAG", "XPT", "XPD", "KAU", "KAG"}
+
+
+def is_crypto(info: dict) -> bool:
+    """Контракт на криптовалюту, а не на золото, акцию, индекс или валюту."""
+    if str(info.get("underlyingType") or "COIN").upper() in NON_CRYPTO_TYPES:
+        return False
+    if {str(x).lower() for x in info.get("underlyingSubType") or []} & NON_CRYPTO_SUBTYPES:
+        return False
+    return str(info.get("baseAsset", "")).upper() not in NON_CRYPTO_BASES
 
 
 class BinanceMarketData:
@@ -45,7 +61,7 @@ class BinanceMarketData:
             return self._universe[2]
         info, tick = await asyncio.gather(self._get("/fapi/v1/exchangeInfo"), self._get("/fapi/v1/ticker/24hr"))
         live = {s["symbol"] for s in info["symbols"] if s.get("status") == "TRADING"
-                and s.get("contractType") == "PERPETUAL" and s.get("quoteAsset") == "USDT"}
+                and s.get("contractType") == "PERPETUAL" and s.get("quoteAsset") == "USDT" and is_crypto(s)}
         out = sorted(t["symbol"] for t in tick if t["symbol"] in live and float(t["quoteVolume"]) >= min_turnover_usd)
         self._universe = (now, min_turnover_usd, out)
         return out

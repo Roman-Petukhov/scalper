@@ -9,8 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from ..domain.execution import Trade, TradeStatus
-from ..domain.models import (DEFAULT_TF_PARAMS, TF_FIELDS, EntryKind, EntryPolicy, Mode, Settings, Side, Signal,
-                             SignalStatus, TfParams, Timeframe, TradePlan)
+from ..domain.models import (DEFAULT_TF_PARAMS, RETIRED_TIMEFRAMES, TF_FIELDS, EntryKind, EntryPolicy, Mode, Settings,
+                             Side, Signal, SignalStatus, TfParams, Timeframe, TradePlan)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS signals (
@@ -49,7 +49,17 @@ class SqliteStore:
         self.lock = threading.Lock()
         with self.lock:
             self.db.executescript(SCHEMA)
+            self._drop_retired()
             self.db.commit()
+
+    def _drop_retired(self) -> None:
+        """Сигналы убранных таймфреймов (1h) и их записи о сделках: панель их больше не показывает и не ведёт."""
+        marks = ",".join("?" * len(RETIRED_TIMEFRAMES))
+        ids = [r[0] for r in self.db.execute(f"SELECT id FROM signals WHERE timeframe IN ({marks})", RETIRED_TIMEFRAMES)]
+        if ids:
+            q = ",".join("?" * len(ids))
+            self.db.execute(f"DELETE FROM trades WHERE signal_id IN ({q})", ids)
+            self.db.execute(f"DELETE FROM signals WHERE id IN ({q})", ids)
 
     # ---------- сигналы ----------
     @staticmethod
@@ -152,9 +162,10 @@ class SqliteStore:
         known = set(Settings.__dataclass_fields__) - {"tf_params"}
         out = {k: v for k, v in p.items() if k in known}
         out["mode"] = Mode(p["mode"])
-        out["timeframes"] = frozenset(Timeframe(x) for x in p["timeframes"])
+        tfs = {t.value for t in Timeframe}                        # убранные ТФ (1h) из старых настроек отбрасываем
+        out["timeframes"] = frozenset(Timeframe(x) for x in p["timeframes"] if x in tfs)
         if "auto_timeframes" in p:
-            out["auto_timeframes"] = frozenset(Timeframe(x) for x in p["auto_timeframes"])
+            out["auto_timeframes"] = frozenset(Timeframe(x) for x in p["auto_timeframes"] if x in tfs)
         out["tf_params"] = {t: self._tf(p, t) for t in Timeframe}
         return Settings(**out)
 
@@ -164,7 +175,7 @@ class SqliteStore:
         if "tf_params" in p and tf.value in p["tf_params"]:
             d = dict(p["tf_params"][tf.value])
         else:
-            sfx = {Timeframe.H4: "", Timeframe.H1: "_1h", Timeframe.M15: "_15m"}[tf]
+            sfx = {Timeframe.H4: "", Timeframe.M15: "_15m"}[tf]
             d = {k: p[k] for k in ("min_aggr", "target_r", "min_break_atr", "hybrid_range_atr", "retest_bars",
                                    "entry_policy") if k in p}
             for k in ("risk_pct", "min_close_loc"):

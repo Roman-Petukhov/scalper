@@ -36,19 +36,21 @@ def test_store_roundtrip_dedup_and_status(tmp_path):
     assert got.plan == s.plan and got.line_points == s.line_points and got.bar_time == T0
     st.set_status(s.id, SignalStatus.SKIPPED, "пропущен")
     assert st.get(s.id).status is SignalStatus.SKIPPED
-    assert len(st.recent(timeframes={Timeframe.H1})) == 0 and len(st.recent()) == 2
+    assert len(st.recent(timeframes={Timeframe.M15})) == 0 and len(st.recent()) == 2
 
 
 def test_settings_persist_and_service_rules(tmp_path):
     st = SqliteStore(tmp_path / "t.db")
     svc = SettingsService(st)
     assert svc.get() == Settings()
-    svc.toggle_timeframe(Timeframe.H1)
+    svc.toggle_timeframe(Timeframe.M15)
     svc.set_mode(Mode.AUTO)
-    svc.update({"max_positions": 3}, {Timeframe.H4: {"risk_pct": 0.5}, Timeframe.M15: {"target_r": 2.0}})
+    svc.update({"max_positions": 3}, {Timeframe.M15: {"target_r": 2.0}})
     s = SqliteStore(tmp_path / "t.db").load()
-    assert s.mode is Mode.AUTO and s.timeframes == {Timeframe.H4, Timeframe.H1} and s.p(Timeframe.H4).risk_pct == 0.5
-    assert s.max_positions == 3 and s.p(Timeframe.M15).target_r == 2.0 and s.p(Timeframe.H1).target_r == 3.0
+    assert s.mode is Mode.AUTO and s.timeframes == {Timeframe.H4, Timeframe.M15} and s.p(Timeframe.H4).target_r == 3.0
+    assert s.max_positions == 3 and s.p(Timeframe.M15).target_r == 2.0
+    svc.update({}, {Timeframe.H4: {"risk_pct": 0.5}})
+    assert SqliteStore(tmp_path / "t.db").load().p(Timeframe.H4).risk_pct == 0.5
     with pytest.raises(ValueError):
         svc.update({}, {Timeframe.H4: {"risk_pct": 9.0}})
     with pytest.raises(ValueError):
@@ -58,15 +60,17 @@ def test_settings_persist_and_service_rules(tmp_path):
 
 def test_old_settings_format_migrates(tmp_path):
     st = SqliteStore(tmp_path / "t.db")
-    old = {"mode": "auto", "timeframes": ["1h", "4h"], "risk_pct": 0.8, "risk_pct_1h": 0.3, "min_close_loc": 0.6,
-           "min_aggr": 0.6, "target_r": 2.5, "entry_policy": "hybrid", "leverage": 7, "max_positions": 4}
+    old = {"mode": "auto", "timeframes": ["1h", "4h", "15m"], "auto_timeframes": ["1h", "4h"], "risk_pct": 0.8,
+           "risk_pct_15m": 0.3, "min_close_loc": 0.6, "min_aggr": 0.6, "target_r": 2.5, "entry_policy": "hybrid",
+           "leverage": 7, "max_positions": 4}
     st.db.execute("INSERT INTO settings(id, payload) VALUES (1, ?)", (json.dumps(old),))
     st.db.commit()
     s = st.load()
     assert s.mode is Mode.AUTO and s.leverage == 7 and s.max_positions == 4
-    h4, h1, m15 = s.p(Timeframe.H4), s.p(Timeframe.H1), s.p(Timeframe.M15)
+    h4, m15 = s.p(Timeframe.H4), s.p(Timeframe.M15)
     assert (h4.risk_pct, h4.min_close_loc, h4.min_aggr, h4.entry_policy) == (0.8, 0.6, 0.6, EntryPolicy.HYBRID)
-    assert (h1.risk_pct, h1.min_close_loc, h1.target_r) == (0.3, 0.0, 2.5) and m15.risk_pct == 0.25
+    assert (m15.risk_pct, m15.min_close_loc, m15.target_r) == (0.3, 0.5, 2.5)
+    assert s.timeframes == {Timeframe.H4, Timeframe.M15} and s.auto_timeframes == {Timeframe.H4}   # 1h убран
     st.save(s)
     assert st.load() == s
 
@@ -122,7 +126,7 @@ def test_scanner_respects_timeframe_chips_and_survives_errors(tmp_path, monkeypa
             return str(tmp_path / f"{signal.id}.png")
 
     sc = Scanner(_Market({"AAA": bars, "BAD": bars}), st, st, _Charts(), note, "https://panel")
-    rep = asyncio.run(sc.scan(Timeframe.H1))                  # 1h выключен — сканирования нет
+    rep = asyncio.run(sc.scan(Timeframe.M15))                 # 15m выключен — сканирования нет
     assert rep.symbols == 0 and not rep.signals
     rep = asyncio.run(sc.scan(Timeframe.H4))
     assert rep.errors == 1 and [s.symbol for s in rep.signals] == ["AAA"] and note.sent == ["AAA"]
@@ -146,21 +150,28 @@ def test_binance_closed_bars_drop_open_candle_and_merge_tail():
         return httpx.Response(200, json=kl(base, 4))           # последняя свеча ещё не закрыта
 
     md = BinanceMarketData(httpx.AsyncClient(base_url="https://x", transport=httpx.MockTransport(handler)))
-    d = asyncio.run(md.closed_bars("SOLUSDT", Timeframe.H1))
+    d = asyncio.run(md.closed_bars("SOLUSDT", Timeframe.M15))
     assert len(d) == 3 and d["taker_buy_volume"].iloc[0] == 6.0 and "close_time" not in d
-    d2 = asyncio.run(md.closed_bars("SOLUSDT", Timeframe.H1))
+    d2 = asyncio.run(md.closed_bars("SOLUSDT", Timeframe.M15))
     assert calls == [1500, 6] and len(d2) == 3
 
 
-def test_binance_universe_filters_turnover_and_contracts():
+def test_binance_universe_filters_turnover_contracts_and_non_crypto():
     def handler(req: httpx.Request) -> httpx.Response:
         if req.url.path.endswith("exchangeInfo"):
             return httpx.Response(200, json={"symbols": [
                 {"symbol": "AUSDT", "status": "TRADING", "contractType": "PERPETUAL", "quoteAsset": "USDT"},
                 {"symbol": "BUSDT", "status": "TRADING", "contractType": "PERPETUAL", "quoteAsset": "USDT"},
-                {"symbol": "CUSDT", "status": "SETTLING", "contractType": "PERPETUAL", "quoteAsset": "USDT"}]})
+                {"symbol": "CUSDT", "status": "SETTLING", "contractType": "PERPETUAL", "quoteAsset": "USDT"},
+                {"symbol": "XAUTUSDT", "status": "TRADING", "contractType": "PERPETUAL", "quoteAsset": "USDT",
+                 "baseAsset": "XAUT", "underlyingType": "COIN"},
+                {"symbol": "TSLAUSDT", "status": "TRADING", "contractType": "PERPETUAL", "quoteAsset": "USDT",
+                 "baseAsset": "TSLA", "underlyingType": "EQUITY"},
+                {"symbol": "DUSDT", "status": "TRADING", "contractType": "PERPETUAL", "quoteAsset": "USDT",
+                 "baseAsset": "D", "underlyingType": "COIN", "underlyingSubType": ["TradFi"]}]})
         return httpx.Response(200, json=[{"symbol": "AUSDT", "quoteVolume": "5e7"}, {"symbol": "BUSDT", "quoteVolume": "1e6"},
-                                         {"symbol": "CUSDT", "quoteVolume": "9e9"}])
+                                         {"symbol": "CUSDT", "quoteVolume": "9e9"}, {"symbol": "XAUTUSDT", "quoteVolume": "9e9"},
+                                         {"symbol": "TSLAUSDT", "quoteVolume": "9e9"}, {"symbol": "DUSDT", "quoteVolume": "9e9"}])
 
     md = BinanceMarketData(httpx.AsyncClient(base_url="https://x", transport=httpx.MockTransport(handler)))
     assert asyncio.run(md.universe(20e6)) == ["AUSDT"]
@@ -183,9 +194,9 @@ def test_entry_policy_persists(tmp_path):
     from trader.domain.models import EntryPolicy
     st = SqliteStore(tmp_path / "t.db")
     assert st.load().p(Timeframe.H4).entry_policy is EntryPolicy.RETEST
-    SettingsService(st).update({}, {Timeframe.H1: {"entry_policy": EntryPolicy.HYBRID}})
+    SettingsService(st).update({}, {Timeframe.M15: {"entry_policy": EntryPolicy.HYBRID}})
     s = SqliteStore(tmp_path / "t.db").load()
-    assert s.p(Timeframe.H1).entry_policy is EntryPolicy.HYBRID and s.p(Timeframe.H4).entry_policy is EntryPolicy.RETEST
+    assert s.p(Timeframe.M15).entry_policy is EntryPolicy.HYBRID and s.p(Timeframe.H4).entry_policy is EntryPolicy.RETEST
 
 
 def test_png_chart_log_scale(tmp_path):

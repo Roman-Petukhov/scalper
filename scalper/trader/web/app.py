@@ -106,7 +106,7 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
             raise HTTPException(403, "запрос не из панели")      # защита от подделки межсайтовых форм
 
     def feed_view(request: Request) -> str:
-        """Вкладка ленты: all / 15m / 1h / 4h — актуальные сигналы, archive — истёкшие и пропущенные;
+        """Вкладка ленты: all / 15m / 4h — актуальные сигналы, archive — истёкшие и пропущенные;
         запоминается в сессии."""
         v = request.session.get("view")
         return v if v in VIEWS else "all"

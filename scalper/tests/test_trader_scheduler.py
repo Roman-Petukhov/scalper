@@ -37,25 +37,25 @@ def test_last_and_next_close():
 def test_no_scan_at_start_then_scans_due_timeframes_bigger_first():
     t0 = datetime(2026, 10, 5, 11, 59, 50, tzinfo=timezone.utc)
     stop = asyncio.Event()
-    sc = FakeScanner(stop, limit=3)
+    sc = FakeScanner(stop, limit=2)
     clock = _clock([t0, t0, t0 + timedelta(seconds=40)])
     asyncio.run(asyncio.wait_for(scheduler.run(sc, 20, stop, poll_s=0.01, clock=clock), 5))
-    assert [tf.value for tf in sc.calls] == ["4h", "1h", "15m"]
+    assert [tf.value for tf in sc.calls] == ["4h", "15m"]
 
 
 def test_wake_from_sleep_catches_up_once_per_timeframe():
     t0 = datetime(2026, 10, 5, 1, 0, 30, tzinfo=timezone.utc)
-    wake = datetime(2026, 10, 5, 9, 10, tzinfo=timezone.utc)       # проспали 8 часов: две свечи 4h и много 1h/15m
+    wake = datetime(2026, 10, 5, 9, 10, tzinfo=timezone.utc)       # проспали 8 часов: две свечи 4h и много 15m
     stop = asyncio.Event()
-    sc = FakeScanner(stop, limit=3)
+    sc = FakeScanner(stop, limit=2)
     asyncio.run(asyncio.wait_for(scheduler.run(sc, 20, stop, poll_s=0.01, clock=_clock([t0, t0, wake])), 5))
-    assert [tf.value for tf in sc.calls] == ["4h", "1h", "15m"]
+    assert [tf.value for tf in sc.calls] == ["4h", "15m"]
 
 
 def test_tick_runs_background_work_and_survives_errors():
     t0 = datetime(2026, 10, 5, 11, 59, 50, tzinfo=timezone.utc)
     stop = asyncio.Event()
-    sc = FakeScanner(stop, limit=3)
+    sc = FakeScanner(stop, limit=2)
     ticks = []
 
     async def tick():
@@ -64,4 +64,4 @@ def test_tick_runs_background_work_and_survives_errors():
 
     clock = _clock([t0, t0, t0 + timedelta(seconds=40)])
     asyncio.run(asyncio.wait_for(scheduler.run(sc, 20, stop, poll_s=0.01, clock=clock, tick=tick, tick_s=30), 5))
-    assert len(ticks) == 2 and len(sc.calls) == 3
+    assert len(ticks) == 2 and len(sc.calls) == 2

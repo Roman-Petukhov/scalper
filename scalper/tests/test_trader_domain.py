@@ -78,7 +78,7 @@ def test_long_breakout_candle_switches_to_retest_on_the_line():
 
 def test_settings_validation_and_toggle():
     s = Settings()
-    assert Timeframe.H1 in s.toggle(Timeframe.H1).timeframes
+    assert Timeframe.M15 in s.toggle(Timeframe.M15).timeframes
     assert Timeframe.H4 not in s.toggle(Timeframe.H4).timeframes
     with pytest.raises(ValueError):
         s.with_tf(Timeframe.H4, risk_pct=10.0)
@@ -127,8 +127,9 @@ def test_conviction_filter_drops_weak_closes():
 
 def test_per_timeframe_risk_and_close_filter():
     s = Settings()
-    assert tuple(s.p(t).risk_pct for t in (Timeframe.H4, Timeframe.H1, Timeframe.M15)) == (1.0, 0.25, 0.25)
-    assert (s.p(Timeframe.H4).min_close_loc, s.p(Timeframe.H1).min_close_loc) == (0.5, 0.0)
+    assert tuple(s.p(t).risk_pct for t in (Timeframe.H4, Timeframe.M15)) == (1.0, 0.25)
+    assert (s.p(Timeframe.H4).min_close_loc, s.p(Timeframe.M15).min_close_loc) == (0.5, 0.5)
+    assert (s.p(Timeframe.H4).min_break_atr, s.p(Timeframe.M15).min_break_atr) == (0.0, 0.1)
     s2 = s.with_tf(Timeframe.M15, target_r=2.0, entry_policy=EntryPolicy.MARKET)
     assert s2.p(Timeframe.M15).target_r == 2.0 and s2.p(Timeframe.H4).target_r == 3.0 and s.p(Timeframe.M15).target_r == 3.0
     with pytest.raises(ValueError):

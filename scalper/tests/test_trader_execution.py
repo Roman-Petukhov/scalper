@@ -302,35 +302,36 @@ def test_credentials_and_holder(tmp_path):
 
 def test_order_uses_timeframe_risk():
     o4 = build_order(_sig(), Settings(), ACC, INST, 101.0, None, NOW)
-    o1 = build_order(_sig(timeframe=Timeframe.H1, bar_time=NOW - timedelta(hours=1, minutes=1)), Settings(), ACC, INST,
+    o1 = build_order(_sig(timeframe=Timeframe.M15, bar_time=NOW - timedelta(minutes=16)), Settings(), ACC, INST,
                      101.0, None, NOW)
     assert o4.risk_usd == pytest.approx(9.99, abs=0.02) and o1.risk_usd == pytest.approx(2.49, abs=0.02)
 
 
-def _fresh_1h():
-    """Последняя закрытая свеча 1h по реальным часам: ручной вход проверяет срок сигнала по текущему времени."""
+def _fresh_15m():
+    """Последняя закрытая свеча 15m по реальным часам: ручной вход проверяет срок сигнала по текущему времени."""
     from datetime import datetime, timezone
-    return datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0) - timedelta(hours=1)
+    now = datetime.now(timezone.utc)
+    return now.replace(minute=now.minute - now.minute % 15, second=0, microsecond=0) - timedelta(minutes=15)
 
 
 def test_auto_mode_trades_only_selected_timeframes(tmp_path, monkeypatch):
     import trader.application.services as svc_mod
     b = FakeBroker()
     st, ex = _exec(tmp_path, b)
-    st.save(replace(Settings(), mode=Mode.AUTO, timeframes=frozenset({Timeframe.H4, Timeframe.H1}),
+    st.save(replace(Settings(), mode=Mode.AUTO, timeframes=frozenset({Timeframe.H4, Timeframe.M15}),
                     auto_timeframes=frozenset({Timeframe.H4})))
     idx = pd.date_range("2026-01-01", periods=10, freq="1h", tz="UTC")
     bars = pd.DataFrame({"open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0, "volume": 1.0,
                          "taker_buy_volume": 0.5}, index=idx)
-    monkeypatch.setattr(svc_mod, "detect", lambda d, tf, sym, s: [replace(_signal(sym, tf), bar_time=_fresh_1h())])
+    monkeypatch.setattr(svc_mod, "detect", lambda d, tf, sym, s: [replace(_signal(sym, tf), bar_time=_fresh_15m())])
 
     class _Charts:
         def render(self, signal, bb):
             return "x.png"
 
     sc = Scanner(_Market({"SOLUSDT": bars}), st, st, _Charts(), None, "", executor=ex)
-    rep = asyncio.run(sc.scan(Timeframe.H1))
-    assert rep.signals[0].status is SignalStatus.NEW and not b.placed      # 1h не отмечен для автобота
+    rep = asyncio.run(sc.scan(Timeframe.M15))
+    assert rep.signals[0].status is SignalStatus.NEW and not b.placed      # 15m не отмечен для автобота
     out = asyncio.run(SignalDecisions(st, st, ex).take(rep.signals[0].id))  # но вручную войти можно
     assert out.status is SignalStatus.TAKEN and len(b.placed) == 1
-    assert Settings().toggle_auto(Timeframe.H1).auto_timeframes == {Timeframe.H4, Timeframe.H1}
+    assert Settings().toggle_auto(Timeframe.M15).auto_timeframes == {Timeframe.H4, Timeframe.M15}
