@@ -761,11 +761,13 @@ def report() -> None:
         diagnose_2026(df, line_name)
     if "effort" in df.columns:
         strength_report(df, line_name)
-        ev = df[df.confirm & (df.entry == "market") & df.tf.isin(["1h", "4h"]) & df.line.isin(["clean", "zz"])]
-        out = Path(os.environ.get("OUT", "../out"))
-        out.mkdir(parents=True, exist_ok=True)
-        ev.sort_values("t").to_csv(out / "tline_breakouts.csv", index=False)
-        print(f"\ntline_breakouts.csv: {len(ev)} пробоев (1h / 4h, закрепление, рынок) — для разметки стаканом")
+        ev = df[df.confirm & (df.entry == "market") & (df.tf == "4h") & df.line.isin(["clean", "zz"])]
+        if len(ev):
+            out = Path(os.environ.get("OUT", "../out"))
+            out.mkdir(parents=True, exist_ok=True)
+            cols = ["symbol", "tf", "line", "t", "side", "R", "aggr", "with_trend", "per"]
+            ev[cols].sort_values("t").to_parquet(out / "tline_breakouts.parquet", index=False)
+            print(f"\ntline_breakouts.parquet: {len(ev)} пробоев 4h (закрепление, рынок) — для разметки стаканом")
 
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")

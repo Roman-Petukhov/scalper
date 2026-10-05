@@ -22,7 +22,7 @@ d = +1 — пробой вверх (лонг), −1 — вниз (шорт); «�
     other      остальное
 Результат — R сделки из research.tline (тейки 3R / 5R, стоп за свингом).
 
-    python -m research.hft.tlbook --sample <tline_breakouts.csv> --out research/hft      (выборка и задачи)
+    python -m research.hft.tlbook --sample <tline_breakouts.parquet> --out research/hft      (выборка и задачи)
     python -m research.hft.tlbook --events research/hft/tlbook_events.csv --chunk 0/20 --out ../out
     python -m research.hft.tlbook --report ../out
 """
@@ -62,7 +62,8 @@ def period_of(day: str) -> str:
 def sample(src: Path, out: Path, n: int = N_SAMPLE, seed: int = 7) -> None:
     """Пробои 4h с FROM: одна сделка на (монета, время, сторона) — линии «чистая» и «по значимым точкам» дают одни
     и те же входы; затем случайные N монето-дней (все входы этих дней)."""
-    df = pd.read_csv(src, parse_dates=["t"])
+    df = pd.read_parquet(src)
+    df["t"] = pd.to_datetime(df["t"], utc=True)
     df = df[(df.tf == "4h") & (df.t >= FROM)]
     df = df.sort_values("line").drop_duplicates(["symbol", "t", "side"])
     df["t_close"] = df["t"] + pd.Timedelta(hours=4)
@@ -70,7 +71,7 @@ def sample(src: Path, out: Path, n: int = N_SAMPLE, seed: int = 7) -> None:
     df["day"] = pd.to_datetime(df["probe_ms"], unit="ms", utc=True).dt.strftime("%Y-%m-%d")
     days = df[["symbol", "day"]].drop_duplicates().sample(frac=1.0, random_state=seed).head(n)
     ev = df.merge(days, on=["symbol", "day"])
-    cols = ["symbol", "day", "probe_ms", "side", "line", "R", "aggr", "per"]
+    cols = ["symbol", "day", "probe_ms", "side", "line", "R", "aggr", "with_trend", "per"]
     ev[cols].sort_values(["symbol", "day", "probe_ms"]).to_csv(out / "tlbook_events.csv", index=False)
     jobs = [{"chunk": f"{k}/{N_CHUNKS}"} for k in range(N_CHUNKS)]
     (out / "tlbook_jobs.json").write_text(json.dumps(jobs, indent=1))
@@ -197,7 +198,7 @@ if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     pd.set_option("display.width", 300)
     ap = argparse.ArgumentParser()
-    ap.add_argument("--sample", default=None, help="tline_breakouts.csv: выбрать монето-дни и записать задачи")
+    ap.add_argument("--sample", default=None, help="tline_breakouts.parquet: выбрать монето-дни и записать задачи")
     ap.add_argument("--events", default=None)
     ap.add_argument("--chunk", default="0/1")
     ap.add_argument("--report", default=None, help="папка с tlbook_*.parquet")

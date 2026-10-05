@@ -5,7 +5,7 @@
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
 TASKS=${TASKS:-"prept tline"}
-export TL_TFS=${TL_TFS:-15m} TL_CHARTS=${TL_CHARTS:-1}
+export TL_TFS=${TL_TFS:-1h,4h} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
 FILTER="Pandas4Warning\|pd.concat\|файлов$\|мес. свечей"
 
