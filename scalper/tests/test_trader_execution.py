@@ -28,7 +28,7 @@ def _sig(**kw):
 
 # ---------------- домен ----------------
 def test_market_order_sized_from_risk_and_rounded():
-    o = build_order(_sig(), Settings(risk_pct=1.0), ACC, INST, price=101.0, day_start_equity=1000.0, now=NOW)
+    o = build_order(_sig(), Settings(), ACC, INST, price=101.0, day_start_equity=1000.0, now=NOW)
     assert o.kind is EntryKind.MARKET and o.price == 101.0 and o.stop == 98.0 and o.target == 110.0
     assert o.qty == 3.33 and o.leverage == 5 and o.risk_usd == pytest.approx(9.99)
     assert o.client_id == "tt-1" and "лонг SOLUSDT" in o.describe()
@@ -73,7 +73,7 @@ def test_retest_limit_has_expiry_and_refuses_when_late():
 def test_too_small_account_refused():
     inst = replace(INST, min_qty=10.0, qty_step=1.0)
     with pytest.raises(ExecutionRefused, match="меньше минимального"):
-        build_order(_sig(), Settings(risk_pct=0.1), ACC, inst, 101.0, None, NOW)
+        build_order(_sig(), Settings().with_tf(Timeframe.H4, risk_pct=0.1), ACC, inst, 101.0, None, NOW)
 
 
 def test_rounding_helpers():

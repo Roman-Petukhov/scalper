@@ -53,26 +53,27 @@ def detect(d: pd.DataFrame, tf: Timeframe, symbol: str, settings: Settings) -> l
     buy = d["taker_buy_volume"].to_numpy(dtype="float64") / np.where(d["volume"] > 0, d["volume"], np.nan)
     sw_lo = last_confirmed(pivots(lo, PIV, False), len(c))
     sw_hi = last_confirmed(pivots(hi, PIV, True), len(c))
+    tp = settings.p(tf)
     out, seen = [], set()
     for r in recs:
         side = Side(r["side"])
         if side in seen:
             continue
         aggr = buy[last] if side is Side.LONG else 1 - buy[last]
-        if not (aggr >= settings.min_aggr) or trend[last] != int(side):
+        if not (aggr >= tp.min_aggr) or trend[last] != int(side):
             continue
         brk = int(side) * (c[last] - float(r["line_t"])) / atr[last]          # насколько закрылась за линией
         rng = hi[last] - lo[last]
         loc = ((c[last] - lo[last]) if side is Side.LONG else (hi[last] - c[last])) / rng if rng > 0 else 0.0
-        if brk < settings.min_break_atr or loc < settings.close_loc_for(tf):
+        if brk < tp.min_break_atr or loc < tp.min_close_loc:
             continue                                                           # пробой «на чуть-чуть»
         sw = sw_lo[last] if side is Side.LONG else sw_hi[last]
         if sw < 0:
             continue
         stop = lo[sw] - 0.1 * atr[last] if side is Side.LONG else hi[sw] + 0.1 * atr[last]
         range_atr = (hi[last] - lo[last]) / atr[last]
-        market = (settings.entry_policy is EntryPolicy.MARKET
-                  or (settings.entry_policy is EntryPolicy.HYBRID and range_atr < settings.hybrid_range_atr))
+        market = (tp.entry_policy is EntryPolicy.MARKET
+                  or (tp.entry_policy is EntryPolicy.HYBRID and range_atr < tp.hybrid_range_atr))
         if market:
             kind, entry = EntryKind.MARKET, c[last]
         else:
@@ -80,8 +81,8 @@ def detect(d: pd.DataFrame, tf: Timeframe, symbol: str, settings: Settings) -> l
         risk = int(side) * (entry - stop)
         if not (STOP_ATR[0] <= risk / atr[last] <= STOP_ATR[1]):
             continue
-        plan = TradePlan(kind, float(entry), float(stop), float(entry + int(side) * settings.target_r * risk),
-                         settings.retest_bars if kind is EntryKind.RETEST else 0)
+        plan = TradePlan(kind, float(entry), float(stop), float(entry + int(side) * tp.target_r * risk),
+                         tp.retest_bars if kind is EntryKind.RETEST else 0)
         a, b = r["a"], r["b"]
         out.append(Signal(symbol=symbol, timeframe=tf, side=side, bar_time=d.index[last].to_pydatetime(),
                           close=float(c[last]), line_value=float(r["line_t"]),

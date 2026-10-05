@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 
 from research.tline import htf_trend, zz_lines
-from trader.domain.models import EntryKind, EntryPolicy, Settings, Side, Timeframe, TradePlan
+from trader.domain.models import EntryKind, EntryPolicy, Settings, Side, TfParams, Timeframe, TradePlan
 from trader.domain.sizing import position_size
 from trader.domain import strategy
 from trader.domain.strategy import detect
@@ -48,7 +48,7 @@ def test_detect_matches_research_rule_on_the_last_closed_bar(seed, stop_atr, mon
     import trader.domain.strategy as st
     monkeypatch.setattr(st, "STOP_ATR", stop_atr)          # широкий диапазон — сверка всего остального правила
     d = _frame(seed=seed)
-    s = Settings(min_aggr=0.55, entry_policy=EntryPolicy.MARKET, min_close_loc=0.0)   # паритет с правилом исследования
+    s = Settings().with_tf(Timeframe.H4, min_aggr=0.55, entry_policy=EntryPolicy.MARKET, min_close_loc=0.0)   # паритет с исследованием
     expected = _expected(d, 0.55, stop_atr)
     candidates = sorted({r["t"] for r in zz_lines(d, log=strategy.LOG_LINES) if r["t"] >= 400})
     found = set()
@@ -69,7 +69,7 @@ def test_long_breakout_candle_switches_to_retest_on_the_line():
     buy = (d.taker_buy_volume / d.volume).to_numpy()
     t, sd, line = next((r["t"], r["side"], r["line_t"]) for r in zz_lines(d, log=strategy.LOG_LINES) if r["t"] >= 400 and trend[r["t"]] == r["side"]
                        and (buy[r["t"]] if r["side"] > 0 else 1 - buy[r["t"]]) >= 0.55)
-    sig = [x for x in detect(d.iloc[: t + 1], Timeframe.H4, "X", Settings(entry_policy=EntryPolicy.HYBRID, hybrid_range_atr=0.5, min_close_loc=0.0))
+    sig = [x for x in detect(d.iloc[: t + 1], Timeframe.H4, "X", Settings().with_tf(Timeframe.H4, entry_policy=EntryPolicy.HYBRID, hybrid_range_atr=0.5, min_close_loc=0.0))
            if int(x.side) == sd]
     if sig:                                               # стоп от линии может выйти за 0.3–4 ATR
         assert sig[0].plan.entry_kind is EntryKind.RETEST and sig[0].plan.entry == pytest.approx(line)
@@ -81,7 +81,7 @@ def test_settings_validation_and_toggle():
     assert Timeframe.H1 in s.toggle(Timeframe.H1).timeframes
     assert Timeframe.H4 not in s.toggle(Timeframe.H4).timeframes
     with pytest.raises(ValueError):
-        replace(s, risk_pct=10.0)
+        s.with_tf(Timeframe.H4, risk_pct=10.0)
 
 
 def test_position_size_risk_and_leverage_cap():
@@ -107,7 +107,7 @@ def test_log_lines_are_straight_in_log_price():
 
 def test_conviction_filter_drops_weak_closes():
     d = _frame(seed=7)
-    s0 = Settings(timeframes=frozenset({Timeframe.H4}), min_aggr=0.5, min_close_loc=0.0)
+    s0 = Settings().with_tf(Timeframe.H4, min_aggr=0.5, min_close_loc=0.0)
     found = []
     for t in sorted({r["t"] for r in zz_lines(d, log=strategy.LOG_LINES) if r["t"] >= 400})[:40]:
         found += detect(d.iloc[: t + 1], Timeframe.H4, "X", s0)
@@ -115,21 +115,25 @@ def test_conviction_filter_drops_weak_closes():
     brk = [x.extra["break_atr"] for x in found]
     assert all(b > 0 for b in brk) and all(0 <= x.extra["close_loc"] <= 1 for x in found)
     cut = float(np.median(brk))
-    strict = replace(s0, min_break_atr=round(cut, 2) + 0.01)
+    strict = s0.with_tf(Timeframe.H4, min_break_atr=round(cut, 2) + 0.01)
     kept = []
     for x in found:
         t = d.index.get_loc(pd.Timestamp(x.bar_time))
         kept += detect(d.iloc[: t + 1], Timeframe.H4, "X", strict)
-    assert len(kept) < len(found) and all(k.extra["break_atr"] >= strict.min_break_atr for k in kept)
+    assert len(kept) < len(found) and all(k.extra["break_atr"] >= strict.p(Timeframe.H4).min_break_atr for k in kept)
     with pytest.raises(ValueError):
-        Settings(min_break_atr=1.5)
+        TfParams(min_break_atr=1.5)
 
 
 def test_per_timeframe_risk_and_close_filter():
     s = Settings()
-    assert (s.risk_for(Timeframe.H4), s.risk_for(Timeframe.H1), s.risk_for(Timeframe.M15)) == (1.0, 0.25, 0.25)
-    assert (s.close_loc_for(Timeframe.H4), s.close_loc_for(Timeframe.H1)) == (0.5, 0.0)
+    assert tuple(s.p(t).risk_pct for t in (Timeframe.H4, Timeframe.H1, Timeframe.M15)) == (1.0, 0.25, 0.25)
+    assert (s.p(Timeframe.H4).min_close_loc, s.p(Timeframe.H1).min_close_loc) == (0.5, 0.0)
+    s2 = s.with_tf(Timeframe.M15, target_r=2.0, entry_policy=EntryPolicy.MARKET)
+    assert s2.p(Timeframe.M15).target_r == 2.0 and s2.p(Timeframe.H4).target_r == 3.0 and s.p(Timeframe.M15).target_r == 3.0
     with pytest.raises(ValueError):
-        Settings(risk_pct_15m=7.0)
+        s.with_tf(Timeframe.M15, risk_pct=7.0)
     with pytest.raises(ValueError):
-        Settings(min_close_loc_1h=0.95)
+        TfParams(min_close_loc=0.95)
+    with pytest.raises(ValueError):
+        TfParams(retest_bars=0)

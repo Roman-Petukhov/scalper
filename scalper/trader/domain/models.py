@@ -55,53 +55,72 @@ class SignalStatus(str, Enum):
 
 
 @dataclass(frozen=True)
+class TfParams:
+    """Правило входа и риск для одного таймфрейма."""
+    risk_pct: float = 1.0               # риск на сделку, % капитала
+    entry_policy: EntryPolicy = EntryPolicy.RETEST
+    min_aggr: float = 0.55              # доля агрессоров в сторону пробоя
+    target_r: float = 3.0
+    min_close_loc: float = 0.0          # закрытие у края свечи в сторону пробоя: 0 — фильтра нет, 1 — у самого края
+    min_break_atr: float = 0.0          # закрытие за линией не ближе, чем столько ATR
+    hybrid_range_atr: float = 2.5       # гибрид: свеча пробоя длиннее (в ATR) — ретест, короче — по рынку
+    retest_bars: int = 12               # сколько свечей ждём ретест
+
+    def __post_init__(self) -> None:
+        if not 0.05 <= self.risk_pct <= 5.0:
+            raise ValueError("риск на сделку — от 0.05% до 5%")
+        if not 0.5 <= self.min_aggr <= 0.8:
+            raise ValueError("порог агрессоров — от 50% до 80%")
+        if not 1.0 <= self.target_r <= 10.0:
+            raise ValueError("цель — от 1R до 10R")
+        if not 0.0 <= self.min_close_loc <= 0.9:
+            raise ValueError("место закрытия в свече — от 0% до 90%")
+        if not 0.0 <= self.min_break_atr <= 1.0:
+            raise ValueError("закрытие за линией — от 0 до 1 ATR")
+        if not 0.5 <= self.hybrid_range_atr <= 10.0:
+            raise ValueError("порог длинной свечи — от 0.5 до 10 ATR")
+        if not (isinstance(self.retest_bars, int) and 1 <= self.retest_bars <= 48):
+            raise ValueError("ожидание ретеста — от 1 до 48 свечей")
+
+
+# Лучшее по бэктесту (docs/research_report.md): 4h — основная стратегия (ретест, закрытие в верхней половине свечи);
+# 1h — тонкий плюс, фильтр свечи не помогает; 15m — плюса не нашли. Отсюда риск 1% / 0.25% / 0.25%.
+DEFAULT_TF_PARAMS: dict[Timeframe, TfParams] = {
+    Timeframe.H4: TfParams(risk_pct=1.0, min_close_loc=0.5),
+    Timeframe.H1: TfParams(risk_pct=0.25),
+    Timeframe.M15: TfParams(risk_pct=0.25),
+}
+TF_FIELDS = tuple(TfParams.__dataclass_fields__)
+
+
+@dataclass(frozen=True)
 class Settings:
     mode: Mode = Mode.MANUAL
     timeframes: frozenset[Timeframe] = frozenset({Timeframe.H4})
     auto_timeframes: frozenset[Timeframe] = frozenset({Timeframe.H4})   # по каким ТФ автобот входит сам
-    risk_pct: float = 1.0               # риск на сделку 4h, % капитала (основная стратегия)
-    risk_pct_1h: float = 0.25           # 1h: плюс по бэктесту тонкий — риск меньше
-    risk_pct_15m: float = 0.25          # 15m: без преимущества в бэктесте
+    tf_params: dict[Timeframe, TfParams] = field(default_factory=lambda: dict(DEFAULT_TF_PARAMS))
     leverage: int = 5                   # плечо на бирже и потолок номинала позиции (×капитал); риск задаёт стоп
     max_positions: int = 5
     daily_loss_pct: float = 4.0         # дневной лимит убытка, % капитала: дальше авто не открывает
-    min_aggr: float = 0.55              # доля агрессоров в сторону пробоя
-    min_break_atr: float = 0.0          # уверенный пробой: закрытие за линией не ближе, чем столько ATR
-    min_close_loc: float = 0.5          # 4h: закрытие в верхней половине свечи — больше всего R в месяц во всех периодах
-    min_close_loc_1h: float = 0.0       # 1h: фильтр не помогает в бэктесте — выключен
-    min_close_loc_15m: float = 0.0      # 15m: не помогает
-    target_r: float = 3.0
-    entry_policy: EntryPolicy = EntryPolicy.RETEST
-    hybrid_range_atr: float = 2.5       # для гибрида: свеча пробоя длиннее (в ATR) — ретест, короче — по рынку
-    retest_bars: int = 12               # сколько свечей ждём ретест
     min_turnover_usd: float = 20e6      # оборот монеты за 24 ч
 
     def __post_init__(self) -> None:
-        if not all(0.05 <= r <= 5.0 for r in (self.risk_pct, self.risk_pct_1h, self.risk_pct_15m)):
-            raise ValueError("риск на сделку — от 0.05% до 5%")
         if not (isinstance(self.leverage, int) and 1 <= self.leverage <= MAX_LEVERAGE):
             raise ValueError(f"плечо — целое от 1× до {MAX_LEVERAGE}×")
         if not 1 <= self.max_positions <= 50:
             raise ValueError("одновременных позиций — от 1 до 50")
         if not 0.5 <= self.daily_loss_pct <= 30.0:
             raise ValueError("дневной лимит убытка — от 0.5% до 30%")
-        if not 0.5 <= self.min_aggr <= 0.8:
-            raise ValueError("порог агрессоров — от 50% до 80%")
-        if not 0.0 <= self.min_break_atr <= 1.0:
-            raise ValueError("закрытие за линией — от 0 до 1 ATR")
-        if not all(0.0 <= v <= 0.9 for v in (self.min_close_loc, self.min_close_loc_1h, self.min_close_loc_15m)):
-            raise ValueError("место закрытия в свече — от 0% до 90%")
-        if not 1.0 <= self.target_r <= 10.0:
-            raise ValueError("цель — от 1R до 10R")
-        if not 0.5 <= self.hybrid_range_atr <= 10.0:
-            raise ValueError("порог длинной свечи — от 0.5 до 10 ATR")
+        missing = set(Timeframe) - set(self.tf_params)
+        if missing:
+            object.__setattr__(self, "tf_params", {**{t: DEFAULT_TF_PARAMS[t] for t in missing}, **self.tf_params})
 
-    def risk_for(self, tf: Timeframe) -> float:
-        return {Timeframe.H4: self.risk_pct, Timeframe.H1: self.risk_pct_1h, Timeframe.M15: self.risk_pct_15m}[tf]
+    def p(self, tf: Timeframe) -> TfParams:
+        """Правило входа и риск таймфрейма."""
+        return self.tf_params[tf]
 
-    def close_loc_for(self, tf: Timeframe) -> float:
-        return {Timeframe.H4: self.min_close_loc, Timeframe.H1: self.min_close_loc_1h,
-                Timeframe.M15: self.min_close_loc_15m}[tf]
+    def with_tf(self, tf: Timeframe, **fields) -> Settings:
+        return replace(self, tf_params={**self.tf_params, tf: replace(self.tf_params[tf], **fields)})
 
     def toggle_auto(self, tf: Timeframe) -> Settings:
         tfs = set(self.auto_timeframes)

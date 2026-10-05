@@ -145,7 +145,7 @@ def build_order(signal: Signal, settings: Settings, account: Account, instrument
 
     entry = round_price(entry, instrument.tick)
     stop, target = round_price(plan.stop, instrument.tick), round_price(plan.target, instrument.tick)
-    risk_pct = settings.risk_for(signal.timeframe)
+    risk_pct = settings.p(signal.timeframe).risk_pct
     sized = position_size(account.equity, risk_pct,
                           TradePlan(plan.entry_kind, entry, stop, target, plan.valid_bars), settings.leverage)
     lev = int(max(1, min(settings.leverage, instrument.max_leverage)))

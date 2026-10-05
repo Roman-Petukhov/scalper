@@ -45,13 +45,30 @@ def test_settings_persist_and_service_rules(tmp_path):
     assert svc.get() == Settings()
     svc.toggle_timeframe(Timeframe.H1)
     svc.set_mode(Mode.AUTO)
-    svc.update(risk_pct=0.5, max_positions=3)
+    svc.update({"max_positions": 3}, {Timeframe.H4: {"risk_pct": 0.5}, Timeframe.M15: {"target_r": 2.0}})
     s = SqliteStore(tmp_path / "t.db").load()
-    assert s.mode is Mode.AUTO and s.timeframes == {Timeframe.H4, Timeframe.H1} and s.risk_pct == 0.5
+    assert s.mode is Mode.AUTO and s.timeframes == {Timeframe.H4, Timeframe.H1} and s.p(Timeframe.H4).risk_pct == 0.5
+    assert s.max_positions == 3 and s.p(Timeframe.M15).target_r == 2.0 and s.p(Timeframe.H1).target_r == 3.0
     with pytest.raises(ValueError):
-        svc.update(risk_pct=9.0)
+        svc.update({}, {Timeframe.H4: {"risk_pct": 9.0}})
     with pytest.raises(ValueError):
-        svc.update(api_key=1)
+        svc.update({"api_key": 1}, {})
+    assert SqliteStore(tmp_path / "t.db").load().p(Timeframe.H4).risk_pct == 0.5      # ошибка — ничего не сохранено
+
+
+def test_old_settings_format_migrates(tmp_path):
+    st = SqliteStore(tmp_path / "t.db")
+    old = {"mode": "auto", "timeframes": ["1h", "4h"], "risk_pct": 0.8, "risk_pct_1h": 0.3, "min_close_loc": 0.6,
+           "min_aggr": 0.6, "target_r": 2.5, "entry_policy": "hybrid", "leverage": 7, "max_positions": 4}
+    st.db.execute("INSERT INTO settings(id, payload) VALUES (1, ?)", (json.dumps(old),))
+    st.db.commit()
+    s = st.load()
+    assert s.mode is Mode.AUTO and s.leverage == 7 and s.max_positions == 4
+    h4, h1, m15 = s.p(Timeframe.H4), s.p(Timeframe.H1), s.p(Timeframe.M15)
+    assert (h4.risk_pct, h4.min_close_loc, h4.min_aggr, h4.entry_policy) == (0.8, 0.6, 0.6, EntryPolicy.HYBRID)
+    assert (h1.risk_pct, h1.min_close_loc, h1.target_r) == (0.3, 0.0, 2.5) and m15.risk_pct == 0.25
+    st.save(s)
+    assert st.load() == s
 
 
 def test_decisions_only_in_manual_mode_and_once(tmp_path):
@@ -165,9 +182,10 @@ def test_chart_and_caption(tmp_path):
 def test_entry_policy_persists(tmp_path):
     from trader.domain.models import EntryPolicy
     st = SqliteStore(tmp_path / "t.db")
-    assert st.load().entry_policy is EntryPolicy.RETEST
-    SettingsService(st).set_entry_policy(EntryPolicy.HYBRID)
-    assert SqliteStore(tmp_path / "t.db").load().entry_policy is EntryPolicy.HYBRID
+    assert st.load().p(Timeframe.H4).entry_policy is EntryPolicy.RETEST
+    SettingsService(st).update({}, {Timeframe.H1: {"entry_policy": EntryPolicy.HYBRID}})
+    s = SqliteStore(tmp_path / "t.db").load()
+    assert s.p(Timeframe.H1).entry_policy is EntryPolicy.HYBRID and s.p(Timeframe.H4).entry_policy is EntryPolicy.RETEST
 
 
 def test_png_chart_log_scale(tmp_path):
@@ -197,9 +215,10 @@ def test_stale_signals_expire_and_cannot_be_taken(tmp_path):
 def test_reset_defaults_keeps_mode(tmp_path):
     st = SqliteStore(tmp_path / "t.db")
     svc = SettingsService(st)
-    st.save(replace(Settings(), mode=Mode.AUTO, risk_pct=0.5, leverage=8, timeframes=frozenset(Timeframe),
-                    entry_policy=EntryPolicy.HYBRID, min_close_loc=0.0, min_aggr=0.6))
+    st.save(replace(Settings(), mode=Mode.AUTO, leverage=8, timeframes=frozenset(Timeframe)).with_tf(
+        Timeframe.H4, risk_pct=0.5, entry_policy=EntryPolicy.HYBRID, min_close_loc=0.0, min_aggr=0.6))
     s = svc.reset_defaults()
-    assert s.timeframes == frozenset(Timeframe) and s.entry_policy is EntryPolicy.RETEST
-    assert s.min_close_loc == 0.5 and s.min_aggr == 0.55 and s.target_r == 3.0
-    assert (s.mode, s.risk_pct, s.leverage) == (Mode.AUTO, 1.0, 5)
+    h4 = s.p(Timeframe.H4)
+    assert s.timeframes == frozenset(Timeframe) and h4.entry_policy is EntryPolicy.RETEST
+    assert h4.min_close_loc == 0.5 and h4.min_aggr == 0.55 and h4.target_r == 3.0
+    assert (s.mode, h4.risk_pct, s.leverage) == (Mode.AUTO, 1.0, 5)

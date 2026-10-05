@@ -69,23 +69,32 @@ def test_chips_mode_and_csrf_header(env):
     assert Timeframe.H1 in s.timeframes and s.mode is Mode.AUTO
 
 
-def test_params_validation_message(env):
-    c, _ = env
+def _params_form(**over):
+    f = {"leverage": "5", "max_positions": "5", "daily_loss_pct": "4"}
+    for tf, risk, loc in (("4h", "1", "50"), ("1h", "0.25", "0"), ("15m", "0.25", "0")):
+        f |= {f"{tf}__risk_pct": risk, f"{tf}__entry_policy": "retest", f"{tf}__min_aggr_pct": "55",
+              f"{tf}__target_r": "3", f"{tf}__min_close_loc_pct": loc, f"{tf}__min_break_atr": "0",
+              f"{tf}__hybrid_range_atr": "2.5", f"{tf}__retest_bars": "12"}
+    return f | over
+
+
+def test_params_per_timeframe(env):
+    c, tmp = env
     _login(c)
-    form = {"risk_pct": "9", "max_positions": "5", "daily_loss_pct": "4", "min_aggr_pct": "55", "target_r": "3",
-            "hybrid_range_atr": "2.5"}
-    assert "от 0.05% до 5%" in c.post("/settings/params", data=form, headers=HX).text
-    form["risk_pct"] = "0.5"
-    assert "Сохранено" in c.post("/settings/params", data=form, headers=HX).text
-    form["leverage"] = "15"
-    assert "плечо — целое от 1× до 10×" in c.post("/settings/params", data=form, headers=HX).text
-    form["leverage"] = "8"
+    r = c.get("/").text
+    assert 'name="1h__entry_policy"' in r and 'name="15m__target_r"' in r and 'name="4h__min_close_loc_pct"' in r
+    assert "от 0.05% до 5%" in c.post("/settings/params", data=_params_form(**{"1h__risk_pct": "9"}), headers=HX).text
+    assert "плечо — целое от 1× до 10×" in c.post("/settings/params", data=_params_form(leverage="15"), headers=HX).text
+    form = _params_form(leverage="8", **{"15m__target_r": "2", "15m__entry_policy": "market", "1h__min_close_loc_pct": "70"})
     r = c.post("/settings/params", data=form, headers=HX).text
-    assert "Сохранено" in r and 'name="leverage" type="number" step="1" min="1" max="10" value="8"' in r
-    form |= {"risk_pct_1h": "0.5", "min_close_loc_1h_pct": "70"}
-    r = c.post("/settings/params", data=form, headers=HX).text
-    assert 'name="risk_pct_1h" type="number" step="0.05" min="0.05" max="5" value="0.5"' in r
-    assert 'name="min_close_loc_1h_pct" type="number" step="5" min="0" max="90" value="70"' in r
+    assert "Сохранено" in r and 'name="15m__target_r" type="number" step="0.5" min="1" max="10"' in r
+    from trader.infrastructure.sqlite_repo import SqliteStore
+    s = SqliteStore(tmp / "trader.db").load()
+    assert s.leverage == 8 and s.p(Timeframe.M15).target_r == 2.0 and s.p(Timeframe.H4).target_r == 3.0
+    assert s.p(Timeframe.M15).entry_policy.value == "market" and s.p(Timeframe.H1).min_close_loc == 0.7
+    bad = _params_form()
+    del bad["4h__target_r"]
+    assert "не заполнено поле" in c.post("/settings/params", data=bad, headers=HX).text
 
 
 def test_signal_take_skip_and_feed(env):
@@ -306,12 +315,12 @@ def test_delete_archived_signals(env):
 def test_reset_to_best_button(env):
     c, tmp = env
     _login(c)
-    c.post("/settings/entry/hybrid", headers=HX)
+    c.post("/settings/params", data=_params_form(**{"4h__entry_policy": "hybrid"}), headers=HX)
     r = c.post("/settings/reset", headers=HX)
     assert r.status_code == 200 and "Стандартные настройки восстановлены" in r.text and r.headers["HX-Trigger"] == "feed-refresh"
     from trader.domain.models import EntryPolicy
     from trader.infrastructure.sqlite_repo import SqliteStore
-    assert SqliteStore(tmp / "trader.db").load().entry_policy is EntryPolicy.RETEST
+    assert SqliteStore(tmp / "trader.db").load().p(Timeframe.H4).entry_policy is EntryPolicy.RETEST
 
 
 def test_auto_timeframe_chips(env):

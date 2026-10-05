@@ -9,8 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from ..domain.execution import Trade, TradeStatus
-from ..domain.models import (EntryKind, EntryPolicy, Mode, Settings, Side, Signal, SignalStatus, Timeframe,
-                             TradePlan)
+from ..domain.models import (DEFAULT_TF_PARAMS, TF_FIELDS, EntryKind, EntryPolicy, Mode, Settings, Side, Signal,
+                             SignalStatus, TfParams, Timeframe, TradePlan)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS signals (
@@ -149,20 +149,38 @@ class SqliteStore:
         if row is None:
             return Settings()
         p = json.loads(row["payload"])
-        p["mode"] = Mode(p["mode"])
-        p["entry_policy"] = EntryPolicy(p.get("entry_policy", EntryPolicy.RETEST.value))
-        p["timeframes"] = frozenset(Timeframe(x) for x in p["timeframes"])
+        known = set(Settings.__dataclass_fields__) - {"tf_params"}
+        out = {k: v for k, v in p.items() if k in known}
+        out["mode"] = Mode(p["mode"])
+        out["timeframes"] = frozenset(Timeframe(x) for x in p["timeframes"])
         if "auto_timeframes" in p:
-            p["auto_timeframes"] = frozenset(Timeframe(x) for x in p["auto_timeframes"])
-        known = set(Settings.__dataclass_fields__)
-        return Settings(**{k: v for k, v in p.items() if k in known})
+            out["auto_timeframes"] = frozenset(Timeframe(x) for x in p["auto_timeframes"])
+        out["tf_params"] = {t: self._tf(p, t) for t in Timeframe}
+        return Settings(**out)
+
+    @staticmethod
+    def _tf(p: dict, tf: Timeframe) -> TfParams:
+        """Параметры ТФ из базы; старый формат (одно правило на все ТФ, риск и фильтр свечи по ТФ) переносится."""
+        if "tf_params" in p and tf.value in p["tf_params"]:
+            d = dict(p["tf_params"][tf.value])
+        else:
+            sfx = {Timeframe.H4: "", Timeframe.H1: "_1h", Timeframe.M15: "_15m"}[tf]
+            d = {k: p[k] for k in ("min_aggr", "target_r", "min_break_atr", "hybrid_range_atr", "retest_bars",
+                                   "entry_policy") if k in p}
+            for k in ("risk_pct", "min_close_loc"):
+                if k + sfx in p:
+                    d[k] = p[k + sfx]
+            d = {**{k: getattr(DEFAULT_TF_PARAMS[tf], k) for k in TF_FIELDS}, **d}
+        d["entry_policy"] = EntryPolicy(d.get("entry_policy", EntryPolicy.RETEST.value))
+        return TfParams(**{k: v for k, v in d.items() if k in TF_FIELDS})
 
     def save(self, settings: Settings) -> None:
-        p = asdict(settings)
+        p = {k: getattr(settings, k) for k in Settings.__dataclass_fields__ if k != "tf_params"}
         p["mode"] = settings.mode.value
-        p["entry_policy"] = settings.entry_policy.value
         p["timeframes"] = sorted(t.value for t in settings.timeframes)
         p["auto_timeframes"] = sorted(t.value for t in settings.auto_timeframes)
+        p["tf_params"] = {t.value: {**asdict(v), "entry_policy": v.entry_policy.value}
+                          for t, v in settings.tf_params.items()}
         with self.lock:
             self.db.execute("INSERT INTO settings(id, payload) VALUES (1, ?) "
                             "ON CONFLICT(id) DO UPDATE SET payload = excluded.payload", (json.dumps(p),))

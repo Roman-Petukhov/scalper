@@ -245,12 +245,6 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         settings_svc.set_mode(mode)
         return templates.TemplateResponse(request, "_controls.html", page_context(request))
 
-    @app.post("/settings/entry/{policy}", response_class=HTMLResponse)
-    async def set_entry(request: Request, policy: EntryPolicy):
-        guard(request, mutate=True)
-        settings_svc.set_entry_policy(policy)
-        return templates.TemplateResponse(request, "_controls.html", page_context(request))
-
     @app.post("/settings/reset", response_class=HTMLResponse)
     async def reset_settings(request: Request):
         guard(request, mutate=True)
@@ -259,25 +253,28 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
                                           headers={"HX-Trigger": "feed-refresh"})
 
     @app.post("/settings/params", response_class=HTMLResponse)
-    async def set_params(request: Request, risk_pct: float = Form(...), leverage: int = Form(5),
-                         max_positions: int = Form(...),
-                         daily_loss_pct: float = Form(...), min_aggr_pct: float = Form(...),
-                         target_r: float = Form(...), hybrid_range_atr: float = Form(...),
-                         min_break_atr: float = Form(0.0), min_close_loc_pct: float = Form(0.0),
-                         risk_pct_1h: float = Form(0.25), risk_pct_15m: float = Form(0.25),
-                         min_close_loc_1h_pct: float = Form(0.0), min_close_loc_15m_pct: float = Form(0.0)):
+    async def set_params(request: Request):
+        """Форма «Риск и правило»: общие поля и по колонке на каждый ТФ (имена полей вида 4h__risk_pct)."""
         guard(request, mutate=True)
-        ctx_error = None
+        form = await request.form()
+        err = None
         try:
-            settings_svc.update(risk_pct=risk_pct, leverage=leverage, max_positions=max_positions, daily_loss_pct=daily_loss_pct,
-                                min_aggr=min_aggr_pct / 100, target_r=target_r, hybrid_range_atr=hybrid_range_atr,
-                                min_break_atr=min_break_atr, min_close_loc=min_close_loc_pct / 100,
-                                risk_pct_1h=risk_pct_1h, risk_pct_15m=risk_pct_15m,
-                                min_close_loc_1h=min_close_loc_1h_pct / 100,
-                                min_close_loc_15m=min_close_loc_15m_pct / 100)
+            g = {"leverage": int(form["leverage"]), "max_positions": int(form["max_positions"]),
+                 "daily_loss_pct": float(form["daily_loss_pct"])}
+            per_tf = {}
+            for tf in Timeframe:
+                f = lambda k: form[f"{tf.value}__{k}"]                     # noqa: E731
+                per_tf[tf] = {"risk_pct": float(f("risk_pct")), "entry_policy": EntryPolicy(f("entry_policy")),
+                              "min_aggr": float(f("min_aggr_pct")) / 100, "target_r": float(f("target_r")),
+                              "min_close_loc": float(f("min_close_loc_pct")) / 100,
+                              "min_break_atr": float(f("min_break_atr")),
+                              "hybrid_range_atr": float(f("hybrid_range_atr")), "retest_bars": int(f("retest_bars"))}
+            settings_svc.update(g, per_tf)
+        except KeyError as e:
+            err = f"не заполнено поле {e.args[0]}"
         except ValueError as e:
-            ctx_error = str(e)
-        ctx = page_context(request) | {"params_error": ctx_error, "params_saved": ctx_error is None}
+            err = str(e) if "—" in str(e) else "проверьте числа: где-то не число"
+        ctx = page_context(request) | {"params_error": err, "params_saved": err is None}
         return templates.TemplateResponse(request, "_controls.html", ctx)
 
     def drop_charts(paths: list[str]) -> None:

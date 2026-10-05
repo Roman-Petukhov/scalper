@@ -6,7 +6,7 @@ import logging
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 
-from ..domain.models import EntryPolicy, Mode, Settings, Signal, SignalStatus, Timeframe
+from ..domain.models import Mode, Settings, Signal, SignalStatus, Timeframe
 from ..domain.strategy import detect
 from ..domain.execution import ExecutionRefused
 from .execution import Executor
@@ -176,11 +176,6 @@ class SettingsService:
         self.repo.save(s)
         return s
 
-    def set_entry_policy(self, policy: EntryPolicy) -> Settings:
-        s = replace(self.repo.load(), entry_policy=policy)
-        self.repo.save(s)
-        return s
-
     def reset_defaults(self) -> Settings:
         """Все настройки — к стандартным (лучшие по бэктесту, риск 1%, плечо 5×). Режим ручной / авто и
         включённые таймфреймы не меняем: это выбор трейдера, а не параметры правила."""
@@ -189,13 +184,16 @@ class SettingsService:
         self.repo.save(s)
         return s
 
-    def update(self, **fields: float | int) -> Settings:
-        """Числовые параметры риска и правила; Settings проверяет допустимые диапазоны."""
-        allowed = {"risk_pct", "leverage", "min_break_atr", "min_close_loc",
-                   "risk_pct_1h", "risk_pct_15m", "min_close_loc_1h", "min_close_loc_15m", "max_positions", "daily_loss_pct", "min_aggr", "target_r", "hybrid_range_atr"}
-        bad = set(fields) - allowed
+    GLOBAL_FIELDS = {"leverage", "max_positions", "daily_loss_pct"}
+
+    def update(self, global_fields: dict, per_tf: dict[Timeframe, dict]) -> Settings:
+        """Сохранить общие поля (плечо, позиции, дневной стоп) и правило каждого ТФ одним действием; диапазоны
+        проверяют Settings и TfParams — при ошибке ничего не сохраняется."""
+        bad = set(global_fields) - self.GLOBAL_FIELDS
         if bad:
             raise ValueError(f"неизвестные поля: {sorted(bad)}")
-        s = replace(self.repo.load(), **fields)
+        s = replace(self.repo.load(), **global_fields)
+        for tf, fields in per_tf.items():
+            s = s.with_tf(tf, **fields)
         self.repo.save(s)
         return s
