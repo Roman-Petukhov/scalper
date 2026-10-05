@@ -1,8 +1,7 @@
-osler2000 https://www.newyorkfed.org/medialibrary/media/research/epr/00v06n2/0007osle.pdf
-chung2021 https://arxiv.org/pdf/2101.07410
-bulkowski_up https://thepatternsite.com/uptrendlines.html
-bulkowski_down https://thepatternsite.com/trenddown.html
-bulkowski_throw https://thepatternsite.com/ThrowPull.html
-bulkowski_qtl https://www.thepatternsite.com/QTL.html
-mdpi2022 https://www.mdpi.com/2227-7390/10/20/3888/pdf
-osler2003 https://www.newyorkfed.org/medialibrary/media/research/staff_reports/sr150.pdf
+zarattini2025 https://papers.ssrn.com/sol3/Delivery.cfm/5209907.pdf?abstractid=5209907&mirid=1
+meanrev_taker2026 https://arxiv.org/pdf/2608.21888
+quarterhour2026 https://arxiv.org/pdf/2607.09426
+marshall_cxo https://www.cxoadvisory.com/technical-trading/does-technical-trading-work-with-commodity-futures/
+commodity_city https://openaccess.city.ac.uk/id/eprint/17846/1/COMMODITY%20pAPER.pdf
+fx_btc_trend https://assets.super.so/e46b77e7-ee08-445e-b43f-4ffd88ae0a0e/files/9c27aa78-9b14-4419-a53d-bc56fa9d43b2.pdf
+aqr_century https://www.aqr.com/-/media/AQR/Documents/Journal-Articles/A-Century-of-Evidence-on-Trend-Following-Investing.pdf
