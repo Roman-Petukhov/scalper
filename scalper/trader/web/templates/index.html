@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block body %}
+<header class="top">
+  <div class="brand">Трендовые пробои<small>линии по закрытиям · Binance → Bybit</small></div>
+  <div class="spacer"></div>
+  <form method="post" action="/logout"><button class="btn ghost" type="submit">Выйти</button></form>
+</header>
+<main>
+  <aside id="controls">{% include "_controls.html" %}</aside>
+  <section>
+    <div class="feed-head">
+      <h1>Сигналы</h1>
+      <div class="row">
+        <span id="scan-status" aria-live="polite"></span>
+        {% for tf in Timeframe %}
+        <button class="btn" hx-post="/scan/{{ tf.value }}" hx-target="#scan-status" hx-swap="innerHTML"
+                hx-disabled-elt="this" aria-label="Проверить рынок на {{ tf.value }} сейчас">Скан {{ tf.value }}</button>
+        {% endfor %}
+      </div>
+    </div>
+    <div id="feed" hx-get="/feed" hx-trigger="every 60s, feed-refresh from:body" hx-swap="innerHTML">
+      {% include "_feed.html" %}
+    </div>
+  </section>
+</main>
+{% endblock %}

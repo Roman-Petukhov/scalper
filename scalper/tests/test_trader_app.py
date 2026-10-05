@@ -1,0 +1,167 @@
+import asyncio
+import json
+from dataclasses import replace
+from datetime import datetime, timezone
+
+import httpx
+import pandas as pd
+import pytest
+
+from trader.application.services import Scanner, SettingsService, SignalDecisions
+from trader.domain.models import EntryKind, Mode, Settings, Side, Signal, SignalStatus, Timeframe, TradePlan
+from trader.infrastructure.binance_data import BinanceMarketData
+from trader.infrastructure.charts import MatplotlibCharts
+from trader.infrastructure.sqlite_repo import SqliteStore
+from trader.infrastructure.telegram import caption
+
+T0 = datetime(2026, 10, 1, 8, tzinfo=timezone.utc)
+
+
+def _signal(symbol: str = "SOLUSDT", tf: Timeframe = Timeframe.H4, side: Side = Side.LONG) -> Signal:
+    return Signal(symbol=symbol, timeframe=tf, side=side, bar_time=T0, close=101.0, line_value=100.0,
+                  line_points=((datetime(2026, 9, 20, tzinfo=timezone.utc), 110.0), (datetime(2026, 9, 26, tzinfo=timezone.utc), 105.0)),
+                  aggr=0.61, range_atr=1.2, plan=TradePlan(EntryKind.MARKET, 101.0, 98.0, 110.0, 0))
+
+
+def test_store_roundtrip_dedup_and_status(tmp_path):
+    st = SqliteStore(tmp_path / "t.db")
+    s = st.add(_signal())
+    assert s is not None and s.id and s.status is SignalStatus.NEW
+    assert st.add(_signal()) is None                                    # та же свеча и сторона — дубль
+    assert st.add(_signal(side=Side.SHORT)) is not None
+    got = st.get(s.id)
+    assert got.plan == s.plan and got.line_points == s.line_points and got.bar_time == T0
+    st.set_status(s.id, SignalStatus.SKIPPED, "пропущен")
+    assert st.get(s.id).status is SignalStatus.SKIPPED
+    assert len(st.recent(timeframes={Timeframe.H1})) == 0 and len(st.recent()) == 2
+
+
+def test_settings_persist_and_service_rules(tmp_path):
+    st = SqliteStore(tmp_path / "t.db")
+    svc = SettingsService(st)
+    assert svc.get() == Settings()
+    svc.toggle_timeframe(Timeframe.H1)
+    svc.set_mode(Mode.AUTO)
+    svc.update(risk_pct=0.5, max_positions=3)
+    s = SqliteStore(tmp_path / "t.db").load()
+    assert s.mode is Mode.AUTO and s.timeframes == {Timeframe.H4, Timeframe.H1} and s.risk_pct == 0.5
+    with pytest.raises(ValueError):
+        svc.update(risk_pct=9.0)
+    with pytest.raises(ValueError):
+        svc.update(api_key=1)
+
+
+def test_decisions_only_in_manual_mode_and_once(tmp_path):
+    st = SqliteStore(tmp_path / "t.db")
+    dec = SignalDecisions(st, st)
+    s = st.add(_signal())
+    assert dec.take(s.id).status is SignalStatus.TAKEN
+    with pytest.raises(ValueError):
+        dec.skip(s.id)
+    s2 = st.add(_signal(side=Side.SHORT))
+    st.save(replace(Settings(), mode=Mode.AUTO))
+    with pytest.raises(ValueError):
+        dec.take(s2.id)
+
+
+class _Market:
+    def __init__(self, frames):
+        self.frames = frames
+
+    async def universe(self, min_turnover_usd):
+        return list(self.frames)
+
+    async def closed_bars(self, symbol, tf):
+        if symbol == "BAD":
+            raise RuntimeError("сеть")
+        return self.frames[symbol]
+
+
+class _Notifier:
+    def __init__(self):
+        self.sent = []
+
+    async def signal(self, signal, chart_path, panel_url):
+        self.sent.append(signal.symbol)
+
+    async def text(self, message):
+        pass
+
+
+def test_scanner_respects_timeframe_chips_and_survives_errors(tmp_path, monkeypatch):
+    import trader.application.services as svc_mod
+    st = SqliteStore(tmp_path / "t.db")
+    idx = pd.date_range("2026-01-01", periods=10, freq="4h", tz="UTC")
+    bars = pd.DataFrame({"open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0, "volume": 1.0, "taker_buy_volume": 0.5},
+                        index=idx)
+    monkeypatch.setattr(svc_mod, "detect", lambda d, tf, sym, s: [replace(_signal(sym, tf), bar_time=d.index[-1].to_pydatetime())])
+    note = _Notifier()
+
+    class _Charts:
+        def render(self, signal, b):
+            return str(tmp_path / f"{signal.id}.png")
+
+    sc = Scanner(_Market({"AAA": bars, "BAD": bars}), st, st, _Charts(), note, "https://panel")
+    rep = asyncio.run(sc.scan(Timeframe.H1))                  # 1h выключен — сканирования нет
+    assert rep.symbols == 0 and not rep.signals
+    rep = asyncio.run(sc.scan(Timeframe.H4))
+    assert rep.errors == 1 and [s.symbol for s in rep.signals] == ["AAA"] and note.sent == ["AAA"]
+    assert rep.signals[0].chart_path.endswith(".png")
+    rep = asyncio.run(sc.scan(Timeframe.H4))                  # тот же бар — без повторного сигнала
+    assert not rep.signals
+
+
+def test_binance_closed_bars_drop_open_candle_and_merge_tail():
+    now_ms = int(pd.Timestamp.now(tz="UTC").timestamp() * 1000)
+    hour = 3_600_000
+    calls = []
+
+    def kl(start, n):
+        return [[start + i * hour, "1", "2", "0.5", "1.5", "10", start + (i + 1) * hour - 1, "15", 3, "6", "9", "0"]
+                for i in range(n)]
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        calls.append(int(req.url.params["limit"]))
+        base = now_ms - (now_ms % hour) - 3 * hour
+        return httpx.Response(200, json=kl(base, 4))           # последняя свеча ещё не закрыта
+
+    md = BinanceMarketData(httpx.AsyncClient(base_url="https://x", transport=httpx.MockTransport(handler)))
+    d = asyncio.run(md.closed_bars("SOLUSDT", Timeframe.H1))
+    assert len(d) == 3 and d["taker_buy_volume"].iloc[0] == 6.0 and "close_time" not in d
+    d2 = asyncio.run(md.closed_bars("SOLUSDT", Timeframe.H1))
+    assert calls == [1500, 6] and len(d2) == 3
+
+
+def test_binance_universe_filters_turnover_and_contracts():
+    def handler(req: httpx.Request) -> httpx.Response:
+        if req.url.path.endswith("exchangeInfo"):
+            return httpx.Response(200, json={"symbols": [
+                {"symbol": "AUSDT", "status": "TRADING", "contractType": "PERPETUAL", "quoteAsset": "USDT"},
+                {"symbol": "BUSDT", "status": "TRADING", "contractType": "PERPETUAL", "quoteAsset": "USDT"},
+                {"symbol": "CUSDT", "status": "SETTLING", "contractType": "PERPETUAL", "quoteAsset": "USDT"}]})
+        return httpx.Response(200, json=[{"symbol": "AUSDT", "quoteVolume": "5e7"}, {"symbol": "BUSDT", "quoteVolume": "1e6"},
+                                         {"symbol": "CUSDT", "quoteVolume": "9e9"}])
+
+    md = BinanceMarketData(httpx.AsyncClient(base_url="https://x", transport=httpx.MockTransport(handler)))
+    assert asyncio.run(md.universe(20e6)) == ["AUSDT"]
+
+
+def test_chart_and_caption(tmp_path):
+    idx = pd.date_range("2026-09-15", periods=200, freq="4h", tz="UTC")
+    import numpy as np
+    c = 100 + np.cumsum(np.random.default_rng(1).normal(0, 1, 200))
+    bars = pd.DataFrame({"open": c, "high": c + 1, "low": c - 1, "close": c, "volume": 1.0, "taker_buy_volume": 0.5},
+                        index=idx)
+    sig = replace(_signal(), id=7, line_points=((idx[20].to_pydatetime(), c[20]), (idx[80].to_pydatetime(), c[80])))
+    path = MatplotlibCharts(tmp_path).render(sig, bars)
+    assert path.endswith(".png") and (tmp_path / path.split("/")[-1]).stat().st_size > 10_000
+    text = caption(sig, "https://panel.example")
+    assert "SOLUSDT" in text and "#signal-7" in text and "лонг" in text
+
+
+def test_entry_policy_persists(tmp_path):
+    from trader.domain.models import EntryPolicy
+    st = SqliteStore(tmp_path / "t.db")
+    assert st.load().entry_policy is EntryPolicy.RETEST
+    SettingsService(st).set_entry_policy(EntryPolicy.HYBRID)
+    assert SqliteStore(tmp_path / "t.db").load().entry_policy is EntryPolicy.HYBRID

@@ -1,0 +1,82 @@
+<div class="card">
+  <h2>Режим</h2>
+  <div class="segmented mode" role="group" aria-label="Режим торговли">
+    <button type="button" aria-pressed="{{ 'true' if s.mode == Mode.MANUAL else 'false' }}"
+            hx-post="/settings/mode/manual" hx-target="#controls">Ручная</button>
+    <button type="button" class="auto" aria-pressed="{{ 'true' if s.mode == Mode.AUTO else 'false' }}"
+            hx-post="/settings/mode/auto" hx-target="#controls">Авто</button>
+  </div>
+  <p class="hint">
+    {% if s.mode == Mode.MANUAL %}Сигнал приходит в ленту — входите сами или пропускаете.
+    {% else %}Бот входит сам по каждому сигналу включённых таймфреймов. Исполнение на Bybit подключается на этапе 2: сейчас сигналы только записываются.{% endif %}
+  </p>
+</div>
+
+<div class="card">
+  <h2>Какие сигналы присылать</h2>
+  <div class="chips">
+    {% for tf in Timeframe %}
+    <button type="button" class="chip" aria-pressed="{{ 'true' if tf in s.timeframes else 'false' }}"
+            hx-post="/settings/tf/{{ tf.value }}" hx-target="#controls">
+      <span class="dot" aria-hidden="true"></span>{{ tf.value }}
+      {% if not tf.has_edge %}<span class="tag" title="В бэктесте 2022–2026 без преимущества">без преимущества</span>{% endif %}
+    </button>
+    {% endfor %}
+  </div>
+  <p class="hint">4h — основная стратегия, 1h — более частая и слабее, 15m — для наблюдения.</p>
+</div>
+
+<div class="card">
+  <h2>Вход</h2>
+  <div class="segmented" role="group" aria-label="Тип входа">
+    {% for p, label in [(EntryPolicy.RETEST, 'Ретест'), (EntryPolicy.MARKET, 'По рынку'), (EntryPolicy.HYBRID, 'Гибрид')] %}
+    <button type="button" aria-pressed="{{ 'true' if s.entry_policy == p else 'false' }}"
+            hx-post="/settings/entry/{{ p.value }}" hx-target="#controls">{{ label }}</button>
+    {% endfor %}
+  </div>
+  <p class="hint">
+    {% if s.entry_policy == EntryPolicy.RETEST %}Лимитка на линии, ждёт {{ s.retest_bars }} свечей. В бэктесте лучше всего на свежих данных.
+    {% elif s.entry_policy == EntryPolicy.MARKET %}Вход по закрытию свечи пробоя. Не пропускает сильные движения без отката.
+    {% else %}Свеча пробоя длиннее {{ s.hybrid_range_atr }} ATR — ретест, короче — по рынку.{% endif %}
+  </p>
+</div>
+
+<div class="card">
+  <h2>Риск и правило</h2>
+  <form hx-post="/settings/params" hx-target="#controls">
+    <div class="grid2">
+      <div class="field"><label for="risk_pct">Риск на сделку, %</label>
+        <input class="num" id="risk_pct" name="risk_pct" type="number" step="0.05" min="0.05" max="5" value="{{ s.risk_pct }}"></div>
+      <div class="field"><label for="max_positions">Позиций одновременно</label>
+        <input class="num" id="max_positions" name="max_positions" type="number" step="1" min="1" max="50" value="{{ s.max_positions }}"></div>
+      <div class="field"><label for="daily_loss_pct">Дневной стоп, %</label>
+        <input class="num" id="daily_loss_pct" name="daily_loss_pct" type="number" step="0.5" min="0.5" max="30" value="{{ s.daily_loss_pct }}"></div>
+      <div class="field"><label for="target_r">Цель, R</label>
+        <input class="num" id="target_r" name="target_r" type="number" step="0.5" min="1" max="10" value="{{ s.target_r }}"></div>
+      <div class="field"><label for="min_aggr_pct">Агрессоры не ниже, %</label>
+        <input class="num" id="min_aggr_pct" name="min_aggr_pct" type="number" step="1" min="50" max="80" value="{{ (s.min_aggr * 100) | round | int }}"></div>
+      <div class="field"><label for="hybrid_range_atr">Гибрид: длинная свеча, ATR</label>
+        <input class="num" id="hybrid_range_atr" name="hybrid_range_atr" type="number" step="0.1" min="0.5" max="10" value="{{ s.hybrid_range_atr }}"></div>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn primary" type="submit">Сохранить</button>
+      {% if params_error %}<span class="err" role="alert">{{ params_error }}</span>
+      {% elif params_saved %}<span class="ok" role="status">Сохранено</span>{% endif %}
+    </div>
+  </form>
+  <p class="hint">Проверено в бэктесте: агрессоры 55%, цель 3R. Изменения действуют со следующей свечи.</p>
+</div>
+
+<div class="card">
+  <h2>Последние проверки</h2>
+  {% for tf in Timeframe %}
+    {% set r = last.get(tf) %}
+    <div class="row" style="justify-content:space-between">
+      <span>{{ tf.value }}</span>
+      <span class="num hint" style="margin:0">
+        {% if r %}{{ r.finished.strftime('%d.%m %H:%M') }} UTC · {{ r.symbols }} монет · {{ r.signals | length }} сигн.{% else %}ещё не было{% endif %}
+      </span>
+    </div>
+  {% endfor %}
+  {% if not notify %}<p class="hint">Telegram не подключён: задайте TELEGRAM_TOKEN и TELEGRAM_CHAT_ID в .env.</p>{% endif %}
+</div>

@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Вход · Трендовые пробои{% endblock %}
+{% block body %}
+<div class="login">
+  <form class="card" method="post" action="/login">
+    <h1>Трендовые пробои</h1>
+    <p class="hint">Панель сигналов и торговли. Введите пароль из файла .env на сервере.</p>
+    <div class="field" style="margin-top:16px">
+      <label for="password">Пароль</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
+    </div>
+    {% if error %}<p class="err" role="alert">{{ error }}</p>{% endif %}
+    <div class="row" style="margin-top:16px"><button class="btn primary" type="submit">Войти</button></div>
+  </form>
+</div>
+{% endblock %}

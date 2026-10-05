@@ -1,0 +1,47 @@
+"""Контракты внешних зависимостей. Сценарии зависят только от них, реализации — в infrastructure."""
+from __future__ import annotations
+
+from typing import Protocol
+
+import pandas as pd
+
+from ..domain.models import Settings, Signal, SignalStatus, Timeframe
+
+
+class MarketData(Protocol):
+    async def universe(self, min_turnover_usd: float) -> list[str]:
+        """Монеты (перпетуалы USDT) с оборотом за 24 ч не ниже порога."""
+
+    async def closed_bars(self, symbol: str, tf: Timeframe) -> pd.DataFrame:
+        """Только закрытые свечи; индекс — открытие свечи UTC; колонки open, high, low, close, volume,
+        taker_buy_volume."""
+
+
+class SignalRepository(Protocol):
+    def add(self, signal: Signal) -> Signal | None:
+        """Сохранить; None — такой сигнал (монета, ТФ, свеча, сторона) уже есть."""
+
+    def get(self, signal_id: int) -> Signal | None: ...
+
+    def recent(self, limit: int = 100, timeframes: set[Timeframe] | None = None) -> list[Signal]: ...
+
+    def set_status(self, signal_id: int, status: SignalStatus, note: str = "") -> Signal | None: ...
+
+    def set_chart(self, signal_id: int, path: str) -> None: ...
+
+
+class SettingsRepository(Protocol):
+    def load(self) -> Settings: ...
+
+    def save(self, settings: Settings) -> None: ...
+
+
+class ChartRenderer(Protocol):
+    def render(self, signal: Signal, bars: pd.DataFrame) -> str:
+        """Нарисовать график сигнала; вернуть путь к PNG."""
+
+
+class Notifier(Protocol):
+    async def signal(self, signal: Signal, chart_path: str | None, panel_url: str) -> None: ...
+
+    async def text(self, message: str) -> None: ...

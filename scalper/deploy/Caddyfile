@@ -1,0 +1,12 @@
+# HTTPS-сертификат Let's Encrypt выпускается автоматически для домена из переменной DOMAIN.
+# Без домена (DOMAIN=localhost) — самоподписанный сертификат: браузер предупредит, панель работает.
+{$DOMAIN} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy no-referrer
+	}
+	reverse_proxy trader:8000
+}

@@ -1,0 +1,11 @@
+{% set shown = signals | selectattr("timeframe", "in", s.timeframes) | list %}
+{% if shown %}
+<div class="feed">
+  {% for sig in shown %}{% include "_signal.html" %}{% endfor %}
+</div>
+{% else %}
+<div class="card empty">
+  {% if not s.timeframes %}Все таймфреймы выключены — включите хотя бы один слева.
+  {% else %}Сигналов пока нет. Сканер проверяет рынок сразу после закрытия каждой свечи включённых таймфреймов.{% endif %}
+</div>
+{% endif %}

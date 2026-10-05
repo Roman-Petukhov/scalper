@@ -1,0 +1,33 @@
+{% set long = sig.side.value > 0 %}
+<article class="card signal" id="signal-{{ sig.id }}">
+  <div>
+    {% if sig.chart_path %}
+    <img src="/charts/{{ sig.chart_path.split('/')[-1] }}" alt="График {{ sig.symbol }} {{ sig.timeframe.value }}" loading="lazy">
+    {% else %}<div class="empty">График не построился</div>{% endif %}
+  </div>
+  <div class="meta">
+    <div class="title">
+      {{ sig.symbol }}
+      <span class="badge">{{ sig.timeframe.value }}</span>
+      <span class="badge {{ 'long' if long else 'short' }}">{{ sig.side.label }}</span>
+      <span class="badge status-{{ sig.status.value }}">{{ STATUS_LABEL[sig.status] }}</span>
+    </div>
+    <span class="hint" style="margin:0">Свеча пробоя {{ sig.bar_time.strftime('%d.%m %H:%M') }} UTC</span>
+    <dl class="plan num">
+      <dt>Вход</dt><dd>{{ '%.6g' | format(sig.plan.entry) }} · {{ 'ретест' if sig.plan.entry_kind.value == 'retest' else 'рынок' }}</dd>
+      <dt>Стоп</dt><dd>{{ '%.6g' | format(sig.plan.stop) }} · {{ '%.2f' | format(sig.plan.risk_pct_of_price) }}%</dd>
+      <dt>Цель</dt><dd>{{ '%.6g' | format(sig.plan.target) }}</dd>
+      <dt>Агрессоры</dt><dd>{{ '%.0f' | format(sig.aggr * 100) }}%</dd>
+      <dt>Свеча</dt><dd>{{ '%.1f' | format(sig.range_atr) }} ATR</dd>
+      {% if sig.plan.valid_bars %}<dt>Лимитка живёт</dt><dd>{{ sig.plan.valid_bars }} свечей</dd>{% endif %}
+    </dl>
+    {% if sig.status == SignalStatus.NEW and s.mode == Mode.MANUAL %}
+    <div class="row">
+      <button class="btn {{ 'long' if long else 'short' }}" hx-post="/signals/{{ sig.id }}/take"
+              hx-target="#signal-{{ sig.id }}" hx-swap="outerHTML">Вхожу</button>
+      <button class="btn" hx-post="/signals/{{ sig.id }}/skip" hx-target="#signal-{{ sig.id }}" hx-swap="outerHTML">Пропустить</button>
+    </div>
+    {% elif sig.note %}<span class="hint" style="margin:0">{{ sig.note }}</span>{% endif %}
+    {% if error %}<span class="err" role="alert">{{ error }}</span>{% endif %}
+  </div>
+</article>
