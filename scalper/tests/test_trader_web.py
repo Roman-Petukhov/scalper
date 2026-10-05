@@ -108,7 +108,8 @@ def test_feed_tabs_show_one_timeframe_and_chips_hide_it(env):
     from trader.infrastructure.sqlite_repo import SqliteStore
     st = SqliteStore(tmp / "trader.db")
     st.add(_signal())                                                    # 4h
-    st.add(_signal(symbol="ETHUSDT", tf=Timeframe.H1))
+    now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    st.add(replace(_signal(symbol="ETHUSDT", tf=Timeframe.H1), bar_time=now - pd.Timedelta(hours=1)))   # свежий 1h
     c.post("/settings/tf/1h", headers=HX)                                # по умолчанию включён только 4h
     feed = c.get("/feed?view=1h").text
     assert "ETHUSDT" in feed and "SOLUSDT" not in feed and 'aria-selected="true"' in feed
@@ -270,8 +271,11 @@ def test_old_signals_collapse_into_rows(env):
     b = st.add(_signal(symbol="ETHUSDT"))
     r = c.post(f"/signals/{b.id}/skip", headers=HX).text
     assert r.lstrip().startswith('<details class="card signal-row" id="signal-%d"' % b.id) and "пропущен" in r
-    feed = c.get("/feed").text
-    assert '<article class="card signal" id="signal-%d"' % a.id in feed and 'id="signal-%d"' % b.id in feed
+    feed = c.get("/feed?view=all").text
+    assert '<article class="card signal" id="signal-%d"' % a.id in feed and 'id="signal-%d"' % b.id not in feed
+    assert '<span class="tab-count num">1</span>' in feed
+    arch = c.get("/feed?view=archive").text
+    assert 'id="signal-%d"' % b.id in arch and 'id="signal-%d"' % a.id not in arch and "Очистить архив" in arch
 
 
 def test_delete_archived_signals(env):
@@ -287,7 +291,7 @@ def test_delete_archived_signals(env):
     assert c.post(f"/signals/{a.id}/delete", headers=HX).status_code == 409        # новый — удалять нельзя
     c.post(f"/signals/{b.id}/skip", headers=HX)
     c.post(f"/signals/{d.id}/skip", headers=HX)
-    assert "Очистить старые" in c.get("/feed").text
+    assert "Очистить архив" in c.get("/feed?view=archive").text
     r = c.post(f"/signals/{b.id}/delete", headers=HX)
     assert r.status_code == 200 and r.text == "" and st.get(b.id) is None and not chart.exists()
     assert c.post(f"/signals/{b.id}/delete").status_code == 403                       # без заголовка панели

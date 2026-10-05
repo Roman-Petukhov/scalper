@@ -38,6 +38,8 @@ templates = Jinja2Templates(directory=HERE / "templates")
 REMEMBER_S = 365 * 24 * 3600          # «запомнить на этом устройстве»
 SHORT_LOGIN_S = 12 * 3600
 CHART_BARS = 300                      # свечей на живом графике
+ARCHIVED = {SignalStatus.EXPIRED, SignalStatus.SKIPPED}
+VIEWS = {"all", "archive"} | {t.value for t in Timeframe}
 STATUS_LABEL = {SignalStatus.NEW: "новый", SignalStatus.TAKEN: "в работе", SignalStatus.SKIPPED: "пропущен",
                 SignalStatus.EXPIRED: "истёк"}
 
@@ -48,9 +50,9 @@ def chart_name(path: str) -> str:
 
 
 templates.env.filters["chart_name"] = chart_name
-templates.env.globals.update(TRADE_LABEL={TradeStatus.PLACED: "лимитка ждёт", TradeStatus.FILLED: "на бирже",
+templates.env.globals.update(ARCHIVED=ARCHIVED, TRADE_LABEL={TradeStatus.PLACED: "лимитка ждёт", TradeStatus.FILLED: "на бирже",
                                           TradeStatus.EXPIRED: "лимитка снята", TradeStatus.CANCELLED: "снят / закрыт"},
-                             FEED_TABS=[("all", "Все")] + [(t.value, t.value) for t in Timeframe],
+                             FEED_TABS=[("all", "Все")] + [(t.value, t.value) for t in Timeframe] + [("archive", "Архив")],
                              STATUS_LABEL=STATUS_LABEL, Timeframe=Timeframe, Mode=Mode, EntryPolicy=EntryPolicy,
                              SignalStatus=SignalStatus)
 
@@ -103,18 +105,23 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         if mutate and request.headers.get("HX-Request") != "true":
             raise HTTPException(403, "запрос не из панели")      # защита от подделки межсайтовых форм
 
-    def feed_view(request: Request) -> Timeframe | None:
-        """Какой таймфрейм смотрим в ленте (вкладка «Все» = None); запоминается в сессии."""
+    def feed_view(request: Request) -> str:
+        """Вкладка ленты: all / 15m / 1h / 4h — актуальные сигналы, archive — истёкшие и пропущенные;
+        запоминается в сессии."""
         v = request.session.get("view")
-        return Timeframe(v) if v in {t.value for t in Timeframe} else None
+        return v if v in VIEWS else "all"
 
     def page_context(request: Request) -> dict:
         decisions.expire_stale()
         s = settings_svc.get()
         view = feed_view(request)
-        shown = set(s.timeframes) & ({view} if view else set(Timeframe))
-        signals = store.recent(80, shown)
+        if view == "archive":
+            signals = store.recent(200, None, ARCHIVED)
+        else:
+            shown = set(s.timeframes) & ({Timeframe(view)} if view != "all" else set(Timeframe))
+            signals = store.recent(80, shown, set(SignalStatus) - ARCHIVED)
         return {"s": s, "signals": signals, "view": view, "last": scanner.last,
+                "archived_count": store.count(ARCHIVED),
                 "trades": store.trades_for([x.id for x in signals if x.id is not None]),
                 "exchange": exchange_label(), "creds": holder.credentials if broker is None else None}
 
@@ -169,7 +176,7 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
     async def feed(request: Request, view: str | None = None):
         guard(request)
         if view is not None:
-            request.session["view"] = view if view in {t.value for t in Timeframe} else "all"
+            request.session["view"] = view if view in VIEWS else "all"
         return templates.TemplateResponse(request, "_feed.html", page_context(request))
 
     @app.get("/api/signals/new")
@@ -261,8 +268,6 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         ctx = page_context(request) | {"params_error": ctx_error, "params_saved": ctx_error is None}
         return templates.TemplateResponse(request, "_controls.html", ctx)
 
-    ARCHIVED = {SignalStatus.EXPIRED, SignalStatus.SKIPPED}
-
     def drop_charts(paths: list[str]) -> None:
         base = (cfg.data_dir / "charts").resolve()
         for p in paths:
@@ -302,7 +307,8 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
             sig, err = store.get(signal_id), str(e)
         return templates.TemplateResponse(request, "_signal.html", {
             "sig": sig, "s": settings_svc.get(), "error": err, "trades": store.trades_for([signal_id]),
-            "exchange": exchange_label()}, headers={"HX-Trigger": "wallet-refresh"} if err is None else None)
+            "exchange": exchange_label()},
+            headers=None if err is not None else {"HX-Trigger": "wallet-refresh" if action == "take" else "feed-refresh"})
 
     @app.post("/scan/{tf}", response_class=HTMLResponse)
     async def scan_now(request: Request, tf: Timeframe):

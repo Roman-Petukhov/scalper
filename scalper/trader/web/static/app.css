@@ -105,6 +105,8 @@ main { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 20px; pa
 .feed-head h1 { font-size: 20px; margin: 0; letter-spacing: -.01em; }
 
 .feed-tabs button.is-off { opacity: .45; }
+.tab-count { font-size: 11px; padding: 0 6px; margin-left: 2px; border-radius: 999px; background: var(--line); color: var(--text); }
+.feed-tabs button[aria-pressed="true"] .tab-count { background: color-mix(in srgb, var(--accent-ink) 25%, transparent); color: inherit; }
 .feed { display: grid; gap: 14px; }
 .signal { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 16px; animation: rise .35s var(--ease); }
 @media (max-width: 1100px) { .signal { grid-template-columns: 1fr; } }

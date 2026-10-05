@@ -1,16 +1,16 @@
 <div class="feed-bar">
 <div class="feed-tabs segmented" role="tablist" aria-label="Какие сигналы показать в ленте">
   {% for key, label in FEED_TABS %}
-  {% set on = (view is none and key == 'all') or (view is not none and view.value == key) %}
-  {% set off = key != 'all' and key not in s.timeframes | map(attribute='value') | list %}
+  {% set on = view == key %}
+  {% set off = key not in ('all', 'archive') and key not in s.timeframes | map(attribute='value') | list %}
   <button type="button" role="tab" aria-selected="{{ 'true' if on else 'false' }}" aria-pressed="{{ 'true' if on else 'false' }}"
-          class="{{ 'is-off' if off else '' }}" hx-get="/feed?view={{ key }}" hx-target="#feed"
-          {% if off %}title="{{ label }} выключен в «Какие сигналы присылать»"{% endif %}>{{ label }}</button>
+          class="{{ 'is-off' if off else '' }}{{ ' tab-archive' if key == 'archive' else '' }}" hx-get="/feed?view={{ key }}" hx-target="#feed"
+          {% if off %}title="{{ label }} выключен в «Какие сигналы присылать»"{% endif %}>{{ label }}{% if key == 'archive' and archived_count %} <span class="tab-count num">{{ archived_count }}</span>{% endif %}</button>
   {% endfor %}
 </div>
-{% if signals | selectattr("status", "in", [SignalStatus.EXPIRED, SignalStatus.SKIPPED]) | list %}
+{% if view == 'archive' and signals %}
   <button type="button" class="btn ghost small" hx-post="/signals/archive/clear" hx-swap="none"
-          hx-confirm="Удалить все истёкшие и пропущенные сигналы? Сигналы «в работе» останутся.">Очистить старые</button>
+          hx-confirm="Удалить все истёкшие и пропущенные сигналы? Сигналы «в работе» останутся.">Очистить архив</button>
 {% endif %}
 </div>
 {% if signals %}
@@ -19,9 +19,10 @@
 </div>
 {% else %}
 <div class="card empty">
-  {% if not s.timeframes %}Все таймфреймы выключены — включите хотя бы один слева.
-  {% elif view and view not in s.timeframes %}{{ view.value }} выключен — включите его в «Какие сигналы присылать», чтобы видеть эти сигналы.
-  {% elif view %}Сигналов {{ view.value }} пока нет. Сканер проверяет каждую закрывшуюся свечу {{ view.value }}.
-  {% else %}Сигналов пока нет. Сканер проверяет рынок сразу после закрытия каждой свечи включённых таймфреймов.{% endif %}
+  {% if view == 'archive' %}Архив пуст. Сюда попадают истёкшие и пропущенные сигналы.
+  {% elif not s.timeframes %}Все таймфреймы выключены — включите хотя бы один слева.
+  {% elif view != 'all' and view not in s.timeframes | map(attribute='value') | list %}{{ view }} выключен — включите его в «Какие сигналы присылать», чтобы видеть эти сигналы.
+  {% elif view != 'all' %}Актуальных сигналов {{ view }} нет. Сканер проверяет каждую закрывшуюся свечу {{ view }}, старые — во вкладке «Архив».
+  {% else %}Актуальных сигналов нет. Сканер проверяет рынок сразу после закрытия каждой свечи включённых таймфреймов, старые — во вкладке «Архив».{% endif %}
 </div>
 {% endif %}

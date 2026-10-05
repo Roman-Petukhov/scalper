@@ -93,17 +93,26 @@ class SqliteStore:
             row = self.db.execute("SELECT * FROM signals WHERE id = ?", (signal_id,)).fetchone()
         return self._row(row) if row else None
 
-    def recent(self, limit: int = 100, timeframes: set[Timeframe] | None = None) -> list[Signal]:
-        q, args = "SELECT * FROM signals", []
-        if timeframes is not None:
-            if not timeframes:
+    def recent(self, limit: int = 100, timeframes: set[Timeframe] | None = None,
+               statuses: set[SignalStatus] | None = None) -> list[Signal]:
+        where, args = [], []
+        for col, vals in (("timeframe", timeframes), ("status", statuses)):
+            if vals is None:
+                continue
+            if not vals:
                 return []
-            q += f" WHERE timeframe IN ({','.join('?' * len(timeframes))})"
-            args = [t.value for t in timeframes]
+            where.append(f"{col} IN ({','.join('?' * len(vals))})")
+            args += [v.value for v in vals]
+        q = "SELECT * FROM signals" + (" WHERE " + " AND ".join(where) if where else "")
         q += " ORDER BY created_at DESC, id DESC LIMIT ?"
         with self.lock:
             rows = self.db.execute(q, (*args, limit)).fetchall()
         return [self._row(r) for r in rows]
+
+    def count(self, statuses: set[SignalStatus]) -> int:
+        with self.lock:
+            return self.db.execute(f"SELECT COUNT(*) FROM signals WHERE status IN ({','.join('?' * len(statuses))})",
+                                   [s.value for s in statuses]).fetchone()[0]
 
     def set_status(self, signal_id: int, status: SignalStatus, note: str = "") -> Signal | None:
         with self.lock:
