@@ -532,9 +532,10 @@ def coin_trades(root: Path, sym: str, tf: str, ctx: pd.DataFrame | None = None) 
                     continue
                 for be in (False,):
                     r, ex = two_targets(o, hi, lo, c, f, fill, side, px, stop, 3.0, 5.0, be, HOLD[tf], fee)
+                    r3, _ = two_targets(o, hi, lo, c, f, fill, side, px, stop, 3.0, 3.0, be, HOLD[tf], fee)
                     rows.append({"symbol": sym, "tf": tf, "line": mode, "t": d.index[e], "side": side, "confirm": confirm,
                                  "risk_pct": side * (px - stop) / px,
-                                 "entry": entry_kind, "be": be, "with_trend": trend[e] == side, "R": r,
+                                 "entry": entry_kind, "be": be, "with_trend": trend[e] == side, "R": r, "R3": r3,
                                  "vol_ratio": vol_ratio[tb], "oi_chg": oi_chg[tb], "body": body[tb],
                                  "close_loc": loc[tb] if side > 0 else 1 - loc[tb],
                                  "aggr": buy_share[tb] if side > 0 else 1 - buy_share[tb],
@@ -760,6 +761,32 @@ def strength_report(df: pd.DataFrame, line_name: dict) -> None:
         print("  верх 40% по годам: " + ", ".join(f"{k}: {v['mean']:+.2f}R ({int(v['size'])})" for k, v in yy.iterrows()))
 
 
+def target_report(df: pd.DataFrame, line_name: dict) -> None:
+    """Вся позиция на 3R против лесенки 3R / 5R на одних и тех же сделках. Безубыточная доля прибыльных при 1:3 —
+    25% до издержек."""
+    print("\n=== Цель: вся позиция на 3R против лесенки (половина 3R, половина 5R); "
+          "ячейка — средний R (t, доля прибыльных, сделок в месяц) ===")
+    rows = []
+    for tf, ln, entry, confirm in itertools.product(("15m", "1h", "4h"), ("clean", "zz", "fan"), ("market", "retest"),
+                                                    (False, True)):
+        g = df[(df.tf == tf) & (df.line == ln) & (df.entry == entry) & (df.confirm == confirm)]
+        if not len(g):
+            continue
+        for fname, x in (("агрессоры >= 55%", g[g.aggr >= 0.55]), ("агрессоры >= 55% + тренд", g[(g.aggr >= 0.55) & g.with_trend])):
+            for tgt in ("R", "R3"):
+                z = x.assign(R=x[tgt])
+                rows.append({"ТФ": tf, "линия": line_name[ln], "вход": ("закрепл., " if confirm else "пробой, ") +
+                             ("рынок" if entry == "market" else "ретест"), "фильтр": fname,
+                             "цель": "3R / 5R" if tgt == "R" else "всё на 3R", **{p: _cell(z[z.per == p]) for p in PER}})
+    print(pd.DataFrame(rows).to_string(index=False))
+    y = df[(df.tf == "4h") & (df.aggr >= 0.55) & df.with_trend & (df.entry == "retest") & ~df.confirm]
+    for ln, g in y.groupby("line"):
+        for tgt in ("R", "R3"):
+            yy = g.groupby(g.t.dt.year)[tgt].agg(["size", "mean"])
+            print(f"  4h, ретест пробоя, агрессоры + тренд, {line_name[ln]}, {'3R / 5R' if tgt == 'R' else 'всё на 3R'}: " +
+                  ", ".join(f"{k}: {v['mean']:+.2f}R ({int(v['size'])})" for k, v in yy.iterrows()))
+
+
 def report() -> None:
     parts = all_parts("tline")
     if not parts:
@@ -817,6 +844,8 @@ def report() -> None:
         print(f"  {line_name[ln]}: " + ", ".join(f"{k}: {v['mean']:+.2f}R (n={int(v['size'])})" for k, v in yy.iterrows()))
     if "btc_trend" in df.columns:
         diagnose_2026(df, line_name)
+    if "R3" in df.columns:
+        target_report(df, line_name)
     if "effort" in df.columns:
         strength_report(df, line_name)
         ev = df[df.confirm & (df.entry == "market") & (df.tf == "4h") & df.line.isin(["clean", "zz", "fan"])]
