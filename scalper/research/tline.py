@@ -276,7 +276,21 @@ def htf_trend(d: pd.DataFrame, tf: str) -> np.ndarray:
     return st.reindex(bar_close, method="ffill").to_numpy()
 
 
-def coin_trades(root: Path, sym: str, tf: str) -> pd.DataFrame:
+def market_context(root: Path) -> pd.DataFrame | None:
+    """BTC на закрытии каждого часа: выше / ниже EMA50 последней закрытой дневной свечи и изменение за 7 дней."""
+    d = tf_frame(root, "BTCUSDT", "1h")
+    if d is None:
+        return None
+    day = d["close"].resample("1D").last()
+    trend = np.sign(day - day.ewm(span=50, adjust=False).mean())
+    trend.index = trend.index + pd.Timedelta(days=1)                        # известно после закрытия дня
+    close_t = d.index + pd.Timedelta(hours=1)
+    ctx = pd.DataFrame({"btc_trend": trend.reindex(close_t, method="ffill").to_numpy(),
+                        "btc_ret7": (d["close"] / d["close"].shift(24 * 7) - 1).to_numpy()}, index=close_t)
+    return ctx
+
+
+def coin_trades(root: Path, sym: str, tf: str, ctx: pd.DataFrame | None = None) -> pd.DataFrame:
     d = tf_frame(root, sym, tf)
     if d is None or len(d) < 500:
         return pd.DataFrame()
@@ -296,6 +310,14 @@ def coin_trades(root: Path, sym: str, tf: str) -> pd.DataFrame:
     body = np.abs(c - o) / np.where(rng > 0, rng, np.nan)                     # доля тела в свече
     loc = (c - lo) / np.where(rng > 0, rng, np.nan)                         # где закрылась: 1 — у максимума
     buy_share = (d["taker_buy_volume"] / v.replace(0, np.nan)).to_numpy()
+    bars30 = 30 * 24 * 60 // BAR_MIN[tf]
+    ret30 = (d["close"] / d["close"].shift(bars30) - 1).to_numpy()
+    close_t = d.index + pd.Timedelta(minutes=BAR_MIN[tf])
+    if ctx is not None:
+        cx = ctx.reindex(close_t, method="ffill")
+        btc_trend, btc_ret7 = cx["btc_trend"].to_numpy(), cx["btc_ret7"].to_numpy()
+    else:
+        btc_trend = btc_ret7 = np.full(len(c), np.nan)
     oi_chg = np.full(len(c), np.nan)
     if tf != "15m":
         m = metrics_on_bars(sym, root, d.index, BAR_MIN[tf])
@@ -335,7 +357,8 @@ def coin_trades(root: Path, sym: str, tf: str) -> pd.DataFrame:
                                  "close_loc": loc[tb] if side > 0 else 1 - loc[tb],
                                  "aggr": buy_share[tb] if side > 0 else 1 - buy_share[tb],
                                  "brk_atr": side * (c[tb] - line_b) / a[tb],
-                                 "stop_atr": dist_atr})
+                                 "stop_atr": dist_atr, "ret30": ret30[e], "btc_trend": btc_trend[e],
+                                 "btc_ret7": btc_ret7[e], "hold_bars": ex - fill})
     return pd.DataFrame(rows)
 
 
@@ -425,17 +448,21 @@ def chart(root: Path, sym: str, tf: str, bars: int, out: Path) -> None:
 
 
 def collect(root: Path, syms: list[str], syms15: list[str]) -> None:
-    for sym, tf, bars in EXAMPLES:
-        if sym in set(mine(syms15 if tf == "15m" else syms)):
+    tfs = os.environ.get("TL_TFS", "15m,1h,4h").split(",")
+    ctx = market_context(root)
+    for sym, tf, bars in (EXAMPLES if os.environ.get("TL_CHARTS", "1") == "1" else []):
+        if tf in tfs and sym in set(mine(syms15 if tf == "15m" else syms)):
             try:
                 chart(root, sym, tf, bars, part_path("tline").parent / "tline_examples" / f"{sym}_{tf}.png")
             except Exception as e:
                 print(f"  график {sym} {tf}: {e}", flush=True)
     parts = []
     for tf, lst in (("15m", syms15), ("1h", syms), ("4h", syms)):
+        if tf not in tfs:
+            continue
         for s in mine(lst):
             try:
-                x = coin_trades(root, s, tf)
+                x = coin_trades(root, s, tf, ctx)
                 if len(x):
                     parts.append(x)
             except Exception as e:
@@ -443,6 +470,41 @@ def collect(root: Path, syms: list[str], syms15: list[str]) -> None:
     print(f"  частей монет-ТФ со сделками: {len(parts)}", flush=True)
     if parts:
         pd.concat(parts, ignore_index=True).to_parquet(part_path("tline"), index=False)
+
+
+def diagnose_2026(df: pd.DataFrame, line_name: dict) -> None:
+    """Почему шорт на 4h с перевесом продавцов ослаб в 2026: рынок, состояние монеты, исход сделок, помесячно."""
+    base = df[(df.tf == "4h") & (df.side == -1) & df.confirm & (df.entry == "market") & (df.aggr >= 0.55)
+              & df.line.isin(["clean", "major"])].copy()
+    if not len(base):
+        return
+    base["year"] = base.t.dt.year
+    q = base.loc[base.per == "is", "ret30"].quantile([0.2, 0.4, 0.6, 0.8]).to_numpy()
+    base["ret30_q"] = np.digitize(base["ret30"], q) + 1
+    print("\n=== Разбор 2026: шорт 4h, продавцов >= 55%, закрепление, рынок; ячейка — средний R (n) по годам ===")
+
+    def by_year(g: pd.DataFrame) -> dict:
+        y = g.groupby("year")["R"].agg(["size", "mean"])
+        return {str(k): f"{v['mean']:+.2f} ({int(v['size'])})" for k, v in y.iterrows()}
+
+    for ln, g in base.groupby("line"):
+        print(f"\n  линия: {line_name[ln]}")
+        rows = [{"срез": "все", **by_year(g)},
+                {"срез": "BTC выше дневной EMA50", **by_year(g[g.btc_trend > 0])},
+                {"срез": "BTC ниже дневной EMA50", **by_year(g[g.btc_trend < 0])},
+                {"срез": "BTC за 7 дней > 0", **by_year(g[g.btc_ret7 > 0])},
+                {"срез": "BTC за 7 дней < 0", **by_year(g[g.btc_ret7 < 0])},
+                {"срез": "монета: свой тренд 1d вниз (по тренду)", **by_year(g[g.with_trend])},
+                {"срез": "монета: свой тренд 1d вверх", **by_year(g[~g.with_trend])},
+                *[{"срез": f"монета за 30 дней: квинтиль {k} (1 — сильнее всех упала)", **by_year(g[g.ret30_q == k])}
+                  for k in range(1, 6)]]
+        print(pd.DataFrame(rows).fillna("").to_string(index=False))
+        ex = g.assign(stop=g.R <= -0.9, tp1=g.R >= 1.3, tp2=g.R >= 3.8).groupby("year")[["stop", "tp1", "tp2"]].mean()
+        ex["держим, свечей (медиана)"] = g.groupby("year")["hold_bars"].median()
+        ex["стоп, ATR (медиана)"] = g.groupby("year")["stop_atr"].median()
+        print("  исход сделок по годам (доли):\n" + ex.round(2).to_string())
+        m = g[g.t >= "2025-01-01"].groupby(g.t.dt.strftime("%Y-%m"))["R"].agg(["size", "mean"])
+        print("  помесячно 2025–2026: " + ", ".join(f"{k} {v['mean']:+.2f} ({int(v['size'])})" for k, v in m.iterrows()))
 
 
 def report() -> None:
@@ -500,6 +562,8 @@ def report() -> None:
     for ln, g in y.groupby("line"):
         yy = g.groupby(g.t.dt.year)["R"].agg(["size", "mean"])
         print(f"  {line_name[ln]}: " + ", ".join(f"{k}: {v['mean']:+.2f}R (n={int(v['size'])})" for k, v in yy.iterrows()))
+    if "btc_trend" in df.columns:
+        diagnose_2026(df, line_name)
 
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
