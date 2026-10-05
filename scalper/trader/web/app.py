@@ -236,12 +236,14 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
     async def set_params(request: Request, risk_pct: float = Form(...), leverage: int = Form(5),
                          max_positions: int = Form(...),
                          daily_loss_pct: float = Form(...), min_aggr_pct: float = Form(...),
-                         target_r: float = Form(...), hybrid_range_atr: float = Form(...)):
+                         target_r: float = Form(...), hybrid_range_atr: float = Form(...),
+                         min_break_atr: float = Form(0.0), min_close_loc_pct: float = Form(0.0)):
         guard(request, mutate=True)
         ctx_error = None
         try:
             settings_svc.update(risk_pct=risk_pct, leverage=leverage, max_positions=max_positions, daily_loss_pct=daily_loss_pct,
-                                min_aggr=min_aggr_pct / 100, target_r=target_r, hybrid_range_atr=hybrid_range_atr)
+                                min_aggr=min_aggr_pct / 100, target_r=target_r, hybrid_range_atr=hybrid_range_atr,
+                                min_break_atr=min_break_atr, min_close_loc=min_close_loc_pct / 100)
         except ValueError as e:
             ctx_error = str(e)
         ctx = page_context(request) | {"params_error": ctx_error, "params_saved": ctx_error is None}

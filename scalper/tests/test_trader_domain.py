@@ -103,3 +103,23 @@ def test_log_lines_are_straight_in_log_price():
         assert np.isclose(np.log(r["line_t"]), np.log(c[a]) + r["slope"] * (t - a))   # прямая в log(close)
         assert r["side"] * (c[t] - r["line_t"]) > 0                                     # пробой закрытием
     assert all(not r["log"] for r in zz_lines(d) if r["t"] > 0)
+
+
+def test_conviction_filter_drops_weak_closes():
+    d = _frame(seed=7)
+    s0 = Settings(timeframes=frozenset({Timeframe.H4}), min_aggr=0.5)
+    found = []
+    for t in sorted({r["t"] for r in zz_lines(d, log=strategy.LOG_LINES) if r["t"] >= 400})[:40]:
+        found += detect(d.iloc[: t + 1], Timeframe.H4, "X", s0)
+    assert found
+    brk = [x.extra["break_atr"] for x in found]
+    assert all(b > 0 for b in brk) and all(0 <= x.extra["close_loc"] <= 1 for x in found)
+    cut = float(np.median(brk))
+    strict = replace(s0, min_break_atr=round(cut, 2) + 0.01)
+    kept = []
+    for x in found:
+        t = d.index.get_loc(pd.Timestamp(x.bar_time))
+        kept += detect(d.iloc[: t + 1], Timeframe.H4, "X", strict)
+    assert len(kept) < len(found) and all(k.extra["break_atr"] >= strict.min_break_atr for k in kept)
+    with pytest.raises(ValueError):
+        Settings(min_break_atr=1.5)

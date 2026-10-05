@@ -61,6 +61,11 @@ def detect(d: pd.DataFrame, tf: Timeframe, symbol: str, settings: Settings) -> l
         aggr = buy[last] if side is Side.LONG else 1 - buy[last]
         if not (aggr >= settings.min_aggr) or trend[last] != int(side):
             continue
+        brk = int(side) * (c[last] - float(r["line_t"])) / atr[last]          # насколько закрылась за линией
+        rng = hi[last] - lo[last]
+        loc = ((c[last] - lo[last]) if side is Side.LONG else (hi[last] - c[last])) / rng if rng > 0 else 0.0
+        if brk < settings.min_break_atr or loc < settings.min_close_loc:
+            continue                                                           # пробой «на чуть-чуть»
         sw = sw_lo[last] if side is Side.LONG else sw_hi[last]
         if sw < 0:
             continue
@@ -81,6 +86,7 @@ def detect(d: pd.DataFrame, tf: Timeframe, symbol: str, settings: Settings) -> l
         out.append(Signal(symbol=symbol, timeframe=tf, side=side, bar_time=d.index[last].to_pydatetime(),
                           close=float(c[last]), line_value=float(r["line_t"]),
                           line_points=((d.index[a].to_pydatetime(), float(c[a])), (d.index[b].to_pydatetime(), float(c[b]))),
-                          aggr=float(aggr), range_atr=float(range_atr), plan=plan, extra={"log_line": LOG_LINES}))
+                          aggr=float(aggr), range_atr=float(range_atr), plan=plan,
+                          extra={"log_line": LOG_LINES, "break_atr": round(float(brk), 3), "close_loc": round(float(loc), 3)}))
         seen.add(side)
     return out

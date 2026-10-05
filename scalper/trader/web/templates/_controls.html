@@ -57,6 +57,10 @@
         <input class="num" id="target_r" name="target_r" type="number" step="0.5" min="1" max="10" value="{{ s.target_r }}"></div>
       <div class="field"><label for="min_aggr_pct">Агрессоры не ниже, %</label>
         <input class="num" id="min_aggr_pct" name="min_aggr_pct" type="number" step="1" min="50" max="80" value="{{ (s.min_aggr * 100) | round | int }}"></div>
+      <div class="field"><label for="min_break_atr">Закрытие за линией ≥, ATR</label>
+        <input class="num" id="min_break_atr" name="min_break_atr" type="number" step="0.05" min="0" max="1" value="{{ s.min_break_atr }}"></div>
+      <div class="field"><label for="min_close_loc_pct">Закрытие у края свечи ≥, %</label>
+        <input class="num" id="min_close_loc_pct" name="min_close_loc_pct" type="number" step="5" min="0" max="90" value="{{ (s.min_close_loc * 100) | round | int }}"></div>
       <div class="field"><label for="hybrid_range_atr">Гибрид: длинная свеча, ATR</label>
         <input class="num" id="hybrid_range_atr" name="hybrid_range_atr" type="number" step="0.1" min="0.5" max="10" value="{{ s.hybrid_range_atr }}"></div>
     </div>

@@ -22,6 +22,7 @@
       <dt>Цель</dt><dd>{{ '%.6g' | format(sig.plan.target) }}</dd>
       <dt>Агрессоры</dt><dd>{{ '%.0f' | format(sig.aggr * 100) }}%</dd>
       <dt>Свеча</dt><dd>{{ '%.1f' | format(sig.range_atr) }} ATR</dd>
+      {% if sig.extra.break_atr is defined %}<dt>Закрытие за линией</dt><dd>{{ '%.2f' | format(sig.extra.break_atr) }} ATR · у края {{ '%.0f' | format(sig.extra.close_loc * 100) }}%</dd>{% endif %}
       {% if sig.plan.valid_bars %}<dt>Лимитка живёт</dt><dd>{{ sig.plan.valid_bars }} свечей</dd>{% endif %}
     </dl>
     {% set t = trades.get(sig.id) if trades else none %}

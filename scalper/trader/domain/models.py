@@ -62,6 +62,8 @@ class Settings:
     max_positions: int = 5
     daily_loss_pct: float = 4.0         # дневной лимит убытка, % капитала: дальше авто не открывает
     min_aggr: float = 0.55              # доля агрессоров в сторону пробоя
+    min_break_atr: float = 0.0          # уверенный пробой: закрытие за линией не ближе, чем столько ATR
+    min_close_loc: float = 0.0          # и у края свечи в сторону пробоя: 0 — у противоположного, 1 — у края
     target_r: float = 3.0
     entry_policy: EntryPolicy = EntryPolicy.RETEST
     hybrid_range_atr: float = 2.5       # для гибрида: свеча пробоя длиннее (в ATR) — ретест, короче — по рынку
@@ -79,6 +81,10 @@ class Settings:
             raise ValueError("дневной лимит убытка — от 0.5% до 30%")
         if not 0.5 <= self.min_aggr <= 0.8:
             raise ValueError("порог агрессоров — от 50% до 80%")
+        if not 0.0 <= self.min_break_atr <= 1.0:
+            raise ValueError("закрытие за линией — от 0 до 1 ATR")
+        if not 0.0 <= self.min_close_loc <= 0.9:
+            raise ValueError("место закрытия в свече — от 0% до 90%")
         if not 1.0 <= self.target_r <= 10.0:
             raise ValueError("цель — от 1R до 10R")
         if not 0.5 <= self.hybrid_range_atr <= 10.0:
