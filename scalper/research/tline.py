@@ -371,6 +371,66 @@ def market_context(root: Path) -> pd.DataFrame | None:
     return ctx
 
 
+ROOM_LOOKBACK = 300      # свечей назад: уровни зигзага, которые цене предстоит пройти до цели
+
+
+def strength_inputs(root: Path, sym: str, tf: str, d: pd.DataFrame, atr: np.ndarray) -> dict[str, np.ndarray]:
+    """Ряды для признаков силы пробоя (известны на закрытии бара): поток агрессоров, OI, доля часов внутри 4h-свечи,
+    в которых перевешивали покупатели."""
+    v = d["volume"].to_numpy(dtype="float64")
+    tb_ = d["taker_buy_volume"].to_numpy(dtype="float64")
+    delta = np.where(v > 0, (2 * tb_ - v), 0.0)                              # покупки − продажи
+    roll_d = pd.Series(delta).rolling(20, min_periods=20).sum().to_numpy()
+    roll_v = pd.Series(v).rolling(20, min_periods=20).sum().to_numpy()
+    c = d["close"].to_numpy(dtype="float64")
+    oi = np.full(len(c), np.nan)
+    if tf != "15m":
+        oi = np.log(metrics_on_bars(sym, root, d.index, BAR_MIN[tf])["oi"].replace(0, np.nan)).to_numpy(dtype="float64")
+    buy_hours = np.full(len(c), np.nan)
+    if tf == "4h":
+        p1 = root / f"{sym}-1h.parquet"
+        if p1.exists():
+            h = pd.read_parquet(p1, columns=["open_time", "volume", "taker_buy_volume"])
+            h.index = pd.to_datetime(h["open_time"], unit="ms", utc=True)
+            h = h[~h.index.duplicated()]
+            up = (h["taker_buy_volume"] > 0.5 * h["volume"]).astype("float64").where(h["volume"] > 0)
+            buy_hours = up.resample("4h").mean().reindex(d.index).to_numpy(dtype="float64")
+    return {"v": v, "delta": delta, "cvd20": roll_d / np.where(roll_v > 0, roll_v, np.nan), "oi": oi,
+            "buy_hours": buy_hours, "atr": atr, "o": d["open"].to_numpy(dtype="float64"), "c": c,
+            "vavg": pd.Series(v).shift(1).rolling(20).mean().to_numpy()}
+
+
+def strength_row(st: dict[str, np.ndarray], tb: int, tc: int, side: int, entry: float, stop: float,
+                 opp: np.ndarray, c: np.ndarray) -> dict[str, float]:
+    """Признаки силы на сторону сделки (больше — сильнее для нас).
+    effort      log(объём / средний) − log(ход свечи пробоя в ATR): усилие без результата — поглощение
+    aggr_c      доля агрессоров нашей стороны в свече закрепления (продолжение потока)
+    vol_c       объём свечи закрепления / средний за 20
+    move_c      ход свечи закрепления в нашу сторону, ATR
+    oi_brk      изменение log OI от свечи до пробоя до закрепления: новые позиции или закрытие старых
+    cvd20       дельта агрессоров за 20 свечей до пробоя / объём (на нашей стороне — поток копился заранее)
+    hours       доля часов внутри 4h-свечи пробоя, где перевешивала наша сторона (устойчивость, не один всплеск)
+    room_r      расстояние от входа до ближайшего встречного уровня зигзага, R (место до цели)"""
+    a, o, v, va = st["atr"][tb], st["o"], st["v"], st["vavg"]
+    move_b = side * (c[tb] - o[tb]) / a if a > 0 else np.nan
+    out = {"effort": np.log(v[tb] / va[tb]) - np.log(move_b) if va[tb] > 0 and v[tb] > 0 and move_b > 0 else np.nan,
+           "cvd20": side * st["cvd20"][tb - 1] if tb > 0 else np.nan,
+           "hours": st["buy_hours"][tb] if side > 0 else 1 - st["buy_hours"][tb]}
+    if tc >= 0:
+        out |= {"aggr_c": 0.5 + side * 0.5 * st["delta"][tc] / v[tc] if v[tc] > 0 else np.nan,
+                "vol_c": v[tc] / va[tc] if va[tc] > 0 else np.nan,
+                "move_c": side * (c[tc] - o[tc]) / st["atr"][tc] if st["atr"][tc] > 0 else np.nan,
+                "oi_brk": st["oi"][tc] - st["oi"][tb - 1] if tb > 0 else np.nan}
+    else:
+        out |= {"aggr_c": np.nan, "vol_c": np.nan, "move_c": np.nan, "oi_brk": np.nan}
+    e = tc if tc >= 0 else tb
+    risk = side * (entry - stop)
+    lv = opp[(opp[:, 1] <= e) & (opp[:, 0] >= e - ROOM_LOOKBACK)][:, 0] if len(opp) else np.empty(0, np.int64)
+    ahead = c[lv][side * (c[lv] - entry) > 0] if len(lv) else np.empty(0)
+    out["room_r"] = (side * (ahead - entry)).min() / risk if len(ahead) and risk > 0 else np.inf
+    return out
+
+
 def coin_trades(root: Path, sym: str, tf: str, ctx: pd.DataFrame | None = None) -> pd.DataFrame:
     d = tf_frame(root, sym, tf)
     if d is None or len(d) < 500:
@@ -404,6 +464,8 @@ def coin_trades(root: Path, sym: str, tf: str, ctx: pd.DataFrame | None = None) 
         m = metrics_on_bars(sym, root, d.index, BAR_MIN[tf])
         oi = np.log(m["oi"].replace(0, np.nan))
         oi_chg = (oi - oi.shift(4)).to_numpy()
+    st = strength_inputs(root, sym, tf, d, a)
+    zh, zl = zigzag(c, a, ZZ_K)
     for mode, (tb, tc, side, line_b, line_c, _, _) in ((m_, sg) for m_ in LINES for sg in signals(d, m_)):
         for confirm in (False, True):
             e = tc if confirm else tb
@@ -439,7 +501,8 @@ def coin_trades(root: Path, sym: str, tf: str, ctx: pd.DataFrame | None = None) 
                                  "aggr": buy_share[tb] if side > 0 else 1 - buy_share[tb],
                                  "brk_atr": side * (c[tb] - line_b) / a[tb],
                                  "stop_atr": dist_atr, "ret30": ret30[e], "btc_trend": btc_trend[e],
-                                 "btc_ret7": btc_ret7[e], "hold_bars": ex - fill})
+                                 "btc_ret7": btc_ret7[e], "hold_bars": ex - fill,
+                                 **strength_row(st, tb, tc, side, px, stop, zl if side > 0 else zh, c)})
     return pd.DataFrame(rows)
 
 
@@ -589,6 +652,55 @@ def diagnose_2026(df: pd.DataFrame, line_name: dict) -> None:
         print("  помесячно 2025–2026: " + ", ".join(f"{k} {v['mean']:+.2f} ({int(v['size'])})" for k, v in m.iterrows()))
 
 
+STRENGTH = {"effort": "усилие без результата", "aggr_c": "агрессоры в свече закрепления", "vol_c": "объём закрепления",
+            "move_c": "ход закрепления, ATR", "oi_brk": "OI за пробой", "cvd20": "дельта за 20 свечей до пробоя",
+            "hours": "часы с перевесом внутри 4h", "room_r": "место до встречного уровня, R"}
+
+
+def strength_report(df: pd.DataFrame, line_name: dict) -> None:
+    """Признаки силы пробоя: средний R по квинтилям (границы — по IS) и составной балл, веса которого — знаки ранговой
+    корреляции признака с R на IS; балл проверяется на VAL / HOLDOUT и по годам."""
+    x0 = df[df.confirm & (df.entry == "market")].copy()
+    x0["room_r"] = x0["room_r"].clip(upper=20.0)
+    groups = [("4h шорт, агрессоры >= 55%", (x0.tf == "4h") & (x0.side == -1) & (x0.aggr >= 0.55)),
+              ("4h обе стороны", x0.tf == "4h"), ("1h обе стороны", x0.tf == "1h")]
+    print("\n=== Сила пробоя: средний R по квинтилям признака (1 — слабее для нас, 5 — сильнее; границы по IS) ===")
+    for (gname, mask), ln in itertools.product(groups, ("clean", "zz")):
+        g = x0[mask & (x0.line == ln)]
+        if g.per.eq("is").sum() < 200:
+            continue
+        print(f"\n  {gname}, линия: {line_name[ln]}")
+        rows, w = [], {}
+        feats = [f for f in STRENGTH if f in g.columns and g[f].notna().mean() > 0.5]
+        for f in feats:
+            gi = g[g.per == "is"]
+            rho = gi[[f, "R"]].dropna().corr(method="spearman").iloc[0, 1]
+            w[f] = np.sign(rho) if abs(rho) >= 0.02 else 0.0
+            edges = gi[f].quantile([0.2, 0.4, 0.6, 0.8]).to_numpy()
+            qq = np.where(g[f].notna(), np.digitize(g[f], edges) + 1, 0)
+            for q in range(1, 6):
+                gg = g[qq == q]
+                rows.append({"признак": STRENGTH[f], "ρ IS": f"{rho:+.3f}", "квинтиль": q,
+                             **{p: _cell(gg[gg.per == p]) for p in PER}})
+        print(pd.DataFrame(rows).to_string(index=False))
+        used = [f for f in feats if w[f] != 0]
+        if not used:
+            continue
+        ref = g[g.per == "is"]
+        score = np.zeros(len(g))
+        for f in used:                                       # перцентиль по распределению IS, пропуск — середина
+            pct = np.searchsorted(np.sort(ref[f].dropna().to_numpy()), g[f].to_numpy(), side="right") / ref[f].notna().sum()
+            score += w[f] * np.where(g[f].notna(), pct - 0.5, 0.0)
+        g = g.assign(score=score)
+        thr = g.loc[g.per == "is", "score"].quantile(0.6)
+        top, rest = g[g.score >= thr], g[g.score < thr]
+        print(f"  балл ({', '.join(('+' if w[f] > 0 else '−') + f for f in used)}), верхние 40% по IS:")
+        print(pd.DataFrame([{"": nm, **{p: _cell(z[z.per == p]) for p in PER}} for nm, z in (("все", g), ("верх 40%", top),
+                                                                                               ("остальные", rest))]).to_string(index=False))
+        yy = top.groupby(top.t.dt.year)["R"].agg(["size", "mean"])
+        print("  верх 40% по годам: " + ", ".join(f"{k}: {v['mean']:+.2f}R ({int(v['size'])})" for k, v in yy.iterrows()))
+
+
 def report() -> None:
     parts = all_parts("tline")
     if not parts:
@@ -646,6 +758,13 @@ def report() -> None:
         print(f"  {line_name[ln]}: " + ", ".join(f"{k}: {v['mean']:+.2f}R (n={int(v['size'])})" for k, v in yy.iterrows()))
     if "btc_trend" in df.columns:
         diagnose_2026(df, line_name)
+    if "effort" in df.columns:
+        strength_report(df, line_name)
+        ev = df[df.confirm & (df.entry == "market") & df.tf.isin(["1h", "4h"]) & df.line.isin(["clean", "zz"])]
+        out = Path(os.environ.get("OUT", "../out"))
+        out.mkdir(parents=True, exist_ok=True)
+        ev.sort_values("t").to_csv(out / "tline_breakouts.csv", index=False)
+        print(f"\ntline_breakouts.csv: {len(ev)} пробоев (1h / 4h, закрепление, рынок) — для разметки стаканом")
 
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
