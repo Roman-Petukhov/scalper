@@ -31,6 +31,7 @@ ZONE_MIN = 0.25             # зона не уже 0.25 ATR
 ZONE_DEPTH = 1.0            # скопление закрытий ищем не дальше 1 ATR от линии
 ZONE_WIN = 0.3              # окно плотности: 0.3 ATR
 ZONE_OUT = 1.5              # внешний край — не дальше 1.5 ATR от линии
+ZONE_W = 1.0                # ширина зоны, ATR
 
 
 def _dense(res: np.ndarray, atr_b: float) -> float:
@@ -52,13 +53,12 @@ def _wick(ext: np.ndarray, c: np.ndarray, p: int, side: int) -> float:
 
 
 def zone_lines(d: pd.DataFrame) -> list[dict]:
-    """Зона вместо линии по ликвидному месту.
-    Направление — вершины зигзага по закрытиям 3 ATR: от вершины A линия появляется, когда подтвердилась следующая
-    вершина зигзага ниже A (для впадин — выше). Вторая точка — касательная: из мини-экстремумов (±3 свечи) не раньше
-    этой вершины берём самую пологую линию по закрытиям, над которой не закрылась ни одна мини-вершина после A и
-    между точками нет закрытий за линией. Внутренний край зоны — самое плотное скопление закрытий у линии
-    (до ZONE_DEPTH ATR), внешний — самая дальняя тень среди свечей, касавшихся зоны (не дальше ZONE_OUT ATR).
-    Зона не уже ZONE_MIN ATR. Пробой — первое закрытие за внешним краем; закрытие внутри зоны — тест."""
+    """Зона шириной ZONE_W ATR. Направление — вершины зигзага по закрытиям 3 ATR: от вершины A зона появляется,
+    когда подтвердилась следующая вершина зигзага ниже A (для впадин — выше). Внешний край идёт от тени вершины A и
+    прижат к теням: ни одна тень после A (до последней подтверждённой мини-вершины, ±3 свечи) не выходит за него —
+    самая крутая такая линия касается одной из вершин. Мини-вершины могут заходить внутрь зоны.
+    Пробой — закрытие за внешним краем дальше BRK_ATR ATR; ближе — касание: свеча станет мини-вершиной, и край
+    сдвинется за её тень."""
     c = d["close"].to_numpy(dtype="float64")
     hi, lo = d["high"].to_numpy(dtype="float64"), d["low"].to_numpy(dtype="float64")
     atr = _atr(d).to_numpy()
@@ -77,46 +77,31 @@ def zone_lines(d: pd.DataFrame) -> list[dict]:
             if not len(big):
                 continue
             b0, conf_b0 = int(big[0][0]), int(big[0][1])          # вершина, задающая направление
-            cand = mini[(mini[:, 0] >= b0) & (side * (c[a] - c[mini[:, 0]]) > 0)]
+            near = ext[max(0, a - 2): a + 3]
+            y0 = near.max() if side > 0 else near.min()          # внешний край — от крайней тени у вершины A
             later = mini[mini[:, 0] > a]
-            best, b_best, width, inner, rec, ci, li = None, -1, 0.0, 0.0, None, 0, 0
+            sl, b_best, wd, rec, li = None, -1, 0.0, None, 0
             for t in range(max(conf_a, conf_b0) + 1, min(a + ZZ_LIFE, m - 1)):
                 changed = False
                 while li < len(later) and later[li][1] <= t - 1:
                     li, changed = li + 1, True
-                while ci < len(cand) and cand[ci][1] <= t - 1:
-                    ci, changed = ci + 1, True
-                if changed:
-                    best, b_best = None, -1
-                    pts = later[:li, 0]
-                    for b in cand[:ci, 0]:
-                        sl = (c[b] - c[a]) / (b - a)
-                        tol = VIS_TOL * atr[b]
-                        if np.any(side * (c[pts] - (c[a] + sl * (pts - a))) > tol):
-                            continue                                # мини-вершина закрылась за линией
-                        seg = np.arange(a + 1, b)
-                        if len(seg) and np.any(side * (c[seg] - (c[a] + sl * (seg - a))) > tol):
-                            continue
-                        if best is None or side * sl > side * best:
-                            best, b_best = sl, int(b)
-                    if b_best >= 0:
-                        span = np.arange(a, t)
-                        line = c[a] + best * (span - a)
-                        inner = _dense(side * (line - c[span]), atr[b_best])
-                        touch = span[side * (line - c[span]) <= inner + 1e-12]
-                        outer = float(np.max(side * (ext[touch] - (c[a] + best * (touch - a))))) if len(touch) else 0.0
-                        outer = min(max(outer, 0.0), ZONE_OUT * atr[b_best])
-                        width = max(outer, ZONE_MIN * atr[b_best] - inner)
-                if best is None or not (side * best < 0):
+                if changed or sl is None:
+                    last = max(int(later[li - 1][0]) if li else b0, b0)
+                    js = np.arange(a + 3, last + 1)                # свечи у самой вершины A уже учтены в y0
+                    need = (ext[js] - y0) / (js - a)              # наклон, при котором тень свечи j на краю
+                    k = int(np.argmax(side * need))
+                    sl, b_best = float(need[k]), int(js[k])
+                    wd = ZONE_W * atr[b_best]
+                if not (side * sl < 0):
                     continue
-                lt, lp = c[a] + best * (t - a), c[a] + best * (t - 1 - a)
-                if side * (c[t] - lt) > width and side * (c[t - 1] - lp) <= width:
-                    rec = {"side": side, "a": int(a), "b": b_best, "t": t, "line_t": lt, "width": width,
-                           "inner": inner}
+                lt, lp = y0 + sl * (t - a), y0 + sl * (t - 1 - a)
+                if side * (c[t] - lt) > BRK_ATR * atr[t] and side * (c[t - 1] - lp) <= BRK_ATR * atr[t - 1]:
+                    rec = {"side": side, "a": int(a), "b": b_best, "t": t, "line_t": lt, "y0": y0, "slope": sl,
+                           "zone": wd}
                     break
-            if rec is None and best is not None and side * best < 0:
-                rec = {"side": side, "a": int(a), "b": b_best, "t": -1, "line_t": np.nan, "width": width,
-                       "inner": inner}
+            if rec is None and sl is not None and side * sl < 0:
+                rec = {"side": side, "a": int(a), "b": b_best, "t": -1, "line_t": np.nan, "y0": y0, "slope": sl,
+                       "zone": wd}
             if rec is not None and (rec["t"] < 0 or rec["t"] not in seen):
                 seen.add(rec["t"])
                 out.append(rec)
@@ -235,7 +220,7 @@ def vis_lines(d: pd.DataFrame, n: int, launch: bool = False, minor: int = 0, bos
 BASE = "https://fapi.binance.com"
 SPOT = "https://data-api.binance.vision"
 MODES = {"сейчас: зигзаг 3 ATR, линия": lambda d: zz_lines(d),
-         "зона: направление — зигзаг 3 ATR, касательная к мини-вершинам, края — скопление закрытий / дальняя тень": lambda d: zone_lines(d)}
+         "зона 1 ATR: направление — зигзаг 3 ATR, внешний край по теням, ни одна тень за ним; пробой — закрытие >= 0.2 ATR за краем": lambda d: zone_lines(d)}
 SHOW = 480
 
 
@@ -274,11 +259,17 @@ def draw(d: pd.DataFrame, sym: str, tf: str, out: Path) -> None:
             if end < off or r["b"] < 0:
                 continue
             a, b = r["a"], r["b"]
-            sl = (c[b] - c[a]) / (b - a)
+            y0, sl = (r["y0"], r["slope"]) if "y0" in r else (c[a], (c[b] - c[a]) / (b - a))
             xs = [max(a, off) - off, end + 3 - off]
-            ys = [c[a] + sl * (max(a, off) - a), c[a] + sl * (end + 3 - a)]
+            ys = [y0 + sl * (max(a, off) - a), y0 + sl * (end + 3 - a)]
             col = "#1e88e5" if r["side"] < 0 else "#fb8c00"
-            if "width" not in r:
+            if "zone" in r:
+                ys_in = [y - r["side"] * r["zone"] for y in ys]
+                ax.plot(xs, ys, color=col, lw=1.2)
+                ax.plot(xs, ys_in, color=col, lw=1.2)
+                ax.plot(xs, [(u + v) / 2 for u, v in zip(ys, ys_in)], color=col, lw=0.7, ls="--")
+                ax.fill_between(xs, ys_in, ys, color=col, alpha=0.18)
+            elif "width" not in r:
                 ax.plot(xs, ys, color=col, lw=1.4)
             else:
                 ys_out = [y + r["side"] * r["width"] for y in ys]
