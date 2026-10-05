@@ -47,6 +47,8 @@
     <div class="grid2">
       <div class="field"><label for="risk_pct">Риск на сделку, %</label>
         <input class="num" id="risk_pct" name="risk_pct" type="number" step="0.05" min="0.05" max="5" value="{{ s.risk_pct }}"></div>
+      <div class="field"><label for="leverage">Плечо, ×</label>
+        <input class="num" id="leverage" name="leverage" type="number" step="1" min="1" max="10" value="{{ s.leverage }}"></div>
       <div class="field"><label for="max_positions">Позиций одновременно</label>
         <input class="num" id="max_positions" name="max_positions" type="number" step="1" min="1" max="50" value="{{ s.max_positions }}"></div>
       <div class="field"><label for="daily_loss_pct">Дневной стоп, %</label>
@@ -64,7 +66,7 @@
       {% elif params_saved %}<span class="ok" role="status">Сохранено</span>{% endif %}
     </div>
   </form>
-  <p class="hint">Проверено в бэктесте: агрессоры 55%, цель 3R. Изменения действуют со следующей свечи.</p>
+  <p class="hint">Убыток по стопу задаёт риск на сделку, а не плечо. Плечо ограничивает размер позиции (не больше плечо × капитал) и сколько маржи она занимает. Короткий стоп при малом плече даст риск меньше заданного. Проверено в бэктесте: агрессоры 55%, цель 3R, плечо 5×.</p>
 </div>
 
 <div class="card">

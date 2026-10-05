@@ -10,8 +10,6 @@ from datetime import datetime, timedelta
 from .models import EntryKind, Settings, Side, Signal, TradePlan
 from .sizing import position_size
 
-MAX_NOTIONAL_X = 5.0        # номинал позиции не больше 5 капиталов (как в бэктесте)
-LEVERAGE = 10               # плечо на бирже: маржа ≤ 1/10 номинала, чтобы хватало на несколько позиций
 MIN_RR = 1.5                # рыночный вход: если цена ушла и до цели осталось меньше 1.5 стопа — не входим
 DEFAULT_MIN_NOTIONAL = 5.0  # $, минимальный ордер Bybit для USDT-перпетуалов
 
@@ -148,8 +146,8 @@ def build_order(signal: Signal, settings: Settings, account: Account, instrument
     entry = round_price(entry, instrument.tick)
     stop, target = round_price(plan.stop, instrument.tick), round_price(plan.target, instrument.tick)
     sized = position_size(account.equity, settings.risk_pct,
-                          TradePlan(plan.entry_kind, entry, stop, target, plan.valid_bars), MAX_NOTIONAL_X)
-    lev = int(max(1, min(LEVERAGE, instrument.max_leverage)))
+                          TradePlan(plan.entry_kind, entry, stop, target, plan.valid_bars), settings.leverage)
+    lev = int(max(1, min(settings.leverage, instrument.max_leverage)))
     margin_cap = max(account.available, 0.0) * 0.95 * lev / entry      # запас 5% на комиссию и проскальзывание
     qty = round_down(min(sized.qty, margin_cap), instrument.qty_step)
     if margin_cap < instrument.min_qty:

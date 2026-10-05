@@ -76,6 +76,11 @@ def test_params_validation_message(env):
     assert "от 0.05% до 5%" in c.post("/settings/params", data=form, headers=HX).text
     form["risk_pct"] = "0.5"
     assert "Сохранено" in c.post("/settings/params", data=form, headers=HX).text
+    form["leverage"] = "15"
+    assert "плечо — целое от 1× до 10×" in c.post("/settings/params", data=form, headers=HX).text
+    form["leverage"] = "8"
+    r = c.post("/settings/params", data=form, headers=HX).text
+    assert "Сохранено" in r and 'name="leverage" type="number" step="1" min="1" max="10" value="8"' in r
 
 
 def test_signal_take_skip_and_feed(env):

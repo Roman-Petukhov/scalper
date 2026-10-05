@@ -163,7 +163,7 @@ class SettingsService:
 
     def update(self, **fields: float | int) -> Settings:
         """Числовые параметры риска и правила; Settings проверяет допустимые диапазоны."""
-        allowed = {"risk_pct", "max_positions", "daily_loss_pct", "min_aggr", "target_r", "hybrid_range_atr"}
+        allowed = {"risk_pct", "leverage", "max_positions", "daily_loss_pct", "min_aggr", "target_r", "hybrid_range_atr"}
         bad = set(fields) - allowed
         if bad:
             raise ValueError(f"неизвестные поля: {sorted(bad)}")

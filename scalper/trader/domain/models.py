@@ -6,6 +6,9 @@ from datetime import datetime
 from enum import Enum
 
 
+MAX_LEVERAGE = 10                       # верхняя граница плеча в панели
+
+
 class Timeframe(str, Enum):
     M15 = "15m"
     H1 = "1h"
@@ -55,6 +58,7 @@ class Settings:
     mode: Mode = Mode.MANUAL
     timeframes: frozenset[Timeframe] = frozenset({Timeframe.H4})
     risk_pct: float = 1.0               # риск на сделку, % капитала
+    leverage: int = 5                   # плечо на бирже и потолок номинала позиции (×капитал); риск задаёт стоп
     max_positions: int = 5
     daily_loss_pct: float = 4.0         # дневной лимит убытка, % капитала: дальше авто не открывает
     min_aggr: float = 0.55              # доля агрессоров в сторону пробоя
@@ -67,6 +71,8 @@ class Settings:
     def __post_init__(self) -> None:
         if not 0.05 <= self.risk_pct <= 5.0:
             raise ValueError("риск на сделку — от 0.05% до 5%")
+        if not (isinstance(self.leverage, int) and 1 <= self.leverage <= MAX_LEVERAGE):
+            raise ValueError(f"плечо — целое от 1× до {MAX_LEVERAGE}×")
         if not 1 <= self.max_positions <= 50:
             raise ValueError("одновременных позиций — от 1 до 50")
         if not 0.5 <= self.daily_loss_pct <= 30.0:

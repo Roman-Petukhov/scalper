@@ -30,7 +30,7 @@ def _sig(**kw):
 def test_market_order_sized_from_risk_and_rounded():
     o = build_order(_sig(), Settings(risk_pct=1.0), ACC, INST, price=101.0, day_start_equity=1000.0, now=NOW)
     assert o.kind is EntryKind.MARKET and o.price == 101.0 and o.stop == 98.0 and o.target == 110.0
-    assert o.qty == 3.33 and o.leverage == 10 and o.risk_usd == pytest.approx(9.99)
+    assert o.qty == 3.33 and o.leverage == 5 and o.risk_usd == pytest.approx(9.99)
     assert o.client_id == "tt-1" and "лонг SOLUSDT" in o.describe()
 
 
@@ -46,6 +46,19 @@ def test_market_order_sized_from_risk_and_rounded():
 def test_guards_refuse_with_reason(acc, price, day, msg):
     with pytest.raises(ExecutionRefused, match=msg):
         build_order(_sig(), Settings(), acc, INST, price, day, NOW)
+
+
+def test_leverage_caps_notional_and_is_sent_to_exchange():
+    tight = _sig(plan=TradePlan(EntryKind.MARKET, 101.0, 100.5, 102.5, 0))      # стоп 0.5%: на риск 1% нужно 2×
+    o = build_order(tight, Settings(leverage=1), ACC, INST, 101.0, None, NOW)
+    assert o.leverage == 1 and o.qty * 101.0 <= 1000.0 and o.risk_usd < 10.0    # плечо 1× урезало риск
+    o = build_order(tight, Settings(leverage=10), ACC, INST, 101.0, None, NOW)
+    assert o.leverage == 10 and o.risk_usd == pytest.approx(10.0, abs=0.01)
+    o = build_order(tight, Settings(leverage=10), ACC, replace(INST, max_leverage=3), 101.0, None, NOW)
+    assert o.leverage == 3                                                      # не больше, чем позволяет монета
+    for bad in (0, 11):
+        with pytest.raises(ValueError, match="плечо"):
+            Settings(leverage=bad)
 
 
 def test_retest_limit_has_expiry_and_refuses_when_late():
