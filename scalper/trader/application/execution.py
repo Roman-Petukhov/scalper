@@ -8,7 +8,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from ..domain.execution import Account, ExecutionRefused, Trade, TradeStatus, build_order
+from datetime import timedelta
+
+from ..domain.execution import Account, ExecutionRefused, Trade, TradeStatus, build_order, target_reached
 from ..domain.models import Signal, SignalStatus
 from .ports import Broker, Notifier, SettingsRepository, SignalRepository, TradeRepository
 
@@ -93,30 +95,63 @@ class Executor:
         return trade
 
     async def housekeep(self) -> None:
-        """Лимитки ретеста: исполнилась — помечаем; истекло время — снимаем, сигнал «истёк»."""
+        """Раз в минуту, как в бэктесте: лимитка ретеста исполнилась — помечаем; истекло время или цена дошла до цели
+        без ретеста — снимаем; позиция дольше срока сделки (max_hold_bars свечей с отправки ордера) — закрываем."""
         b = self.broker()
-        pending = self.trades.pending_trades()
-        if b is None or not pending:
+        pending, filled = self.trades.pending_trades(), self.trades.filled_trades()
+        if b is None or not (pending or filled):
             return
         open_ids, acc = await asyncio.gather(b.open_order_ids(), b.account())
-        held = {p.symbol for p in acc.positions}
+        held = {p.symbol: p for p in acc.positions}
         now = self.clock()
         for t in pending:
             if t.order_id not in open_ids:                         # исчезла из открытых: исполнилась или снята
                 self.trades.set_trade_status(t.id, TradeStatus.FILLED if t.symbol in held else TradeStatus.CANCELLED)
-            elif t.expires_at is not None and now >= t.expires_at:
+                continue
+            why = None
+            if t.expires_at is not None and now >= t.expires_at:
+                why = "ретеста не было — лимитка снята"
+            else:
                 try:
-                    await b.cancel(t.symbol, t.order_id)
+                    if target_reached(t.side, t.target, await b.price(t.symbol)):
+                        why = "цена дошла до цели без ретеста — лимитка снята"
                 except Exception:
-                    log.exception("снятие лимитки %s", t.symbol)
-                    continue
-                self.trades.set_trade_status(t.id, TradeStatus.EXPIRED)
-                self.signals.set_status(t.signal_id, SignalStatus.EXPIRED, "ретеста не было — лимитка снята")
-                if self.notifier is not None:
-                    try:
-                        await self.notifier.text(f"{t.symbol}: ретеста не было, лимитка снята")
-                    except Exception:
-                        log.exception("уведомление")
+                    log.exception("цена %s", t.symbol)
+            if why is None:
+                continue
+            try:
+                await b.cancel(t.symbol, t.order_id)
+            except Exception:
+                log.exception("снятие лимитки %s", t.symbol)
+                continue
+            self.trades.set_trade_status(t.id, TradeStatus.EXPIRED)
+            self.signals.set_status(t.signal_id, SignalStatus.EXPIRED, why)
+            await self._say(f"{t.symbol}: {why}")
+        settings, seen = self.settings.load(), set()
+        for t in filled:                                           # новые первыми: по монете — только последняя сделка
+            if t.symbol in seen:
+                continue
+            seen.add(t.symbol)
+            pos, sig = held.get(t.symbol), self.signals.get(t.signal_id)
+            if pos is None or pos.side is not t.side or sig is None or t.created_at is None:
+                continue
+            bars = settings.p(sig.timeframe).max_hold_bars
+            if now < t.created_at + timedelta(minutes=sig.timeframe.minutes * bars):
+                continue
+            try:
+                await b.close_position(t.symbol)
+            except Exception:
+                log.exception("закрытие по времени %s", t.symbol)
+                continue
+            self.trades.set_trade_status(t.id, TradeStatus.TIMED_OUT)
+            await self._say(f"{t.symbol}: позиция закрыта по рынку — прошло {bars} свечей {sig.timeframe.value}")
+
+    async def _say(self, text: str) -> None:
+        if self.notifier is not None:
+            try:
+                await self.notifier.text(text)
+            except Exception:
+                log.exception("уведомление")
 
 
 def _short(e: Exception) -> str:

@@ -75,6 +75,8 @@ class Scanner:
             self.last[tf] = rep
             return rep
         symbols = await self.market.universe(s.min_turnover_usd)
+        if s.p(tf).top_n:
+            symbols = symbols[: s.p(tf).top_n]                      # только самые ликвидные — как в бэктесте ТФ
         res = await asyncio.gather(*(self._one(x, tf, s) for x in symbols), return_exceptions=True)
         found, errors = [], 0
         for sym, r in zip(symbols, res):

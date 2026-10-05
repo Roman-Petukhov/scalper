@@ -79,6 +79,8 @@ class TfParams:
                                         # стольких часов назад (по закрытию его свечи); 0 — без этого условия
     sides: SideFilter = SideFilter.BOTH
     max_slope_atr: float = 0.0          # линия не круче стольких ATR за свечу (пологие линии надёжнее); 0 — любая
+    top_n: int = 0                      # только столько самых ликвидных монет (по обороту за 24 ч); 0 — все с порогом
+    max_hold_bars: int = 60             # позиция закрывается по рынку через столько свечей (как в бэктесте)
 
     def __post_init__(self) -> None:
         if not 0.05 <= self.risk_pct <= 5.0:
@@ -99,6 +101,10 @@ class TfParams:
             raise ValueError("окно пробоя старшего ТФ — от 0 до 48 часов")
         if not 0.0 <= self.max_slope_atr <= 1.0:
             raise ValueError("наклон линии — от 0 до 1 ATR за свечу")
+        if not (isinstance(self.top_n, int) and 0 <= self.top_n <= 1000):
+            raise ValueError("число монет — от 0 (все) до 1000")
+        if not (isinstance(self.max_hold_bars, int) and 1 <= self.max_hold_bars <= 1000):
+            raise ValueError("срок сделки — от 1 до 1000 свечей")
 
 
 # Лучшее по бэктесту (docs/research_report.md): 4h — основная стратегия (ретест, закрытие в верхней половине свечи);
@@ -107,7 +113,7 @@ class TfParams:
 DEFAULT_TF_PARAMS: dict[Timeframe, TfParams] = {
     Timeframe.H4: TfParams(risk_pct=1.0, min_close_loc=0.5),
     Timeframe.M15: TfParams(risk_pct=0.25, min_close_loc=0.5, entry_policy=EntryPolicy.MARKET, sides=SideFilter.SHORT,
-                            max_slope_atr=0.025),
+                            max_slope_atr=0.025, top_n=70, max_hold_bars=200),   # бэктест 15m — 70 ликвидных монет
 }
 HTF_CONFIRM: dict[Timeframe, Timeframe] = {Timeframe.M15: Timeframe.H4}   # чей пробой подтверждает сигнал младшего ТФ
 RETIRED_TIMEFRAMES = ("1h",)            # были в панели раньше: сигналы и настройки этих ТФ при загрузке убираются

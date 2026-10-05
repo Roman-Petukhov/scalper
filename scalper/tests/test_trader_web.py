@@ -75,7 +75,7 @@ def _params_form(**over):
         f |= {f"{tf}__risk_pct": risk, f"{tf}__entry_policy": "retest", f"{tf}__min_aggr_pct": "55",
               f"{tf}__target_r": "3", f"{tf}__min_close_loc_pct": loc, f"{tf}__min_break_atr": "0",
               f"{tf}__hybrid_range_atr": "2.5", f"{tf}__retest_bars": "12", f"{tf}__sides": "both",
-              f"{tf}__max_slope_atr": "0"}
+              f"{tf}__max_slope_atr": "0", f"{tf}__top_n": "0", f"{tf}__max_hold_bars": "60"}
     return f | over
 
 

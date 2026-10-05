@@ -11,7 +11,7 @@ from ..domain.models import Settings, Signal, SignalStatus, Timeframe
 
 class MarketData(Protocol):
     async def universe(self, min_turnover_usd: float) -> list[str]:
-        """Монеты (перпетуалы USDT) с оборотом за 24 ч не ниже порога."""
+        """Монеты (перпетуалы USDT) с оборотом за 24 ч не ниже порога, от самых ликвидных."""
 
     async def closed_bars(self, symbol: str, tf: Timeframe) -> pd.DataFrame:
         """Только закрытые свечи; индекс — открытие свечи UTC; колонки open, high, low, close, volume,
@@ -71,6 +71,9 @@ class Broker(Protocol):
 
     async def cancel(self, symbol: str, order_id: str) -> None: ...
 
+    async def close_position(self, symbol: str) -> None:
+        """Закрыть позицию по монете по рынку (reduce-only); стоп и цель биржа снимает сама."""
+
     async def close(self) -> None: ...
 
 
@@ -80,6 +83,9 @@ class TradeRepository(Protocol):
     def trades_for(self, signal_ids: list[int]) -> dict[int, Trade]: ...
 
     def pending_trades(self) -> list[Trade]: ...
+
+    def filled_trades(self) -> list[Trade]:
+        """Сделки со статусом «на бирже», новые первыми."""
 
     def set_trade_status(self, trade_id: int, status: TradeStatus) -> None: ...
 

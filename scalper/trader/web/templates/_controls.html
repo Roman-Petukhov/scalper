@@ -48,11 +48,13 @@
       ("min_break_atr", "Закрытие за линией ≥, ATR", 0.05, 0, 1, 1),
       ("hybrid_range_atr", "Гибрид: длинная свеча, ATR", 0.1, 0.5, 10, 1),
       ("retest_bars", "Ретест ждёт, свечей", 1, 1, 48, 1),
-      ("max_slope_atr", "Наклон линии ≤, ATR/свечу (0 — любой)", 0.005, 0, 1, 1)] %}
+      ("max_slope_atr", "Наклон линии ≤, ATR/свечу (0 — любой)", 0.005, 0, 1, 1),
+      ("top_n", "Монет: самые ликвидные (0 — все)", 1, 0, 1000, 1),
+      ("max_hold_bars", "Закрыть сделку через, свечей", 1, 1, 1000, 1)] %}
     {% set fld = {"risk_pct": "risk_pct", "min_aggr_pct": "min_aggr", "target_r": "target_r",
                    "min_close_loc_pct": "min_close_loc", "min_break_atr": "min_break_atr",
                    "hybrid_range_atr": "hybrid_range_atr", "retest_bars": "retest_bars",
-                   "max_slope_atr": "max_slope_atr"} %}
+                   "max_slope_atr": "max_slope_atr", "top_n": "top_n", "max_hold_bars": "max_hold_bars"} %}
     <div class="per-tf num" style="--cols: {{ Timeframe | list | length }}">
       <span></span>{% for tf in Timeframe | reverse %}<b class="tf-head">{{ tf.value }}</b>{% endfor %}
       <label>Вход</label>

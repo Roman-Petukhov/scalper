@@ -51,7 +51,8 @@ def chart_name(path: str) -> str:
 
 templates.env.filters["chart_name"] = chart_name
 templates.env.globals.update(ARCHIVED=ARCHIVED, TRADE_LABEL={TradeStatus.PLACED: "лимитка ждёт", TradeStatus.FILLED: "на бирже",
-                                          TradeStatus.EXPIRED: "лимитка снята", TradeStatus.CANCELLED: "снят / закрыт"},
+                                          TradeStatus.EXPIRED: "лимитка снята", TradeStatus.CANCELLED: "снят / закрыт",
+                                          TradeStatus.TIMED_OUT: "закрыт по сроку"},
                              FEED_TABS=[("all", "Все")] + [(t.value, t.value) for t in Timeframe] + [("archive", "Архив")],
                              STATUS_LABEL=STATUS_LABEL, Timeframe=Timeframe, Mode=Mode, EntryPolicy=EntryPolicy, SideFilter=SideFilter, HTF_CONFIRM=HTF_CONFIRM,
                              SignalStatus=SignalStatus)
@@ -270,7 +271,8 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
                               "min_break_atr": float(f("min_break_atr")),
                               "hybrid_range_atr": float(f("hybrid_range_atr")), "retest_bars": int(f("retest_bars")),
                               "htf_confirm_h": int(form.get(f"{tf.value}__htf_confirm_h", "0")),
-                              "sides": SideFilter(f("sides")), "max_slope_atr": float(f("max_slope_atr"))}
+                              "sides": SideFilter(f("sides")), "max_slope_atr": float(f("max_slope_atr")),
+                              "top_n": int(f("top_n")), "max_hold_bars": int(f("max_hold_bars"))}
             settings_svc.update(g, per_tf)
         except KeyError as e:
             err = f"не заполнено поле {e.args[0]}"

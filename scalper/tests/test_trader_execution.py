@@ -86,7 +86,7 @@ class FakeBroker:
 
     def __init__(self, acc=ACC, price=101.0, fail=None):
         self.acc, self.px, self.fail = acc, price, fail
-        self.placed, self.cancelled, self.open = [], [], set()
+        self.placed, self.cancelled, self.open, self.closed = [], [], set(), []
 
     async def account(self):
         return self.acc
@@ -111,6 +111,9 @@ class FakeBroker:
     async def cancel(self, symbol, order_id):
         self.cancelled.append(order_id)
         self.open.discard(order_id)
+
+    async def close_position(self, symbol):
+        self.closed.append(symbol)
 
     async def close(self):
         pass
@@ -360,3 +363,59 @@ def test_15m_signal_only_after_fresh_4h_breakout(tmp_path, monkeypatch):
     monkeypatch.setattr(svc_mod, "htf_breakouts", lambda d, tf: [(seen, Side.LONG)])
     rep = asyncio.run(sc.scan(Timeframe.M15))
     assert len(rep.signals) == 1 and rep.signals[0].extra["htf_age_h"] == 3.0 and rep.signals[0].extra["htf"] == "4h"
+
+
+def test_housekeep_cancels_retest_when_price_reached_target_first(tmp_path):
+    b = FakeBroker(price=101.5)
+    st, ex = _exec(tmp_path, b)
+    a = st.add(_signal(symbol="AAAUSDT"))
+    a = replace(a, plan=TradePlan(EntryKind.RETEST, 100.0, 98.0, 106.0, 12))
+    st.db.execute("UPDATE signals SET payload = ? WHERE id = ?", (st._payload(a), a.id))
+    st.db.commit()
+    asyncio.run(ex.execute(st.get(a.id)))
+    asyncio.run(ex.housekeep())
+    assert st.trades_for([a.id])[a.id].status is TradeStatus.PLACED and b.cancelled == []
+    b.px = 106.2                                           # цена ушла к цели, ретеста не было
+    asyncio.run(ex.housekeep())
+    assert st.trades_for([a.id])[a.id].status is TradeStatus.EXPIRED and b.cancelled == ["o1"]
+    assert "до цели без ретеста" in st.get(a.id).note
+
+
+def test_housekeep_closes_position_after_max_hold_only_for_latest_trade(tmp_path):
+    b = FakeBroker()
+    clock = Clock(NOW)
+    st, ex = _exec(tmp_path, b, clock)
+    old = st.add(_signal())                                # рыночный вход: сделка сразу «на бирже»
+    asyncio.run(ex.execute(st.get(old.id)))
+    b.acc = replace(ACC, positions=(Position("SOLUSDT", Side.LONG, 1, 100, 101, 1),))
+    clock.t = NOW + timedelta(hours=4 * 59)
+    asyncio.run(ex.housekeep())
+    assert b.closed == [] and st.trades_for([old.id])[old.id].status is TradeStatus.FILLED
+    clock.t = NOW + timedelta(hours=4 * 60)                # 60 свечей 4h — срок сделки
+    asyncio.run(ex.housekeep())
+    assert b.closed == ["SOLUSDT"] and st.trades_for([old.id])[old.id].status is TradeStatus.TIMED_OUT
+    b.acc = replace(ACC, positions=(Position("SOLUSDT", Side.SHORT, 1, 100, 99, 1),))   # уже другая позиция
+    asyncio.run(ex.housekeep())
+    assert b.closed == ["SOLUSDT"]
+
+
+def test_scanner_takes_only_top_n_liquid_symbols(tmp_path, monkeypatch):
+    import trader.application.services as svc_mod
+    st = SqliteStore(tmp_path / "t.db")
+    st.save(replace(Settings(), timeframes=frozenset(Timeframe)).with_tf(Timeframe.M15, top_n=2))
+    idx = pd.date_range("2026-01-01", periods=10, freq="15min", tz="UTC")
+    bars = pd.DataFrame({"open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0, "volume": 1.0,
+                         "taker_buy_volume": 0.5}, index=idx)
+    seen = []
+    monkeypatch.setattr(svc_mod, "detect", lambda d, tf, sym, s: seen.append((tf, sym)) or [])
+
+    class _Charts:
+        def render(self, signal, bb):
+            return "x.png"
+
+    m = _Market({"AUSDT": bars, "BUSDT": bars, "CUSDT": bars})
+    sc = Scanner(m, st, st, _Charts(), None, "")
+    asyncio.run(sc.scan(Timeframe.M15))
+    asyncio.run(sc.scan(Timeframe.H4))
+    assert sorted(s for tf, s in seen if tf is Timeframe.M15) == list(m.frames)[:2]
+    assert len([s for tf, s in seen if tf is Timeframe.H4]) == 3

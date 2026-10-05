@@ -106,6 +106,11 @@ def round_price(x: float, tick: float) -> float:
     return round(round(x / tick) * tick, decimals)
 
 
+def target_reached(side: Side, target: float, price: float) -> bool:
+    """Цена дошла до цели: лимитка ретеста больше не нужна (в бэктесте такой вход не делается)."""
+    return int(side) * (price - target) >= 0
+
+
 def day_loss_hit(equity: float, day_start_equity: float | None, daily_loss_pct: float) -> bool:
     return day_start_equity is not None and day_start_equity > 0 and \
         equity <= day_start_equity * (1 - daily_loss_pct / 100)
@@ -165,7 +170,8 @@ def build_order(signal: Signal, settings: Settings, account: Account, instrument
 class TradeStatus(str, Enum):
     PLACED = "placed"           # ордер входа на бирже (лимитка ждёт ретеста)
     FILLED = "filled"           # вход исполнен, позиция со стопом и целью на бирже
-    EXPIRED = "expired"         # лимитка не исполнилась вовремя и снята
+    EXPIRED = "expired"         # лимитка не исполнилась вовремя (или цена ушла к цели без ретеста) и снята
+    TIMED_OUT = "timed_out"     # позиция закрыта по рынку: истёк срок сделки (max_hold_bars)
     CANCELLED = "cancelled"     # снята вручную на бирже
 
 

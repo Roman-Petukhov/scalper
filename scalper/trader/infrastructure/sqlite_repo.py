@@ -284,6 +284,12 @@ class SqliteStore:
             rows = self.db.execute("SELECT * FROM trades WHERE status = ?", (TradeStatus.PLACED.value,)).fetchall()
         return [self._trade(r) for r in rows]
 
+    def filled_trades(self) -> list[Trade]:
+        with self.lock:
+            rows = self.db.execute("SELECT * FROM trades WHERE status = ? ORDER BY id DESC",
+                                   (TradeStatus.FILLED.value,)).fetchall()
+        return [self._trade(r) for r in rows]
+
     def set_trade_status(self, trade_id: int, status: TradeStatus) -> None:
         with self.lock:
             self.db.execute("UPDATE trades SET status = ? WHERE id = ?", (status.value, trade_id))

@@ -142,6 +142,17 @@ class BybitBroker:
             raise ValueError(f"{symbol} не торгуется на Bybit")
         await self.ex.cancel_order(order_id, m["symbol"])
 
+    async def close_position(self, symbol: str) -> None:
+        m = await self._market(symbol)
+        if m is None:
+            raise ValueError(f"{symbol} не торгуется на Bybit")
+        for p in await self.ex.fetch_positions([m["symbol"]]):
+            qty = _f(p.get("contracts"))
+            if qty > 0:
+                side = "sell" if p.get("side") == "long" else "buy"
+                await self.ex.create_order(m["symbol"], "market", side, qty, None,
+                                           {"reduceOnly": True, "positionIdx": 0})
+
     async def close(self) -> None:
         await self.ex.close()
 

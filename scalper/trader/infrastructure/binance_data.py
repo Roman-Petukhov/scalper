@@ -62,7 +62,8 @@ class BinanceMarketData:
         info, tick = await asyncio.gather(self._get("/fapi/v1/exchangeInfo"), self._get("/fapi/v1/ticker/24hr"))
         live = {s["symbol"] for s in info["symbols"] if s.get("status") == "TRADING"
                 and s.get("contractType") == "PERPETUAL" and s.get("quoteAsset") == "USDT" and is_crypto(s)}
-        out = sorted(t["symbol"] for t in tick if t["symbol"] in live and float(t["quoteVolume"]) >= min_turnover_usd)
+        liquid = [t for t in tick if t["symbol"] in live and float(t["quoteVolume"]) >= min_turnover_usd]
+        out = [t["symbol"] for t in sorted(liquid, key=lambda t: -float(t["quoteVolume"]))]   # ликвидные первыми
         self._universe = (now, min_turnover_usd, out)
         return out
 
