@@ -119,7 +119,9 @@ def last_confirmed(piv: np.ndarray, m: int) -> np.ndarray:
     return out
 
 
-LINES = ("last2", "clean", "clean3")
+LINES = ("last2", "clean", "clean3", "major")
+MAJOR_L = 12          # главный экстремум: тень выше (ниже) 12 свечей с каждой стороны
+MINOR_N = 3           # точки касания: фрактал 3 свечи
 
 
 def _lines(c: np.ndarray, atr: np.ndarray, piv: np.ndarray, side: int, mode: str) -> list[tuple | None]:
@@ -152,9 +154,54 @@ def _lines(c: np.ndarray, atr: np.ndarray, piv: np.ndarray, side: int, mode: str
     return out
 
 
+def major_lines(d: pd.DataFrame) -> list[dict]:
+    """Касательные от главных экстремумов по закрытиям (так рисует трейдер): от главной вершины A (закрытие выше MAJOR_L
+    закрытий с каждой стороны) — линия через ту из следующих более низких вершин (фрактал MINOR_N), которая даёт самый
+    пологий наклон, то есть ни одна вершина после A не выше линии; новая вершина-касание перерисовывает линию.
+    Для восходящей линии — зеркально по минимумам. Пробой — первое закрытие за линией (линия известна на t − 1).
+    Возвращает по линии на каждый главный экстремум: сторона пробоя, A, B, наклон, бар пробоя (−1 — не пробита),
+    значения линии на барах пробоя и закрепления, бар закрепления."""
+    c = d["close"].to_numpy(dtype="float64")
+    m = len(c)
+    out = []
+    for side in (1, -1):
+        x = c                                               # всё по закрытиям свечей
+        majors = pivots(x, MAJOR_L, high=side > 0)
+        minors = pivots(x, MINOR_N, high=side > 0)
+        for q, (a, conf_a) in enumerate(majors):
+            nxt = majors[q + 1][1] if q + 1 < len(majors) else m   # линия живёт до подтверждения следующей вершины
+            cand = minors[(minors[:, 0] > a + MINOR_N) & (side * (x[a] - x[minors[:, 0]]) > 0)] if len(minors) else minors
+            best, b_best, rec = None, -1, None
+            ci = 0
+            for t in range(max(conf_a + 1, a + 2), min(nxt + 200, m - 1)):
+                while ci < len(cand) and cand[ci][1] <= t - 1:
+                    b = cand[ci][0]
+                    sl = (x[b] - x[a]) / (b - a)
+                    if best is None or side * sl > side * best:      # более пологая касательная
+                        best, b_best = sl, b
+                    ci += 1
+                if best is None or not (side * best < 0):
+                    continue
+                lt, lp = x[a] + best * (t - a), x[a] + best * (t - 1 - a)
+                if side * (c[t] - lt) > 0 and side * (c[t - 1] - lp) <= 0:
+                    ln = x[a] + best * (t + 1 - a)
+                    rec = {"side": side, "a": int(a), "b": int(b_best), "slope": best, "t": t,
+                           "tc": t + 1 if side * (c[t + 1] - ln) > 0 else -1, "line_t": lt, "line_n": ln}
+                    break
+            if rec is None and best is not None and side * best < 0:
+                rec = {"side": side, "a": int(a), "b": int(b_best), "slope": best, "t": -1, "tc": -1,
+                       "line_t": np.nan, "line_n": np.nan}
+            if rec is not None:
+                out.append(rec)
+    return out
+
+
 def signals(d: pd.DataFrame, mode: str = "last2") -> list[tuple[int, int, int, float, float, int, int]]:
     """(бар пробоя, бар закрепления или −1, сторона, линия на баре пробоя, линия на баре закрепления,
     индексы двух точек линии)."""
+    if mode == "major":
+        return [(r["t"], r["tc"], r["side"], r["line_t"], r["line_n"], r["a"], r["b"]) for r in major_lines(d)
+                if r["t"] > 0]
     c = d["close"].to_numpy(dtype="float64")
     atr = _atr(d).to_numpy() if {"high", "low"} <= set(d.columns) else np.full(len(c), np.inf)
     m = len(c)
@@ -181,7 +228,27 @@ def signals(d: pd.DataFrame, mode: str = "last2") -> list[tuple[int, int, int, f
     return out
 
 
-def tf_frame(root: Path, sym: str, tf: str) -> pd.DataFrame | None:
+def _extend_daily(sym: str, df: pd.DataFrame) -> pd.DataFrame:
+    """Дописать часовые свечи из дневных архивов после конца месячных (для свежих графиков)."""
+    from . import data as D
+    D.set_host("cdn")
+    start = (df.index.max() + pd.Timedelta(hours=1)).normalize()
+    days = pd.date_range(start, pd.Timestamp.now(tz="UTC").normalize() - pd.Timedelta(days=1), freq="D")
+    extra = []
+    for day in days:
+        blob = D._get(f"{D.DAILY}/klines/{sym}/1h/{sym}-1h-{day:%Y-%m-%d}.zip")
+        if blob is None:
+            continue
+        k = D._read_zip_csv(blob, D.KCOLS)
+        k.index = pd.to_datetime(pd.to_numeric(k["open_time"]), unit="ms", utc=True)
+        extra.append(k[[c_ for c_ in df.columns if c_ in k.columns]].astype("float64"))
+    if not extra:
+        return df
+    out = pd.concat([df, *extra])
+    return out[~out.index.duplicated()].sort_index()
+
+
+def tf_frame(root: Path, sym: str, tf: str, extend: bool = False) -> pd.DataFrame | None:
     p15, p1 = root / f"{sym}-15m.parquet", root / f"{sym}-1h.parquet"
     src = p15 if tf == "15m" else p1
     if not src.exists():
@@ -190,6 +257,8 @@ def tf_frame(root: Path, sym: str, tf: str) -> pd.DataFrame | None:
     df.index = pd.to_datetime(df["open_time"], unit="ms", utc=True)
     df = df.drop(columns=["open_time"])
     df = df[~df.index.duplicated()].sort_index()
+    if extend and tf != "15m":
+        df = _extend_daily(sym, df)
     if tf == "4h":
         df = resample(df, "4h")
     df["funding"] = funding_on_bars(sym, root, df.index, BAR_MIN[tf])
@@ -270,7 +339,7 @@ def coin_trades(root: Path, sym: str, tf: str) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-EXAMPLES = [("SOLUSDT", "15m", 320), ("SOLUSDT", "1h", 360), ("ETHUSDT", "1h", 360), ("DOGEUSDT", "1h", 360),
+EXAMPLES = [("NEARUSDT", "1h", 300), ("NEARUSDT", "4h", 200), ("SOLUSDT", "15m", 320), ("SOLUSDT", "1h", 360), ("ETHUSDT", "1h", 360), ("DOGEUSDT", "1h", 360),
             ("ETHUSDT", "4h", 260), ("SOLUSDT", "4h", 260), ("AVAXUSDT", "15m", 320), ("LINKUSDT", "1h", 360)]
 
 
@@ -279,7 +348,7 @@ def chart(root: Path, sym: str, tf: str, bars: int, out: Path) -> None:
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    d = tf_frame(root, sym, tf)
+    d = tf_frame(root, sym, tf, extend=True)
     if d is None or len(d) < bars + 50:
         return
     o, hi, lo, c = (d[k].to_numpy(dtype="float64") for k in ("open", "high", "low", "close"))
@@ -293,26 +362,30 @@ def chart(root: Path, sym: str, tf: str, bars: int, out: Path) -> None:
         ax.vlines(i, lo[i], hi[i], color=col, linewidth=0.8)
         ax.add_patch(plt.Rectangle((i - 0.35, min(o[i], c[i])), 0.7, max(abs(c[i] - o[i]), 1e-12), color=col))
     for side, mk, col in ((1, "v", "#c62828"), (-1, "^", "#2e7d32")):
-        pv = pivots(c, PIV, high=side > 0)
+        pv = pivots(c, MAJOR_L, high=side > 0)
         pv = pv[pv[:, 0] >= w0]
-        ax.scatter(pv[:, 0], c[pv[:, 0]] * (1 + side * 0.002), marker=mk, color=col, s=28, zorder=5,
-                   label="вершины закрытий" if side > 0 else "впадины закрытий")
-    for tb, tc, side, line_b, line_c, i1, i2 in signals(d, "last2"):
+        ax.scatter(pv[:, 0], c[pv[:, 0]] * (1 + side * 0.004), marker=mk, color=col, s=36,
+                   zorder=5, label="главные вершины" if side > 0 else "главные впадины")
+    for tb, tc, side, line_b, line_c, i1, i2 in signals(d, "clean"):
         if tb < w0 or i1 < w0 - 200:
             continue
         slope = (c[i2] - c[i1]) / (i2 - i1)
         xs = np.arange(max(i1, w0), tb + 2)
         ax.plot(xs, c[i2] + slope * (xs - i2), color="#9e9e9e", linewidth=0.8, linestyle="--")
     n_tr = 0
-    for tb, tc, side, line_b, line_c, i1, i2 in signals(d, "clean"):
-        if tb < w0 or i1 < w0 - 200:
+    for rec in major_lines(d):
+        i1, i2, side, tb, tc = rec["a"], rec["b"], rec["side"], rec["t"], rec["tc"]
+        if i1 < w0 - 300 or (tb > 0 and tb < w0):
             continue
-        slope = (c[i2] - c[i1]) / (i2 - i1)
-        xs = np.arange(max(i1, w0), tb + 2)
+        x_a, x_b = c[i1], c[i2]
+        end = tb + 2 if tb > 0 else len(c) - 1
+        xs = np.arange(max(i1, w0), end)
         col = "#1565c0" if side > 0 else "#ef6c00"
-        ax.plot(xs, c[i2] + slope * (xs - i2), color=col, linewidth=1.6)
-        ax.scatter([i1, i2], [c[i1], c[i2]], color=col, s=60, facecolors="none", linewidths=1.5, zorder=6)
-        ax.scatter([tb], [c[tb]], marker="*", color=col, s=140, zorder=7)
+        ax.plot(xs, x_a + rec["slope"] * (xs - i1), color=col, linewidth=1.8)
+        ax.scatter([i1, i2], [x_a, x_b], color=col, s=70, facecolors="none", linewidths=1.6, zorder=6)
+        if tb < 0:
+            continue
+        ax.scatter([tb], [c[tb]], marker="*", color=col, s=150, zorder=7)
         if tc < 0:
             continue
         sw = sw_lo[tc] if side > 0 else sw_hi[tc]
@@ -339,9 +412,10 @@ def chart(root: Path, sym: str, tf: str, bars: int, out: Path) -> None:
     ax.set_ylim(lo[vis].min() * 0.985, hi[vis].max() * 1.015)
     ticks = np.linspace(w0, len(c) - 1, 8).astype(int)
     ax.set_xticks(ticks, [d.index[i].strftime("%m-%d %H:%M") for i in ticks])
-    ax.set_title(f"{sym} {tf}: синие/оранжевые — «чистые» линии по закрытиям (ни одно закрытие между точками не за "
-                 f"линией), серые пунктир — «2 последние вершины»;\n○ точки линии, ★ пробой, вход — закрытие свечи "
-                 f"закрепления; — вход, -- стоп за свингом (×), ··· цели 3R / 5R; сделок {n_tr}")
+    ax.set_title(f"{sym} {tf}: синие / оранжевые — касательные по закрытиям от главного экстремума ({MAJOR_L} "
+                 f"свечей с каждой стороны) через точку касания; серый пунктир — прежние «чистые» линии по закрытиям;\n"
+                 f"○ точки линии, ★ пробой (закрытие за линией), вход — закрытие свечи закрепления; — вход, -- стоп за "
+                 f"свингом (×), ··· цели 3R / 5R; сделок {n_tr}")
     ax.legend(loc="upper left")
     ax.grid(alpha=0.2)
     out.parent.mkdir(parents=True, exist_ok=True)
