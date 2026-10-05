@@ -41,9 +41,12 @@ TFS = ("4h", "12h", "1d")
 DUMMY_TURNOVER = 1e12          # coin_trades отсекает неликвидные монеты по обороту; у этих рынков он не ограничение
 
 
-def _fetch(url: str, timeout: float = 20.0, tries: int = 2) -> bytes | None:
-    """Короткий таймаут и две попытки: недоступный источник не должен держать прогон часами."""
-    for _ in range(tries):
+def _fetch(url: str, timeout: float = 20.0, tries: int = 3) -> bytes | None:
+    """Короткий таймаут, три попытки с паузой (Dukascopy режет частые запросы): недоступный источник не должен
+    держать прогон часами."""
+    for attempt in range(tries):
+        if attempt:
+            time.sleep(5 * attempt)
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
             with urllib.request.urlopen(req, timeout=timeout) as r:
@@ -93,7 +96,7 @@ def fetch_duka(sym: str, end: pd.Timestamp) -> pd.DataFrame | None:
         return None
     jobs = [(y, m) for y in range(START_YEAR, end.year + 1) for m in range(12)
             if pd.Timestamp(year=y, month=m + 1, day=1, tz="UTC") < end]
-    with ThreadPoolExecutor(8) as ex:
+    with ThreadPoolExecutor(3) as ex:
         parts = [p for p in ex.map(lambda ym: _duka_month(sym, *ym), jobs) if p is not None and len(p)]
     if not parts:
         return None
@@ -136,7 +139,9 @@ def collect(root: Path) -> pd.DataFrame:
     root.mkdir(parents=True, exist_ok=True)
     end = pd.Timestamp.now(tz="UTC").normalize()
     names = {}
-    for sym, (name, _) in DUKA_SYMS.items():
+    for k, (sym, (name, _)) in enumerate(DUKA_SYMS.items()):
+        if k:
+            time.sleep(30)                                                   # пауза между инструментами
         df = fetch_duka(sym, end)
         if df is None:
             print(f"  {sym}: данных нет (Dukascopy не ответил)", flush=True)
