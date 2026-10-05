@@ -149,3 +149,24 @@ def test_htf_confirmation_uses_closed_candles_and_window():
     assert htf_confirmation(brk, Side.LONG, t(21), 12) is None      # старше 12 часов
     assert htf_confirmation(brk, Side.SHORT, t(11, 45), 12) is None  # свеча 4h ещё не закрылась
     assert htf_confirmation(brk, Side.SHORT, t(12, 15), 12) == 0.25
+
+
+@pytest.mark.parametrize("seed", [5, 11])
+def test_side_filter_and_slope_limit_match_the_research_measure(seed, monkeypatch):
+    from trader.domain.models import SideFilter
+    monkeypatch.setattr(strategy, "STOP_ATR", (0.0, 1e9))
+    d = _frame(seed=seed)
+    s0 = Settings().with_tf(Timeframe.H4, entry_policy=EntryPolicy.MARKET, min_close_loc=0.0)
+    candidates = sorted({r["t"] for r in zz_lines(d, log=strategy.LOG_LINES) if r["t"] >= 400})[:40]
+    sigs = [x for t in candidates for x in detect(d.iloc[: t + 1], Timeframe.H4, "X", s0)]
+    assert len(sigs) >= 2
+    shorts = Settings().with_tf(Timeframe.H4, entry_policy=EntryPolicy.MARKET, min_close_loc=0.0, sides=SideFilter.SHORT)
+    got = [x for t in candidates for x in detect(d.iloc[: t + 1], Timeframe.H4, "X", shorts)]
+    assert all(x.side is Side.SHORT for x in got) and len(got) == sum(x.side is Side.SHORT for x in sigs)
+    lim = float(np.median([x.extra["slope_atr"] for x in sigs]))
+    flat = Settings().with_tf(Timeframe.H4, entry_policy=EntryPolicy.MARKET, min_close_loc=0.0, max_slope_atr=lim)
+    kept = [x for t in candidates for x in detect(d.iloc[: t + 1], Timeframe.H4, "X", flat)]
+    assert kept and all(x.extra["slope_atr"] <= lim for x in kept)
+    assert len(kept) == sum(x.extra["slope_atr"] <= lim for x in sigs)
+    with pytest.raises(ValueError):
+        TfParams(max_slope_atr=2.0)

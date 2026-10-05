@@ -59,7 +59,10 @@ def detect(d: pd.DataFrame, tf: Timeframe, symbol: str, settings: Settings) -> l
     out, seen = [], set()
     for r in recs:
         side = Side(r["side"])
-        if side in seen:
+        if side in seen or not tp.sides.allows(side):
+            continue
+        slope_atr = abs(float(r["slope"])) / atr[last]                       # наклон линии, ATR за свечу
+        if tp.max_slope_atr > 0 and slope_atr > tp.max_slope_atr:
             continue
         aggr = buy[last] if side is Side.LONG else 1 - buy[last]
         if not (aggr >= tp.min_aggr) or trend[last] != int(side):
@@ -90,7 +93,8 @@ def detect(d: pd.DataFrame, tf: Timeframe, symbol: str, settings: Settings) -> l
                           close=float(c[last]), line_value=float(r["line_t"]),
                           line_points=((d.index[a].to_pydatetime(), float(c[a])), (d.index[b].to_pydatetime(), float(c[b]))),
                           aggr=float(aggr), range_atr=float(range_atr), plan=plan,
-                          extra={"log_line": LOG_LINES, "break_atr": round(float(brk), 3), "close_loc": round(float(loc), 3)}))
+                          extra={"log_line": LOG_LINES, "break_atr": round(float(brk), 3), "close_loc": round(float(loc), 3),
+                                 "slope_atr": round(float(slope_atr), 4)}))
         seen.add(side)
     return out
 

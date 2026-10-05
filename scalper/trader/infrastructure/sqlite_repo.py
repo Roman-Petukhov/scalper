@@ -10,7 +10,7 @@ from pathlib import Path
 
 from ..domain.execution import Trade, TradeStatus
 from ..domain.models import (DEFAULT_TF_PARAMS, OFF_ONCE, RETIRED_TIMEFRAMES, TF_FIELDS, EntryKind, EntryPolicy, Mode, Settings,
-                             Side, Signal, SignalStatus, TfParams, Timeframe, TradePlan)
+                             Side, SideFilter, Signal, SignalStatus, TfParams, Timeframe, TradePlan)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS signals (
@@ -200,6 +200,7 @@ class SqliteStore:
                     d[k] = p[k + sfx]
             d = {**{k: getattr(DEFAULT_TF_PARAMS[tf], k) for k in TF_FIELDS}, **d}
         d["entry_policy"] = EntryPolicy(d.get("entry_policy", EntryPolicy.RETEST.value))
+        d["sides"] = SideFilter(d.get("sides", SideFilter.BOTH.value))
         return TfParams(**{k: v for k, v in d.items() if k in TF_FIELDS})
 
     def save(self, settings: Settings) -> None:
@@ -207,7 +208,7 @@ class SqliteStore:
         p["mode"] = settings.mode.value
         p["timeframes"] = sorted(t.value for t in settings.timeframes)
         p["auto_timeframes"] = sorted(t.value for t in settings.auto_timeframes)
-        p["tf_params"] = {t.value: {**asdict(v), "entry_policy": v.entry_policy.value}
+        p["tf_params"] = {t.value: {**asdict(v), "entry_policy": v.entry_policy.value, "sides": v.sides.value}
                           for t, v in settings.tf_params.items()}
         with self.lock:
             self.db.execute("INSERT INTO settings(id, payload) VALUES (1, ?) "

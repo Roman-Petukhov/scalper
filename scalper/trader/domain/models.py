@@ -47,6 +47,16 @@ class EntryPolicy(str, Enum):
     HYBRID = "hybrid"          # свеча пробоя длиннее hybrid_range_atr — ретест, иначе по рынку
 
 
+class SideFilter(str, Enum):
+    """Какие стороны торговать на таймфрейме."""
+    BOTH = "both"
+    LONG = "long"
+    SHORT = "short"
+
+    def allows(self, side: Side) -> bool:
+        return self is SideFilter.BOTH or (self is SideFilter.LONG) == (side is Side.LONG)
+
+
 class SignalStatus(str, Enum):
     NEW = "new"                # ждёт решения (ручной режим) или исполнения (авто)
     TAKEN = "taken"            # принят: ручной вход или ордер отправлен
@@ -67,6 +77,8 @@ class TfParams:
     retest_bars: int = 12               # сколько свечей ждём ретест
     htf_confirm_h: int = 0              # только если старший ТФ (HTF_CONFIRM) пробил линию в ту же сторону не раньше
                                         # стольких часов назад (по закрытию его свечи); 0 — без этого условия
+    sides: SideFilter = SideFilter.BOTH
+    max_slope_atr: float = 0.0          # линия не круче стольких ATR за свечу (пологие линии надёжнее); 0 — любая
 
     def __post_init__(self) -> None:
         if not 0.05 <= self.risk_pct <= 5.0:
@@ -85,6 +97,8 @@ class TfParams:
             raise ValueError("ожидание ретеста — от 1 до 48 свечей")
         if not (isinstance(self.htf_confirm_h, int) and 0 <= self.htf_confirm_h <= 48):
             raise ValueError("окно пробоя старшего ТФ — от 0 до 48 часов")
+        if not 0.0 <= self.max_slope_atr <= 1.0:
+            raise ValueError("наклон линии — от 0 до 1 ATR за свечу")
 
 
 # Лучшее по бэктесту (docs/research_report.md): 4h — основная стратегия (ретест, закрытие в верхней половине свечи);

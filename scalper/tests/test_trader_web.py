@@ -74,7 +74,8 @@ def _params_form(**over):
     for tf, risk, loc in (("4h", "1", "50"), ("15m", "0.25", "50")):
         f |= {f"{tf}__risk_pct": risk, f"{tf}__entry_policy": "retest", f"{tf}__min_aggr_pct": "55",
               f"{tf}__target_r": "3", f"{tf}__min_close_loc_pct": loc, f"{tf}__min_break_atr": "0",
-              f"{tf}__hybrid_range_atr": "2.5", f"{tf}__retest_bars": "12"}
+              f"{tf}__hybrid_range_atr": "2.5", f"{tf}__retest_bars": "12", f"{tf}__sides": "both",
+              f"{tf}__max_slope_atr": "0"}
     return f | over
 
 
@@ -86,13 +87,16 @@ def test_params_per_timeframe(env):
     assert 'name="1h__' not in r
     assert "от 0.05% до 5%" in c.post("/settings/params", data=_params_form(**{"15m__risk_pct": "9"}), headers=HX).text
     assert "плечо — целое от 1× до 10×" in c.post("/settings/params", data=_params_form(leverage="15"), headers=HX).text
-    form = _params_form(leverage="8", **{"15m__target_r": "2", "15m__entry_policy": "market", "4h__min_close_loc_pct": "70"})
+    form = _params_form(leverage="8", **{"15m__target_r": "2", "15m__entry_policy": "market", "4h__min_close_loc_pct": "70",
+                                         "15m__sides": "short", "15m__max_slope_atr": "0.05"})
     r = c.post("/settings/params", data=form, headers=HX).text
     assert "Сохранено" in r and 'name="15m__target_r" type="number" step="0.5" min="1" max="10"' in r
     from trader.infrastructure.sqlite_repo import SqliteStore
     s = SqliteStore(tmp / "trader.db").load()
     assert s.leverage == 8 and s.p(Timeframe.M15).target_r == 2.0 and s.p(Timeframe.H4).target_r == 3.0
     assert s.p(Timeframe.M15).entry_policy.value == "market" and s.p(Timeframe.H4).min_close_loc == 0.7
+    assert s.p(Timeframe.M15).sides.value == "short" and s.p(Timeframe.M15).max_slope_atr == 0.05
+    assert s.p(Timeframe.H4).sides.value == "both"
     bad = _params_form()
     del bad["4h__target_r"]
     assert "не заполнено поле" in c.post("/settings/params", data=bad, headers=HX).text

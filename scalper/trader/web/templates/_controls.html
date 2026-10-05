@@ -47,10 +47,12 @@
       ("min_close_loc_pct", "Закрытие у края свечи ≥, %", 5, 0, 90, 100),
       ("min_break_atr", "Закрытие за линией ≥, ATR", 0.05, 0, 1, 1),
       ("hybrid_range_atr", "Гибрид: длинная свеча, ATR", 0.1, 0.5, 10, 1),
-      ("retest_bars", "Ретест ждёт, свечей", 1, 1, 48, 1)] %}
+      ("retest_bars", "Ретест ждёт, свечей", 1, 1, 48, 1),
+      ("max_slope_atr", "Наклон линии ≤, ATR/свечу (0 — любой)", 0.005, 0, 1, 1)] %}
     {% set fld = {"risk_pct": "risk_pct", "min_aggr_pct": "min_aggr", "target_r": "target_r",
                    "min_close_loc_pct": "min_close_loc", "min_break_atr": "min_break_atr",
-                   "hybrid_range_atr": "hybrid_range_atr", "retest_bars": "retest_bars"} %}
+                   "hybrid_range_atr": "hybrid_range_atr", "retest_bars": "retest_bars",
+                   "max_slope_atr": "max_slope_atr"} %}
     <div class="per-tf num" style="--cols: {{ Timeframe | list | length }}">
       <span></span>{% for tf in Timeframe | reverse %}<b class="tf-head">{{ tf.value }}</b>{% endfor %}
       <label>Вход</label>
@@ -58,6 +60,14 @@
       <select name="{{ tf.value }}__entry_policy" aria-label="Вход {{ tf.value }}">
         {% for p, label in [(EntryPolicy.RETEST, 'ретест'), (EntryPolicy.MARKET, 'рынок'), (EntryPolicy.HYBRID, 'гибрид')] %}
         <option value="{{ p.value }}"{% if s.p(tf).entry_policy == p %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      {% endfor %}
+      <label>Стороны</label>
+      {% for tf in Timeframe | reverse %}
+      <select name="{{ tf.value }}__sides" aria-label="Стороны {{ tf.value }}">
+        {% for p, label in [(SideFilter.BOTH, 'лонг и шорт'), (SideFilter.SHORT, 'только шорт'), (SideFilter.LONG, 'только лонг')] %}
+        <option value="{{ p.value }}"{% if s.p(tf).sides == p %} selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
       {% endfor %}
