@@ -1587,6 +1587,65 @@ def followup_report(df: pd.DataFrame) -> None:
             print(f"  пологие по годам: {_years(gentle)}")
 
 
+def _simulate_limit(g: pd.DataFrame, limit: float, daily_stop_r: float) -> pd.DataFrame:
+    """Сделки в порядке входа; берём, если открыто меньше limit позиций и за сутки (UTC) закрыто убытков меньше
+    daily_stop_r. Время выхода — по выходу лесенки (hold_bars), для цели 3R это верхняя граница — пересечений
+    позиций получается не меньше, чем на самом деле."""
+    bar = pd.Timedelta(minutes=BAR_MIN["4h"])
+    x = g.assign(t_in=g.t + g.wait_bars.fillna(0) * bar)
+    x = x.assign(t_out=x.t_in + x.hold_bars * bar).sort_values("t_in")
+    open_out: list[pd.Timestamp] = []
+    closed: list[tuple[pd.Timestamp, float]] = []
+    keep = []
+    for i, r in zip(x.index, x.itertuples()):
+        open_out = [t for t in open_out if t > r.t_in]
+        day = r.t_in.floor("D")
+        lost = -sum(v for t, v in closed if t.floor("D") == day and t <= r.t_in and v < 0)
+        if len(open_out) < limit and lost < daily_stop_r:
+            keep.append(i)
+            open_out.append(r.t_out)
+            closed.append((r.t_out, r.R3))
+    return x.loc[keep]
+
+
+def limit_report(df: pd.DataFrame) -> None:
+    """Сколько сигналов 4h теряет лимит одновременных позиций и что он делает с просадкой."""
+    if "wait_bars" not in df.columns or "adv" not in df.columns:
+        return
+    base = _bot_base(df[df.adv.isna() | (df.adv >= ADV_MIN)])
+    print("\n=== ЛИМИТ ПОЗИЦИЙ: 4h, линии по значимым точкам, правило бота, всё на 3R, 1R на сделку; дневной стоп 4R "
+          "(как 4% при риске 1%); просадка — по времени выхода ===")
+    for entry in ("retest", "market"):
+        g = base[(base.tf == "4h") & (base.line == "zz") & (base.entry == entry)].copy()
+        if g.empty:
+            continue
+        full = _simulate_limit(g, np.inf, np.inf)
+        bar = pd.Timedelta(minutes=BAR_MIN["4h"])
+        ev = sorted([(t, 1) for t in full.t_in] + [(t, -1) for t in full.t_out], key=lambda z: (z[0], z[1]))
+        cur, conc = 0, []
+        for _, d_ in ev:
+            cur += d_
+            if d_ > 0:
+                conc.append(cur)
+        conc = np.array(conc)
+        print(f"\n  --- {'ретест' if entry == 'retest' else 'рынок'}: открыто одновременно на момент входа — медиана "
+              f"{np.median(conc):.0f}, 90% случаев до {np.percentile(conc, 90):.0f}, 99% до {np.percentile(conc, 99):.0f}, "
+              f"максимум {conc.max()} ---")
+        rows = []
+        for lim in (3, 5, 8, 10, 15, np.inf):
+            for stop in (4.0, np.inf):
+                k = _simulate_limit(g, lim, stop)
+                eq = k.sort_values("t_out").R3.cumsum().to_numpy()
+                dd = float((np.maximum.accumulate(np.r_[0.0, eq]) - np.r_[0.0, eq]).max()) if len(eq) else 0.0
+                month = k.groupby(k.t_out.dt.to_period("M")).R3.sum()
+                rows.append({"лимит позиций": "без лимита" if lim == np.inf else str(lim),
+                             "дневной стоп": "4R" if stop == 4.0 else "нет",
+                             "взято сделок": f"{len(k) / len(g):.0%}",
+                             "R/мес IS / VAL / HO": _per_month(k, "R3"),
+                             "макс. просадка, R": f"{dd:.1f}", "худший месяц, R": f"{month.min():+.1f}"})
+        print(pd.DataFrame(rows).to_string(index=False))
+
+
 def conviction_report(df: pd.DataFrame, line_name: dict) -> None:
     """Уверенный пробой: закрытие далеко за линией (ATR), у края свечи, с крупным телом — против пробоев «на чуть-чуть».
     База — сигнал бота: агрессоры >= 55% + тренд старшего ТФ, пробой (без закрепления), цель — всё на 3R."""
@@ -1932,6 +1991,7 @@ def report() -> None:
         bot_rule_report(df, line_name)
         more_signals_report(more)
         followup_report(more)
+        limit_report(more)
         article_report(df, line_name)
         lowtf_report(df)
         conviction_report(df, line_name)
