@@ -35,4 +35,10 @@
 </div>
 {% elif error %}
 <div class="card wallet"><p class="err" style="margin:0">{{ error }}</p></div>
+{% else %}
+<div class="card wallet wallet-empty">
+  <div class="wallet-head"><h2>Кошелёк</h2></div>
+  <p class="hint" style="margin:0">Bybit не подключён. Вставьте API-ключ в карточке «Биржа» слева (на телефоне — ниже),
+    и здесь появятся капитал, свободная маржа, PnL за день и открытые позиции.</p>
+</div>
 {% endif %}

@@ -226,7 +226,7 @@ def test_wallet_hidden_without_exchange(env):
     c, _ = env
     _login(c)
     r = c.get("/wallet")
-    assert r.status_code == 200 and r.text.strip() == ""
+    assert r.status_code == 200 and "Bybit не подключён" in r.text
     assert "API Key" in c.get("/").text
     r = c.post("/exchange/keys", data={"api_key": "short", "secret": "x", "network": "demo"}, headers=HX)
     assert "неполными" in r.text
