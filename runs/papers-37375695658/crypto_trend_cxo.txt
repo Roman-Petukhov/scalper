@@ -1,0 +1,126 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Evidence-based investing research
+Login Join
+
+
+[CXO_Advisory]
+
+    * Research
+    * Strategies
+          o Strategy_Overview
+          o What_Works_Best?
+          o Momentum_Strategy
+          o Value_Strategy
+          o Strategy_Tools
+          o Value_+_Momentum
+    * Live_Tests
+    * Research_Assistant_Beta
+    * More
+          o Inflation
+          o Calendar
+          o Guru_Grades
+
+
+[_s                  ]
+
+
+    * Research
+    * Strategies
+          o Strategy_Overview
+          o What_Works_Best?
+          o Momentum_Strategy
+          o Value_Strategy
+          o Strategy_Tools
+          o Value_+_Momentum
+    * Live_Tests
+    * Research_Assistant_Beta
+    * More
+          o Inflation
+          o Calendar
+          o Guru_Grades
+[_s                  ]
+Value Investing Strategy (Strategy_Overview)
+Allocations for October 2026 (Final)
+Cash TLT LQD SPY
+Momentum Investing Strategy (Strategy_Overview)
+Allocations for October 2026 (Final)
+1st ETF 2nd ETF 3rd ETF
+
+
+****** Applying Simple Trend Following Rules to Cryptocurrencies ******
+Steve LeCompte | August 16, 2024 | Posted in:Currency_Trading, Technical
+Trading
+
+Can investors manage cryptocurrency volatility risk with simple trend following
+rules? In their August 2024 paper entitled "Trend-following_Strategies_for
+Crypto_Investors", Trinh Hue Le and Ummul Ruthbah test simple trend following
+rules on Bitcoin (BTC), Ether (ETH) and the S&P_Cryptocurrency_LargeCap-Ex.
+MegaCap_Index. Specifically, they hold the cryptocurrency (cash) when its price
+is above (at of below) its prior-day simple moving average (SMA) of 20, 65, 150
+or 200 days. To assess net profitability, they consider trading frictions of
+0.1%, 0.25% or 0.5% of amount traded. They further measure correlations between
+the movements of cryptocurrencies and those of the Nasdaq 100 Index. Using
+daily prices for the S&P BTC, ETH and Cryptocurrency_LargeCap-Ex._MegaCap
+indexes starting January 2016, January 2017 and January 2019, respectively, all
+through January 2023, and contemporaneous daily levels of the NASDAQ 100 Index,
+they find that:
+**** Subscribe to Keep Reading ****
+Get the research edge serious investors rely on.
+    * 1,200+ research articles
+    * Monthly strategy signals
+    * 20+ years of backtested analysis
+$17.99 /month
+Cancel anytime
+Subscribe_Now Already_a_member?_Log_in
+
+***** Further Reading *****
+Currency_Trading,_Fundamental_Valuation,_Technical_Trading___Cryptocurrency
+Pairs_Trading__Are_there_cryptocurrencies_that_are_so_alike_that_they_generally
+track_each_other_and_reliably_revert_whenever_they..._Mar_12,_2026 Individual
+Investing___Crypto-asset_Retail_Trading_Frictions__How_material_are_crypto-
+asset_trading_frictions?_In_their_June_2026_paper_entitled_“The_‘Actual_Retail
+Price’_of_Crypto..._Aug_6,_2026 Currency_Trading,_Equity_Premium___Bitcoin
+Trend_Predicts_U.S._Stock_Market_Return?__A_subscriber_asked_about_an_assertion
+that_bitcoin_(BTC)_price_trend/return_predicts_return_of_the_S&P_500_Index...
+Mar_20,_2026 Currency_Trading,_Equity_Premium___Bitcoin_Trend_Predicts_NASDAQ
+100_Return?__In_response_to_“Bitcoin_Trend_Predicts_U.S._Stock_Market_Return?”,
+a_subscriber_suggested_that_bitcoin_(BTC)_price_trend/return..._Apr_7,_2026
+Mutual/Hedge_Funds,_Volatility_Effects___Ups_and_Downs_of_Leveraged_ETFs__What
+are_likely_outcomes_for_different_kinds_of_leveraged_exchange-traded_funds_
+(LETF),_which_typically_use_embedded_financing_and..._Aug_20,_2026 Currency
+Trading,_Technical_Trading___Crypto-asset_Trend-following_Strategies__Is_trend-
+following_generally_an_attractive_strategy_for_crypto-assets?_In_their_April
+2025_paper_entitled_“Catching_Crypto_Trends;_A..._May_29,_2025
+About_CXO Disclaimer Privacy_Policy Terms_of_Service Contact_CXO
+© 2004-2026 The CXO Advisory Group, LLC. All Rights Reserved.
+
+
