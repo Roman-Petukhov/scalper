@@ -75,6 +75,18 @@ def test_old_settings_format_migrates(tmp_path):
     assert st.load() == s
 
 
+def test_15m_switched_off_once_and_can_be_turned_back_on(tmp_path):
+    st = SqliteStore(tmp_path / "t.db")
+    st.db.execute("DELETE FROM kv")                                     # база из версии до выключения 15m
+    st.save(replace(Settings(), timeframes=frozenset(Timeframe), auto_timeframes=frozenset(Timeframe)))
+    st.db.commit()
+    s = SqliteStore(tmp_path / "t.db").load()
+    assert s.timeframes == {Timeframe.H4} and s.auto_timeframes == {Timeframe.H4}
+    st2 = SqliteStore(tmp_path / "t.db")
+    st2.save(s.toggle(Timeframe.M15))                                   # трейдер включил обратно — не выключаем снова
+    assert SqliteStore(tmp_path / "t.db").load().timeframes == {Timeframe.H4, Timeframe.M15}
+
+
 def test_decisions_only_in_manual_mode_and_once(tmp_path):
     st = SqliteStore(tmp_path / "t.db")
     dec = SignalDecisions(st, st)

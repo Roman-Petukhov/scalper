@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from ..domain.execution import Trade, TradeStatus
-from ..domain.models import (DEFAULT_TF_PARAMS, RETIRED_TIMEFRAMES, TF_FIELDS, EntryKind, EntryPolicy, Mode, Settings,
+from ..domain.models import (DEFAULT_TF_PARAMS, OFF_ONCE, RETIRED_TIMEFRAMES, TF_FIELDS, EntryKind, EntryPolicy, Mode, Settings,
                              Side, Signal, SignalStatus, TfParams, Timeframe, TradePlan)
 
 SCHEMA = """
@@ -50,7 +50,23 @@ class SqliteStore:
         with self.lock:
             self.db.executescript(SCHEMA)
             self._drop_retired()
+            self._switch_off(OFF_ONCE)
             self.db.commit()
+
+    def _switch_off(self, once: dict[str, tuple[str, ...]]) -> None:
+        """Один раз выключить таймфреймы в сохранённых настройках (сканирование и авто): ключ — метка в kv, чтобы
+        трейдер мог включить их обратно. Сигналы и сделки остаются."""
+        for key, tfs in once.items():
+            if self.db.execute("SELECT 1 FROM kv WHERE key = ?", (key,)).fetchone():
+                continue
+            row = self.db.execute("SELECT payload FROM settings WHERE id = 1").fetchone()
+            if row is not None:
+                p = json.loads(row["payload"])
+                for k in ("timeframes", "auto_timeframes"):
+                    if k in p:
+                        p[k] = [x for x in p[k] if x not in tfs]
+                self.db.execute("UPDATE settings SET payload = ? WHERE id = 1", (json.dumps(p),))
+            self.db.execute("INSERT INTO kv(key, value) VALUES (?, ?)", (key, "done"))
 
     def _drop_retired(self) -> None:
         """Сигналы убранных таймфреймов (1h) и их записи о сделках: панель их больше не показывает и не ведёт."""
