@@ -307,6 +307,12 @@ def test_order_uses_timeframe_risk():
     assert o4.risk_usd == pytest.approx(9.99, abs=0.02) and o1.risk_usd == pytest.approx(2.49, abs=0.02)
 
 
+def _fresh_1h():
+    """Последняя закрытая свеча 1h по реальным часам: ручной вход проверяет срок сигнала по текущему времени."""
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0) - timedelta(hours=1)
+
+
 def test_auto_mode_trades_only_selected_timeframes(tmp_path, monkeypatch):
     import trader.application.services as svc_mod
     b = FakeBroker()
@@ -316,7 +322,7 @@ def test_auto_mode_trades_only_selected_timeframes(tmp_path, monkeypatch):
     idx = pd.date_range("2026-01-01", periods=10, freq="1h", tz="UTC")
     bars = pd.DataFrame({"open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0, "volume": 1.0,
                          "taker_buy_volume": 0.5}, index=idx)
-    monkeypatch.setattr(svc_mod, "detect", lambda d, tf, sym, s: [replace(_signal(sym, tf), bar_time=NOW - timedelta(minutes=61))])
+    monkeypatch.setattr(svc_mod, "detect", lambda d, tf, sym, s: [replace(_signal(sym, tf), bar_time=_fresh_1h())])
 
     class _Charts:
         def render(self, signal, bb):
