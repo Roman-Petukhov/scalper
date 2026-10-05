@@ -1280,25 +1280,28 @@ def lowtf_report(df: pd.DataFrame) -> None:
     if not len(base):
         print("  нет сделок 1h / 15m")
         return
+    # пробой 4h известен только после закрытия его свечи: сравниваем время закрытия свечи 4h с закрытием свечи
+    # младшего ТФ (раньше бралось открытие 4h — заглядывание до 4 часов вперёд)
     b4 = df[(df.line == "zz") & ~df.confirm & (df.tf == "4h")][["symbol", "side", "t"]].drop_duplicates()
-    b4 = b4.rename(columns={"t": "t4"}).sort_values("t4")
-    base = base.sort_values("t")
+    b4 = b4.assign(t4=b4.t + pd.Timedelta(minutes=BAR_MIN["4h"]))[["symbol", "side", "t4"]].sort_values("t4")
+    base = base.assign(tclose=base.t + pd.to_timedelta(base.tf.map(BAR_MIN), unit="min")).sort_values("tclose")
     parts = []
     for (sym, sd), g in base.groupby(["symbol", "side"], sort=False):
         h = b4[(b4.symbol == sym) & (b4.side == sd)]
         if len(h):
-            g = pd.merge_asof(g, h[["t4"]], left_on="t", right_on="t4", direction="backward")
+            g = pd.merge_asof(g, h[["t4"]], left_on="tclose", right_on="t4", direction="backward")
         else:
             g = g.assign(t4=pd.NaT)
         parts.append(g)
     base = pd.concat(parts, ignore_index=True)
     base["t4"] = pd.to_datetime(base["t4"], utc=True)      # группы без пробоев 4h дают NaT без пояса — приводим
-    age_h = (base.t - base.t4).dt.total_seconds() / 3600
+    age_h = (base.tclose - base.t4).dt.total_seconds() / 3600
     hr = base.t.dt.hour
     rules = [("база", lambda g: g)]
     rules += [(f"стоп >= {k:.1f}% цены", lambda g, k=k: g[g.risk_pct >= k / 100]) for k in (0.3, 0.5, 0.8, 1.2)]
-    rules += [(f"пробой 4h в ту же сторону за {k} ч", lambda g, k=k: g[(age_h.loc[g.index] >= 0) & (age_h.loc[g.index] <= k)])
-              for k in (4, 12, 24)]
+    rules += [(f"пробой 4h в ту же сторону, закрылся за {k} ч", lambda g, k=k: g[(age_h.loc[g.index] >= 0) &
+                                                                               (age_h.loc[g.index] <= k)])
+              for k in (4, 8, 12, 24)]
     rules += [("тренд 2 старших ТФ", lambda g: g[g.with_trend2]),
               ("сессия: Азия 00–07 UTC", lambda g: g[hr.loc[g.index] < 7]),
               ("сессия: Европа 07–13 UTC", lambda g: g[(hr.loc[g.index] >= 7) & (hr.loc[g.index] < 13)]),
