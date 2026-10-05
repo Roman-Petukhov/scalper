@@ -91,6 +91,24 @@ def test_signal_take_skip_and_feed(env):
     assert c.post("/signals/999/take", headers=HX).status_code == 404
 
 
+def test_feed_tabs_show_one_timeframe_and_chips_hide_it(env):
+    c, tmp = env
+    _login(c)
+    from trader.infrastructure.sqlite_repo import SqliteStore
+    st = SqliteStore(tmp / "trader.db")
+    st.add(_signal())                                                    # 4h
+    st.add(_signal(symbol="ETHUSDT", tf=Timeframe.H1))
+    c.post("/settings/tf/1h", headers=HX)                                # по умолчанию включён только 4h
+    feed = c.get("/feed?view=1h").text
+    assert "ETHUSDT" in feed and "SOLUSDT" not in feed and 'aria-selected="true"' in feed
+    assert "SOLUSDT" not in c.get("/feed").text                         # вкладка запомнилась в сессии
+    r = c.post("/settings/tf/1h", headers=HX)                            # выключили 1h — лента обновится
+    assert r.headers["HX-Trigger"] == "feed-refresh"
+    assert "1h выключен" in c.get("/feed").text
+    feed = c.get("/feed?view=all").text
+    assert "SOLUSDT" in feed and "ETHUSDT" not in feed
+
+
 def test_chart_route_blocks_traversal(env):
     c, tmp = env
     _login(c)

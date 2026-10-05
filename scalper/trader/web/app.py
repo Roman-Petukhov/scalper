@@ -42,7 +42,8 @@ def chart_name(path: str) -> str:
 
 
 templates.env.filters["chart_name"] = chart_name
-templates.env.globals.update(STATUS_LABEL=STATUS_LABEL, Timeframe=Timeframe, Mode=Mode, EntryPolicy=EntryPolicy,
+templates.env.globals.update(FEED_TABS=[("all", "Все")] + [(t.value, t.value) for t in Timeframe],
+                             STATUS_LABEL=STATUS_LABEL, Timeframe=Timeframe, Mode=Mode, EntryPolicy=EntryPolicy,
                              SignalStatus=SignalStatus)
 
 
@@ -84,9 +85,16 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         if mutate and request.headers.get("HX-Request") != "true":
             raise HTTPException(403, "запрос не из панели")      # защита от подделки межсайтовых форм
 
+    def feed_view(request: Request) -> Timeframe | None:
+        """Какой таймфрейм смотрим в ленте (вкладка «Все» = None); запоминается в сессии."""
+        v = request.session.get("view")
+        return Timeframe(v) if v in {t.value for t in Timeframe} else None
+
     def page_context(request: Request) -> dict:
         s = settings_svc.get()
-        return {"s": s, "signals": store.recent(80), "last": scanner.last}
+        view = feed_view(request)
+        shown = set(s.timeframes) & ({view} if view else set(Timeframe))
+        return {"s": s, "signals": store.recent(80, shown), "view": view, "last": scanner.last}
 
     @app.get("/manifest.webmanifest")
     async def manifest():
@@ -132,8 +140,10 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         return templates.TemplateResponse(request, "index.html", page_context(request))
 
     @app.get("/feed", response_class=HTMLResponse)
-    async def feed(request: Request):
+    async def feed(request: Request, view: str | None = None):
         guard(request)
+        if view is not None:
+            request.session["view"] = view if view in {t.value for t in Timeframe} else "all"
         return templates.TemplateResponse(request, "_feed.html", page_context(request))
 
     @app.get("/api/signals/new")
@@ -186,7 +196,8 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
     async def toggle_tf(request: Request, tf: Timeframe):
         guard(request, mutate=True)
         settings_svc.toggle_timeframe(tf)
-        return templates.TemplateResponse(request, "_controls.html", page_context(request))
+        return templates.TemplateResponse(request, "_controls.html", page_context(request),
+                                          headers={"HX-Trigger": "feed-refresh"})
 
     @app.post("/settings/mode/{mode}", response_class=HTMLResponse)
     async def set_mode(request: Request, mode: Mode):

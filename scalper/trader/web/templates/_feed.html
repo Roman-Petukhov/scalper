@@ -1,11 +1,21 @@
-{% set shown = signals | selectattr("timeframe", "in", s.timeframes) | list %}
-{% if shown %}
+<div class="feed-tabs segmented" role="tablist" aria-label="Какие сигналы показать в ленте">
+  {% for key, label in FEED_TABS %}
+  {% set on = (view is none and key == 'all') or (view is not none and view.value == key) %}
+  {% set off = key != 'all' and key not in s.timeframes | map(attribute='value') | list %}
+  <button type="button" role="tab" aria-selected="{{ 'true' if on else 'false' }}" aria-pressed="{{ 'true' if on else 'false' }}"
+          class="{{ 'is-off' if off else '' }}" hx-get="/feed?view={{ key }}" hx-target="#feed"
+          {% if off %}title="{{ label }} выключен в «Какие сигналы присылать»"{% endif %}>{{ label }}</button>
+  {% endfor %}
+</div>
+{% if signals %}
 <div class="feed">
-  {% for sig in shown %}{% include "_signal.html" %}{% endfor %}
+  {% for sig in signals %}{% include "_signal.html" %}{% endfor %}
 </div>
 {% else %}
 <div class="card empty">
   {% if not s.timeframes %}Все таймфреймы выключены — включите хотя бы один слева.
+  {% elif view and view not in s.timeframes %}{{ view.value }} выключен — включите его в «Какие сигналы присылать», чтобы видеть эти сигналы.
+  {% elif view %}Сигналов {{ view.value }} пока нет. Сканер проверяет каждую закрывшуюся свечу {{ view.value }}.
   {% else %}Сигналов пока нет. Сканер проверяет рынок сразу после закрытия каждой свечи включённых таймфреймов.{% endif %}
 </div>
 {% endif %}
