@@ -1031,6 +1031,7 @@ def lowtf_report(df: pd.DataFrame) -> None:
             g = g.assign(t4=pd.NaT)
         parts.append(g)
     base = pd.concat(parts, ignore_index=True)
+    base["t4"] = pd.to_datetime(base["t4"], utc=True)      # группы без пробоев 4h дают NaT без пояса — приводим
     age_h = (base.t - base.t4).dt.total_seconds() / 3600
     hr = base.t.dt.hour
     rules = [("база", lambda g: g)]
