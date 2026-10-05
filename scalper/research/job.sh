@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"prept tline fade"}
+TASKS=${TASKS:-"prept tline fade donch"}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
 FILTER="Pandas4Warning\|pd.concat\|файлов$\|мес. свечей"
@@ -89,6 +89,8 @@ tline_report() {
 }
 fade_collect() { python -m research.fade15 collect --symbols15 "$(cat /tmp/syms_15m-core70.txt)"; }
 fade_report() { python -m research.fade15 report; }
+donch_collect() { python -m research.donchian collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
+donch_report() { python -m research.donchian report; }
 smc2_collect() { python -m research.smc2 collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
 smc2_report() {
   echo "===== SMC2: Smart Money по учебнику (внешняя структура, BOS / CHoCH, discount / premium, цель — ликвидность) ====="
