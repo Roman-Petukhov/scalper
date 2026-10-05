@@ -10,3 +10,19 @@ self.addEventListener("fetch", (e) => {
     "<p style='max-width:320px;text-align:center'>Панель не отвечает. Запустите run_panel на компьютере " +
     "и обновите страницу.</p>", {headers: {"Content-Type": "text/html; charset=utf-8"}})));
 });
+
+// Клик по уведомлению: открыть панель на нужном сигнале (окно приложения, если уже открыто).
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const url = new URL((e.notification.data && e.notification.data.url) || "/", self.location.origin).href;
+  e.waitUntil((async () => {
+    const all = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const c of all) {
+      if (new URL(c.url).origin === self.location.origin) {
+        await c.focus();
+        return c.navigate(url);
+      }
+    }
+    return self.clients.openWindow(url);
+  })());
+});

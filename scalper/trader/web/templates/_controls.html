@@ -68,6 +68,16 @@
 </div>
 
 <div class="card">
+  <h2>Уведомления</h2>
+  <p class="hint" id="notify-state" style="margin:0 0 12px" aria-live="polite">Проверяю…</p>
+  <div class="row">
+    <button type="button" class="btn primary" id="notify-enable" hidden>Включить уведомления</button>
+    <button type="button" class="chip" id="notify-sound" aria-pressed="true"><span class="dot" aria-hidden="true"></span>Звук</button>
+    <button type="button" class="btn ghost" id="notify-test">Проверить</button>
+  </div>
+</div>
+
+<div class="card">
   <h2>Последние проверки</h2>
   {% for tf in Timeframe %}
     {% set r = last.get(tf) %}
@@ -78,5 +88,4 @@
       </span>
     </div>
   {% endfor %}
-  {% if not notify %}<p class="hint">Telegram не подключён: задайте TELEGRAM_TOKEN и TELEGRAM_CHAT_ID в .env.</p>{% endif %}
 </div>

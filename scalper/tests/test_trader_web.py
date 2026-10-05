@@ -126,3 +126,17 @@ def test_installable_app_assets_are_public(env):
         assert c.get(i["src"]).status_code == 200
     assert c.get("/sw.js").status_code == 200 and c.get("/favicon.ico").status_code == 200
     assert 'rel="manifest"' in c.get("/login").text
+
+
+def test_new_signals_api_for_app_notifications(env):
+    c, tmp = env
+    assert c.get("/api/signals/new", follow_redirects=False).status_code in (303, 401)
+    _login(c)
+    from trader.infrastructure.sqlite_repo import SqliteStore
+    st = SqliteStore(tmp / "trader.db")
+    a = st.add(_signal())
+    b = st.add(_signal(symbol="ETHUSDT"))
+    h1 = st.add(_signal(symbol="XRPUSDT", tf=Timeframe.H1))           # 1h выключен — не уведомляем
+    r = c.get(f"/api/signals/new?after={a.id}").json()
+    assert r["last_id"] == h1.id and [x["symbol"] for x in r["signals"]] == ["ETHUSDT"]
+    assert r["signals"][0]["side"] == "лонг" and r["signals"][0]["entry_kind"] == "рынок"

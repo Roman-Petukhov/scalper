@@ -41,13 +41,12 @@ def _first_run() -> None:
             print("Пароли не совпали, попробуйте снова.")
             continue
         break
-    tg_token = input("Токен Telegram-бота (Enter — без уведомлений): ").strip()
-    tg_chat = input("Ваш chat id в Telegram: ").strip() if tg_token else ""
     ENV_FILE.write_text(
         "# Настройки панели на этом компьютере. Файл не попадает в git.\n"
         f"PANEL_PASSWORD={pw}\nSESSION_SECRET={secrets.token_hex(32)}\n"
         f"PANEL_URL=http://{HOST}:{PORT}\nDATA_DIR={ROOT / 'data_panel'}\n"
-        f"TELEGRAM_TOKEN={tg_token}\nTELEGRAM_CHAT_ID={tg_chat}\nSCAN_DELAY_S=20\n", encoding="utf-8")
+        "# Необязательно: дублировать сигналы в Telegram\nTELEGRAM_TOKEN=\nTELEGRAM_CHAT_ID=\nSCAN_DELAY_S=20\n",
+        encoding="utf-8")
     try:
         os.chmod(ENV_FILE, 0o600)
     except OSError:

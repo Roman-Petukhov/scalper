@@ -117,6 +117,19 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         guard(request)
         return templates.TemplateResponse(request, "_feed.html", page_context(request))
 
+    @app.get("/api/signals/new")
+    async def new_signals(request: Request, after: int = 0) -> dict:
+        """Сигналы новее `after` (по id) для включённых таймфреймов — для уведомлений приложения."""
+        guard(request)
+        s = settings_svc.get()
+        items = [x for x in store.recent(50, set(s.timeframes)) if x.id is not None and x.id > after]
+        last = max((x.id for x in store.recent(1) if x.id is not None), default=0)
+        return {"last_id": last, "signals": [
+            {"id": x.id, "symbol": x.symbol, "timeframe": x.timeframe.value, "side": x.side.label,
+             "entry": x.plan.entry, "stop": x.plan.stop, "target": x.plan.target,
+             "entry_kind": "ретест" if x.plan.entry_kind.value == "retest" else "рынок",
+             "aggr": round(x.aggr, 3), "status": x.status.value} for x in sorted(items, key=lambda z: z.id)]}
+
     @app.post("/settings/tf/{tf}", response_class=HTMLResponse)
     async def toggle_tf(request: Request, tf: Timeframe):
         guard(request, mutate=True)
