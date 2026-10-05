@@ -1408,7 +1408,7 @@ def article_report(df: pd.DataFrame, line_name: dict) -> None:
 
                 add("база: стоп за свингом, всё на 3R", g)
                 if entry == "retest":
-                    add("ретест отменён, если до него закрылись за свечой пробоя", g[~g.inv_pre])
+                    add("ретест отменён, если до него закрылись за свечой пробоя", g[g.inv_pre.fillna(False).astype(bool) == False])
                 add("+ выход по закрытию за свечой пробоя", g, "R3_bx")
                 add("стоп за свечой пробоя, 3R", g, "R3_bs")
                 add("  то же сделки, стоп за свингом, 3R", g[g.R3_bs.notna()])
@@ -1473,7 +1473,7 @@ def more_signals_report(df: pd.DataFrame) -> None:
             x = g4[g4.line == ln]
             items += [(f"зигзаг {k:g} ATR", x),
                       ("  из них новые (нет пробоя 3 ATR в ту же свечу)",
-                       x[[t not in known for t in zip(x.symbol, x.t, x.side)]])]
+                       x[np.array([t not in known for t in zip(x.symbol, x.t, x.side)], dtype=bool)])]
         items.append(("все три масштаба вместе (без повторов)",
                       g4[g4.line.isin(["zz", *SCALE_LINES])].drop_duplicates(["symbol", "t", "side"])))
         items.append(("3 + 5 ATR вместе", g4[g4.line.isin(["zz", "zz5"])].drop_duplicates(["symbol", "t", "side"])))
