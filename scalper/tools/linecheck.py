@@ -26,23 +26,44 @@ from research.tline import ZZ_ANCHOR, ZZ_LIFE, ZZ_SPAN, pivots, zz_lines  # noqa
 VIS_TOL = 0.05              # закрытия между точками касания не заходят за линию дальше 0.05 ATR
 
 
-def vis_lines(d: pd.DataFrame, n: int) -> list[dict]:
+SHELF_ATR = 0.3             # «полка» у экстремума: закрытия в пределах 0.3 ATR от него
+
+
+def launch_points(c: np.ndarray, atr: np.ndarray, piv: np.ndarray, side: int) -> np.ndarray:
+    """Для каждой вершины — последняя свеча «полки» у экстремума перед движением: идём вперёд от экстремума, пока
+    закрытия держатся в пределах SHELF_ATR ATR от него (не дальше бара подтверждения)."""
+    out = piv[:, 0].copy()
+    for k, (p, conf) in enumerate(piv):
+        q = p
+        while q + 1 <= min(conf, len(c) - 1) and side * (c[p] - c[q + 1]) <= SHELF_ATR * atr[p]:
+            q += 1
+        out[k] = q
+    return out
+
+
+def vis_lines(d: pd.DataFrame, n: int, launch: bool = False) -> list[dict]:
     """Как zz_lines, но вершины — «видимые на этом ТФ»: закрытие — экстремум среди n свечей с каждой стороны
-    (известно через n свечей), и между двумя точками линии ни одно закрытие не заходит за линию."""
+    (известно через n свечей), и между двумя точками линии ни одно закрытие не заходит за линию.
+    launch=True — точка линии не самое крайнее закрытие, а последнее закрытие «полки» у экстремума перед движением."""
     c = d["close"].to_numpy(dtype="float64")
     atr = _atr(d).to_numpy()
     m = len(c)
     out = []
-    for side, piv in ((1, pivots(c, n, True)), (-1, pivots(c, n, False))):
+    for side in (1, -1):
+        piv = pivots(c, n, side > 0)
+        x = launch_points(c, atr, piv, side) if launch else piv[:, 0]     # где точка линии
         seen = set()
-        for a, conf_a in piv:
-            w = c[max(0, a - ZZ_ANCHOR): a]
-            if len(w) < ZZ_ANCHOR or side * (c[a] - (w.max() if side > 0 else w.min())) <= 0:
+        for ka, (pa, conf_a) in enumerate(piv):
+            w = c[max(0, pa - ZZ_ANCHOR): pa]
+            if len(w) < ZZ_ANCHOR or side * (c[pa] - (w.max() if side > 0 else w.min())) <= 0:
                 continue
-            cand = piv[(piv[:, 0] >= a + ZZ_SPAN) & (side * (c[a] - c[piv[:, 0]]) > 0)]
-            later = piv[piv[:, 0] > a]
+            a = int(x[ka])
+            sel = (piv[:, 0] >= pa + ZZ_SPAN) & (side * (c[a] - c[x]) > 0)
+            cand, cand_x = piv[sel], x[sel]
+            lsel = piv[:, 0] > pa
+            later, later_x = piv[lsel], x[lsel]
             best, b_best, rec, ci, li = None, -1, None, 0, 0
-            for t in range(conf_a + 1, min(a + ZZ_LIFE, m - 1)):
+            for t in range(conf_a + 1, min(pa + ZZ_LIFE, m - 1)):
                 changed = False
                 while li < len(later) and later[li][1] <= t - 1:
                     li, changed = li + 1, True
@@ -50,12 +71,12 @@ def vis_lines(d: pd.DataFrame, n: int) -> list[dict]:
                     ci, changed = ci + 1, True
                 if changed:
                     best, b_best = None, -1
-                    pts = later[:li, 0]
-                    for b in cand[:ci, 0]:
+                    pts = later_x[:li]
+                    for pb, b in zip(cand[:ci, 0], cand_x[:ci]):
                         sl = (c[b] - c[a]) / (b - a)
                         if not np.all(side * (c[pts] - (c[a] + sl * (pts - a))) <= 1e-12):
                             continue
-                        seg = np.arange(a + 1, b)
+                        seg = np.arange(a + 1, pb)                 # до экстремума второй точки
                         if len(seg) and np.any(side * (c[seg] - (c[a] + sl * (seg - a))) > VIS_TOL * atr[b]):
                             continue
                         if best is None or side * sl > side * best:
@@ -64,18 +85,20 @@ def vis_lines(d: pd.DataFrame, n: int) -> list[dict]:
                     continue
                 lt, lp = c[a] + best * (t - a), c[a] + best * (t - 1 - a)
                 if side * (c[t] - lt) > 0 and side * (c[t - 1] - lp) <= 0:
-                    rec = {"side": side, "a": int(a), "b": b_best, "t": t, "line_t": lt}
+                    rec = {"side": side, "a": a, "b": b_best, "t": t, "line_t": lt}
                     break
             if rec is None and best is not None and side * best < 0:
-                rec = {"side": side, "a": int(a), "b": b_best, "t": -1, "line_t": np.nan}
+                rec = {"side": side, "a": a, "b": b_best, "t": -1, "line_t": np.nan}
             if rec is not None and (rec["t"] < 0 or rec["t"] not in seen):
                 seen.add(rec["t"])
                 out.append(rec)
     return out
 
 BASE = "https://fapi.binance.com"
-MODES = {"сейчас: зигзаг 3 ATR": lambda d: zz_lines(d), "видимые вершины ±6 свечей": lambda d: vis_lines(d, 6),
-         "видимые вершины ±10 свечей": lambda d: vis_lines(d, 10), "видимые вершины ±16 свечей": lambda d: vis_lines(d, 16)}
+MODES = {"сейчас: зигзаг 3 ATR": lambda d: zz_lines(d),
+         "видимые вершины ±10 свечей": lambda d: vis_lines(d, 10),
+         "видимые ±6 + последнее закрытие перед движением": lambda d: vis_lines(d, 6, launch=True),
+         "видимые ±10 + последнее закрытие перед движением": lambda d: vis_lines(d, 10, launch=True)}
 SHOW = 300
 
 
