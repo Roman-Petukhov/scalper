@@ -21,10 +21,70 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 from research.smc import _atr  # noqa: E402
-from research.tline import ZZ_ANCHOR, ZZ_LIFE, ZZ_SPAN, pivots, zz_lines  # noqa: E402
+from research.tline import ZZ_ANCHOR, ZZ_K, ZZ_LIFE, ZZ_SPAN, pivots, zigzag, zz_lines  # noqa: E402
 
 BRK_ATR = 0.2               # пробой — закрытие за линией не ближе 0.2 ATR; ближе — касание, линия перестраивается
 VIS_TOL = 0.05              # закрытия между точками касания не заходят за линию дальше 0.05 ATR
+
+
+ZONE_MIN = 0.25             # зона не уже 0.25 ATR
+
+
+def _wick(ext: np.ndarray, c: np.ndarray, p: int, side: int) -> float:
+    """Насколько тени у вершины (свечи p ± 2) выходят за её закрытие."""
+    w = ext[max(0, p - 2): p + 3]
+    return max(side * ((w.max() if side > 0 else w.min()) - c[p]), 0.0)
+
+
+def zone_lines(d: pd.DataFrame) -> list[dict]:
+    """Зона вместо линии: вершины — зигзаг по закрытиям 3 ATR (как сейчас), ближняя граница — линия по закрытиям
+    вершин, дальняя — параллельная ей через тени у тех же вершин (ширина — наибольший хвост за закрытием вершины среди
+    свечей ±2 вокруг точек A и B, не уже ZONE_MIN ATR).
+    Пробой — первое закрытие за дальней границей; закрытие внутри зоны — тест, линия живёт дальше."""
+    c = d["close"].to_numpy(dtype="float64")
+    hi, lo = d["high"].to_numpy(dtype="float64"), d["low"].to_numpy(dtype="float64")
+    atr = _atr(d).to_numpy()
+    m = len(c)
+    hs, ls = zigzag(c, atr, ZZ_K)
+    out = []
+    for side, piv in ((1, hs), (-1, ls)):
+        ext = hi if side > 0 else lo
+        seen = set()
+        for a, conf_a in piv:
+            w = c[max(0, a - ZZ_ANCHOR): a]
+            if len(w) < ZZ_ANCHOR or side * (c[a] - (w.max() if side > 0 else w.min())) <= 0:
+                continue
+            cand = piv[(piv[:, 0] >= a + ZZ_SPAN) & (side * (c[a] - c[piv[:, 0]]) > 0)]
+            later = piv[piv[:, 0] > a]
+            best, b_best, width, rec, ci, li = None, -1, 0.0, None, 0, 0
+            for t in range(conf_a + 1, min(a + ZZ_LIFE, m - 1)):
+                changed = False
+                while li < len(later) and later[li][1] <= t - 1:
+                    li, changed = li + 1, True
+                while ci < len(cand) and cand[ci][1] <= t - 1:
+                    ci, changed = ci + 1, True
+                if changed:
+                    best, b_best = None, -1
+                    pts = later[:li, 0]
+                    for b in cand[:ci, 0]:
+                        sl = (c[b] - c[a]) / (b - a)
+                        if np.all(side * (c[pts] - (c[a] + sl * (pts - a))) <= 1e-12):
+                            if best is None or side * sl > side * best:
+                                best, b_best = sl, int(b)
+                    if b_best >= 0:
+                        width = max(_wick(ext, c, a, side), _wick(ext, c, b_best, side), ZONE_MIN * atr[b_best])
+                if best is None or not (side * best < 0):
+                    continue
+                lt, lp = c[a] + best * (t - a), c[a] + best * (t - 1 - a)
+                if side * (c[t] - lt) > width and side * (c[t - 1] - lp) <= width:
+                    rec = {"side": side, "a": int(a), "b": b_best, "t": t, "line_t": lt, "width": width}
+                    break
+            if rec is None and best is not None and side * best < 0:
+                rec = {"side": side, "a": int(a), "b": b_best, "t": -1, "line_t": np.nan, "width": width}
+            if rec is not None and (rec["t"] < 0 or rec["t"] not in seen):
+                seen.add(rec["t"])
+                out.append(rec)
+    return out
 
 
 SHELF_ATR = 0.3             # «полка» у экстремума: закрытия в пределах 0.3 ATR от него
@@ -47,7 +107,7 @@ def launch_points(c: np.ndarray, atr: np.ndarray, piv: np.ndarray, side: int) ->
 
 
 def vis_lines(d: pd.DataFrame, n: int, launch: bool = False, minor: int = 0, bos: bool = False,
-              brk: float = 0.0) -> list[dict]:
+              brk: float = 0.0, direction: bool = False, max_slope: float = 0.0) -> list[dict]:
     """Как zz_lines, но вершины — «видимые на этом ТФ»: закрытие — экстремум среди n свечей с каждой стороны
     (известно через n свечей), и между двумя точками линии ни одно закрытие не заходит за линию.
     launch=True — точка линии не самое крайнее закрытие, а последнее закрытие «полки» у экстремума перед движением.
@@ -57,7 +117,11 @@ def vis_lines(d: pd.DataFrame, n: int, launch: bool = False, minor: int = 0, bos
     экстремум (закрылась ниже последнего мини-минимума перед вершиной; для впадины — выше мини-максимума);
     линия известна с этого бара.
     brk=k — пробой только закрытием дальше k ATR за линией; закрытие ближе — касание: линия живёт дальше и
-    перестраивается через новый мини-экстремум."""
+    перестраивается через новый мини-экстремум.
+    direction=True — линия появляется, только когда после A сложился крупный (±n) экстремум той же стороны ниже A
+    (для вершин; для впадин — выше): он задаёт направление, а вторую точку берём среди мини-экстремумов не раньше
+    него — касательную, которая не режет закрытия.
+    max_slope=k — линия не круче k ATR на свечу (круче — обвал / вынос, а не трендовая линия)."""
     c = d["close"].to_numpy(dtype="float64")
     atr = _atr(d).to_numpy()
     m = len(c)
@@ -88,7 +152,13 @@ def vis_lines(d: pd.DataFrame, n: int, launch: bool = False, minor: int = 0, bos
             a = int(x[ka])
             pb_all = pivots(c, minor, side > 0) if minor else piv
             xb_all = pb_all[:, 0] if minor else x
-            sel = (pb_all[:, 0] >= pa + ZZ_SPAN) & (side * (c[a] - c[xb_all]) > 0)
+            first = pa + ZZ_SPAN
+            if direction:                                           # крупная вершина после A задаёт направление
+                big = piv[(piv[:, 0] >= pa + ZZ_SPAN) & (side * (c[pa] - c[piv[:, 0]]) > 0)]
+                if not len(big):
+                    continue
+                first = int(big[0][0])
+            sel = (pb_all[:, 0] >= first) & (side * (c[a] - c[xb_all]) > 0)
             cand, cand_x = pb_all[sel], xb_all[sel]
             lsel = pb_all[:, 0] > a
             later, later_x = pb_all[lsel], xb_all[lsel]
@@ -104,6 +174,8 @@ def vis_lines(d: pd.DataFrame, n: int, launch: bool = False, minor: int = 0, bos
                     pts = later_x[:li]
                     for pb, b in zip(cand[:ci, 0], cand_x[:ci]):
                         sl = (c[b] - c[a]) / (b - a)
+                        if max_slope and abs(sl) > max_slope * atr[b]:
+                            continue
                         if not np.all(side * (c[pts] - (c[a] + sl * (pts - a))) <= 1e-12):
                             continue
                         seg = np.arange(a + 1, pb)                 # до экстремума второй точки
@@ -126,11 +198,8 @@ def vis_lines(d: pd.DataFrame, n: int, launch: bool = False, minor: int = 0, bos
 
 BASE = "https://fapi.binance.com"
 SPOT = "https://data-api.binance.vision"
-MODES = {"сейчас: зигзаг 3 ATR": lambda d: zz_lines(d),
-         "A: видимые ±10 + полка + слом структуры, B: мини-экстремум ±3 (касательная)":
-             lambda d: vis_lines(d, 10, launch=True, minor=3, bos=True),
-         "то же + пробой только закрытием >= 0.2 ATR за линией (ближе — касание, линия перестраивается)":
-             lambda d: vis_lines(d, 10, launch=True, minor=3, bos=True, brk=BRK_ATR)}
+MODES = {"сейчас: зигзаг 3 ATR, линия": lambda d: zz_lines(d),
+         "зигзаг 3 ATR, зона: закрытия — тени; пробой — закрытие за всей зоной": lambda d: zone_lines(d)}
 SHOW = 480
 
 
@@ -172,7 +241,12 @@ def draw(d: pd.DataFrame, sym: str, tf: str, out: Path) -> None:
             sl = (c[b] - c[a]) / (b - a)
             xs = [max(a, off) - off, end + 3 - off]
             ys = [c[a] + sl * (max(a, off) - a), c[a] + sl * (end + 3 - a)]
-            ax.plot(xs, ys, color="#1e88e5" if r["side"] < 0 else "#fb8c00", lw=1.4)
+            col = "#1e88e5" if r["side"] < 0 else "#fb8c00"
+            ax.plot(xs, ys, color=col, lw=1.4)
+            if r.get("width"):
+                ys2 = [y + r["side"] * r["width"] for y in ys]
+                ax.plot(xs, ys2, color=col, lw=1.0)
+                ax.fill_between(xs, ys, ys2, color=col, alpha=0.18)
             if r["t"] > 0:
                 ax.annotate("v" if r["side"] < 0 else "^", (r["t"] - off, c[r["t"]]), color="k", fontsize=14,
                             ha="center")
