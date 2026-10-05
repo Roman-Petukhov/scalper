@@ -7,6 +7,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
+import matplotlib.ticker  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
@@ -38,11 +39,15 @@ class MatplotlibCharts:
             ax.add_patch(plt.Rectangle((i - 0.35, min(o[i], c[i])), 0.7, max(abs(c[i] - o[i]), 1e-12), color=col))
         i1, i2 = pos.get(pd.Timestamp(t1)), pos.get(pd.Timestamp(t2))
         last = len(d) - 1
+        log = bool(signal.extra.get("log_line"))
+        if log:
+            ax.set_yscale("log")                                # линия прямая именно на лог-шкале
         lc = LINE_LONG if int(signal.side) > 0 else LINE_SHORT
         if i1 is not None and i2 is not None and i2 > i1:
-            slope = (v2 - v1) / (i2 - i1)
             xs = np.arange(i1, last + 4)
-            ax.plot(xs, v1 + slope * (xs - i1), color=lc, linewidth=1.8)
+            frac = (xs - i1) / (i2 - i1)
+            ys = v1 * (v2 / v1) ** frac if log else v1 + (v2 - v1) * frac
+            ax.plot(xs, ys, color=lc, linewidth=1.8)
             ax.scatter([i1, i2], [v1, v2], s=60, facecolors="none", edgecolors=lc, linewidths=1.6, zorder=5)
         ax.scatter([last], [c[-1]], marker="*", s=160, color=lc, zorder=6)
         p = signal.plan
@@ -57,8 +62,13 @@ class MatplotlibCharts:
                         va="center")
         ax.set_xlim(-1, last + 26)
         ymin, ymax = min(lo.min(), p.stop, p.target), max(h.max(), p.stop, p.target)
-        pad = (ymax - ymin) * 0.04
-        ax.set_ylim(ymin - pad, ymax + pad)
+        if log:
+            ax.set_ylim(ymin / 1.03, ymax * 1.03)
+            ax.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v, _: f"{v:.6g}"))
+            ax.yaxis.set_minor_formatter(matplotlib.ticker.NullFormatter())
+        else:
+            pad = (ymax - ymin) * 0.04
+            ax.set_ylim(ymin - pad, ymax + pad)
         ticks = np.linspace(0, last, 6).astype(int)
         ax.set_xticks(ticks, [d.index[i].strftime("%d.%m %H:%M") for i in ticks])
         ax.tick_params(colors=FG, labelsize=8)

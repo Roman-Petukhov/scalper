@@ -2,8 +2,10 @@ import asyncio
 import json
 from dataclasses import replace
 from datetime import datetime, timezone
+from pathlib import Path
 
 import httpx
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -165,3 +167,13 @@ def test_entry_policy_persists(tmp_path):
     assert st.load().entry_policy is EntryPolicy.RETEST
     SettingsService(st).set_entry_policy(EntryPolicy.HYBRID)
     assert SqliteStore(tmp_path / "t.db").load().entry_policy is EntryPolicy.HYBRID
+
+
+def test_png_chart_log_scale(tmp_path):
+    idx = pd.date_range("2026-09-01", periods=200, freq="4h", tz="UTC")
+    px = 100 * np.exp(np.linspace(0, 0.3, 200))
+    bars = pd.DataFrame({"open": px, "high": px * 1.01, "low": px * 0.99, "close": px}, index=idx)
+    sig = replace(_signal(), extra={"log_line": True}, id=7,
+                  line_points=((idx[20].to_pydatetime(), float(px[20])), (idx[120].to_pydatetime(), float(px[120]))))
+    path = MatplotlibCharts(tmp_path).render(sig, bars)
+    assert Path(path).stat().st_size > 10_000

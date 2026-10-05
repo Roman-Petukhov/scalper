@@ -142,7 +142,7 @@ def last_confirmed(piv: np.ndarray, m: int) -> np.ndarray:
     return out
 
 
-LINES = ("last2", "clean", "clean3", "major", "zz", "fan", "fan2")
+LINES = ("last2", "clean", "clean3", "major", "zz", "zzlog", "fan", "fan2")
 MAJOR_L = 12          # главный экстремум: тень выше (ниже) 12 свечей с каждой стороны
 MINOR_N = 3           # точки касания: фрактал 3 свечи
 ZZ_K = 3.0            # зигзаг по закрытиям: разворот >= 3 ATR
@@ -249,16 +249,20 @@ def zigzag(c: np.ndarray, atr: np.ndarray, k: float) -> tuple[np.ndarray, np.nda
     return (np.array(highs, np.int64).reshape(-1, 2), np.array(lows, np.int64).reshape(-1, 2))
 
 
-def zz_lines(d: pd.DataFrame) -> list[dict]:
+def zz_lines(d: pd.DataFrame, log: bool = False) -> list[dict]:
     """Линии по значимым точкам: обе точки — вершины зигзага по закрытиям (разворот >= ZZ_K ATR), первая — самое
     высокое закрытие за ZZ_ANCHOR свечей до неё, между точками >= ZZ_SPAN свечей; из таких вторых точек берётся та,
     что даёт самую пологую касательную (ни одна вершина зигзага после первой не выше линии). Линия живёт до пробоя,
     но не дольше ZZ_LIFE свечей от первой точки; пробой, совпавший по бару с пробоем линии от более ранней опоры,
-    не дублируется. Для восходящей линии — зеркально по впадинам. Формат — как у major_lines."""
-    c = d["close"].to_numpy(dtype="float64")
-    atr = _atr(d).to_numpy() if {"high", "low"} <= set(d.columns) else np.full(len(c), np.inf)
-    m = len(c)
-    hs, ls = zigzag(c, atr, ZZ_K)
+    не дублируется. Для восходящей линии — зеркально по впадинам. Формат — как у major_lines.
+    log=True — линия прямая на логарифмической шкале (наклон в долях цены за свечу, как трейдер ведёт её на
+    лог-графике): вершины те же, геометрия касания и пробоя — по log(close); line_t / line_n — в цене, slope — в log."""
+    price = d["close"].to_numpy(dtype="float64")
+    atr = _atr(d).to_numpy() if {"high", "low"} <= set(d.columns) else np.full(len(price), np.inf)
+    m = len(price)
+    hs, ls = zigzag(price, atr, ZZ_K)
+    c = np.log(price) if log else price
+    back = np.exp if log else (lambda v: v)
     out = []
     for side, piv in ((1, hs), (-1, ls)):
         seen = set()
@@ -291,11 +295,12 @@ def zz_lines(d: pd.DataFrame) -> list[dict]:
                 if side * (c[t] - lt) > 0 and side * (c[t - 1] - lp) <= 0:
                     ln = c[a] + best * (t + 1 - a)
                     rec = {"side": side, "a": int(a), "b": b_best, "slope": best, "t": t,
-                           "tc": t + 1 if side * (c[t + 1] - ln) > 0 else -1, "line_t": lt, "line_n": ln}
+                           "tc": t + 1 if side * (c[t + 1] - ln) > 0 else -1, "line_t": float(back(lt)),
+                           "line_n": float(back(ln)), "log": log}
                     break
             if rec is None and best is not None and side * best < 0:
                 rec = {"side": side, "a": int(a), "b": b_best, "slope": best, "t": -1, "tc": -1,
-                       "line_t": np.nan, "line_n": np.nan}
+                       "line_t": np.nan, "line_n": np.nan, "log": log}
             if rec is not None and (rec["t"] < 0 or rec["t"] not in seen):
                 seen.add(rec["t"])
                 out.append(rec)
@@ -343,8 +348,8 @@ def fan_lines(d: pd.DataFrame, scales: tuple[float, ...] = FAN_K) -> list[dict]:
 def signals(d: pd.DataFrame, mode: str = "last2") -> list[tuple[int, int, int, float, float, int, int]]:
     """(бар пробоя, бар закрепления или −1, сторона, линия на баре пробоя, линия на баре закрепления,
     индексы двух точек линии)."""
-    if mode in ("major", "zz", "fan", "fan2"):
-        recs = {"major": major_lines, "zz": zz_lines, "fan": fan_lines,
+    if mode in ("major", "zz", "zzlog", "fan", "fan2"):
+        recs = {"major": major_lines, "zz": zz_lines, "zzlog": lambda x: zz_lines(x, log=True), "fan": fan_lines,
                 "fan2": lambda x: fan_lines(x, FAN2_K)}[mode](d)
         return [(r["t"], r["tc"], r["side"], r["line_t"], r["line_n"], r["a"], r["b"]) for r in recs if r["t"] > 0]
     c = d["close"].to_numpy(dtype="float64")
@@ -834,7 +839,7 @@ def collect(root: Path, syms: list[str], syms15: list[str]) -> None:
 def diagnose_2026(df: pd.DataFrame, line_name: dict) -> None:
     """Почему шорт на 4h с перевесом продавцов ослаб в 2026: рынок, состояние монеты, исход сделок, помесячно."""
     base = df[(df.tf == "4h") & (df.side == -1) & df.confirm & (df.entry == "market") & (df.aggr >= 0.55)
-              & df.line.isin(["clean", "zz", "fan", "fan2"])].copy()
+              & df.line.isin(["clean", "zz", "zzlog", "fan", "fan2"])].copy()
     if not len(base):
         return
     base["year"] = base.t.dt.year
@@ -879,7 +884,7 @@ def strength_report(df: pd.DataFrame, line_name: dict) -> None:
     groups = [("4h шорт, агрессоры >= 55%", (x0.tf == "4h") & (x0.side == -1) & (x0.aggr >= 0.55)),
               ("4h обе стороны", x0.tf == "4h"), ("1h обе стороны", x0.tf == "1h")]
     print("\n=== Сила пробоя: средний R по квинтилям признака (1 — слабее для нас, 5 — сильнее; границы по IS) ===")
-    for (gname, mask), ln in itertools.product(groups, ("clean", "zz", "fan", "fan2")):
+    for (gname, mask), ln in itertools.product(groups, ("clean", "zz", "zzlog", "fan", "fan2")):
         g = x0[mask & (x0.line == ln)]
         if g.per.eq("is").sum() < 200:
             continue
@@ -921,7 +926,7 @@ def target_report(df: pd.DataFrame, line_name: dict) -> None:
     print("\n=== Цель: вся позиция на 3R против лесенки (половина 3R, половина 5R); "
           "ячейка — средний R (t, доля прибыльных, сделок в месяц) ===")
     rows = []
-    for tf, ln, entry, confirm in itertools.product(("15m", "1h", "4h"), ("clean", "zz", "fan", "fan2"), ("market", "retest"),
+    for tf, ln, entry, confirm in itertools.product(("15m", "1h", "4h"), ("clean", "zz", "zzlog", "fan", "fan2"), ("market", "retest"),
                                                     (False, True)):
         g = df[(df.tf == tf) & (df.line == ln) & (df.entry == entry) & (df.confirm == confirm)]
         if not len(g):
@@ -964,7 +969,7 @@ MODEL_FEATS = ["aggr", "vol_ratio", "oi_chg", "body", "close_loc", "brk_atr", "s
 def add_breadth(df: pd.DataFrame) -> pd.DataFrame:
     """Ширина рынка на баре пробоя: сколько монет в тот же бар пробили линию («по значимым точкам», «веер» или «чистую»)
     в нашу сторону минус в обратную (без самой монеты)."""
-    sig = df[~df.confirm & df.line.isin(["clean", "zz", "fan", "fan2"])][["tf", "t", "symbol", "side"]]
+    sig = df[~df.confirm & df.line.isin(["clean", "zz", "zzlog", "fan", "fan2"])][["tf", "t", "symbol", "side"]]
     sig = sig.drop_duplicates()
     cnt = sig.groupby(["tf", "t", "side"]).size().unstack("side", fill_value=0)
     cnt = cnt.reindex(columns=[-1, 1], fill_value=0)
@@ -979,6 +984,35 @@ def add_breadth(df: pd.DataFrame) -> pd.DataFrame:
 def _years(g: pd.DataFrame, col: str = "R3") -> str:
     yy = g.groupby(g.t.dt.year)[col].agg(["size", "mean"])
     return ", ".join(f"{k}: {v['mean']:+.2f} ({int(v['size'])})" for k, v in yy.iterrows())
+
+
+def conviction_report(df: pd.DataFrame, line_name: dict) -> None:
+    """Уверенный пробой: закрытие далеко за линией (ATR), у края свечи, с крупным телом — против пробоев «на чуть-чуть».
+    База — сигнал бота: агрессоры >= 55% + тренд старшего ТФ, пробой (без закрепления), цель — всё на 3R."""
+    print("\n=== Уверенность свечи пробоя: насколько закрылась за линией (ATR), где закрылась в свече (1 — у края "
+          "в сторону пробоя), доля тела; ячейка — R на сделку, всё на 3R ===")
+    base = df[(df.aggr >= 0.55) & df.with_trend & ~df.confirm & df.line.isin(["zz", "zzlog"])]
+    rules = [("все", lambda g: g)]
+    rules += [(f"за линией >= {k:g} ATR", lambda g, k=k: g[g.brk_atr >= k]) for k in (0.1, 0.2, 0.3, 0.5)]
+    rules += [(f"закрытие в верхних {round((1 - k) * 100)}% свечи", lambda g, k=k: g[g.close_loc >= k])
+              for k in (0.5, 0.67, 0.8)]
+    rules += [(f"тело >= {k:.0%}", lambda g, k=k: g[g.body >= k]) for k in (0.5, 0.6)]
+    rules += [("за линией < 0.1 ATR (на чуть-чуть)", lambda g: g[g.brk_atr < 0.1]),
+              ("закрытие в нижней половине свечи", lambda g: g[g.close_loc < 0.5]),
+              ("уверенная: >= 0.2 ATR + верхняя треть", lambda g: g[(g.brk_atr >= 0.2) & (g.close_loc >= 0.67)]),
+              ("уверенная: >= 0.2 ATR + верх. треть + тело 50%",
+               lambda g: g[(g.brk_atr >= 0.2) & (g.close_loc >= 0.67) & (g.body >= 0.5)])]
+    rows = []
+    for (tf, ln, entry), g in base.groupby(["tf", "line", "entry"]):
+        for nm, f in rules:
+            z = f(g).assign(R=lambda x: x["R3"])
+            rows.append({"ТФ": tf, "линия": line_name[ln], "вход": "рынок" if entry == "market" else "ретест",
+                         "свеча": nm, **{p: _cell(z[z.per == p]) for p in PER}})
+    print(pd.DataFrame(rows).to_string(index=False))
+    for ln in ("zz", "zzlog"):
+        g = base[(base.tf == "4h") & (base.line == ln) & (base.entry == "retest")]
+        for nm, f in rules[:1] + [r for r in rules if r[0].startswith("уверенная")]:
+            print(f"  4h, ретест, {line_name[ln]}, {nm}: {_years(f(g))}")
 
 
 def filters_report(df: pd.DataFrame, line_name: dict) -> None:
@@ -996,7 +1030,7 @@ def _filters_tf(df: pd.DataFrame, tf: str, line_name: dict) -> None:
         return
     print(f"\n=== Настоящий / ложный пробой: {tf}, ретест пробоя, агрессоры >= 55% + тренд старшего ТФ; "
           f"ячейка — средний R при цели 3R (t, прибыльных, в месяц) ===")
-    for ln in ("zz", "fan", "fan2"):
+    for ln in ("zz", "zzlog", "fan", "fan2"):
         g = base_all[(base_all.line == ln) & (base_all.aggr >= 0.55) & base_all.with_trend]
         if g.per.eq("is").sum() < 100:
             continue
@@ -1030,7 +1064,7 @@ def _filters_tf(df: pd.DataFrame, tf: str, line_name: dict) -> None:
         print("  lightgbm не установлен — модель пропущена")
         return
     print(f"\n  9 модель LightGBM (все признаки; обучение на IS: {tf}, ретест пробоя, все линии кроме last2, цель 3R):")
-    tr_all = base_all[base_all.line.isin(["clean", "zz", "fan", "fan2"])].copy()
+    tr_all = base_all[base_all.line.isin(["clean", "zz", "zzlog", "fan", "fan2"])].copy()
     feats = [f for f in MODEL_FEATS if f in tr_all.columns]
     X = tr_all[feats].astype("float64")
     is_m = (tr_all.per == "is").to_numpy()
@@ -1046,7 +1080,7 @@ def _filters_tf(df: pd.DataFrame, tf: str, line_name: dict) -> None:
     tr_all["score"] = model.predict(X)
     imp = pd.Series(model.feature_importance(), index=feats).sort_values(ascending=False)
     print("    важность: " + ", ".join(f"{k} {v}" for k, v in imp.head(12).items()))
-    for ln in ("zz", "fan", "fan2", "clean"):
+    for ln in ("zz", "zzlog", "fan", "fan2", "clean"):
         g = tr_all[tr_all.line == ln]
         thr = g.loc[g.per == "is", "score"].quantile(0.6)
         for nm, z in (("все пробои линии", g), ("верх 40% модели", g[g.score >= thr]),
@@ -1167,7 +1201,7 @@ def entry_by_candle_report(df: pd.DataFrame, line_name: dict) -> None:
         return
     key = ["symbol", "tf", "line", "t", "side"]
     print("\n=== Длинная свеча пробоя: рынок или ретест (агрессоры >= 55% + тренд, цель 3R; ретест без исполнения = 0R) ===")
-    for tf, ln in itertools.product(("4h", "1h"), ("zz", "fan")):
+    for tf, ln in itertools.product(("4h", "1h"), ("zz", "zzlog", "fan")):
         g = df[(df.tf == tf) & (df.line == ln) & ~df.confirm & (df.aggr >= 0.55) & df.with_trend]
         mk = g[g.entry == "market"].drop_duplicates(key)
         rt = g[g.entry == "retest"].drop_duplicates(key)[key + ["R3"]].rename(columns={"R3": "R3_rt"})
@@ -1219,7 +1253,7 @@ def report() -> None:
         shutil.copy(png, out / png.name)
     print(f"===== TLINE: сделок {len(df):,}, монет {df.symbol.nunique()}, частей {len(parts)} =====")
     print("ячейка: средний R на сделку (t по дням, прибыльных, сделок в месяц на весь набор монет); выход 1/2 на 3R + 1/2 на 5R")
-    line_name = {"last2": "2 последние", "clean": "чистая", "clean3": "чистая, 3 касания", "major": "от главного экстремума", "zz": "по значимым точкам", "fan": "веер: соседние вершины", "fan2": "веер 2/3/6 ATR"}
+    line_name = {"last2": "2 последние", "clean": "чистая", "clean3": "чистая, 3 касания", "major": "от главного экстремума", "zz": "по значимым точкам", "zzlog": "по значимым точкам, лог-шкала", "fan": "веер: соседние вершины", "fan2": "веер 2/3/6 ATR"}
     filters = lambda g: (("все", g), ("по тренду старшего ТФ", g[g.with_trend]),
                          ("объём пробоя >= 1.5x", g[g.vol_ratio >= 1.5]), ("OI рос 4 бара", g[g.oi_chg > 0]),
                          ("сильная свеча", g[(g.body >= 0.6) & (g.close_loc >= 0.75) & (g.brk_atr >= 0.3)]),
@@ -1261,13 +1295,15 @@ def report() -> None:
         diagnose_2026(df, line_name)
     if "R3" in df.columns:
         target_report(df, line_name)
+    if "R3" in df.columns and "brk_atr" in df.columns:
+        conviction_report(df, line_name)
     if "R3x0" in df.columns:
         filters_report(df, line_name)
     mtf_report(line_name)
     entry_by_candle_report(df, line_name)
     if "effort" in df.columns:
         strength_report(df, line_name)
-        ev = df[df.confirm & (df.entry == "market") & (df.tf == "4h") & df.line.isin(["clean", "zz", "fan", "fan2"])]
+        ev = df[df.confirm & (df.entry == "market") & (df.tf == "4h") & df.line.isin(["clean", "zz", "zzlog", "fan", "fan2"])]
         if len(ev):
             out = Path(os.environ.get("OUT", "../out"))
             out.mkdir(parents=True, exist_ok=True)

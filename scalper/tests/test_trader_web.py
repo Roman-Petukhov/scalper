@@ -2,6 +2,7 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
@@ -240,8 +241,21 @@ def test_live_chart_api(env):
     d = c.get(f"/api/chart/{s.id}").json()
     assert len(d["candles"]) == 12 and d["candles"][0]["time"] == int(pd.Timestamp("2026-09-30", tz="UTC").timestamp())
     assert d["levels"] == {"entry": 101.0, "stop": 98.0, "target": 110.0} and d["side"] == 1
-    a, b = d["line"]
+    a, b = d["line"][0], d["line"][-1]
     assert a["time"] == d["candles"][0]["time"] and b["time"] == d["candles"][-1]["time"] + 6 * 4 * 3600
     assert b["value"] < a["value"]                                     # линия по точкам 110 → 105 падает
     assert c.get("/api/chart/999").status_code == 404
     assert 'class="live-chart" data-signal="%d"' % s.id in c.get("/feed").text
+
+
+def test_live_chart_log_line_is_geometric(env):
+    c, tmp = env
+    _login(c)
+    from trader.infrastructure.sqlite_repo import SqliteStore
+    s = SqliteStore(tmp / "trader.db").add(replace(_signal(), extra={"log_line": True}))
+    d = c.get(f"/api/chart/{s.id}").json()
+    assert d["log"] is True and len(d["line"]) > 10
+    v = np.array([p["value"] for p in d["line"]])
+    t = np.array([p["time"] for p in d["line"]], dtype=float)
+    k = np.diff(np.log(v)) / np.diff(t)
+    assert np.allclose(k, k[0], rtol=1e-6)                             # прямая в логарифме цены

@@ -3,12 +3,14 @@ from __future__ import annotations
 
 from datetime import datetime
 
+import numpy as np
 import pandas as pd
 
 from ..domain.execution import Trade
 from ..domain.models import Signal
 
 AHEAD_BARS = 6              # линию продлеваем на несколько свечей вперёд
+LINE_POINTS = 64            # точек на линии: прямая остаётся прямой на любой шкале графика
 
 
 def _ts(t: datetime | pd.Timestamp) -> int:
@@ -22,15 +24,20 @@ def chart_payload(signal: Signal, bars: pd.DataFrame, trade: Trade | None = None
                for t, r in zip(bars.index, bars.itertuples(index=False))]
     (t1, v1), (t2, v2) = signal.line_points
     s1, s2 = _ts(t1), _ts(t2)
-    slope = (v2 - v1) / (s2 - s1) if s2 != s1 else 0.0
+    log = bool(signal.extra.get("log_line"))
     step = signal.timeframe.minutes * 60
     end = (candles[-1]["time"] if candles else _ts(signal.bar_time)) + AHEAD_BARS * step
     start = max(s1, candles[0]["time"]) if candles else s1
-    line = [{"time": start, "value": v1 + slope * (start - s1)}, {"time": end, "value": v1 + slope * (end - s1)}]
+    line = []
+    if end > start and s2 != s1:
+        ts = np.unique(np.linspace(start, end, LINE_POINTS).round().astype(np.int64))
+        frac = (ts - s1) / (s2 - s1)
+        vals = v1 * (v2 / v1) ** frac if log else v1 + (v2 - v1) * frac
+        line = [{"time": int(t), "value": float(v)} for t, v in zip(ts, vals)]
     p = trade or signal.plan
     return {
         "symbol": signal.symbol, "tf": signal.timeframe.value, "side": int(signal.side),
-        "candles": candles, "line": line if end > start else [],
+        "candles": candles, "line": line, "log": log,
         "breakout": _ts(signal.bar_time),
         "levels": {"entry": p.price if trade else p.entry, "stop": p.stop, "target": p.target},
         "entry_label": "вход" if trade is None else ("лимитка" if trade.kind.value == "retest" else "вход (рынок)"),

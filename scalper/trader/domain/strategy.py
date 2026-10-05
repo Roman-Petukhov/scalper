@@ -5,7 +5,7 @@
 Вход — по настройке: лимитка на линии (ретест, по умолчанию), по рынку на закрытии свечи пробоя или гибрид
 (свеча пробоя короче hybrid_range_atr ATR — по рынку, длиннее — ретест).
 
-Построение линий берётся из research.tline (один источник правды с бэктестом)."""
+Построение линий берётся из research.tline (один источник правды с бэктестом); линии — на лог-шкале."""
 from __future__ import annotations
 
 import numpy as np
@@ -18,6 +18,7 @@ from .models import EntryKind, EntryPolicy, Settings, Side, Signal, Timeframe, T
 
 REQUIRED = ("open", "high", "low", "close", "volume", "taker_buy_volume")
 STOP_ATR = (0.3, 4.0)
+LOG_LINES = True            # линии прямые на логарифмической шкале (как трейдер ведёт их на лог-графике)
 
 
 def _with_probe_bar(d: pd.DataFrame) -> pd.DataFrame:
@@ -41,7 +42,7 @@ def detect(d: pd.DataFrame, tf: Timeframe, symbol: str, settings: Settings) -> l
         return []
     x = _with_probe_bar(d)
     last = len(d) - 1
-    recs = [r for r in zz_lines(x) if r["t"] == last]
+    recs = [r for r in zz_lines(x, log=LOG_LINES) if r["t"] == last]
     if not recs:
         return []
     o, hi, lo, c = (d[k].to_numpy(dtype="float64") for k in ("open", "high", "low", "close"))
@@ -80,6 +81,6 @@ def detect(d: pd.DataFrame, tf: Timeframe, symbol: str, settings: Settings) -> l
         out.append(Signal(symbol=symbol, timeframe=tf, side=side, bar_time=d.index[last].to_pydatetime(),
                           close=float(c[last]), line_value=float(r["line_t"]),
                           line_points=((d.index[a].to_pydatetime(), float(c[a])), (d.index[b].to_pydatetime(), float(c[b]))),
-                          aggr=float(aggr), range_atr=float(range_atr), plan=plan))
+                          aggr=float(aggr), range_atr=float(range_atr), plan=plan, extra={"log_line": LOG_LINES}))
         seen.add(side)
     return out

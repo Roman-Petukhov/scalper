@@ -51,6 +51,8 @@
     tag.className = "lc-tag num";
     el.append(box, tag);
     const chart = LightweightCharts.createChart(box, { autoSize: true, ...theme() });
+    // линии строятся на логарифмической шкале — и показываем в ней же
+    if (d.log) chart.priceScale("right").applyOptions({ mode: LightweightCharts.PriceScaleMode.Logarithmic });
     const st = { chart, tag, priceLines: [], levelsKey: "", levels: d.levels, lastTime: d.candles.at(-1)?.time,
                  timer: null, visible: false, tf: el.dataset.tf, digits: precision(d.candles).precision };
     const candles = chart.addSeries(LightweightCharts.CandlestickSeries, {

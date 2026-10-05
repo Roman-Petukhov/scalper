@@ -7,6 +7,7 @@ import pytest
 from research.tline import htf_trend, zz_lines
 from trader.domain.models import EntryKind, EntryPolicy, Settings, Side, Timeframe, TradePlan
 from trader.domain.sizing import position_size
+from trader.domain import strategy
 from trader.domain.strategy import detect
 
 
@@ -31,7 +32,7 @@ def _expected(d: pd.DataFrame, min_aggr: float, stop_atr: tuple[float, float] = 
     hi, lo, c = d.high.to_numpy(), d.low.to_numpy(), d.close.to_numpy()
     sw_lo, sw_hi = last_confirmed(pivots(lo, PIV, False), len(c)), last_confirmed(pivots(hi, PIV, True), len(c))
     out = set()
-    for r in zz_lines(d):
+    for r in zz_lines(d, log=strategy.LOG_LINES):
         t, sd = r["t"], r["side"]
         if t < 400 or trend[t] != sd or (buy[t] if sd > 0 else 1 - buy[t]) < min_aggr:
             continue
@@ -49,7 +50,7 @@ def test_detect_matches_research_rule_on_the_last_closed_bar(seed, stop_atr, mon
     d = _frame(seed=seed)
     s = Settings(min_aggr=0.55, entry_policy=EntryPolicy.MARKET)
     expected = _expected(d, 0.55, stop_atr)
-    candidates = sorted({r["t"] for r in zz_lines(d) if r["t"] >= 400})
+    candidates = sorted({r["t"] for r in zz_lines(d, log=strategy.LOG_LINES) if r["t"] >= 400})
     found = set()
     for t in candidates[:40]:
         for x in detect(d.iloc[: t + 1], Timeframe.H4, "X", s):
@@ -66,7 +67,7 @@ def test_long_breakout_candle_switches_to_retest_on_the_line():
     d = _frame()
     trend = htf_trend(d, "4h")
     buy = (d.taker_buy_volume / d.volume).to_numpy()
-    t, sd, line = next((r["t"], r["side"], r["line_t"]) for r in zz_lines(d) if r["t"] >= 400 and trend[r["t"]] == r["side"]
+    t, sd, line = next((r["t"], r["side"], r["line_t"]) for r in zz_lines(d, log=strategy.LOG_LINES) if r["t"] >= 400 and trend[r["t"]] == r["side"]
                        and (buy[r["t"]] if r["side"] > 0 else 1 - buy[r["t"]]) >= 0.55)
     sig = [x for x in detect(d.iloc[: t + 1], Timeframe.H4, "X", Settings(entry_policy=EntryPolicy.HYBRID, hybrid_range_atr=0.5))
            if int(x.side) == sd]
@@ -90,3 +91,15 @@ def test_position_size_risk_and_leverage_cap():
     tight = TradePlan(EntryKind.MARKET, entry=100.0, stop=99.99, target=100.03, valid_bars=0)
     z2 = position_size(1000.0, 1.0, tight, max_leverage=5.0)
     assert z2.notional == pytest.approx(5000.0) and z2.risk_usd < 10.0
+
+
+def test_log_lines_are_straight_in_log_price():
+    d = _frame(seed=11)
+    recs = [r for r in zz_lines(d, log=True) if r["t"] > 0]
+    assert recs and all(r["log"] for r in recs)
+    c = d["close"].to_numpy()
+    for r in recs[:20]:
+        a, t = r["a"], r["t"]
+        assert np.isclose(np.log(r["line_t"]), np.log(c[a]) + r["slope"] * (t - a))   # прямая в log(close)
+        assert r["side"] * (c[t] - r["line_t"]) > 0                                     # пробой закрытием
+    assert all(not r["log"] for r in zz_lines(d) if r["t"] > 0)
