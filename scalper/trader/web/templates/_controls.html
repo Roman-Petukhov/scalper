@@ -8,9 +8,20 @@
   </div>
   <p class="hint">
     {% if s.mode == Mode.MANUAL %}Сигнал приходит в ленту — входите сами или пропускаете.
-    {% elif exchange %}Бот сам отправляет ордер со стопом и целью на {{ exchange }} по каждому сигналу включённых таймфреймов.
+    {% elif exchange %}Бот сам отправляет ордер со стопом и целью на {{ exchange }} по сигналам отмеченных ниже таймфреймов; остальные приходят в ленту — входите вручную.
     {% else %}Бот входит сам, когда подключена биржа. Сейчас Bybit не подключён — сигналы только записываются.{% endif %}
   </p>
+  <div class="sub-label">Автобот торгует</div>
+  <div class="chips">
+    {% for tf in Timeframe %}
+    {% set sig_off = tf not in s.timeframes %}
+    <button type="button" class="chip chip-auto" aria-pressed="{{ 'true' if tf in s.auto_timeframes else 'false' }}"
+            hx-post="/settings/auto-tf/{{ tf.value }}" hx-target="#controls"
+            {% if sig_off %}title="Сигналы {{ tf.value }} выключены ниже — автоботу торговать нечего"{% endif %}>
+      <span class="dot" aria-hidden="true"></span>{{ tf.value }}{% if sig_off and tf in s.auto_timeframes %} <span class="tag">нет сигналов</span>{% endif %}
+    </button>
+    {% endfor %}
+  </div>
 </div>
 
 <div class="card">

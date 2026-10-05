@@ -58,6 +58,7 @@ class SignalStatus(str, Enum):
 class Settings:
     mode: Mode = Mode.MANUAL
     timeframes: frozenset[Timeframe] = frozenset({Timeframe.H4})
+    auto_timeframes: frozenset[Timeframe] = frozenset({Timeframe.H4})   # по каким ТФ автобот входит сам
     risk_pct: float = 1.0               # риск на сделку 4h, % капитала (основная стратегия)
     risk_pct_1h: float = 0.25           # 1h: плюс по бэктесту тонкий — риск меньше
     risk_pct_15m: float = 0.25          # 15m: без преимущества в бэктесте
@@ -101,6 +102,11 @@ class Settings:
     def close_loc_for(self, tf: Timeframe) -> float:
         return {Timeframe.H4: self.min_close_loc, Timeframe.H1: self.min_close_loc_1h,
                 Timeframe.M15: self.min_close_loc_15m}[tf]
+
+    def toggle_auto(self, tf: Timeframe) -> Settings:
+        tfs = set(self.auto_timeframes)
+        tfs.symmetric_difference_update({tf})
+        return replace(self, auto_timeframes=frozenset(tfs))
 
     def toggle(self, tf: Timeframe) -> Settings:
         tfs = set(self.timeframes)

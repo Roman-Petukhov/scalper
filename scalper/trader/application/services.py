@@ -75,7 +75,8 @@ class Scanner:
                     await self.notifier.signal(sig, sig.chart_path, self.panel_url)
                 except Exception:
                     log.exception("уведомление %s", sig.symbol)
-        if s.mode is Mode.AUTO and self.executor is not None and self.executor.connected:
+        if (s.mode is Mode.AUTO and tf in s.auto_timeframes and self.executor is not None
+                and self.executor.connected):
             found = [await self._auto(sig) for sig in found]
         rep = ScanReport(tf, len(symbols), found, errors, started, datetime.now(timezone.utc))
         self.last[tf] = rep
@@ -113,8 +114,9 @@ class SignalDecisions:
             raise LookupError("сигнал не найден")
         if sig.status is not SignalStatus.NEW:
             raise ValueError(f"сигнал уже обработан: {sig.status.value}")
-        if self.settings.load().mode is not Mode.MANUAL:
-            raise ValueError("включён авто-режим: сигналы исполняет бот")
+        s = self.settings.load()
+        if s.mode is not Mode.MANUAL and sig.timeframe in s.auto_timeframes:
+            raise ValueError("включён авто-режим: сигналы этого таймфрейма исполняет бот")
         return sig
 
     async def take(self, signal_id: int) -> Signal:
@@ -159,6 +161,11 @@ class SettingsService:
     def get(self) -> Settings:
         return self.repo.load()
 
+    def toggle_auto_timeframe(self, tf: Timeframe) -> Settings:
+        s = self.repo.load().toggle_auto(tf)
+        self.repo.save(s)
+        return s
+
     def toggle_timeframe(self, tf: Timeframe) -> Settings:
         s = self.repo.load().toggle(tf)
         self.repo.save(s)
@@ -178,7 +185,7 @@ class SettingsService:
         """Все настройки — к стандартным (лучшие по бэктесту, риск 1%, плечо 5×). Режим ручной / авто и
         включённые таймфреймы не меняем: это выбор трейдера, а не параметры правила."""
         cur = self.repo.load()
-        s = replace(Settings(), mode=cur.mode, timeframes=cur.timeframes)
+        s = replace(Settings(), mode=cur.mode, timeframes=cur.timeframes, auto_timeframes=cur.auto_timeframes)
         self.repo.save(s)
         return s
 

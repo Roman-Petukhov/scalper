@@ -232,6 +232,13 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         return templates.TemplateResponse(request, "_controls.html", page_context(request),
                                           headers={"HX-Trigger": "feed-refresh"})
 
+    @app.post("/settings/auto-tf/{tf}", response_class=HTMLResponse)
+    async def toggle_auto_tf(request: Request, tf: Timeframe):
+        guard(request, mutate=True)
+        settings_svc.toggle_auto_timeframe(tf)
+        return templates.TemplateResponse(request, "_controls.html", page_context(request),
+                                          headers={"HX-Trigger": "feed-refresh"})
+
     @app.post("/settings/mode/{mode}", response_class=HTMLResponse)
     async def set_mode(request: Request, mode: Mode):
         guard(request, mutate=True)

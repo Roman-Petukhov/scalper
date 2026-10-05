@@ -305,3 +305,26 @@ def test_order_uses_timeframe_risk():
     o1 = build_order(_sig(timeframe=Timeframe.H1, bar_time=NOW - timedelta(hours=1, minutes=1)), Settings(), ACC, INST,
                      101.0, None, NOW)
     assert o4.risk_usd == pytest.approx(9.99, abs=0.02) and o1.risk_usd == pytest.approx(2.49, abs=0.02)
+
+
+def test_auto_mode_trades_only_selected_timeframes(tmp_path, monkeypatch):
+    import trader.application.services as svc_mod
+    b = FakeBroker()
+    st, ex = _exec(tmp_path, b)
+    st.save(replace(Settings(), mode=Mode.AUTO, timeframes=frozenset({Timeframe.H4, Timeframe.H1}),
+                    auto_timeframes=frozenset({Timeframe.H4})))
+    idx = pd.date_range("2026-01-01", periods=10, freq="1h", tz="UTC")
+    bars = pd.DataFrame({"open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0, "volume": 1.0,
+                         "taker_buy_volume": 0.5}, index=idx)
+    monkeypatch.setattr(svc_mod, "detect", lambda d, tf, sym, s: [replace(_signal(sym, tf), bar_time=NOW - timedelta(minutes=61))])
+
+    class _Charts:
+        def render(self, signal, bb):
+            return "x.png"
+
+    sc = Scanner(_Market({"SOLUSDT": bars}), st, st, _Charts(), None, "", executor=ex)
+    rep = asyncio.run(sc.scan(Timeframe.H1))
+    assert rep.signals[0].status is SignalStatus.NEW and not b.placed      # 1h не отмечен для автобота
+    out = asyncio.run(SignalDecisions(st, st, ex).take(rep.signals[0].id))  # но вручную войти можно
+    assert out.status is SignalStatus.TAKEN and len(b.placed) == 1
+    assert Settings().toggle_auto(Timeframe.H1).auto_timeframes == {Timeframe.H4, Timeframe.H1}

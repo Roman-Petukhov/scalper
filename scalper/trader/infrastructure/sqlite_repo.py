@@ -152,6 +152,8 @@ class SqliteStore:
         p["mode"] = Mode(p["mode"])
         p["entry_policy"] = EntryPolicy(p.get("entry_policy", EntryPolicy.RETEST.value))
         p["timeframes"] = frozenset(Timeframe(x) for x in p["timeframes"])
+        if "auto_timeframes" in p:
+            p["auto_timeframes"] = frozenset(Timeframe(x) for x in p["auto_timeframes"])
         known = set(Settings.__dataclass_fields__)
         return Settings(**{k: v for k, v in p.items() if k in known})
 
@@ -160,6 +162,7 @@ class SqliteStore:
         p["mode"] = settings.mode.value
         p["entry_policy"] = settings.entry_policy.value
         p["timeframes"] = sorted(t.value for t in settings.timeframes)
+        p["auto_timeframes"] = sorted(t.value for t in settings.auto_timeframes)
         with self.lock:
             self.db.execute("INSERT INTO settings(id, payload) VALUES (1, ?) "
                             "ON CONFLICT(id) DO UPDATE SET payload = excluded.payload", (json.dumps(p),))

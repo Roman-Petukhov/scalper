@@ -312,3 +312,12 @@ def test_reset_to_best_button(env):
     from trader.domain.models import EntryPolicy
     from trader.infrastructure.sqlite_repo import SqliteStore
     assert SqliteStore(tmp / "trader.db").load().entry_policy is EntryPolicy.RETEST
+
+
+def test_auto_timeframe_chips(env):
+    c, tmp = env
+    _login(c)
+    r = c.post("/settings/auto-tf/1h", headers=HX)
+    assert r.status_code == 200 and 'hx-post="/settings/auto-tf/1h"' in r.text and "нет сигналов" in r.text
+    from trader.infrastructure.sqlite_repo import SqliteStore
+    assert SqliteStore(tmp / "trader.db").load().auto_timeframes == {Timeframe.H4, Timeframe.H1}
