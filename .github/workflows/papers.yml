@@ -1,0 +1,53 @@
+name: papers
+
+# Тексты статей для исследования (из контейнера сессии эти сайты недоступны): PDF -> текст, HTML -> текст,
+# результат — в ветку research-results (runs/papers-<id>).
+on:
+  workflow_dispatch:
+  push:
+    branches: [main-t2qdvg]
+    paths: [".github/papers_urls.txt", ".github/workflows/papers.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get install -y -qq poppler-utils html2text >/dev/null
+      - name: Fetch
+        run: |
+          mkdir -p out
+          while read -r name url; do
+            [ -z "$name" ] && continue
+            echo "== $name $url"
+            if curl -sSL -m 60 -A "Mozilla/5.0" -o "out/$name.raw" "$url"; then
+              if head -c 5 "out/$name.raw" | grep -q "%PDF"; then
+                pdftotext -layout "out/$name.raw" "out/$name.txt" && echo "pdf ok $(wc -c < out/$name.txt)"
+              else
+                html2text -utf8 "out/$name.raw" > "out/$name.txt" 2>/dev/null || cp "out/$name.raw" "out/$name.txt"
+                echo "html ok $(wc -c < out/$name.txt)"
+              fi
+              rm -f "out/$name.raw"
+            else
+              echo "FAILED"
+            fi
+          done < .github/papers_urls.txt
+      - name: Publish
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898277+github-actions[bot]@users.noreply.github.com"
+          git fetch origin research-results
+          git worktree add rr origin/research-results
+          git -C rr checkout -B research-results
+          mkdir -p "rr/runs/papers-${GITHUB_RUN_ID}"
+          cp out/* "rr/runs/papers-${GITHUB_RUN_ID}/"
+          git -C rr add runs
+          git -C rr commit -qm "papers run ${GITHUB_RUN_ID} (${GITHUB_SHA::7})"
+          for i in 1 2 3 4; do
+            git -C rr push origin research-results && break
+            git -C rr pull --rebase -q origin research-results
+          done

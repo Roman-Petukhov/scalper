@@ -1,0 +1,8 @@
+osler2000 https://www.newyorkfed.org/medialibrary/media/research/epr/00v06n2/0007osle.pdf
+chung2021 https://arxiv.org/pdf/2101.07410
+bulkowski_up https://thepatternsite.com/uptrendlines.html
+bulkowski_down https://thepatternsite.com/trenddown.html
+bulkowski_throw https://thepatternsite.com/ThrowPull.html
+bulkowski_qtl https://www.thepatternsite.com/QTL.html
+mdpi2022 https://www.mdpi.com/2227-7390/10/20/3888/pdf
+osler2003 https://www.newyorkfed.org/medialibrary/media/research/staff_reports/sr150.pdf
