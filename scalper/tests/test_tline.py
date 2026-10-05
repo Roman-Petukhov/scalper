@@ -20,7 +20,8 @@ def test_signal_on_descending_line_of_closes():
     d = pd.DataFrame({"close": c})
     sig = [s for s in signals(d) if s[2] == 1]
     assert sig, "нет пробоя нисходящей линии"
-    t, tc, side, line_b, line_c = sig[0]
+    t, tc, side, line_b, line_c, i1, i2 = sig[0]
+    assert (i1, i2) == (7, 14)
     # линия через закрытия 15 (бар 7) и 13 (бар 14): наклон −2/7; пробой на баре 22, закрепление на 23
     assert (t, tc) == (22, 23)
     assert np.isclose(line_b, 13 - 2 / 7 * 8) and c[t] > line_b and c[t - 1] <= 13 - 2 / 7 * 7
