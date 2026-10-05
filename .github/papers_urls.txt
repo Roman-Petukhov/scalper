@@ -1,7 +1,8 @@
-zarattini2025 https://papers.ssrn.com/sol3/Delivery.cfm/5209907.pdf?abstractid=5209907&mirid=1
-meanrev_taker2026 https://arxiv.org/pdf/2608.21888
-quarterhour2026 https://arxiv.org/pdf/2607.09426
-marshall_cxo https://www.cxoadvisory.com/technical-trading/does-technical-trading-work-with-commodity-futures/
-commodity_city https://openaccess.city.ac.uk/id/eprint/17846/1/COMMODITY%20pAPER.pdf
-fx_btc_trend https://assets.super.so/e46b77e7-ee08-445e-b43f-4ffd88ae0a0e/files/9c27aa78-9b14-4419-a53d-bc56fa9d43b2.pdf
-aqr_century https://www.aqr.com/-/media/AQR/Documents/Journal-Articles/A-Century-of-Evidence-on-Trend-Following-Investing.pdf
+zarattini_repec https://ideas.repec.org/p/chf/rpseri/rp2580.html
+zarattini_cxo https://www.cxoadvisory.com/technical-trading/crypto-asset-trend-following-strategies/
+zarattini_cxo2 https://www.cxoadvisory.com/?p=46798
+aqr_century https://www.TrendFollowing.com/whitepaper/Century_Evidence_Trend_Following.pdf
+aqr_century2 https://fairmodel.econ.yale.edu/ec439/hurst.pdf
+crypto_trend_cxo https://cxoadvisory.com/technical-trading/applying-simple-trend-following-rules-to-cryptocurrencies
+btc_trend_meanrev https://quantpedia.com/?p=17895
+fx_crypto_momentum https://www.journals.vu.lt/BATP/lt/article/download/44540/42590/138419
