@@ -96,7 +96,7 @@ def main() -> None:
     import uvicorn
     url = f"http://{HOST}:{PORT}"
     print(f"\nПанель: {url}  (остановить — Ctrl+C)\nПервый скан — сразу после ближайшего закрытия свечи "
-          f"включённого таймфрейма; кнопка «Скан» в панели проверит рынок сейчас.\n")
+          f"включённого таймфрейма; кнопки «Проверить рынок сейчас» в панели проверят его вручную.\n")
     threading.Timer(2.5, lambda: open_app_window(url)).start()
     uvicorn.run("trader.web.app:main", factory=True, host=HOST, port=PORT, log_level="info")
 

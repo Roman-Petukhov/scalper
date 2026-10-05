@@ -11,14 +11,19 @@
   <section>
     <div class="feed-head">
       <h1>Сигналы</h1>
-      <div class="row">
-        <span id="scan-status" aria-live="polite"></span>
-        {% for tf in Timeframe %}
-        <button class="btn" hx-post="/scan/{{ tf.value }}" hx-target="#scan-status" hx-swap="innerHTML"
-                hx-disabled-elt="this" aria-label="Проверить рынок на {{ tf.value }} сейчас">Скан {{ tf.value }}</button>
-        {% endfor %}
+      <div class="scan-now">
+        <span class="scan-label" id="scan-label">Проверить рынок сейчас</span>
+        <div class="scan-group" role="group" aria-labelledby="scan-label">
+          {% for tf in Timeframe %}
+          <button type="button" class="scan-btn" hx-post="/scan/{{ tf.value }}" hx-target="#scan-status"
+                  hx-swap="innerHTML" hx-disabled-elt=".scan-btn" title="Разовая проверка последней закрытой свечи {{ tf.value }}">
+            <span class="spinner" aria-hidden="true"></span><span class="txt">{{ tf.value }}</span>
+          </button>
+          {% endfor %}
+        </div>
       </div>
     </div>
+    <div id="scan-status" class="scan-status" aria-live="polite"></div>
     <div id="feed" hx-get="/feed" hx-trigger="every 60s, feed-refresh from:body" hx-swap="innerHTML">
       {% include "_feed.html" %}
     </div>

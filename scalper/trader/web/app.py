@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hmac
 import logging
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -28,6 +29,8 @@ from ..infrastructure.webpush import MultiNotifier, WebPushNotifier
 log = logging.getLogger(__name__)
 HERE = Path(__file__).parent
 templates = Jinja2Templates(directory=HERE / "templates")
+REMEMBER_S = 365 * 24 * 3600          # «запомнить на этом устройстве»
+SHORT_LOGIN_S = 12 * 3600
 STATUS_LABEL = {SignalStatus.NEW: "новый", SignalStatus.TAKEN: "в работе", SignalStatus.SKIPPED: "пропущен",
                 SignalStatus.EXPIRED: "истёк"}
 templates.env.globals.update(STATUS_LABEL=STATUS_LABEL, Timeframe=Timeframe, Mode=Mode, EntryPolicy=EntryPolicy,
@@ -56,12 +59,15 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
 
     app = FastAPI(title="Trendline Trader", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.add_middleware(SessionMiddleware, secret_key=cfg.session_secret, session_cookie="tt_session",
-                       max_age=14 * 24 * 3600, same_site="strict", https_only=cfg.panel_url.startswith("https"))
+                       max_age=REMEMBER_S, same_site="strict", https_only=cfg.panel_url.startswith("https"))
     app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
     app.state.scanner = scanner
 
     def authed(request: Request) -> bool:
-        return request.session.get("ok") is True
+        if request.session.get("ok") is not True:
+            return False
+        until = request.session.get("until")                       # вход без «запомнить» живёт 12 часов
+        return until is None or time.time() < until
 
     def guard(request: Request, mutate: bool = False) -> None:
         if not authed(request):
@@ -95,10 +101,12 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         return templates.TemplateResponse(request, "login.html", {"error": None})
 
     @app.post("/login", response_class=HTMLResponse)
-    async def login(request: Request, password: str = Form(...)):
+    async def login(request: Request, password: str = Form(...), remember: str | None = Form(None)):
         if hmac.compare_digest(password.encode(), cfg.panel_password.encode()):
             request.session.clear()
             request.session["ok"] = True
+            if not remember:
+                request.session["until"] = time.time() + SHORT_LOGIN_S
             return RedirectResponse("/", status_code=303)
         await asyncio.sleep(1.0)                                   # замедление перебора
         return templates.TemplateResponse(request, "login.html", {"error": "Неверный пароль"}, status_code=401)
@@ -215,11 +223,9 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
     async def scan_now(request: Request, tf: Timeframe):
         guard(request, mutate=True)
         rep = await scanner.scan(tf)
-        msg = (f"{tf.value}: выключен — включите кнопку" if tf not in settings_svc.get().timeframes else
-               f"{tf.value}: монет {rep.symbols}, новых сигналов {len(rep.signals)}"
-               + (f", ошибок {rep.errors}" if rep.errors else ""))
-        return HTMLResponse(f'<span class="toast" role="status">{msg}</span>',
-                            headers={"HX-Trigger": "feed-refresh"})
+        disabled = tf not in settings_svc.get().timeframes
+        return templates.TemplateResponse(request, "_scan_result.html", {"tf": tf, "rep": rep, "disabled": disabled},
+                                          headers={"HX-Trigger": "feed-refresh"})
 
     @app.get("/charts/{name}")
     async def chart(request: Request, name: str):

@@ -50,17 +50,6 @@ header.top {
 header .spacer { flex: 1; }
 
 main { display: grid; grid-template-columns: 360px 1fr; gap: 20px; padding: 20px 24px 48px; max-width: 1400px; margin: 0 auto; }
-@media (max-width: 900px) {
-  main { grid-template-columns: 1fr; padding: 16px; }
-  main > section { order: -1; }                      /* на телефоне сначала сигналы, настройки ниже */
-  header.top { padding: 10px 16px; }
-  .brand small { display: none; }
-  .feed-head { flex-direction: column; align-items: stretch; gap: 10px; }
-  .feed-head h1 { text-align: left; }
-  .feed-head .row { display: grid; grid-template-columns: repeat(3, 1fr); }
-  .feed-head .btn { white-space: nowrap; padding: 8px 6px; font-size: 14px; }
-  .feed-head .row #scan-status { grid-column: 1 / -1; order: 2; }
-}
 
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; }
 .card + .card { margin-top: 16px; }
@@ -127,6 +116,39 @@ dl.plan { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin:
 dl.plan dt { color: var(--muted); }
 dl.plan dd { margin: 0; text-align: right; }
 .empty { text-align: center; color: var(--muted); padding: 48px 16px; }
+/* Разовая проверка рынка: это действие, а не переключатель — одна группа с подписью и результатом под ней */
+.scan-now { display: flex; align-items: center; gap: 12px; }
+.scan-label { font-size: 13px; color: var(--muted); }
+.scan-group { display: inline-flex; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; background: var(--surface-2); }
+.scan-btn {
+  display: inline-flex; align-items: center; gap: 6px; border: 0; background: transparent; color: var(--text);
+  font: inherit; font-weight: 600; padding: 8px 16px; cursor: pointer; transition: background .15s var(--ease);
+}
+.scan-btn + .scan-btn { border-left: 1px solid var(--line); }
+.scan-btn::before { content: "↻"; color: var(--accent); font-weight: 700; }
+@media (hover: hover) { .scan-btn:hover { background: color-mix(in srgb, var(--accent) 12%, var(--surface-2)); } }
+.scan-btn:active { background: color-mix(in srgb, var(--accent) 22%, var(--surface-2)); }
+.scan-btn:disabled { cursor: progress; color: var(--muted); }
+.scan-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.scan-btn .spinner { display: none; width: 12px; height: 12px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
+.scan-btn.htmx-request::before { display: none; }
+.scan-btn.htmx-request .spinner { display: inline-block; }
+.scan-status:empty { display: none; }
+.scan-status { margin: -2px 0 12px; }
+.scan-result {
+  font-size: 13px; padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--line);
+  background: var(--surface); color: var(--muted); animation: rise .3s var(--ease);
+}
+.scan-result b { color: var(--text); }
+.scan-result.good { border-color: color-mix(in srgb, var(--long) 45%, transparent); color: var(--text); }
+.scan-result.warn { border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+.scan-result.bad { border-color: color-mix(in srgb, var(--short) 45%, transparent); }
+.scan-result .muted { color: var(--muted); }
+@keyframes spin { to { transform: rotate(360deg); } }
+.check { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; cursor: pointer; }
+.check input { width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--accent); }
+.check .hint { display: inline; margin: 0; }
+
 .toast { display: inline-block; font-size: 13px; color: var(--muted); animation: rise .3s var(--ease); }
 
 @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
@@ -136,3 +158,16 @@ dl.plan dd { margin: 0; text-align: right; }
 .login { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
 .login .card { width: min(380px, 100%); }
 .login h1 { font-size: 20px; margin: 0 0 4px; }
+
+/* Телефон: после базовых правил, чтобы их перекрывать */
+@media (max-width: 900px) {
+  main { grid-template-columns: 1fr; padding: 16px; }
+  main > section { order: -1; }                      /* на телефоне сначала сигналы, настройки ниже */
+  header.top { padding: 10px 16px; }
+  .brand small { display: none; }
+  .feed-head { flex-direction: column; align-items: stretch; gap: 10px; }
+  .feed-head h1 { text-align: left; }
+  .scan-now { flex-direction: column; align-items: stretch; gap: 6px; }
+  .scan-group { display: flex; }
+  .scan-btn { flex: 1; justify-content: center; }
+}

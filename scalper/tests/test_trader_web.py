@@ -105,7 +105,7 @@ def test_scan_now_reports_disabled_timeframe(env):
     c, _ = env
     _login(c)
     assert "выключен" in c.post("/scan/1h", headers=HX).text
-    assert "монет 0" in c.post("/scan/4h", headers=HX).text
+    assert "нет данных" in c.post("/scan/4h", headers=HX).text
 
 
 def test_next_close_on_utc_grid():
@@ -140,3 +140,24 @@ def test_new_signals_api_for_app_notifications(env):
     r = c.get(f"/api/signals/new?after={a.id}").json()
     assert r["last_id"] == h1.id and [x["symbol"] for x in r["signals"]] == ["ETHUSDT"]
     assert r["signals"][0]["side"] == "лонг" and r["signals"][0]["entry_kind"] == "рынок"
+
+
+def test_login_remember_me(env, monkeypatch):
+    from trader.web import app as web_app
+    c, _ = env
+    r = c.post("/login", data={"password": "correct-horse-battery", "remember": "1"}, follow_redirects=False)
+    assert r.status_code == 303 and "Max-Age=31536000" in r.headers["set-cookie"]
+    assert 'name="remember"' in c.get("/login").text
+    c.post("/logout")
+    c.post("/login", data={"password": "correct-horse-battery"}, follow_redirects=False)
+    assert c.get("/", follow_redirects=False).status_code == 200
+    now = web_app.time.time()
+    monkeypatch.setattr(web_app.time, "time", lambda: now + web_app.SHORT_LOGIN_S + 1)
+    assert c.get("/", follow_redirects=False).headers["location"] == "/login"
+
+
+def test_scan_result_shows_time_and_count(env):
+    c, _ = env
+    _login(c)
+    r = c.post("/scan/4h", headers=HX)
+    assert r.headers["HX-Trigger"] == "feed-refresh" and "UTC" in r.text and "scan-result" in r.text

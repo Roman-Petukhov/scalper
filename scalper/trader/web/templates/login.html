@@ -4,11 +4,16 @@
 <div class="login">
   <form class="card" method="post" action="/login">
     <h1>Трендовые пробои</h1>
-    <p class="hint">Панель сигналов и торговли. Введите пароль из файла .env на сервере.</p>
+    <p class="hint">Панель сигналов и торговли. Введите пароль, заданный при первом запуске.</p>
+    <input type="text" name="username" value="panel" autocomplete="username" hidden>
     <div class="field" style="margin-top:16px">
       <label for="password">Пароль</label>
       <input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
     </div>
+    <label class="check" style="margin-top:14px">
+      <input type="checkbox" name="remember" value="1" checked>
+      <span>Запомнить на этом устройстве <span class="hint">· вход на год, иначе на 12 часов</span></span>
+    </label>
     {% if error %}<p class="err" role="alert">{{ error }}</p>{% endif %}
     <div class="row" style="margin-top:16px"><button class="btn primary" type="submit">Войти</button></div>
   </form>
