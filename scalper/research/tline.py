@@ -143,7 +143,7 @@ def last_confirmed(piv: np.ndarray, m: int) -> np.ndarray:
     return out
 
 
-LINES = ("last2", "clean", "clean3", "major", "zz", "zzlog", "fan", "fan2")
+LINES = ("zz", "zone", "zone3", "hl3", "hl4")      # прежние варианты — в истории git и docs/research_report.md
 MAJOR_L = 12          # главный экстремум: тень выше (ниже) 12 свечей с каждой стороны
 MINOR_N = 3           # точки касания: фрактал 3 свечи
 ZZ_K = 3.0            # зигзаг по закрытиям: разворот >= 3 ATR
@@ -308,6 +308,137 @@ def zz_lines(d: pd.DataFrame, log: bool = False) -> list[dict]:
     return out
 
 
+ZONE_W = 1.0          # наклонная зона: ширина 1 ATR
+ZONE_BRK = 0.2        # пробой зоны / уровня — закрытие дальше 0.2 ATR за внешним краем; ближе — касание
+ZONE_MINI = 3         # мини-вершины: экстремум закрытия среди 3 свечей с каждой стороны
+
+
+def zone_lines(d: pd.DataFrame, min_touches: int = 0) -> list[dict]:
+    """Наклонная зона шириной ZONE_W ATR (сверено с ручной разметкой, tools/linecheck.py).
+    Направление — вершины зигзага по закрытиям ZZ_K ATR: от вершины A (самое высокое закрытие за ZZ_ANCHOR свечей)
+    зона появляется, когда подтвердилась следующая вершина зигзага ниже A. Внешний край — от крайней тени у A (свечи
+    ±2), прижат к теням: ни одна тень после A (до последней подтверждённой мини-вершины) за него не выходит, мини-вершины
+    могут заходить внутрь зоны. Пробой — закрытие дальше ZONE_BRK ATR за внешним краем; ближе — касание, свеча станет
+    мини-вершиной и край сдвинется. Касания — мини-вершины, закрывшиеся внутри зоны (не ближе 3 свечей друг к другу);
+    min_touches — не меньше стольких касаний к моменту пробоя. Для восходящей зоны — зеркально.
+    line_t / line_n — внешний край на барах пробоя и следующем (уровень лимитки ретеста)."""
+    c = d["close"].to_numpy(dtype="float64")
+    hi, lo = d["high"].to_numpy(dtype="float64"), d["low"].to_numpy(dtype="float64")
+    atr = _atr(d).to_numpy()
+    m = len(c)
+    hs, ls = zigzag(c, atr, ZZ_K)
+    out = []
+    for side, piv in ((1, hs), (-1, ls)):
+        ext = hi if side > 0 else lo
+        mini = pivots(c, ZONE_MINI, side > 0)
+        seen = set()
+        for a, conf_a in piv:
+            w = c[max(0, a - ZZ_ANCHOR): a]
+            if len(w) < ZZ_ANCHOR or side * (c[a] - (w.max() if side > 0 else w.min())) <= 0:
+                continue
+            big = piv[(piv[:, 0] >= a + ZZ_SPAN) & (side * (c[a] - c[piv[:, 0]]) > 0)]
+            if not len(big):
+                continue
+            b0, conf_b0 = int(big[0][0]), int(big[0][1])
+            near = ext[max(0, a - 2): a + 3]
+            y0 = near.max() if side > 0 else near.min()
+            later = mini[mini[:, 0] > a]
+            sl, b_best, wd, rec, li = None, -1, 0.0, None, 0
+            for t in range(max(conf_a, conf_b0) + 1, min(a + ZZ_LIFE, m - 1)):
+                changed = False
+                while li < len(later) and later[li][1] <= t - 1:
+                    li, changed = li + 1, True
+                if changed or sl is None:
+                    last = max(int(later[li - 1][0]) if li else b0, b0)
+                    js = np.arange(a + 3, last + 1)
+                    if not len(js):
+                        continue
+                    need = (ext[js] - y0) / (js - a)
+                    k = int(np.argmax(side * need))
+                    sl, b_best = float(need[k]), int(js[k])
+                    wd = ZONE_W * atr[b_best]
+                if not (side * sl < 0):
+                    continue
+                lt, lp = y0 + sl * (t - a), y0 + sl * (t - 1 - a)
+                if side * (c[t] - lt) > ZONE_BRK * atr[t] and side * (c[t - 1] - lp) <= ZONE_BRK * atr[t - 1]:
+                    tp = later[:li, 0]
+                    inside = tp[side * (c[tp] - (y0 + sl * (tp - a))) >= -wd]
+                    touches, prev = 1, a                                  # A — первое касание
+                    for j in inside:
+                        if j - prev >= ZONE_MINI:
+                            touches, prev = touches + 1, j
+                    ln = y0 + sl * (t + 1 - a)
+                    rec = {"side": side, "a": int(a), "b": b_best, "slope": sl, "t": t,
+                           "tc": t + 1 if side * (c[t + 1] - ln) > 0 else -1, "line_t": float(lt),
+                           "line_n": float(ln), "touches": touches}
+                    break
+            if rec is not None and rec["t"] not in seen and rec["touches"] >= min_touches:
+                seen.add(rec["t"])
+                out.append(rec)
+    return out
+
+
+LEVEL_TOL = 0.5       # горизонтальный уровень: развороты в пределах 0.5 ATR от центра — одно скопление
+LEVEL_PIV = 10        # развороты для уровней — экстремум закрытий среди 10 свечей с каждой стороны (видимые)
+LEVEL_GAP = 20        # касания уровня не ближе 20 свечей друг к другу
+LEVEL_LIFE = 300      # уровень живёт 300 свечей после последнего касания (сила уровня затухает)
+
+
+def level_lines(d: pd.DataFrame, min_touches: int = 3) -> list[dict]:
+    """Горизонтальные уровни-зоны по скоплениям разворотов (Chung & Bellotti 2021; Osler 2000): развороты —
+    экстремумы закрытий среди LEVEL_PIV свечей с каждой стороны (вершины и впадины вместе); разворот в пределах LEVEL_TOL ATR
+    от центра уровня (среднее закрытий касаний) — новое касание, если от прошлого прошло >= LEVEL_GAP свечей.
+    Уровень готов с min_touches-го касания (известен с бара его подтверждения). Зона: ближние края — крайние закрытия
+    касаний, внешние — крайние тени касаний (максимум сверху, минимум снизу). Пробой вверх — закрытие дальше ZONE_BRK
+    ATR над верхним внешним краем, предыдущее закрытие — не выше его; вниз — зеркально. После пробоя уровень снят.
+    line_t / line_n — пробитый внешний край (уровень лимитки ретеста)."""
+    c = d["close"].to_numpy(dtype="float64")
+    hi, lo = d["high"].to_numpy(dtype="float64"), d["low"].to_numpy(dtype="float64")
+    atr = _atr(d).to_numpy()
+    m = len(c)
+    pv = np.concatenate([pivots(c, LEVEL_PIV, True), pivots(c, LEVEL_PIV, False)])
+    pv = pv[np.argsort(pv[:, 1], kind="stable")]                      # по бару подтверждения
+    levels: list[dict] = []                                           # {"m": [индексы касаний], "last": бар}
+    out = []
+    k = 0
+    for t in range(1, m - 1):
+        while k < len(pv) and pv[k][1] <= t - 1:                      # развороты, известные на баре t
+            p = int(pv[k][0])
+            k += 1
+            if not (atr[p] > 0):
+                continue
+            best, dist = None, LEVEL_TOL * atr[p]
+            for lv in levels:
+                dd = abs(c[p] - lv["center"])
+                if dd <= dist:
+                    best, dist = lv, dd
+            if best is None:
+                levels.append({"m": [p], "center": c[p], "last": p, "up": hi[p], "dn": lo[p]})
+            elif p - best["last"] >= LEVEL_GAP:
+                best["m"].append(p)
+                best["center"] = float(np.mean(c[best["m"]]))
+                best["last"], best["up"], best["dn"] = p, max(best["up"], hi[p]), min(best["dn"], lo[p])
+        if not levels:
+            continue
+        alive = []
+        for lv in levels:
+            if t - lv["last"] > LEVEL_LIFE:
+                continue
+            fired = False
+            if len(lv["m"]) >= min_touches:
+                for side, edge in ((1, lv["up"]), (-1, lv["dn"])):
+                    if side * (c[t] - edge) > ZONE_BRK * atr[t] and side * (c[t - 1] - edge) <= ZONE_BRK * atr[t - 1]:
+                        out.append({"side": side, "a": int(lv["m"][0]), "b": int(lv["m"][-1]), "slope": 0.0, "t": t,
+                                    "tc": t + 1 if side * (c[t + 1] - edge) > 0 else -1, "line_t": float(edge),
+                                    "line_n": float(edge), "touches": len(lv["m"])})
+                        fired = True
+                        break
+            if not fired:
+                alive.append(lv)
+        levels = alive
+    return out
+
+
 def fan_lines(d: pd.DataFrame, scales: tuple[float, ...] = FAN_K) -> list[dict]:
     """Линии через две СОСЕДНИЕ вершины зигзага по закрытиям (так трейдер ведёт линию по движению: после пробоя —
     новая, более крутая, от следующей вершины), на масштабах разворота FAN_K ATR одновременно. Нисходящая — если
@@ -349,9 +480,10 @@ def fan_lines(d: pd.DataFrame, scales: tuple[float, ...] = FAN_K) -> list[dict]:
 def signals(d: pd.DataFrame, mode: str = "last2") -> list[tuple[int, int, int, float, float, int, int]]:
     """(бар пробоя, бар закрепления или −1, сторона, линия на баре пробоя, линия на баре закрепления,
     индексы двух точек линии)."""
-    if mode in ("major", "zz", "zzlog", "fan", "fan2"):
+    if mode in ("major", "zz", "zzlog", "fan", "fan2", "zone", "zone3", "hl3", "hl4"):
         recs = {"major": major_lines, "zz": zz_lines, "zzlog": lambda x: zz_lines(x, log=True), "fan": fan_lines,
-                "fan2": lambda x: fan_lines(x, FAN2_K)}[mode](d)
+                "fan2": lambda x: fan_lines(x, FAN2_K), "zone": zone_lines, "zone3": lambda x: zone_lines(x, 3),
+                "hl3": lambda x: level_lines(x, 3), "hl4": lambda x: level_lines(x, 4)}[mode](d)
         return [(r["t"], r["tc"], r["side"], r["line_t"], r["line_n"], r["a"], r["b"]) for r in recs if r["t"] > 0]
     c = d["close"].to_numpy(dtype="float64")
     atr = _atr(d).to_numpy() if {"high", "low"} <= set(d.columns) else np.full(len(c), np.inf)
@@ -746,7 +878,8 @@ def chart(root: Path, sym: str, tf: str, bars: int, out: Path, mode: str = "fan2
         ax.plot(xs, c[i2] + slope * (xs - i2), color="#9e9e9e", linewidth=0.8, linestyle="--")
     n_tr = 0
     for rec in {"zz": zz_lines, "fan": fan_lines, "major": major_lines,
-                "fan2": lambda x: fan_lines(x, FAN2_K)}[mode](d):
+                "fan2": lambda x: fan_lines(x, FAN2_K), "zone": zone_lines, "zone3": lambda x: zone_lines(x, 3),
+                "hl3": lambda x: level_lines(x, 3), "hl4": lambda x: level_lines(x, 4)}[mode](d):
         i1, i2, side, tb, tc = rec["a"], rec["b"], rec["side"], rec["t"], rec["tc"]
         if i1 < w0 - 300 or (tb > 0 and tb < w0):
             continue
@@ -1074,9 +1207,17 @@ def bot_rule_report(df: pd.DataFrame, line_name: dict) -> None:
     закрепления, агрессоры >= 55%, тренд старшего ТФ, цель — всё на 3R; варианты уверенности свечи и входа."""
     print("\n=== ПРАВИЛО БОТА по таймфреймам: линии по значимым точкам, агрессоры >= 55% + тренд старшего ТФ, "
           "всё на 3R; ячейка — R на сделку (t, прибыльных, сделок в месяц на весь набор монет) ===")
-    base = df[(df.line == "zz") & ~df.confirm & (df.aggr >= 0.55) & df.with_trend]
+    base0 = df[~df.confirm & (df.aggr >= 0.55) & df.with_trend]
+    for ln in LINES:
+        if (base0.line == ln).any():
+            print(f"\n  --- {line_name.get(ln, ln)} ---")
+            _bot_rule_lines(base0[base0.line == ln])
+
+
+def _bot_rule_lines(base: pd.DataFrame) -> None:
     rules = [("все пробои", lambda g: g),
-             ("закрытие в верхних 20% (по умолчанию)", lambda g: g[g.close_loc >= 0.8]),
+             ("закрытие в верхней половине (4h по умолчанию)", lambda g: g[g.close_loc >= 0.5]),
+             ("закрытие в верхних 20%", lambda g: g[g.close_loc >= 0.8]),
              ("закрытие в верхней трети", lambda g: g[g.close_loc >= 0.67]),
              ("верхние 20% + за линией >= 0.2 ATR", lambda g: g[(g.close_loc >= 0.8) & (g.brk_atr >= 0.2)]),
              ("верхние 20% + за линией >= 0.3 ATR", lambda g: g[(g.close_loc >= 0.8) & (g.brk_atr >= 0.3)])]
@@ -1395,7 +1536,7 @@ def report() -> None:
         shutil.copy(png, out / png.name)
     print(f"===== TLINE: сделок {len(df):,}, монет {df.symbol.nunique()}, частей {len(parts)} =====")
     print("ячейка: средний R на сделку (t по дням, прибыльных, сделок в месяц на весь набор монет); выход 1/2 на 3R + 1/2 на 5R")
-    line_name = {"last2": "2 последние", "clean": "чистая", "clean3": "чистая, 3 касания", "major": "от главного экстремума", "zz": "по значимым точкам", "zzlog": "по значимым точкам, лог-шкала", "fan": "веер: соседние вершины", "fan2": "веер 2/3/6 ATR"}
+    line_name = {"last2": "2 последние", "clean": "чистая", "clean3": "чистая, 3 касания", "major": "от главного экстремума", "zz": "по значимым точкам", "zzlog": "по значимым точкам, лог-шкала", "fan": "веер: соседние вершины", "fan2": "веер 2/3/6 ATR", "zone": "наклонная зона 1 ATR", "zone3": "наклонная зона, 3+ касания", "hl3": "горизонтальный уровень, 3+ касания", "hl4": "горизонтальный уровень, 4+ касания"}
     filters = lambda g: (("все", g), ("по тренду старшего ТФ", g[g.with_trend]),
                          ("объём пробоя >= 1.5x", g[g.vol_ratio >= 1.5]), ("OI рос 4 бара", g[g.oi_chg > 0]),
                          ("сильная свеча", g[(g.body >= 0.6) & (g.close_loc >= 0.75) & (g.brk_atr >= 0.3)]),

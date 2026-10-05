@@ -21,7 +21,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 from research.smc import _atr  # noqa: E402
-from research.tline import ZZ_ANCHOR, ZZ_K, ZZ_LIFE, ZZ_SPAN, pivots, zigzag, zz_lines  # noqa: E402
+from research.tline import (ZONE_W, ZZ_ANCHOR, ZZ_K, ZZ_LIFE, ZZ_SPAN, level_lines, pivots,  # noqa: E402
+                            zigzag, zone_lines as research_zones, zz_lines)
 
 BRK_ATR = 0.2               # пробой — закрытие за линией не ближе 0.2 ATR; ближе — касание, линия перестраивается
 VIS_TOL = 0.05              # закрытия между точками касания не заходят за линию дальше 0.05 ATR
@@ -220,7 +221,8 @@ def vis_lines(d: pd.DataFrame, n: int, launch: bool = False, minor: int = 0, bos
 BASE = "https://fapi.binance.com"
 SPOT = "https://data-api.binance.vision"
 MODES = {"сейчас: зигзаг 3 ATR, линия": lambda d: zz_lines(d),
-         "зона 1 ATR: направление — зигзаг 3 ATR, внешний край по теням, ни одна тень за ним; пробой — закрытие >= 0.2 ATR за краем": lambda d: zone_lines(d)}
+         "наклонная зона 1 ATR, 3+ касания; пробой — закрытие >= 0.2 ATR за краем": lambda d: research_zones(d, 3),
+         "горизонтальный уровень, 3+ касания (линия — пробитый внешний край)": lambda d: level_lines(d, 3)}
 SHOW = 480
 
 
@@ -259,7 +261,11 @@ def draw(d: pd.DataFrame, sym: str, tf: str, out: Path) -> None:
             if end < off or r["b"] < 0:
                 continue
             a, b = r["a"], r["b"]
-            y0, sl = (r["y0"], r["slope"]) if "y0" in r else (c[a], (c[b] - c[a]) / (b - a))
+            if "touches" in r:                                  # research: внешний край на баре пробоя
+                y0, sl = r["line_t"] - r["slope"] * (r["t"] - a), r["slope"]
+                r = {**r, "zone": ZONE_W * float(_atr(d).iloc[r["t"]])} if r["slope"] else r
+            else:
+                y0, sl = (r["y0"], r["slope"]) if "y0" in r else (c[a], (c[b] - c[a]) / (b - a))
             xs = [max(a, off) - off, end + 3 - off]
             ys = [y0 + sl * (max(a, off) - a), y0 + sl * (end + 3 - a)]
             col = "#1e88e5" if r["side"] < 0 else "#fb8c00"
