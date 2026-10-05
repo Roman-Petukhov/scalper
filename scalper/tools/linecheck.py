@@ -45,10 +45,12 @@ def launch_points(c: np.ndarray, atr: np.ndarray, piv: np.ndarray, side: int) ->
     return out
 
 
-def vis_lines(d: pd.DataFrame, n: int, launch: bool = False) -> list[dict]:
+def vis_lines(d: pd.DataFrame, n: int, launch: bool = False, minor: int = 0) -> list[dict]:
     """Как zz_lines, но вершины — «видимые на этом ТФ»: закрытие — экстремум среди n свечей с каждой стороны
     (известно через n свечей), и между двумя точками линии ни одно закрытие не заходит за линию.
-    launch=True — точка линии не самое крайнее закрытие, а последнее закрытие «полки» у экстремума перед движением."""
+    launch=True — точка линии не самое крайнее закрытие, а последнее закрытие «полки» у экстремума перед движением.
+    minor=k — вторая точка из мини-экстремумов (±k свечей): линия от крупного экстремума — касательная к закрытиям,
+    как трейдер ведёт её по направлению и прижимает к ближайшему мини-экстремуму, чтобы не резать свечи."""
     c = d["close"].to_numpy(dtype="float64")
     atr = _atr(d).to_numpy()
     m = len(c)
@@ -62,10 +64,12 @@ def vis_lines(d: pd.DataFrame, n: int, launch: bool = False) -> list[dict]:
             if len(w) < ZZ_ANCHOR or side * (c[pa] - (w.max() if side > 0 else w.min())) <= 0:
                 continue
             a = int(x[ka])
-            sel = (piv[:, 0] >= pa + ZZ_SPAN) & (side * (c[a] - c[x]) > 0)
-            cand, cand_x = piv[sel], x[sel]
-            lsel = piv[:, 0] > pa
-            later, later_x = piv[lsel], x[lsel]
+            pb_all = pivots(c, minor, side > 0) if minor else piv
+            xb_all = pb_all[:, 0] if minor else x
+            sel = (pb_all[:, 0] >= pa + ZZ_SPAN) & (side * (c[a] - c[xb_all]) > 0)
+            cand, cand_x = pb_all[sel], xb_all[sel]
+            lsel = pb_all[:, 0] > a
+            later, later_x = pb_all[lsel], xb_all[lsel]
             best, b_best, rec, ci, li = None, -1, None, 0, 0
             for t in range(conf_a + 1, min(pa + ZZ_LIFE, m - 1)):
                 changed = False
@@ -101,7 +105,7 @@ def vis_lines(d: pd.DataFrame, n: int, launch: bool = False) -> list[dict]:
 BASE = "https://fapi.binance.com"
 MODES = {"сейчас: зигзаг 3 ATR": lambda d: zz_lines(d),
          "видимые вершины ±10 свечей": lambda d: vis_lines(d, 10),
-         "видимые ±6 + последнее закрытие перед движением": lambda d: vis_lines(d, 6, launch=True),
+         "A: видимые ±10 + полка, B: мини-экстремум ±3 (касательная)": lambda d: vis_lines(d, 10, launch=True, minor=3),
          "видимые ±10 + последнее закрытие перед движением": lambda d: vis_lines(d, 10, launch=True)}
 SHOW = 300
 

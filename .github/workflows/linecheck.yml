@@ -31,7 +31,7 @@ jobs:
         run: |
           mkdir -p ../out
           set -o pipefail
-          python -m tools.linecheck DOTUSDT:15m XAUTUSDT:1h 牛来USDT:15m ETHUSDT:15m 2>&1 | tee ../out/log.txt
+          python -m tools.linecheck DOTUSDT:15m NEARUSDT:15m XAUTUSDT:1h 牛来USDT:15m ETHUSDT:15m 2>&1 | tee ../out/log.txt
       - name: Publish
         working-directory: .
         run: |
