@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"prepq smc2"}
+TASKS=${TASKS:-"prept tline"}
 MODE=${1:-collect}
 FILTER="Pandas4Warning\|pd.concat\|файлов$\|мес. свечей"
 
@@ -77,6 +77,15 @@ precursors_report() {
 }
 prepq_collect() { python -m research.prepare 1h-qualified; }
 prepq_report() { :; }
+prept_collect() { python -m research.prepare 1h-qualified 15m-core70; }
+prept_report() { :; }
+tline_collect() {
+  python -m research.tline collect --symbols "$(cat /tmp/syms_1h-qualified.txt)" --symbols15 "$(cat /tmp/syms_15m-core70.txt)"
+}
+tline_report() {
+  echo "===== TLINE: линия тренда по закрытиям, пробой с закреплением, ретест, лесенка 3R / 5R ====="
+  python -m research.tline report
+}
 smc2_collect() { python -m research.smc2 collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
 smc2_report() {
   echo "===== SMC2: Smart Money по учебнику (внешняя структура, BOS / CHoCH, discount / premium, цель — ликвидность) ====="
