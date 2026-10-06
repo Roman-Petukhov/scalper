@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"prepw patterns"}
+TASKS=${TASKS:-"prepo dtri"}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
 FILTER="Pandas4Warning\|pd.concat\|файлов$\|мес. свечей"
@@ -105,6 +105,8 @@ patterns_collect() {
   python -m research.patterns collect --symbols4 "$(cat /tmp/syms_1h-qualified.txt)" --symbols15 "$(cat /tmp/syms_15m-wide.txt)"
 }
 patterns_report() { python -m research.patterns report; }
+dtri_collect() { python -m research.dtri collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
+dtri_report() { python -m research.dtri report; }
 robust_collect() { python -m research.robust collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
 robust_report() { python -m research.robust report; }
 crowd_collect() { python -m research.crowd collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
