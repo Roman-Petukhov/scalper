@@ -25,3 +25,10 @@ pbo_tools https://escholarship.org/content/qt2329p290/qt2329p290.pdf
 crypto_mom_size_volume https://quantitative.cz/wp-content/uploads/2023/09/impact_of_size_and_volume_on_cryptocurrency_momentum_and_reversal.pdf
 cfm_cta_dispersion https://www.cfm.com/steady-trends-the-reality-of-cta-return-dispersion/
 trend_regimes_btc_gold https://www.preprints.org/manuscript/202607.1835
+catching_crypto_trends https://abarbon.com/papers/catching-crypto-trends
+btc_intraday_sfi https://ideas.repec.org/p/chf/rpseri/rp2580.html
+pbo_bailey https://www.davidhbailey.com/dhbpapers/backtest-prob.pdf
+dsr_bailey https://www.davidhbailey.com/dhbpapers/deflated-sharpe.pdf
+pseudo_math https://www.davidhbailey.com/dhbpapers/pseudo-math.pdf
+vol_target_trendy https://cse.umn.edu/node/165016
+crypto_mom_ts_cs https://www.journals.vu.lt/BATP/en/article/view/44540
