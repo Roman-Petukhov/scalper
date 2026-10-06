@@ -23,7 +23,7 @@ from .shard import ALWAYS, mine, shard_id
 from .universe import EXTRA
 
 ROOT = Path.home() / "bn"
-START, END = "2022-01", "2026-09"
+START, END = os.environ.get("RESEARCH_START", "2022-01"), "2026-09"   # RESEARCH_START=2020-01 — проверка на 2020–2021
 METRICS = os.environ.get("RESEARCH_METRICS", "1") != "0"   # 0 — без OI/LSR: ~1.2 млн дневных архивов, на VPS долго
 
 
