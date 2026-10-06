@@ -1,0 +1,40 @@
+----- prepo collect (часть 0/10) -----
+часть 0/10, набор 1h-qualified: монет 63
+----- trenddef collect (часть 0/10) -----
+  trenddef: монет с ботом 62, с откатами 62
+----- prepo collect (часть 1/10) -----
+часть 1/10, набор 1h-qualified: монет 66
+----- trenddef collect (часть 1/10) -----
+  trenddef: монет с ботом 62, с откатами 63
+----- prepo collect (часть 2/10) -----
+часть 2/10, набор 1h-qualified: монет 78
+----- trenddef collect (часть 2/10) -----
+  trenddef: монет с ботом 74, с откатами 76
+----- prepo collect (часть 3/10) -----
+часть 3/10, набор 1h-qualified: монет 73
+----- trenddef collect (часть 3/10) -----
+  trenddef: монет с ботом 72, с откатами 71
+----- prepo collect (часть 4/10) -----
+часть 4/10, набор 1h-qualified: монет 72
+----- trenddef collect (часть 4/10) -----
+  trenddef: монет с ботом 72, с откатами 72
+----- prepo collect (часть 5/10) -----
+часть 5/10, набор 1h-qualified: монет 83
+----- trenddef collect (часть 5/10) -----
+  trenddef: монет с ботом 78, с откатами 81
+----- prepo collect (часть 6/10) -----
+часть 6/10, набор 1h-qualified: монет 71
+----- trenddef collect (часть 6/10) -----
+  trenddef: монет с ботом 70, с откатами 70
+----- prepo collect (часть 7/10) -----
+часть 7/10, набор 1h-qualified: монет 61
+----- trenddef collect (часть 7/10) -----
+  trenddef: монет с ботом 57, с откатами 60
+----- prepo collect (часть 8/10) -----
+часть 8/10, набор 1h-qualified: монет 75
+----- trenddef collect (часть 8/10) -----
+  trenddef: монет с ботом 75, с откатами 74
+----- prepo collect (часть 9/10) -----
+часть 9/10, набор 1h-qualified: монет 83
+----- trenddef collect (часть 9/10) -----
+  trenddef: монет с ботом 82, с откатами 82
