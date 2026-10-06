@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"prepw targets15"}
+TASKS=${TASKS:-"prepo hidden"}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
 FILTER="Pandas4Warning\|pd.concat\|файлов$\|мес. свечей"
@@ -97,6 +97,8 @@ targets4_collect() { python -m research.targets4 collect --symbols "$(cat /tmp/s
 targets4_report() { python -m research.targets4 report; }
 targets15_collect() { python -m research.targets15 collect --symbols "$(cat /tmp/syms_15m-wide.txt)"; }
 targets15_report() { python -m research.targets15 report; }
+hidden_collect() { python -m research.hidden collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
+hidden_report() { python -m research.hidden report; }
 robust_collect() { python -m research.robust collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
 robust_report() { python -m research.robust report; }
 crowd_collect() { python -m research.crowd collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }

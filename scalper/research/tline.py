@@ -892,6 +892,21 @@ def article_outcomes(o, hi, lo, c, f, a, tb: int, e: int, fill: int, side: int, 
     return out
 
 
+def hidden_break(c: np.ndarray, a: np.ndarray, ia: int, ib: int, tb: int, side: int, line_b: float,
+                 line_c: float) -> dict:
+    """Скрытый пробой: закрытия между точкой A и свечой пробоя, которые уже были за линией (линия становится известна
+    только после подтверждения точки B зигзагом, и цена могла пересечь её раньше). hid_n — сколько таких закрытий
+    после точки B, hid_atr — самое глубокое из них в ATR свечи пробоя, hid_last — сколько свечей назад было последнее
+    (−1 — не было). Только обычная шкала (line_c — значение линии на следующей свече)."""
+    js = np.arange(ib + 1, tb)
+    if not len(js) or not (a[tb] > 0):
+        return {"hid_n": 0, "hid_atr": 0.0, "hid_last": -1}
+    beyond = side * (c[js] - (line_b + (line_c - line_b) * (js - tb)))
+    over = beyond > 0
+    return {"hid_n": int(over.sum()), "hid_atr": float(max(beyond.max(), 0.0) / a[tb]),
+            "hid_last": int(tb - js[over][-1]) if over.any() else -1}
+
+
 def coin_trades(root: Path, sym: str, tf: str, ctx: pd.DataFrame | None = None) -> pd.DataFrame:
     d = tf_frame(root, sym, tf)
     if d is None or len(d) < 500:
@@ -1000,6 +1015,7 @@ def coin_trades(root: Path, sym: str, tf: str, ctx: pd.DataFrame | None = None) 
                                  "aggr2": share2[tb] if side > 0 else 1 - share2[tb],
                                  "aggr3": share3[tb] if side > 0 else 1 - share3[tb],
                                  "brk_atr": side * (c[tb] - line_b) / a[tb], "rng_atr": (hi[tb] - lo[tb]) / a[tb],
+                                 **hidden_break(c, a, ia, ib, tb, side, line_b, line_c),
                                  "stop_atr": dist_atr, "ret30": ret30[e], "btc_trend": btc_trend[e],
                                  "btc_ret7": btc_ret7[e], "hold_bars": ex - fill,
                                  **strength_row(st, tb, tc, side, px, stop, zl if side > 0 else zh, c),
