@@ -43,10 +43,11 @@ REMEMBER_S = 365 * 24 * 3600          # «запомнить на этом ус�
 SHORT_LOGIN_S = 12 * 3600
 CHART_BARS = 300                      # свечей на живом графике
 JOURNAL_ROWS = 15                     # последних закрытых сделок в журнале
-ARCHIVED = {SignalStatus.EXPIRED, SignalStatus.SKIPPED}
+ARCHIVED = {SignalStatus.EXPIRED, SignalStatus.SKIPPED, SignalStatus.CLOSED}
+DELETABLE = {SignalStatus.EXPIRED, SignalStatus.SKIPPED}   # закрытые сделки — история журнала, не удаляем
 VIEWS = {"all", "archive"} | {t.value for t in Timeframe}
 STATUS_LABEL = {SignalStatus.NEW: "новый", SignalStatus.TAKEN: "в работе", SignalStatus.SKIPPED: "пропущен",
-                SignalStatus.EXPIRED: "истёк"}
+                SignalStatus.EXPIRED: "истёк", SignalStatus.CLOSED: "закрыт"}
 
 
 def chart_name(path: str) -> str:
@@ -67,7 +68,7 @@ def local_time(dt: datetime, f: str = "dmhm") -> Markup:
 
 
 templates.env.filters["lt"] = local_time
-templates.env.globals.update(ARCHIVED=ARCHIVED, TRADE_LABEL={TradeStatus.PLACED: "лимитка ждёт", TradeStatus.FILLED: "на бирже",
+templates.env.globals.update(ARCHIVED=ARCHIVED, DELETABLE=DELETABLE, TRADE_LABEL={TradeStatus.PLACED: "лимитка ждёт", TradeStatus.FILLED: "на бирже",
                                           TradeStatus.EXPIRED: "лимитка снята", TradeStatus.CANCELLED: "снят / закрыт",
                                           TradeStatus.TIMED_OUT: "закрыт по сроку", TradeStatus.CLOSED: "закрыта"},
                              FEED_TABS=[("all", "Все")] + [(t.value, t.value) for t in Timeframe] + [("archive", "Архив")],
@@ -333,7 +334,7 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
     async def clear_archive(request: Request):
         """Удалить все истёкшие и пропущенные сигналы (сделки «в работе» не трогаем)."""
         guard(request, mutate=True)
-        drop_charts(store.delete_signals(ARCHIVED))
+        drop_charts(store.delete_signals(DELETABLE))
         return HTMLResponse("", headers={"HX-Trigger": "feed-refresh"})
 
     @app.post("/signals/{signal_id}/delete")
@@ -342,9 +343,9 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         sig = store.get(signal_id)
         if sig is None:
             raise HTTPException(404, "сигнал не найден")
-        if sig.status not in ARCHIVED:
+        if sig.status not in DELETABLE:
             raise HTTPException(409, "удалять можно только истёкшие и пропущенные сигналы")
-        drop_charts(store.delete_signals(ARCHIVED, signal_id))
+        drop_charts(store.delete_signals(DELETABLE, signal_id))
         return HTMLResponse("")
 
     @app.post("/signals/{signal_id}/{action}", response_class=HTMLResponse)

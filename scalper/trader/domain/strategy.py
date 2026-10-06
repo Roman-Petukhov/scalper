@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 
 from research.smc import _atr
-from research.tline import LEVEL_PIV, PIV, htf_trend, last_confirmed, level_break, pivots, zz_lines
+from research.tline import LEVEL_PIV, PIV, htf_trend, last_confirmed, level_hit, pivots, zz_lines
 
 from datetime import datetime, timedelta
 
@@ -92,13 +92,15 @@ def detect(d: pd.DataFrame, tf: Timeframe, symbol: str, settings: Settings) -> l
         plan = TradePlan(kind, float(entry), float(stop), float(entry + int(side) * tp.target_r * risk),
                          tp.retest_bars if kind is EntryKind.RETEST else 0)
         a, b = r["a"], r["b"]
+        lv = level_hit(c, atr, last, int(side), lv_hi, lv_lo)
         out.append(Signal(symbol=symbol, timeframe=tf, side=side, bar_time=d.index[last].to_pydatetime(),
                           close=float(c[last]), line_value=float(r["line_t"]),
                           line_points=((d.index[a].to_pydatetime(), float(c[a])), (d.index[b].to_pydatetime(), float(c[b]))),
                           aggr=float(aggr), range_atr=float(range_atr), plan=plan,
                           extra={"log_line": LOG_LINES, "break_atr": round(float(brk), 3), "close_loc": round(float(loc), 3),
                                  "slope_atr": round(float(slope_atr), 4),
-                                 "level": level_break(c, atr, last, int(side), lv_hi, lv_lo)}))
+                                 "level": lv is not None,
+                                 **({"level_px": lv[0], "level_n": lv[1]} if lv is not None else {})}))
         seen.add(side)
     return out
 

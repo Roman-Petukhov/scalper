@@ -125,19 +125,22 @@ main { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 20px; pa
 .tab-count { font-size: 11px; padding: 0 6px; margin-left: 2px; border-radius: 999px; background: var(--line); color: var(--text); }
 .feed-tabs button[aria-pressed="true"] .tab-count { background: color-mix(in srgb, var(--accent-ink) 25%, transparent); color: inherit; }
 .feed { display: grid; gap: 14px; }
-.signal { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 16px; animation: rise .35s var(--ease); }
+.signal { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; animation: rise .35s var(--ease); }
 @media (max-width: 1100px) { .signal { grid-template-columns: 1fr; } }
 .signal img { width: 100%; height: auto; border-radius: var(--radius-sm); border: 1px solid var(--line); display: block; }
-.signal .meta { display: grid; gap: 10px; align-content: start; }
-.signal .title { display: flex; align-items: center; gap: 8px; font-weight: 650; font-size: 17px; }
-.badge { font-size: 12px; font-weight: 650; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.signal .meta { display: grid; gap: 10px; align-content: start; min-width: 0; }
+.signal .title { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-weight: 650; font-size: 17px; min-width: 0; }
+.signal .title .sym { overflow-wrap: anywhere; }
+.badge { white-space: nowrap; font-size: 12px; font-weight: 650; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
 .badge.long { color: var(--long); border-color: color-mix(in srgb, var(--long) 45%, transparent); }
 .badge.short { color: var(--short); border-color: color-mix(in srgb, var(--short) 45%, transparent); }
 .badge.level { color: var(--text); border-style: dashed; }
+.badge.win { color: var(--long); }
+.badge.loss { color: var(--short); }
 .badge.status-taken { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
-dl.plan { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: 14px; }
+dl.plan { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; margin: 0; font-size: 14px; }
 dl.plan dt { color: var(--muted); }
-dl.plan dd { margin: 0; text-align: right; }
+dl.plan dd { margin: 0; text-align: right; min-width: 0; overflow-wrap: anywhere; }
 .empty { text-align: center; color: var(--muted); padding: 48px 16px; }
 /* Разовая проверка рынка: это действие, а не переключатель — одна группа с подписью и результатом под ней */
 .scan-now { display: flex; align-items: center; gap: 12px; }
@@ -197,7 +200,7 @@ dl.plan dd { margin: 0; text-align: right; }
 .positions th { text-align: right; color: var(--muted); font-weight: 500; padding: 6px 8px; border-bottom: 1px solid var(--line); font-family: system-ui, sans-serif; }
 .positions td { text-align: right; padding: 7px 8px; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
 .positions th:first-child, .positions td:first-child { text-align: left; }
-.trade-box { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-2); }
+.trade-box { min-width: 0; overflow-wrap: anywhere; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-2); }
 .seg-radio { position: relative; }
 .seg-radio input { position: absolute; opacity: 0; pointer-events: none; }
 .seg-radio span { display: inline-block; color: var(--muted); font-weight: 550; padding: 6px 14px; border-radius: 999px; cursor: pointer; transition: background .2s var(--ease), color .2s var(--ease); }
@@ -207,7 +210,7 @@ dl.plan dd { margin: 0; text-align: right; }
 
 /* Старые сигналы (истёк / пропущен): компактная строка, график по нажатию */
 .signal-row { padding: 10px 14px; }
-.signal-row > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; }
+.signal-row > summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; cursor: pointer; list-style: none; }
 .signal-row > summary::-webkit-details-marker { display: none; }
 .signal-row .row-sym { font-weight: 650; }
 .signal-row .row-time { margin: 0 0 0 auto; }

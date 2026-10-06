@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 
 from research.smc import _atr
-from research.tline import LEVEL_PIV, htf_trend, level_break, pivots, zz_lines
+from research.tline import LEVEL_PIV, htf_trend, level_break, level_hit, pivots, zz_lines
 from trader.domain.models import EntryKind, EntryPolicy, Settings, Side, TfParams, Timeframe, TradePlan
 from trader.domain.sizing import position_size
 from trader.domain import strategy
@@ -65,6 +65,8 @@ def test_detect_matches_research_rule_on_the_last_closed_bar(seed, stop_atr, mon
     for t in candidates[:40]:
         for x in detect(d.iloc[: t + 1], Timeframe.H4, "X", s):  # пометка уровня — та же функция, что в research/oos
             assert x.at_level is level_break(c, a, t, int(x.side), lh, ll)
+            hit = level_hit(c, a, t, int(x.side), lh, ll)
+            assert x.extra.get("level_px") == (hit[0] if hit else None)
     if stop_atr[1] > 100:
         assert len(found) >= 2                              # сверка идёт на настоящих сигналах
 
@@ -190,6 +192,7 @@ def test_level_break_needs_two_turns_crossed_by_the_breakout_close():
     c[49], c[50] = 11.5, 12.6                               # закрытие пробоя прошло уровень снизу вверх
     empty = np.empty((0, 2), dtype=np.int64)
     assert level_break(c, a, 50, 1, piv, empty)
+    assert level_hit(c, a, 50, 1, piv, empty) == (pytest.approx(12.1), 2)    # цена уровня — для графика в панели
     assert not level_break(c, a, 50, -1, piv, empty)        # в шорт уровень не пробит
     assert not level_break(c, a, 50, 1, piv[:1], empty)     # один разворот — не уровень
     c[50] = 11.8

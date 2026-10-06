@@ -142,6 +142,7 @@ class Executor:
                 res = await self._result(b, t, None, now)          # исполнилась и уже закрылась за эту минуту?
                 if res is None:
                     self.trades.set_trade_status(t.id, TradeStatus.CANCELLED)
+                    self._close_signal(t.signal_id)
                 else:
                     self.trades.set_trade_filled(t.id, now)
                     await self._settle(replace(t, status=TradeStatus.FILLED, filled_at=now), TradeStatus.CLOSED, res)
@@ -207,6 +208,7 @@ class Executor:
                 await self._settle(t, status, res)
             elif t.opened_at is not None and now - t.opened_at > GIVE_UP:
                 self.trades.settle_trade(t.id, status, None)
+                self._close_signal(t.signal_id)
 
     async def _result(self, b: Broker, t: Trade, until: datetime | None, now: datetime) -> TradeResult | None:
         since = (t.opened_at or now) - timedelta(minutes=1)
@@ -220,6 +222,7 @@ class Executor:
 
     async def _settle(self, t: Trade, status: TradeStatus, res: TradeResult) -> None:
         self.trades.settle_trade(t.id, status, res)
+        self._close_signal(t.signal_id)
         done = replace(t, status=status, result=res)
         sig = self.signals.get(t.signal_id)
         tf = f" {sig.timeframe.value}" if sig is not None else ""
@@ -228,6 +231,12 @@ class Executor:
                         f"{f'{r:+.2f}R' if r is not None else f'{res.pnl_usd:+.2f} $'} ({done.exit_reason})")
         if sig is not None:
             await self._check_health(sig.timeframe)
+
+    def _close_signal(self, signal_id: int) -> None:
+        """Сделка завершена — сигнал уходит из ленты в архив; описание ордера остаётся."""
+        sig = self.signals.get(signal_id)
+        if sig is not None and sig.status is SignalStatus.TAKEN:
+            self.signals.set_status(signal_id, SignalStatus.CLOSED, sig.note)
 
     async def _check_health(self, tf: Timeframe) -> None:
         """Детектор «стратегия перестала работать»: при переходе в «присмотреться» или «остановить» — уведомление."""

@@ -50,16 +50,17 @@
     for (const pl of st.priceLines) st.candles.removePriceLine(pl);
     st.priceLines = [];
     st.levels = d.active ? d.levels : null;
-    st.levelsKey = JSON.stringify(d.levels) + d.entry_label + d.active;
-    if (!d.active) return;                                  // сигнал истёк или пропущен — вход и стоп не рисуем
-    const lv = d.levels;
+    st.levelsKey = JSON.stringify(d.levels) + d.entry_label + d.active + d.level;
     const mk = (price, color, title, style) => st.candles.createPriceLine({
       price, color, title, lineWidth: 1, lineStyle: style, axisLabelVisible: true });
-    st.priceLines = [
+    if (d.level) st.priceLines.push(mk(d.level, css("--muted"), "уровень", LightweightCharts.LineStyle.LargeDashed));
+    if (!d.active) return;                                  // сигнал закрыт, истёк или пропущен — вход и стоп не рисуем
+    const lv = d.levels;
+    st.priceLines.push(
       mk(lv.entry, css("--text"), d.entry_label, LightweightCharts.LineStyle.Solid),
       mk(lv.stop, css("--short"), "стоп", LightweightCharts.LineStyle.Dashed),
       mk(lv.target, css("--long"), "цель", LightweightCharts.LineStyle.Dotted),
-    ];
+    );
 
   }
 
@@ -121,7 +122,7 @@
     for (const c of fresh) st.candles.update(c);           // текущая свеча меняется, новые добавляются
     if (d.candles.length) st.lastTime = d.candles.at(-1).time;
     st.line.setData(d.line);
-    if (JSON.stringify(d.levels) + d.entry_label + d.active !== st.levelsKey) setLevels(st, d);
+    if (JSON.stringify(d.levels) + d.entry_label + d.active + d.level !== st.levelsKey) setLevels(st, d);
     paintTag(st, d);
   }
 

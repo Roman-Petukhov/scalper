@@ -43,6 +43,7 @@ def chart_payload(signal: Signal, bars: pd.DataFrame, trade: Trade | None = None
         "active": signal.status.value in ("new", "taken"),             # истёкший / пропущенный — без уровней
         "candles": candles, "line": line, "log": log,
         "breakout": _ts(signal.bar_time),
+        "level": signal.extra.get("level_px"),                         # горизонтальный уровень пробоя («+ уровень»)
         "levels": {"entry": p.price if trade else p.entry, "stop": p.stop, "target": p.target},
         "entry_label": "вход" if trade is None else ("лимитка" if trade.kind.value == "retest" else "вход (рынок)"),
     }

@@ -316,6 +316,11 @@ def test_delete_archived_signals(env):
     assert c.post(f"/signals/{b.id}/delete").status_code == 403                       # без заголовка панели
     r = c.post("/signals/archive/clear", headers=HX)
     assert r.headers["HX-Trigger"] == "feed-refresh" and st.get(d.id) is None and st.get(a.id) is not None
+    st.set_status(a.id, SignalStatus.CLOSED, "ордер")                                 # закрытая сделка — в архиве
+    assert a.symbol in c.get("/feed?view=archive").text and a.symbol not in c.get("/feed?view=all").text
+    assert c.post(f"/signals/{a.id}/delete", headers=HX).status_code == 409        # но это история журнала
+    c.post("/signals/archive/clear", headers=HX)
+    assert st.get(a.id) is not None
 
 
 def test_reset_to_best_button(env):

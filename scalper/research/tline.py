@@ -463,20 +463,27 @@ LEVEL_LIFE = 300      # уровень живёт 300 свечей после п
 LEVEL_LOOKBACK = 300  # пробой уровня в сигнале: развороты за 300 свечей до пробоя
 
 
-def level_break(c: np.ndarray, a: np.ndarray, e: int, side: int, piv_hi: np.ndarray, piv_lo: np.ndarray) -> bool:
+def level_hit(c: np.ndarray, a: np.ndarray, e: int, side: int, piv_hi: np.ndarray,
+              piv_lo: np.ndarray) -> tuple[float, int] | None:
     """В свече e закрытие прошло горизонтальный уровень: 2+ разворота закрытий (подтверждены до e, за LEVEL_LOOKBACK
-    свечей) в пределах LEVEL_TOL ATR, цена уровня между прошлым и текущим закрытием (с допуском LEVEL_TOL ATR)."""
+    свечей) в пределах LEVEL_TOL ATR, цена уровня между прошлым и текущим закрытием (с допуском LEVEL_TOL ATR).
+    Возвращает (цена уровня — среднее закрытий разворотов скопления, сколько их) или None."""
     tol = LEVEL_TOL * a[e]
     pts = np.concatenate([piv_hi[(piv_hi[:, 1] <= e) & (piv_hi[:, 0] >= e - LEVEL_LOOKBACK), 0],
                           piv_lo[(piv_lo[:, 1] <= e) & (piv_lo[:, 0] >= e - LEVEL_LOOKBACK), 0]])
     if len(pts) < 2:
-        return False
+        return None
     px = np.sort(c[pts])
     lo_, hi_ = (c[e - 1] - tol, c[e]) if side > 0 else (c[e], c[e - 1] + tol)
     for p in px[(px >= lo_) & (px <= hi_)]:
-        if np.sum(np.abs(px - p) <= tol) >= 2:
-            return True
-    return False
+        near = px[np.abs(px - p) <= tol]
+        if len(near) >= 2:
+            return float(near.mean()), len(near)
+    return None
+
+
+def level_break(c: np.ndarray, a: np.ndarray, e: int, side: int, piv_hi: np.ndarray, piv_lo: np.ndarray) -> bool:
+    return level_hit(c, a, e, side, piv_hi, piv_lo) is not None
 
 
 def level_lines(d: pd.DataFrame, min_touches: int = 3) -> list[dict]:

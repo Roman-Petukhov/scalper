@@ -9,7 +9,8 @@ import pytest
 
 from trader.application.execution import Executor
 from trader.application.services import Scanner, SignalDecisions
-from trader.domain.execution import (Account, ClosedPnl, ExecutionRefused, Instrument, Position, TradeStatus, build_order,
+from trader.domain.execution import (Account, ClosedPnl, ExecutionRefused, Instrument, Position, Trade, TradeStatus,
+                                     build_order,
                                      round_down, round_price)
 from trader.domain.models import EntryKind, Mode, Settings, Side, SignalStatus, Timeframe, TradePlan
 from trader.infrastructure.bybit import BrokerHolder, BybitBroker, BybitCredentials
@@ -489,6 +490,7 @@ def test_journal_records_result_in_r_slippage_and_reason(tmp_path):
     assert h4.closed == 1 and h4.avg_r == pytest.approx(t.r_multiple) and h4.need == 29 and h4.win_share == 1.0
     assert st.journal()[0].at_level and h4.level_closed == 1 and h4.level_avg_r == pytest.approx(t.r_multiple)
     assert h4.plain_avg_r is None
+    assert st.get(s.id).status is SignalStatus.CLOSED and "Bybit" in st.get(s.id).note   # из ленты — в архив
 
 
 def test_journal_gives_up_without_exchange_record_and_hold_counts_from_fill(tmp_path):
@@ -504,6 +506,19 @@ def test_journal_gives_up_without_exchange_record_and_hold_counts_from_fill(tmp_
     asyncio.run(ex.housekeep())
     t = st.trades_for([s.id])[s.id]
     assert t.status is TradeStatus.CLOSED and t.result is None and t.exit_reason == "нет данных"
+    assert st.get(s.id).status is SignalStatus.CLOSED
+
+
+def test_taken_signals_with_finished_trades_are_closed_on_start(tmp_path):
+    st = SqliteStore(tmp_path / "t.db")
+    done, live = st.add(_signal()), st.add(_signal(symbol="ETHUSDT"))
+    for s in (done, live):
+        st.set_status(s.id, SignalStatus.TAKEN, "ордер")
+    t = st.add_trade(Trade(done.id, "SOLUSDT", Side.LONG, EntryKind.MARKET, 1, 101, 98, 110, "o", "demo", TradeStatus.FILLED))
+    st.add_trade(Trade(live.id, "ETHUSDT", Side.LONG, EntryKind.MARKET, 1, 101, 98, 110, "o2", "demo", TradeStatus.FILLED))
+    st.settle_trade(t.id, TradeStatus.CLOSED, None)        # закрылась до обновления: сигнал так и остался «в работе»
+    st2 = SqliteStore(tmp_path / "t.db")
+    assert st2.get(done.id).status is SignalStatus.CLOSED and st2.get(live.id).status is SignalStatus.TAKEN
 
 
 def test_retest_filled_and_closed_within_a_minute_is_journaled_not_cancelled(tmp_path):

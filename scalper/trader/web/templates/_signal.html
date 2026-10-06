@@ -1,5 +1,6 @@
 {% set long = sig.side.value > 0 %}
-{% set archived = sig.status in (SignalStatus.EXPIRED, SignalStatus.SKIPPED) %}
+{% set archived = sig.status in ARCHIVED %}
+{% set t = trades.get(sig.id) if trades else none %}
 {% if archived %}
 <details class="card signal-row" id="signal-{{ sig.id }}">
   <summary>
@@ -7,12 +8,13 @@
     <span class="badge">{{ sig.timeframe.value }}</span>
     <span class="badge {{ 'long' if long else 'short' }}">{{ sig.side.label }}</span>
     <span class="badge">{{ STATUS_LABEL[sig.status] }}</span>
+    {% if t and t.r_multiple is not none %}<span class="badge num {{ 'win' if t.r_multiple > 0 else 'loss' }}">{{ '%+.2f' | format(t.r_multiple) }}R</span>{% endif %}
     {% if sig.at_level %}<span class="badge level" title="Пробой линии совпал с пробоем горизонтального уровня">+ уровень</span>{% endif %}
     <span class="hint num row-time">{{ sig.bar_time | lt }}</span>
     <span class="row-open" aria-hidden="true">график ▾</span>
-    <button type="button" class="row-del" title="Удалить сигнал" aria-label="Удалить сигнал {{ sig.symbol }}"
+    {% if sig.status in DELETABLE %}<button type="button" class="row-del" title="Удалить сигнал" aria-label="Удалить сигнал {{ sig.symbol }}"
             hx-post="/signals/{{ sig.id }}/delete" hx-target="#signal-{{ sig.id }}" hx-swap="outerHTML"
-            onclick="event.stopPropagation()">✕</button>
+            onclick="event.stopPropagation()">✕</button>{% endif %}
   </summary>
 {% endif %}
 <article class="{{ 'signal' if archived else 'card signal' }}"{% if not archived %} id="signal-{{ sig.id }}"{% endif %}>
@@ -26,7 +28,7 @@
   </div>
   <div class="meta">
     <div class="title">
-      {{ sig.symbol }}
+      <span class="sym">{{ sig.symbol }}</span>
       <span class="badge">{{ sig.timeframe.value }}</span>
       <span class="badge {{ 'long' if long else 'short' }}">{{ sig.side.label }}</span>
       <span class="badge status-{{ sig.status.value }}">{{ STATUS_LABEL[sig.status] }}</span>
@@ -39,11 +41,12 @@
       <dt>Цель</dt><dd>{{ '%.6g' | format(sig.plan.target) }}</dd>
       <dt>Агрессоры</dt><dd>{{ '%.0f' | format(sig.aggr * 100) }}%</dd>
       <dt>Свеча</dt><dd>{{ '%.1f' | format(sig.range_atr) }} ATR</dd>
-      {% if sig.extra.break_atr is defined %}<dt>Закрытие за линией</dt><dd>{{ '%.2f' | format(sig.extra.break_atr) }} ATR · у края {{ '%.0f' | format(sig.extra.close_loc * 100) }}%</dd>{% endif %}
+      {% if sig.extra.break_atr is defined %}<dt>Закрытие за линией</dt><dd>{{ '%.2f' | format(sig.extra.break_atr) }} ATR</dd>
+      <dt>Закрытие у края</dt><dd>{{ '%.0f' | format(sig.extra.close_loc * 100) }}%</dd>{% endif %}
+      {% if sig.extra.level_px is defined %}<dt>Уровень · {{ sig.extra.level_n }} разворот{{ 'а' if sig.extra.level_n < 5 else 'ов' }}</dt><dd>{{ '%.6g' | format(sig.extra.level_px) }}</dd>{% endif %}
       {% if sig.extra.htf_age_h is defined %}<dt>Пробой {{ sig.extra.htf }}</dt><dd>{{ '%.0f' | format(sig.extra.htf_age_h) }} ч назад, в ту же сторону</dd>{% endif %}
       {% if sig.plan.valid_bars %}<dt>Лимитка живёт</dt><dd>{{ sig.plan.valid_bars }} свечей</dd>{% endif %}
     </dl>
-    {% set t = trades.get(sig.id) if trades else none %}
     {% if t %}
     <div class="trade-box num">
       <span class="badge status-taken">{{ TRADE_LABEL[t.status] }}</span>

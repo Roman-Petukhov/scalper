@@ -62,6 +62,7 @@ class SignalStatus(str, Enum):
     TAKEN = "taken"            # принят: ручной вход или ордер отправлен
     SKIPPED = "skipped"        # пропущен вручную
     EXPIRED = "expired"        # ретест не пришёл за отведённое время
+    CLOSED = "closed"          # сделка по сигналу завершена: стоп, цель, срок или снята на бирже
 
 
 @dataclass(frozen=True)

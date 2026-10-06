@@ -10,7 +10,7 @@
 </div>
 {% if view == 'archive' and signals %}
   <button type="button" class="btn ghost small" hx-post="/signals/archive/clear" hx-swap="none"
-          hx-confirm="Удалить все истёкшие и пропущенные сигналы? Сигналы «в работе» останутся.">Очистить архив</button>
+          hx-confirm="Удалить все истёкшие и пропущенные сигналы? Закрытые сделки и сигналы «в работе» останутся.">Очистить архив</button>
 {% endif %}
 </div>
 {% if signals %}
@@ -19,7 +19,7 @@
 </div>
 {% else %}
 <div class="card empty">
-  {% if view == 'archive' %}Архив пуст. Сюда попадают истёкшие и пропущенные сигналы.
+  {% if view == 'archive' %}Архив пуст. Сюда попадают закрытые сделки, истёкшие и пропущенные сигналы.
   {% elif not s.timeframes %}Все таймфреймы выключены — включите хотя бы один слева.
   {% elif view != 'all' and view not in s.timeframes | map(attribute='value') | list %}{{ view }} выключен — включите его в «Какие сигналы присылать», чтобы видеть эти сигналы.
   {% elif view != 'all' %}Актуальных сигналов {{ view }} нет. Сканер проверяет каждую закрывшуюся свечу {{ view }}, старые — во вкладке «Архив».

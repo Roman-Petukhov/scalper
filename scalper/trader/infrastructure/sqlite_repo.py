@@ -59,6 +59,7 @@ class SqliteStore:
             self.db.executescript(SCHEMA)
             self._migrate_trades()
             self._drop_retired()
+            self._close_finished()
             self._reset_strategies(STRATEGY_RESETS)
             self._set_once(SETTINGS_ONCE)
             self._set_tf_once(TF_SETTINGS_ONCE)
@@ -123,6 +124,13 @@ class SqliteStore:
             q = ",".join("?" * len(ids))
             self.db.execute(f"DELETE FROM trades WHERE signal_id IN ({q})", ids)
             self.db.execute(f"DELETE FROM signals WHERE id IN ({q})", ids)
+
+    def _close_finished(self) -> None:
+        """Сигналы «в работе», сделки по которым уже завершены (до статуса «закрыт» они так и оставались в ленте)."""
+        self.db.execute("UPDATE signals SET status = ? WHERE status = ? AND id IN (SELECT signal_id FROM trades "
+                        "WHERE status IN (?, ?, ?))", (SignalStatus.CLOSED.value, SignalStatus.TAKEN.value,
+                                                      TradeStatus.CLOSED.value, TradeStatus.TIMED_OUT.value,
+                                                      TradeStatus.CANCELLED.value))
 
     # ---------- сигналы ----------
     @staticmethod
