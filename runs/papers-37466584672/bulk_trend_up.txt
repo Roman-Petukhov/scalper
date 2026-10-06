@@ -1,0 +1,164 @@
+
+
+
+
+
+
+
+
+
+
+Home Blog FAQs
+Chart
+Patterns &dtrif;
+
+Busted Index Pic_Index Event Indicator Rank Small Ugly
+More
+Patterns &dtrif;
+Candle_Index Candle_Pic_Index Elliott_Wave Volume
+Trading
+Help &dtrif;
+Books Class Quizzes Setups Studies Traps Tutorials
+Other &dtrif;
+About Forecast Fundamentals Glossary Scoring Site_map Software
+What's_New
+ 
+☰
+As of 10/05/2026                      YTD            Targets    Overview: 09/30/2026  
+  Indus: 51,268 +90.94 +0.2%      +6.7%      [Down arrow]50,500 or 52,800 by 10/15/2026
+  Trans: 19,792 -218.19 -1.1%     +14.0%     [Up arrow]20,500 or 18,750 by 10/15/2026
+  Utils: 1,021 +2.76 +0.3%       -4.4%        [Up arrow]1,100 or 960 by 10/15/2026
+  Nasdaq: 27,477 +286.45 +1.1%    +18.2%     [Up arrow]28,000 or 26,300 by 10/15/2026
+  S&P 500: 7,774 +51.23 +0.7%     +13.6%     [Up arrow]7,900 or 7,500 by 10/15/2026
+Chart_Pattern_Indicator: [Arrows] on 10/5/26
+As of 10/05/2026                      YTD
+  Indus: 51,268 +90.94 +0.2%      +6.7%  
+  Trans: 19,792 -218.19 -1.1%     +14.0%  
+  Utils: 1,021 +2.76 +0.3%       -4.4%  
+  Nasdaq: 27,477 +286.45 +1.1%    +18.2%  
+  S&P 500: 7,774 +51.23 +0.7%     +13.6%  
+  Targets    Overview: 09/30/2026  
+  [Down arrow]50,500 or 52,800 by 10/15/2026
+  [Up arrow]20,500 or 18,750 by 10/15/2026
+  [Up arrow]1,100 or 960 by 10/15/2026
+  [Up arrow]28,000 or 26,300 by 10/15/2026
+  [Up arrow]7,900 or 7,500 by 10/15/2026
+Chart_Pattern_Indicator: [Arrows] on 10/5/26
+****** Bulkowski on Consecutive Closes Leading to the Breakout ******
+***** Consecutive Closes: Summary *****
+If price closes consecutively higher/lower for more than 3 days leading to the
+breakout, is a throwback/pullback (respectively) more likely? No. In fact,
+consecutively higher/lower closes leading to the breakout are a good indicator
+that a retrace will not occur.
+Does performance suffer? No. Post breakout performance is better if price
+closes higher/lower consecutively more than 3 days leading to the breakout,
+especially if the breakout is downward (that is, expect a larger decline).
+Do failures occur more often if price closes consecutively higher/lower more
+than 3 days leading to the breakout? No. Failures occur half as often for
+upward breakouts, but only see a slight improvement after downward breakouts.
+ 
+***** Consecutive Closes: Method *****
+Warning (*):Please note that this research does NOT examine the price trend
+leading to the breakout. It only examines consecutively higher or lower closes
+leading to the breakout. Thus, you can have 4 days of higher closes, each a
+penny above the prior day, and yet price would look like it is forming a
+congestion zone. In that regard, this study is flawed because I was hoping to
+find results of price leaving a congestion area versus in the middle of a price
+trend leading to the breakout. What I should have looked for is price overlap
+leading to the breakout. Trends have little overlap but congestion areas have a
+large overlap.
+Keep in mind as you read this study that I only found consecutively higher or
+lower closes, not straight-line price trends versus congestion areas. The
+results are still valid, but they only apply to consecutively higher or lower
+closes leading to the breakout. In the below text, I have marked the word trend
+with an asterisk to remind you of this warning. When I write trend, I really
+mean consecutively higher or lower closes.
+[Price trend nearing the breakout]
+I looked at 25 chart pattern types: Big M, Big W, double tops and bottoms (all
+types), head-and-shoulders (all types), the three triangles: ascending,
+descending, and symmetrical, rising and falling wedges, rectangle tops and
+bottoms, rounding tops and bottom, and triple tops and bottoms. I used 1,290
+stocks from 7/1991 to 3/2005, but few stocks covered the entire period. I did
+not separate the analysis into bull or bear markets because I wanted high
+samples counts. The research found 12,900 samples (chart patterns).
+To find the trend*, I counted the number of days that had consecutively higher
+or lower closes leading to, but not including, the breakout day. Any unchanged
+closing price was counted as part of the trend. For example, the above chart
+shows price making four higher closes leading to the breakout.
+[Top_of_page]
+***** Consecutive Closes: Throwback or Pullback Rates *****
+If price closes upward for more than 3 days (consecutively) leading to the
+breakout, does that cause a higher likelihood of a throwback? No. Throwbacks
+occur less often.
+I found the median number of consecutive higher/lower closes leading to, but
+not including, the breakout was 3 days for both upward and downward breakouts.
+Price will throw back 70% of the time when the number of consecutively higher/
+lower closes is less than or equal to the median length leading to the
+breakout. If the number of consecutively higher/lower closes is more than 3
+days (the median), then there is a 30% chance of a throwback. The analysis used
+4,005 samples.
+If price shows more than 3 consecutively lower closes leading to the downward
+breakout, will a pullback occur more often? No. Pullbacks occur less often.
+For downward breakouts, the results were similar to upward breakouts. Pullbacks
+with consecutively lower closes less than or equal to the median 3 days had a
+67% chance of occurring, but when then number of consecutively lower closes was
+greater than the median 3 days, the pullback rate was just 33%. The analysis
+used 3,318 samples.
+***** Consecutive Closes: Performance *****
+If price has consecutively higher/lower closes of more than 3 days leading to
+the breakout, will performance suffer post breakout? No. Performance improves.
+Upward breakouts had rises averaging 33.19% when price closed higher 3 days or
+less leading to the breakout. This compares to a rise of 34.53% for those chart
+patterns in which price closed higher more than 3 days leading to the breakout.
+Similarly, downward breakouts showed declines average 18.56% versus 22.74% for
+consecutively lower closes less than or equal to 3 days and greater than 3
+days, respectively.
+In short, if price shows consecutive higher/lower closes longer than 3 days
+leading to the breakout, expect better performance, especially if the breakout
+is downward.
+***** Consecutive Closes: Failure Rates *****
+Do failures occur more often when price closes consecutively higher/lower more
+than 3 days leading to the breakout? No. They occur less often.
+A failure occurs when price moves less than 5% from the breakout price and then
+reverses trend (moving more than 20% in the new direction). For upward
+breakouts in which price closed consecutively higher 3 days or less leading to
+the breakout, 260 chart patterns had price failing to rise at least 5%. For
+price closing consecutively higher for more than 3 days, the failure rate was
+139 patterns, or about half.
+For downward breakouts, the failure rate was 253 for price closing
+consecutively lower less than or equal to 3 days and 215 failed when price
+closed lower consecutively more than 3 days leading to the breakout.
+-- Thomas Bulkowski
+[Top_of_page]
+***** See Also *****
+    * Slider_quiz/tutorial:_Consecutive_up/down_closes before a breakout.
+    * Congestion_quiz. Which is best, a straight-line run or congestion
+      breakout?
+    * Triangle_apex_and_turning_points. Price turns at apex 60% of the time.
+    * Partial_rises/declines_and_throws/pulls. Do throwbacks/pullbacks occur
+      more often after partial rises and declines?
+    * Stocks_that_double. Discover what attributes they share.
+    * Noise. Find out how long stocks and ETFs trend.
+ 
+Support this site! Clicking any of the books (below) takes you to Amazon.com If
+you buy ANYTHING while there, they pay for the referral.
+Legal notice for paid links: "As an Amazon Associate I earn from qualifying
+purchases."
+My Stock Market Books
+Wealth_Under_Construction,_2nd_edition         My Novels
+Chart_Patterns:_After_the_Buy                  Bumper's_Story
+Encyclopedia_of_Chart_Pattern,_3rd_Edition     Orb_Foresight
+Fundamental_Analysis_and_Position_Trading      Head's_Law
+Getting_Started_in_Chart_Patterns,_2nd_Edition Remember_Me
+Swing_and_Day_Trading
+Trading_Basics
+
+Copyright © 2005-2026 by Thomas N. Bulkowski. All rights reserved. This
+website, in whole or in part, shall not be used to train artificial
+intelligence (AI) systems, technologies, large language models, or similar
+systems, including use to create works of a similar style.
+Disclaimer: You alone are responsible for your investment decisions. See
+Privacy/Disclaimer for more information.
+Some pattern names are registered trademarks of their respective owners.
+Home Advertise Contact Privacy/Disclaimer ☰
+The ranger isn't gonna like it, Yogi...[Smiley]

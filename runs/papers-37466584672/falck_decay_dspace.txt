@@ -1,0 +1,75 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+ Skip to main content
+[Repository_logo]
+Log_in(current)
+[Repository_logo]MIT_Open_ScholarshipDSpace@MIT
+[query               ]
+Search
+   1. Home
+   2. MIT_Open_Access_Articles
+   3. MIT_Open_Access_Articles
+   4. When do systematic strategies decay?
+****** When do systematic strategies decay? ******
+[Thumbnail Image]
+Download
+Name
+When do systematic strategies decay .pdf
+Description
+Published version
+Show more
+Size
+1.13 MB
+Format
+Adobe PDF
+Checksum (MD5)
+9cb5d95f0e4368cc7ca5264015e77b4f
+Show more
+sword-2025-11-14T15:26:49.original.xml_(130_B)
+Original SWORD entry document
+Show more
+Author(s)
+Falck, Antoine
+•
+Rej, Adam
+•
+Thesmar, David
+Date Issued
+August 8, 2022
+Journal
+Quantitative Finance
+Publisher
+Taylor & Francis
+Citation
+Falck, A., Rej, A., & Thesmar, D. (2022). When do systematic strategies decay?
+Quantitative Finance, 22(11), 1955–1969.
+Version
+Final published version
+Abstract
+Published anomalies evaluated outside the data sample deliver about 50% of in-
+sample performance.
+Show more
+MIT Department
+Sloan School of Management
+Terms of Use
+Creative Commons Attribution-NonCommercial-NoDerivatives
+https://creativecommons.org/licenses/by-nc-nd/4.0/
+Persistent DSpace Link
+https://hdl.handle.net/1721.1/163650
+DOI of Published Version
+https://doi.org/10.1080/14697688.2022.2098810
+[Repository logo]
+PrivacyPermissionsAccessibilityContact_us
+[Repository_logo]
+Notify_us_about_copyright_concerns.

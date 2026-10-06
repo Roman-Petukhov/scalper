@@ -1,0 +1,493 @@
+                                                                    Where does the criticality live?
+                                                          Early-warning signals are event-heterogeneous across
+                                                              seven crypto-perpetual liquidation cascades
+                                                                                     Ramon Marc Garcia Seuma∗
+
+                                                                                              July 30, 2026
+
+
+
+                                                                                                 Abstract
+                                                          Do crypto perpetual-futures crashes carry a reproducible early-warning fingerprint of a crit-
+arXiv:2607.27070v1 [q-fin.ST] 29 Jul 2026
+
+
+
+
+                                                      ical transition, and in which state variable? We study seven major BTC liquidation cascades
+                                                      (2022–2025, including the record $19B event of 10 October 2025) using minute-level price and
+                                                      5-minute leverage/order-flow data. On detrended residuals we compute rolling variance and
+                                                      lag-1 autocorrelation and test their pre-cascade trend with the Kendall-τ statistic, sweeping 39
+                                                      analysis configurations per variable per event. No variable is event-invariant. Price carries the
+                                                      critical-slowing-down signature in five of seven events but is silent in exactly the two sudden-
+                                                      news (tariff) shocks, suggesting a two-type structure: endogenous-buildup versus exogenous-
+                                                      shock cascades. The October 2025 event—whose in-sample analysis suggests the signature lives
+                                                      in leverage rather than price—turns out to be the outlier, not the rule. The one regularity
+                                                      surviving all events with data is a compression of taker order-flow variance, which passes a
+                                                      300-onset placebo test (Fisher-combined p ≈ 5 × 10−6 ) but is a population-level precursor, not
+                                                      a per-event alarm. Single-event critical-slowing-down claims in crypto derivatives are therefore
+                                                      fragile by construction. We argue the pattern of failures is itself diagnostic: slowing down is
+                                                      absent exactly where the destabilising mechanism is most abrupt, as one would expect if these
+                                                      cascades are discontinuous, shock-driven transitions rather than critical ones.
+
+
+                                            1        Introduction
+                                            On 10 October 2025 the market for crypto perpetual futures produced the largest liquidation cascade
+                                            on record: upwards of $19 billion of leveraged positions were force-closed across roughly 1.6 million
+                                            accounts within a few hours, an order of magnitude beyond any prior episode (Marshall, 2025). The
+                                            proximate trigger was exogenous—an unscheduled announcement of 100% tariffs on Chinese imports
+                                            (CNBC, 2025)—but the machinery that converted a few per cent of price movement into a market-
+                                            wide cascade is endogenous, and it is written into the exchange rulebook. Positions are leveraged; an
+                                            adverse move crosses maintenance-margin thresholds; the exchange’s liquidation engine emits forced,
+                                            price-insensitive sell orders; their market impact pushes the price further in the same direction, into
+                                            the next thresholds. This is the positive feedback by which leverage manufactures fat tails and
+                                            clustered volatility (Thurner et al., 2012), and by which market liquidity and funding liquidity
+                                            become mutually reinforcing (Brunnermeier and Pedersen, 2009).
+                                                Cascades of this kind admit two readings, and they differ in a way that ought to be empirically
+                                            decidable. On the first, the crash is an exogenous shock: news arrives, the price adjusts, and
+                                                ∗
+                                                    Correspondence: reymon.devs@gmail.com
+
+
+                                                                                                     1
+leverage merely amplifies a move that would have occurred anyway. On the second, the market
+has been drifting toward an instability for some time and the news is simply the perturbation that
+finds it there—the crash is the crossing of a critical point, preceded by a slow approach that a
+sufficiently attentive observer could in principle detect. Econophysics has long pursued the second
+reading, modelling crashes as critical points with precursory signatures (Johansen et al., 2000).
+Which reading is right is not an academic matter: only under the second does a pre-crash state
+variable exist to be measured.
+    The theory of early-warning signals makes the second reading operational. As a dynamical
+system approaches a fold bifurcation, the leading eigenvalue of its linearisation tends to zero and
+perturbations decay ever more slowly—critical slowing down—which surfaces in the observable
+statistics as rising variance and rising lag-1 autocorrelation (Scheffer et al., 2009; Dakos et al., 2012;
+Scheffer et al., 2012). The framework’s founding review is, however, candid about the distance
+between the theory and complex reality: “the question therefore remains of whether highly complex
+real systems . . . will show the theoretically expected early-warning signals” (Scheffer et al., 2009).
+That same review reports “empirical successes in finding early-warning signals of transitions in sys-
+tems for which we have a relatively poor understanding of the mechanisms that drive the dynamics,
+such as the human brain and financial markets”. The financial half of this claim has since been
+contested from within the same tradition: Guttal et al. (2016) find no critical slowing down ahead
+of historical financial meltdowns and conclude that they are not critical transitions, and Diks et al.
+(2019) reach a compatible verdict.
+    Scheffer et al. (2009) also names the methodological problem that we take as our point of
+departure. Observing that indicator trends “depend on parameter choices in filtering”, it argues
+that it “would be useful to build a set of reliable statistical procedures to test whether an increase
+in autocorrelation, for example, is significant”. We take that instruction literally, and it organises
+this paper. Every claim below is evaluated across a 39-configuration sweep of the detrending and
+rolling-window choices; a hypothesis formed on one event is tested out of sample on events that
+did not generate it; and the single regularity that survives is checked against an explicit placebo
+null of ordinary market windows. This discipline is not decoration. It is what turns our own most
+attractive in-sample finding into a negative result.
+    Crypto perpetual futures are an unusually good laboratory for the question, and not because
+they crash often. Early-warning theory concerns the state variable of a dynamical system, and for
+a leveraged market it is not obvious that the state variable is the price. The mechanism sketched
+above implicates leverage and order flow, and perpetual exchanges publish precisely those objects,
+for free, at five-minute resolution: aggregate open interest, the long/short positioning of ordinary
+accounts and of the largest traders, and the aggressor side of every trade. We therefore do not
+merely ask whether early-warning signals precede a cascade. We ask in which variable they live,
+and whether that answer is stable from one cascade to the next. It is not.
+    This paper makes deliberately narrow, falsifiable claims and stress-tests them across events
+rather than within one. Our contribution is fourfold:
+
+   1. a reproducible pipeline reconstructing seven major cascades (2022–2025) from public data
+      (Section 2);
+
+   2. evidence that the most-cited early-warning signal, rising variance, is non-specific throughout
+      (Section 4);
+
+   3. a demonstration that crash signatures are event-heterogeneous: the in-sample October 2025
+      pattern (autocorrelation in leverage/flow, absent in price) inverts out of sample, and across
+
+
+
+                                                    2
+      seven events no variable is invariant—with a candidate two-type structure (endogenous-
+      buildup vs. exogenous-shock) (Sections 4.4–4.5);
+
+    4. a placebo-tested positive result: pre-cascade compression of taker order-flow variance is the
+       sole population-level regularity (Section 4.6).
+
+   Section 2 describes the data and Section 3 the estimator and the robustness protocol. Section 4
+presents the results in the order in which they were obtained—October 2025 in sample, August 2024
+out of sample, then the seven-event panel and the placebo test—because that order is the argument.
+Sections 5 and 6 ask what the failure of single-variable early warning implies, and where it points.
+
+
+2     Data
+All data are public and the pipeline is scripted (repository critical-phenomena-in-crypto-perps).
+We use Binance USD-margined (UM) perpetual futures for BTCUSDT around seven major cas-
+cades: May 2022 (LUNA/UST), November 2022 (FTX), August 2024 (yen-carry unwind), Decem-
+ber 2024, February 2025 (tariff scare), April 2025 (“Liberation Day”), and October 2025 (the record
+collateral-depeg cascade). The narrative below develops the October 2025 event in sample, tests it
+out of sample on August 2024, then widens to the full panel. For each event, a ∼2-month window:
+
+    • Price: 1-minute klines (≈88,000 bars per event window) from data.binance.vision (the
+      REST API is geo-restricted for our host).
+
+    • Leverage/order-flow: 5-minute metrics dumps (≈17,600 rows per window): open interest
+      (USD), top-trader long/short ratio, global long/short account ratio, and taker buy/sell volume
+      ratio.
+
+    • Context: a daily derivatives panel (2022–2025) of open interest, funding and long/short
+      liquidation notionals.
+
+What the public data cannot show. Two limitations are structural rather than incidental,
+and they shape the whole analysis. First, Binance’s per-event liquidationSnapshot dumps have
+been discontinued and are no longer served for any date, so intraday liquidation microstructure—
+the very object on which the cascade mechanism acts—is unavailable at this resolution without a
+commercial data source. Daily long/short liquidation notionals support the anatomy in Section 4;
+for the intraday analysis we necessarily observe the consequences of forced liquidation (open interest,
+aggressor flow) rather than liquidations themselves. Second, funding settles every eight hours, far
+too coarsely to serve as an intraday early-warning variable; it enters only as context. Our leverage
+variables are therefore proxies for the liquidation state, not measurements of it, and every claim
+below should be read with that substitution in mind. Section 6 returns to it.
+
+
+3     Methods
+State variable and detrending. For a series xt we form a stationary residual by subtracting a
+trailing moving average of window wd ,
+                                                    d w −1
+                                                 1 X
+                                       rt = xt −      xt−k .                                       (1)
+                                                 wd
+                                                      k=0
+
+
+
+                                                  3
+ Figure 1: 60-minute rolling volatility of BTCUSDT perp around the cascade. Source: EXP-000.
+
+
+For price we take xt = log Pt ; raw returns are inappropriate because their lag-1 autocorrelation is
+≈ 0 by construction in an efficient market. For each leverage/flow variable we take xt = log(·). The
+trailing (causal) mean is used deliberately, so a rising signal could in principle be acted on before
+the transition.
+
+Early-warning signals. Over a rolling window wr < wd we compute two generic indicators of
+critical slowing down (Scheffer et al., 2009; Dakos et al., 2012): the variance Var(r) and the lag-1
+autocorrelation ρ1 = corr(rt , rt−1 ).
+
+Trend test. We quantify “rising toward the transition” with the Kendall rank correlation τ be-
+tween each indicator and time over a pre-cascade window ending at the cascade onset t⋆ ; τ > 0
+with p < 0.05 is a positive, significant early-warning trend. The onset is detected identically across
+events as the minute ending the most negative 60-minute log-return within the documented crash
+day (unrestricted detection inside a 2-month file can select a different, smaller crash); October 2025
+is pinned to the documented 20:50 UTC collateral-depeg nucleation (CoinDesk, 2025; Marshall,
+2025).
+
+Robustness. A single (wd , wr , pre-window) choice is fragile. We sweep a grid (detrend ∼2–16 h,
+roll ∼0.5–4 h, pre-window ∈ {1, 2, 3} d; 39 valid configs per variable) and report, per variable and
+indicator, the fraction of configs that are positive and significant. A real signal survives most of the
+grid; a fluke does not.
+
+
+4     Results
+4.1   Crash anatomy
+Daily long-liquidation notionals over 2022–2025 have a Gini coefficient of 0.677; 10 October 2025
+is the single largest long-liquidation day in the sample at $1.05 billion (versus ∼$130 million
+the prior day). Intraday open interest falls −24.6% across the cascade (Fig. 2); the coincident
+volatility burst is shown in Fig. 1.
+
+
+
+                                                   4
+Figure 2: EWS on open interest (5-minute). Detrended-residual variance and lag-1 autocorrelation
+into the cascade onset (red). Source: EXP-002.
+
+
+4.2   Price shows no early warning
+On the detrended log-price residual, lag-1 autocorrelation shows no pre-cascade rise: it is positive
+and significant in only 4/39 configurations (median τ = −0.038). Rolling variance does trend up
+(34/39), but—as Section 4.3 shows—it does so for nearly every variable, so it does not discriminate.
+The residual-variance spike is coincident with, not precursory to, the cascade (Fig. 3).
+
+4.3   The leverage/order-flow panel (October 2025, in-sample)
+Table 1 and Fig. 4 summarise the robustness sweep across price and four leverage/flow variables for
+the October 2025 event.
+     Two facts stand out within this event. First, rising variance is non-specific: it is positive
+across most configurations for price and for the positioning variables, and it falls for taker flow—so on
+its own it is not evidence of criticality. Second, lag-1 autocorrelation appears to discriminate:
+it is essentially absent in price (4/39) but present across all four leverage/flow variables (16–29/39),
+strongest in taker order flow (29/39) and open interest (23/39). Taken alone, this would suggest
+the critical-slowing-down signature lives in the leverage structure rather than in price. Section 4.4
+shows this inference does not survive out of sample.
+
+
+
+
+                                                   5
+Figure 3: EWS on price (1-minute). The variance spike is coincident with the cascade, with no
+pre-cascade build-up; autocorrelation does not rise. Source: EXP-001.
+
+Table 1: Pre-cascade Kendall-τ robustness across 39 configurations per variable. Cells show the
+count positive-and-significant (p < 0.05) with the median τ in parentheses. Rising variance is
+non-specific; lag-1 autocorrelation discriminates price from the leverage/flow variables. Source:
+EXP-004.
+               Variable                   Variance (pos & sig) Lag-1 AR (pos & sig)
+              Price                         34/39 (+0.101)           4/39 (−0.038)
+              Open interest                 26/39 (+0.153)          23/39 (+0.053)
+              Top-trader L/S ratio          30/39 (+0.123)          16/39 (+0.034)
+              Global L/S account ratio      35/39 (+0.119)          21/39 (+0.060)
+              Taker buy/sell ratio           0/39 (−0.223)          29/39 (+0.072)
+
+
+4.4   Out-of-sample: the pattern does not replicate
+We repeat the identical analysis on the August 2024 cascade. The October 2025 pattern does
+not replicate—it inverts (Table 2, Fig. 5). In August 2024 it is price that carries the lag-1
+autocorrelation signature (28/39), while open interest, the global long/short ratio and taker flow do
+not (3/39, 4/39, 1/39). The only variable positive in both events is the top-trader long/short ratio
+(16/39 then 17/39), and only weakly. Rolling variance remains non-specific in both events, with
+taker-flow variance falling in both—the sole consistent feature. Across the two crashes there is no
+event-invariant early-warning variable.
+
+                                                 6
+Figure 4: In-sample (October 2025) robustness across 39 configurations per variable. Right (lag-1
+autocorrelation): price straddles/below zero while the leverage/flow variables sit above zero—the
+pattern that fails to replicate in Fig. 5. Left (variance): non-discriminating. Source: EXP-004.
+
+
+
+
+Figure 5: Out-of-sample comparison. Lag-1 autocorrelation Kendall-τ by variable for each crash.
+The sign pattern across variables inverts between events: no event-invariant early-warning variable.
+Source: EXP-005.
+
+4.5   The distribution of crash signatures (n = 7)
+Widening to all seven events (Table 3; Fig. 6) settles the question the two-event comparison raised:
+
+  1. No variable is event-invariant. The top-trader long/short ratio—the only candidate sur-
+     viving the two-event comparison—fails in the 2025 tariff events (0/39 and 3/39).
+
+  2. A two-type structure. Price shows the critical-slowing-down signature in five of seven
+     events (0.67–0.85 of configurations) and is absent in exactly two—October 2025 and February
+     2025, the two sudden-news (tariff) shocks. Anticipated or endogenous-buildup cascades carry
+     a price signature; pure exogenous shocks carry none (February 2025 shows no precursor in
+     any variable) or relocate it to leverage/flow (October 2025).
+
+  3. October 2025 is the outlier, not the rule (1/7)—a caution for single-event criticality
+
+                                                 7
+Table 2: Out-of-sample comparison: lag-1 autocorrelation, count positive-and-significant of 39 con-
+figs (median τ ). The variable carrying the signature differs between events; only top-trader L/S is
+(weakly) positive in both. Source: EXP-005.
+                   Variable                         Oct 2025          Aug 2024
+                   Price                         4/39 (−0.038)     28/39 (+0.050)
+                   Open interest                 23/39 (+0.053)     3/39 (−0.033)
+                   Top-trader L/S ratio          16/39 (+0.034)    17/39 (+0.047)
+                   Global L/S account ratio      21/39 (+0.060)     4/39 (−0.075)
+                   Taker buy/sell ratio          29/39 (+0.072)    1/39 (−0.018)
+
+
+Table 3: Lag-1 autocorrelation: fraction of 39 configurations positive-and-significant, per event
+(chronological). n/a: series not yet published in the 2022 dumps. Source: EXP-006.
+           Variable           May22     Nov22    Aug24    Dec24    Feb25    Apr25    Oct25
+           Price                .67      .67       .72      .79      .03      .85      .10
+           Open interest        .38      .54       .08      .26      .10      .21      .59
+           Top-trader L/S       n/a      n/a       .44      .49      .00      .08      .41
+           Global L/S           .56      .82       .10      .51      .00      .08      .54
+           Taker ratio          n/a      .26       .03      .13      .26      .00      .74
+
+
+      claims: the event that suggests the “criticality lives in leverage” hypothesis is the one event
+      where it holds.
+
+
+4.6   The one invariant, placebo-tested: order-flow variance compression
+One regularity survives every event with available data: the variance of the taker buy/sell ratio falls
+before all six cascades (median τ −0.13 to −0.44)—opposite in sign to the textbook variance-rising
+signal. Because a mean-reverting ratio might show declining detrended variance in calm regimes
+anyway, we test against 300 placebo onsets drawn from ordinary-market windows (full pre-window
+available; no overlap with a studied onset; not followed within 24 h by a > 4% drawdown, which
+would make the window the pre-period of a different, unlabelled crash). The null is centred at zero
+(P (median τ < 0) = 0.49): mean reversion does not explain the compression. All six events fall in
+the null’s left tail (four below the 5th percentile; sign test p ≈ 0.014; Fisher-combined p ≈ 5 × 10−6 )
+(Fig. 7). The honest reading: aggressive order flow going persistently one-sided is a population-level
+precursor—real, but too weak for per-event warning (two of six events overlap the null individually).
+
+
+
+
+                                                   8
+Figure 6: Crash-signature map: fraction of 39 configurations with a positive, significant pre-cascade
+trend, per event and variable (left: lag-1 autocorrelation; right: variance). No variable is event-
+invariant; the two sudden-news events (Feb/Oct 2025) lack the price signature the other five carry;
+taker-ratio variance falls everywhere. Source: EXP-006.
+
+
+
+
+Figure 7: Placebo test for taker-flow variance compression: per-onset median Kendall-τ over 300
+ordinary-market onsets (histogram) vs the six real cascades (red lines). Source: EXP-007.
+
+
+5    Discussion
+The central finding is negative and, we argue, more informative than the in-sample story it overturns.
+Four threads develop it.
+
+
+
+
+                                                  9
+Heterogeneous crash signatures, with structure. The state variable carrying the critical-
+slowing-down signature is not shared across cascades. At n = 7 the heterogeneity acquires a
+candidate structure: the five endogenous-buildup events carry a price signature; the two sudden-
+news shocks do not—February 2025 is silent in every variable, October 2025 relocates the signature
+to leverage and flow. A mechanism suggests itself. Critical slowing down is an estimator of how
+quickly perturbations relax, and it can only be measured over an interval in which the system
+actually approaches the instability. The five events with a price signature developed over hours to
+days, as an insolvency, a funding stress or a policy date was progressively absorbed; the pre-window
+contains an approach, and the price residual has time to acquire the memory the theory predicts.
+The two exceptions were repriced within minutes of an unscheduled announcement. When the
+shock arrives on a timescale shorter than the system’s relaxation time, there is no approach inside
+the pre-window to detect, and an autocorrelation estimator has nothing to find. We stress that
+this typology is a hypothesis generated at n = 7, not one tested at n = 7: with two events in the
+exceptional class it could not be otherwise, and it must be checked on cascades we have not seen.
+
+Variance is an unreliable early-warning signal here. Across the panel, rolling variance trends
+up for price and for the positioning variables in essentially every event, irrespective of which variable
+ends up carrying the autocorrelation signature and irrespective of crash type. A statistic that
+rises before every cascade and also throughout ordinary market regimes carries little discriminating
+information. Only its fall, in taker order flow, is consistent—and it is consistent in sign as well as
+in presence. This aligns with the standing critique that variance-based early warnings are prone to
+false positives, and it cautions specifically against the variance-only claims that are easy to make in
+crypto markets, where volatility clustering guarantees that some variance measure is rising almost
+always.
+
+Perhaps the transition is not critical. There is a reading under which these results are not a
+measurement failure but a prediction. Critical slowing down is a property of a system approaching a
+fold: the approach must be slow relative to the observation window, and the system must in fact be
+near the bifurcation. If a liquidation cascade is instead a discontinuous, shock-driven transition—
+a supercritical branch entered when a finite perturbation meets a sufficiently loaded book—then
+there is no slow approach, and the absence of critical slowing down in the price is precisely what the
+mechanism predicts rather than a defect of the indicator. Guttal et al. (2016) draw the analogous
+conclusion for equity meltdowns. Nothing in this paper settles the question, because it cannot be
+settled from single-series indicators: distinguishing a critical transition from a discontinuous one
+is a statement about the order of the transition, and that is visible in the collective structure of
+the market—how its many correlated components reorganise—rather than in any one variable at a
+time. We take this up in a companion paper.
+
+Implication for single-event studies, and for liquidity provision. A signature identified in
+one crash should not be assumed to generalise. The October 2025 pattern was clean, mechanistically
+plausible, and wrong: had we stopped at the event that motivated the study, we would have
+published the claim that criticality lives in the leverage structure. Out-of-sample testing is not a
+robustness appendix in this literature; it is the load-bearing step. For liquidity provision the corollary
+is uncomfortable rather than actionable. A market maker whose quoting model conditions on the
+local predictability of price meets its worst conditions exactly when that predictability collapses,
+and our results say the collapse is not reliably announced beforehand by the price series itself. The
+one signal that does carry population-level information—aggressive order flow going persistently
+
+
+                                                   10
+one-sided—is observable in real time, and is notably a flow variable rather than a price variable.
+We offer this as motivation for future work, not as a result: nothing established here shows that
+any particular quoting rule would have helped.
+
+Limitations. Seven events, a single venue, and moderate effect sizes throughout. Detrending and
+window choices matter, and the robustness sweep mitigates rather than removes that dependence.
+Funding settles on a fixed eight-hour cycle, and this institutional periodicity can in principle imprint
+on the autocorrelation of the flow and positioning residuals; the sweep spans detrending windows
+on both sides of that period, but we do not explicitly deseasonalise it. The 2022 metrics dumps are
+incomplete: the top-trader long/short ratio is unavailable for both 2022 events, and the taker ratio
+additionally for May 2022, so the compression result rests on the six events with a usable taker series.
+The placebo null is drawn from those same six two-month files, which bounds its regime coverage
+to those periods and makes the independence assumed by the joint p-values approximate; onsets
+within a file share a regime. The null is conservative in one respect—unlabelled smaller selloffs that
+survive the 4% drawdown filter inflate compression under the null—and this works against us, not
+for us. Finally, and most importantly, the leverage variables are proxies for a liquidation state we
+cannot observe (Section 2). These bound the claim to exactly what the data support.
+
+
+6    Conclusion and outlook
+A lag-1-autocorrelation early-warning pattern that looked clean within the October 2025 cascade—
+present in leverage/order-flow, absent in price—fails to replicate out of sample, and across seven
+cascades no variable is event-invariant: the signature moves with the crash type (endogenous-buildup
+vs. sudden-shock), and rolling variance is uniformly unreliable. The one placebo-tested regularity,
+compression of taker order-flow variance, is a population-level precursor rather than a per-event
+alarm.
+    Two conclusions follow. The first is cautionary: single-venue, single-variable early-warning
+claims in crypto perpetual markets are fragile by construction. A venue is one node of an arbi-
+trated multi-venue system, and the post-mortems of October 2025 document contagion propagating
+across venues through arbitrage (Marshall, 2025); a state variable measured on one node need not
+be a state variable of the system.
+    The second is more consequential, and it is what we think this paper contributes beyond a
+replication of Guttal et al. (2016) in a new asset class. The failures are not randomly distributed.
+Critical slowing down is absent exactly where the destabilising mechanism is most violent and most
+abrupt, and present where the market had time to absorb its own bad news. That is the pattern one
+expects if these cascades are not critical transitions at all, but discontinuous transitions driven by
+finite shocks meeting a loaded book. Two continuations follow, and we pursue both in a companion
+paper: characterising the transition through the collective correlation structure of the market, where
+its order is visible in a way that no single series can reveal; and asking whether a state variable
+derived from the mechanism itself—the density of liquidation thresholds near the price, weighted by
+the impact of the forced flow that crosses them—succeeds where statistical proxies fail. Recovery
+of the intraday liquidation microstructure discussed in Section 2 is the data prerequisite for the
+second, and the reason the question remains open here.
+
+
+
+
+                                                  11
+Reproducibility
+All figures and numbers are regenerated by the scripts in the repository; each quantitative claim
+cites a frozen experiment record (notes/experiments.md, EXP-000–007).
+
+
+Acknowledgements
+This work received no specific grant from any funding agency. It uses only publicly available
+exchange data; no proprietary or paid data source was used.
+
+
+References
+Markus K. Brunnermeier and Lasse Heje Pedersen. Market liquidity and funding liquidity. The
+ Review of Financial Studies, 22(6):2201–2238, 2009. doi: 10.1093/rfs/hhn098.
+
+CNBC.       Trump puts extra 100% tariff on China imports, adds export controls
+ on ‘critical software’. CNBC, 10 October 2025, https://www.cnbc.com/2025/10/10/
+ trump-trade-tariffs-china-software.html, oct 2025.
+
+CoinDesk.    Ethena’s USDe briefly loses peg during $19b crypto liquidation cas-
+  cade.   CoinDesk, 11 October 2025, https://www.coindesk.com/markets/2025/10/11/
+  ethena-s-usde-briefly-loses-peg-during-usd19b-crypto-liquidation-cascade,   oct
+  2025.
+
+Vasilis Dakos, Stephen R. Carpenter, William A. Brock, Aaron M. Ellison, Vishwesha Guttal,
+  Anthony R. Ives, Sonia Kéfi, Valerie Livina, David A. Seekell, Egbert H. van Nes, and Marten
+  Scheffer. Methods for detecting early warnings of critical transitions in time series illustrated using
+  simulated ecological data. PLoS ONE, 7(7):e41010, 2012. doi: 10.1371/journal.pone.0041010.
+
+Cees Diks, Cars Hommes, and Juanxi Wang. Critical slowing down as an early warning signal for
+  financial crises? Empirical Economics, 57(4):1201–1228, 2019. doi: 10.1007/s00181-018-1527-3.
+
+Vishwesha Guttal, Srinivas Raghavendra, Nikunj Goel, and Quentin Hoarau. Lack of critical slowing
+  down suggests that financial meltdowns are not critical transitions, yet rising variability could
+  signal systemic risk. PLoS ONE, 11(1):e0144198, 2016. doi: 10.1371/journal.pone.0144198.
+
+Anders Johansen, Olivier Ledoit, and Didier Sornette. Crashes as critical points. International Jour-
+ nal of Theoretical and Applied Finance, 3(2):219–255, 2000. doi: 10.1142/S0219024900000115.
+
+Mike Marshall. How $3.21b vanished in 60 seconds: the october 2025 crypto crash ex-
+ plained through 7 charts. Amberdata research report, https://blog.amberdata.io/how-3.
+ 21b-vanished-in-60-seconds-october-2025-crypto-crash-explained-through-7-charts,
+ oct 2025.
+
+Marten Scheffer, Jordi Bascompte, William A. Brock, Victor Brovkin, Stephen R. Carpenter, Vasilis
+ Dakos, Hermann Held, Egbert H. van Nes, Max Rietkerk, and George Sugihara. Early-warning
+ signals for critical transitions. Nature, 461(7260):53–59, 2009. doi: 10.1038/nature08227.
+
+Marten Scheffer, Stephen R. Carpenter, Timothy M. Lenton, Jordi Bascompte, William Brock,
+ Vasilis Dakos, Johan van de Koppel, Ingrid A. van de Leemput, Simon A. Levin, Egbert H. van
+
+
+                                                   12
+  Nes, Mercedes Pascual, and John Vandermeer. Anticipating critical transitions. Science, 338
+  (6105):344–348, 2012. doi: 10.1126/science.1225244.
+
+Stefan Thurner, J. Doyne Farmer, and John Geanakoplos. Leverage causes fat tails and clus-
+  tered volatility. Quantitative Finance, 12(5):695–707, 2012. doi: 10.1080/14697688.2012.674301.
+  Preprint: arXiv:0908.1555.
+
+
+
+
+                                               13
+

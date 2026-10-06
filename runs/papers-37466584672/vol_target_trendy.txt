@@ -1,0 +1,265 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Skip_to_main_content
+Go_to_the_University_of_Minnesota_Twin_Cities_home_page
+    * One_Stop
+    * MyU:_For_Students,_Faculty,_and_Staff
+ Search
+School_of_Mathematics
+MCFAM
+Minnesota Center for Financial and Actuarial Mathematics
+
+    * Academic Programs
+          o Graduate_-_MS_Financial_Mathematics
+          o Certificate_-_Fundamentals_of_Quantitative_Finance
+          o Undergraduate_-_BS/BA_Actuarial_Science
+          o Minor_in_Financial_Mathematics
+    * People
+          o Academic_and_Administrative_Staff
+          o Meet some of our Alumni
+                # Master's_Alumni
+                # Undergraduate_Alumni
+    * Get Involved
+          o For_Industry
+          o Company_Sponsors
+    * News and Events
+          o MCFAM_Seminar
+          o News
+          o Distinguished_Lecturers
+    * Make_a_Gift
+
+***** Breadcrumb *****
+   1. Home
+   2. MCFAM Seminar - Volatility Targeting Is Trendy: Documenting the Trend
+      Exposure Embedded in Volatility-Managed Strategies
+****** MCFAM Seminar - Volatility Targeting Is Trendy: Documenting the Trend
+Exposure Embedded in Volatility-Managed Strategies ******
+Speaker:Benjamin Hood
+Abstract:  Why do volatility targeting/management strategies tend to outperform
+simple buy-and-hold positions in the same assets, as found by Moreira and Muir
+(2017) and Harvey et al (2018)? We test the hypothesis that this outperformance
+is mainly due to a loading on trend following that arises because of the
+negative correlation between return direction (trend) and magnitude
+(volatility), the so-called “leverage effect.” When controlling for trend
+exposure, alpha to volatility targeting is shown to mainly accrue to trend for
+both a long equity history and a set of 14 global equity index futures
+contracts. By contrast, this is not true for commodity, fixed income, or
+currency futures, where the leverage effect is not present. We further discuss
+the mechanical relationship between volatility targeting and trend following,
+creating a point of connection between these two seemingly different branches
+of research.
+Bio:  Ben is Managing Director of Derivatives Research at Morgan Stanley and
+Parametric Portfolio Associates.  Research interests include alternative risk
+premia, volatility and risk modeling, and multi-asset portfolios.  Prior to
+joining Parametric, he worked as a vice president of research at AQR Capital
+Management.  Ben’s work has been published in the Review of Financial Studies,
+the Journal of Derivatives, and the Financial Analysts Journal.  He earned a
+PhD and MA in economics from UCLA, as well as a BS in economics with honors and
+BA in mathematics from the University of Minnesota.
+ 
+MCFAM_Seminar
+Start date
+Friday, April 19, 2024, Noon
+End date
+Friday, April 19, 2024, 1 p.m.
+Location
+Join in-person - Vincent Hall 311  - Via Zoom: https://umn.zoom.us/j/
+99258642870
+***** Share *****
+
+***** Minnesota Center for Financial and Actuarial Mathematics (MCFAM) *****
+206 S.E. Church St., Minneapolis, MN 55455
+612-626-8057
+[email protected]
+
+**** For Students, Faculty, and Staff ****
+    * One_Stop
+    * MyU
+ © 2026 Regents of the University_of_Minnesota. All rights reserved. The
+University of Minnesota is an equal opportunity educator and employer. Privacy
+Statement Report_Web_Accessibility_Issues
+
+    * Future students
+          o Future_undergraduate_students
+          o Future_transfer_students
+          o Future_graduate_students
+          o Future_international_students
+          o Scholarships_and_financial_aid
+          o Beyond the classroom
+                # Diversity_and_Inclusion_Opportunities
+                # Learn_abroad
+                # Living_Learning_Communities
+                # Mentor_programs
+                # Programs_for_women
+                # Research
+                # Student_groups
+    * Current students
+          o Information_for_current_students
+          o Departments and majors
+                # Departments_and_majors_overview
+                # Departments
+                # Undergraduate_majors
+                # Graduate_programs
+                # Integrated_Degree_Programs
+                # Additional_degree-granting_programs
+                # Online_learning
+          o Academic Advising
+                # Academic_Advising_overview
+                # Academic_Advising_FAQ
+                # Academic_Advising_Blog
+                # Appointments
+                # Academic_support
+                # Commencement
+                # Drop-ins
+                # Four-year_plans
+                # Honors_advising
+                # Policies,_procedures,_and_forms
+          o Career Services
+                # Career_Services_overview
+                # Resumes_and_cover_letters
+                # Jobs,_internships,_and_co-ops
+                # Interviews_and_job_offers
+                # CSE_Career_Fair
+                # Major_and_career_exploration
+                # Graduate_school
+          o Collegiate Life
+                # Collegiate_Life_overview
+                # Diversity_and_Inclusion_Opportunities
+                # Learn_abroad
+                # First-Year_Experience
+                # Mentor_programs
+                # Programs_for_women
+                # Research
+                # Student_groups
+          o Wellness_resources
+          o Diversity_&_Inclusivity_Alliance
+          o CSE-IT
+          o Anderson_Student_Innovation_Labs
+    * Alumni
+          o Information_for_alumni
+          o Get involved
+                # Get_engaged_with_CSE
+                # Upcoming_events
+                # CSE_Alumni_Society_Board
+                # Alumni_volunteer_interest_form
+                # CSE_Mentor_Program
+          o Honors/Awards
+                # Alumni_honors_and_awards
+                # Outstanding_Achievement
+                # Alumni_Service
+                # Distinguished_Leadership
+                # Honorary_Doctorate_Degrees
+                # Nobel_Laureates
+          o Resources
+                # Webinars_and_more_for_alumni
+                # CSE_branded_clothing
+                # International_alumni_resources
+                # Inventing_Tomorrow_magazine
+                # Update_your_info
+          o Give to CSE
+                # Why_give_to_CSE?
+                # Give_online_now
+                # Contact_us
+    * Donors
+          o Give to CSE
+                # CSE_giving_overview
+                # Why_give_to_CSE?
+                # Giving_priorities
+                # CSE_Dean's_Club
+                # Donor_stories
+                # Impact_of_giving
+          o Ways to give
+                # Ways_to_give_to_CSE
+                # Matching_gifts
+                # Give_online_now
+          o Contact Us
+                # Advancement_Office
+                # CSE_directories
+    * Corporate partners
+          o Invest_in_your_company_and_the_future
+          o Recruit_our_students
+          o Connect_with_researchers
+          o Partner with us
+                # K-12_initiatives
+                # Diversity_initiatives
+          o Research_news
+          o Support us
+                # Give_to_CSE
+                # Why_give_to_CSE?
+                # CSE_priorities
+          o Contact us
+                # Corporate_relations
+                # Advancement
+                # CSE_directories
+    * Faculty and staff
+          o Information_for_faculty_and_staff
+          o Administrative Offices
+                # Administrative_offices_overview
+                # Office_of_the_Dean
+                # Faculty_affairs
+                # Finance_and_Operations
+                # Human_resources
+                # Marketing_and_Communications
+                # Advancement
+                # Research
+                # Graduate_Programs
+                # Undergraduate_programs_and_student_services
+          o CSE_Committees
+          o CSE Policies
+                # CSE_policies_overview
+                # Academic_policies
+                # Faculty_hiring_and_tenure_policies
+                # Finance_policies_and_information
+                # Graduate_education_policies
+                # Human_resources_policies
+                # Research_policies
+          o Diversity_&_Inclusivity_Alliance
+          o Research
+                # Research_overview
+                # Research_centers_and_facilities
+                # Research_proposal_submission_process
+                # Research_safety
+                # CSE_Shop
+          o Faculty awards
+                # Award-winning_CSE_faculty
+                # National_academies
+                # University_awards
+                # Honorary_professorships
+                # Collegiate_awards
+                # Other_CSE_honors_and_awards
+          o Staff_awards
+          o Performance_Management_Process
+          o Work._With_Flexibility_in_CSE
+    * K-12 Outreach
+          o K-12_outreach_overview
+          o Summer_camps
+          o Outreach_events
+          o Enrichment_programs
+          o Field_trips_and_tours
+          o CSE_K-12_Virtual_Classroom_Resources
+          o Educator_development
+          o Volunteer
+          o Sponsor_an_event

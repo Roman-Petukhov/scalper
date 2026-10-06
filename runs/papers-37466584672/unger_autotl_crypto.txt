@@ -1,0 +1,342 @@
+
+
+
+   Skip_to_content
+ ⁰
+[Unger_Academy]
+[Italiano]
+ Products
+Free Products
+Free_MasterclassFree_Book
+Program
+AlgoTrader_Fast
+ Resources
+Strategies
+Spread_TradingMomentumTrend_FollowingSeasonalityShorting
+StocksVolatilityCountertrend/ReversalMarket_Trends
+Technical_Analysis
+Keltner_ChannelSupports_and_ResistancesBollinger_Band_WidthStop
+LossRSIADXBollinger_BandsMACD
+How_to
+How_to_Avoid_ScamsHow_To_Use_LeverageHow_to_Use_IndicatorsHow_to_Trade_with
+Little_CapitalHow_to_Backtest_a_StrategyHow_to_Manage_EmotionsHow_to_Choose_the
+Best_PlatformHow_to_Choose_the_Broker
+Guides
+Position_Sizing_GuideOptions_Trading_GuideInvesting_GuideAlgo_Trading
+GuideBasic_Trading_TermsTechnical_Analysis_GuideCrypto_Trading_GuideMain
+Trading_Orders
+Best_of
+Best_Markets_to_TradeBest_Trading_PlatformsBest_Online_BrokersBest_Trading
+BooksBest_Trading_IndicatorBest_Market_Data_ProviderBest_Cryptocurrency
+Exchanges
+Other Resources
+Case_StudiesInterviews
+ Contests
+ Contests
+Rules Trader_of_the_Month Strategy_of_the_Month Top_Trader
+Blog Reviews About Top_Trader_Contest
+LOGIN
+Top_Trader
+
+LOGIN
+     [Unknown INPUT type]
+[Unknown INPUT type][phrase              ]
+Search
+
+HomeBlogAuto Trend Lines with Trading Systems – Do They Work on Cryptos?
+****** Auto Trend Lines with Trading Systems – Do They Work on Cryptos? ******
+***** Need More Help? Book Your FREE Strategy Session With Our Team Today!
+*****
+We’ll help you map out a plan to fix the problems in your trading and get you
+to the next level. Answer a few questions on our application and then choose a
+time that works for you.
+____BOOK_YOUR_FREE_STRATEGY_SESSION_NOW__
+Trend Lines, one of the most well-known indicators in technical analysis, are
+dynamic support and resistance lines plotted on charts to highlight market
+trends.
+In this video, we tried to apply them to cryptocurrencies, obviously using a
+systematic approach.
+We built a trading system that opens the positions when Trend Lines are broken
+through and tested it on Ethereum, the second most capitalized cryptocurrency
+in the world.
+The results we obtained are excellent, but is it all thanks to Trend Lines, or
+are there any other reasons why this system is so effective, such as the
+characteristics of the cryptocurrency market, for example?
+To answer this question, we tested another system on Ethereum – much simpler
+than the one based on Trend Lines – and compared the performances of the two
+strategies.
+Watch the video to discover what we found out!
+ 
+**** Transcription ****
+Hey guys, and welcome! I’m one of the coaches of Unger Academy and today we’re
+going to be talking about Trend Lines, one of the most famous indicators in
+technical analysis. And, in particular, we’ll try to apply them to
+cryptocurrencies.
+Okay, so in this video, we’ll try to understand if trend lines could be a
+valuable and effective tool that we could use to set up entries and exits in
+our trading systems.
+**** What are trend lines? ****
+Before doing that, we first need to define what a “trend line” is. Generally,
+trend lines are defined as dynamic supports or resistances within which prices
+move.
+Let’s try and plot a trend line on this chart, which tracks the prices of
+Ethereum, the second most important cryptocurrency by capitalization – and the
+first one obviously we all know is Bitcoin. This is the price trend of the last
+period. So let’s draw our trend lines so that prices are within the range
+between these two lines as much as possible.
+**** Use of trend lines in technical analysis ****
+In technical analysis, trend lines are generally used to buy on the supports
+and sell on the resistances. In this case, the trading range that contains the
+prices is not horizontal but dynamic because prices move upwards. So you buy on
+the supports and sell on the resistances.
+This approach works particularly well on those underlying assets that tend to
+move in a “ping-pong” way, and it can certainly be used in mean-reverting
+strategies, that is, for markets whose prices tend to go back to average
+values. 
+The point with cryptocurrencies is that they tend to have a trend-following
+behavior rather than a mean-reverting behavior, which means that they may not
+be very suitable for this kind of approach.
+**** Use of trend lines on cryptos ****
+For this reason, I believe that it might be much more useful to use trend lines
+to trade the breakouts in the case of cryptocurrencies. For example, we could
+decide to use a trend line like this one and, when this trend line is broken
+through, we could go long right here because the market seems to be about to
+break through a dynamic resistance, so it may continue its bullish run.
+And to do this, we obviously need some objective criteria that let the system
+identify the trend lines. In fact, to use this indicator in an automated
+strategy, we first need to teach the machine, teach MultiCharts what a trend
+line is.
+In technical analysis books, the concept of a trend line is a bit smoky because
+there isn’t just one way to trace a trend line. For example, according to some
+people, this line should be lower, while according to some others, it should be
+moved higher. In this case, we can’t afford this kind of subjectivity because
+the machine needs to be able to identify unequivocally when there is a trend
+line and when the prices break through it, which is when the system should open
+the position.
+The criterion that we decided to use to define trend lines in our system is
+based on the so-called Swing Points. Swing Points are highs or lows that, both
+on the right and the left, are surrounded by a certain number of bars set
+through the system’s inputs.
+**** How to code a trend line ****
+So let’s move on and see how to use these trend lines in a trading system. This
+system was programmed by Davide Tagliabue, one of our coaches who’s very good
+at programming. And as you can see in this chart, Davide identified the swing
+points that we will use.
+These are the swing highs, and these are the swing lows. So, these points can
+be connected to form the trend lines, and when the trend lines are broken
+through, the system trades that breakout and then closes all the positions at
+the end of the day.
+**** How the trend line system works ****
+Since cryptocurrencies are characterized by a strong bullish Bias, we decided
+to trade only on the long side. Experience has taught me that being profitable
+by going short on cryptocurrencies is really very difficult.
+So let’s take a look at some other trades that were made by this trading
+system. Here you can see a trade that hit a stop loss. But let’s go ahead. Here
+there are two more entries, the first one is more or less at break even while
+the second one is in profit, and they were both closed at the end of the day.
+**** The system performance report ****
+At this point, let’s take a look at the performance report. As you see, the
+system makes a profit of $21,000 in 4 years and 2 months, with the backtest
+starting in September 2017.
+The capital per trade is $10,000. The profit factor is 2, the return on maximum
+drawdown is 5.6, and the maximum close-to-close drawdown is $2,900. Now, these
+results seem to be definitely interesting.
+So let’s also take a look at the average trade. It’s $87, which means 0.87% of
+the capital per trade, so it can be considered enough to cover commissions,
+slippage, and operating costs.
+At this point, you’re probably curious to see what the equity line of this
+system looks like. So here it is, and it’s definitely very good. It’s a bit
+horizontal in the first phase. However, if we look at the buy and hold, we can
+see that that was a time when Ethereum went down. So let’s say that the
+strategy was somehow able to limit the damage (I remind you that we trade only
+on the long side) and continue to rise quite regularly (let’s take a look at
+the buy and hold again). And this was probably possible thanks to the strong
+bullish trend of this cryptocurrency.
+**** Evaluation of the system ****
+So by looking at these results, we may certainly be led to conclude that trend
+lines seem to work pretty well on cryptocurrencies, at least on Ethereum.
+However, I must tell you that this same system, when we apply it to traditional
+markets, and more in detail to traditional markets that respond very well to
+breakout strategies, such as Crude Oil or Gold, doesn’t produce the same good
+results we’ve just seen.
+If on Gold, we can see something interesting, on Crude Oil, the system clearly
+doesn’t work, and on other markets that usually work well with breakout
+approaches, this system struggles to produce good results.
+So my question is this: is it the trend line system that performs well, or is
+it thanks to the market to which we’re applying it? Because it’s even possible
+that, due to the high volatility of cryptos, systems that struggle when applied
+to traditional markets can instead perform very well on these instruments.
+**** A crypto system developed with the Unger method ****
+To answer this question, I decided to test another system. It’s much simpler
+than the previous one, and it’s made up of just a few lines of code. The entry
+setup is the breakout of the previous day’s high, and entries are filtered
+using the classic filters of the Unger Method, which let us separate the
+winning trades from the losing trades.
+Now what I’d like to do is compare this system and the one based on the trend
+lines to figure out if the good performance we have seen depends on the
+characteristics of the underlying or on the effectiveness of the system itself.
+In this chart, you can see the equity line of the second trading system, the
+simpler one. As you can see, the line rises by almost 45 degrees and has a
+truly enviable regularity.
+Let’s also take a look at the system metrics. It earns $24,000 in the same
+period, so it makes more money than the previous system. The profit factor is
+2.39, and, more importantly, the return on drawdown rises from 5 to 21.
+The average trade – I’m going to show it to you immediately – goes from 87 to
+98, so the average trade also improves a lot. So given these results, we can
+certainly say that the second system wins over the trend line system.
+**** Conclusions ****
+This means that a simpler strategy based on a pretty trivial setup, that is,
+the high of the previous day and the entries filtered using the Unger Method,
+produces results that are much better than those produced by the more advanced
+and complex system based on trend lines, which in reality doesn’t bring any
+added value.
+Its good performance is only related to the characteristics of the market,
+which responds so well to breakout approaches that even a quite inefficient
+system can be profitable.
+Alright, guys. If you’re interested in learning how to build trading systems
+like the ones I’ve just shown you, using the method of the only 4-time world
+trading champion Andrea Unger, I’m gonna leave you a link in the description of
+this video. It’ll take you to a webinar in which Andrea condensed much of the
+first-hand experience he gained in the markets since he started training in
+2000.
+I really hope that this video has helped you! If you have any interesting
+questions or ideas, please write them in the comments, and maybe we’ll make a
+video based on them too!
+I’ll see you on our next video, bye-bye!
+ 
+***** Need More Help? Book Your FREE Strategy Session With Our Team Today!
+*****
+We’ll help you map out a plan to fix the problems in your trading and get you
+to the next level. Answer a few questions on our application and then choose a
+time that works for you.
+____BOOK_YOUR_FREE_STRATEGY_SESSION_NOW__
+***** Related Posts *****
+[Why_an_Investment_Professional_Chose_Systematic_Trading]
+** Why_an_Investment_Professional_Chose_Systematic_Trading **
+[Sharpe_Ratio:_How_to_Calculate_It_and_Its_Limitations_in_Trading]
+** Sharpe_Ratio:_How_to_Calculate_It_and_Its_Limitations_in_Trading **
+[Nasdaq_Trading_Strategies:_36%_or_56%_Winning_Trades_–_What_Changes?]
+** Nasdaq_Trading_Strategies:_36%_or_56%_Winning_Trades_–_What_Changes? **
+[Profit_Factor_in_Trading:_Is_a_High_Value_Enough_to_Choose_a_Strategy?]
+** Profit_Factor_in_Trading:_Is_a_High_Value_Enough_to_Choose_a_Strategy? **
+[Formula_1_and_Systematic_Trading:_Why_the_Outcome_Isn’t_Enough_to_Judge_a
+Decision]
+** Formula_1_and_Systematic_Trading:_Why_the_Outcome_Isn’t_Enough_to_Judge_a
+Decision **
+[How_to_Choose_a_Trading_System:_What_Andrea_Unger’s_Championship_Win_Teaches
+Us]
+** How_to_Choose_a_Trading_System:_What_Andrea_Unger’s_Championship_Win_Teaches
+Us **
+Scroll_to_top
+*** Strategies ***
+    * Spread_Trading
+    * Momentum
+    * Trend_Following
+    * Seasonality
+    * Shorting_Stocks
+    * Volatility
+    * Countertrend/Reversal
+    * Market_Trends
+    * Spread_Trading
+    * Momentum
+    * Trend_Following
+    * Seasonality
+    * Shorting_Stocks
+    * Volatility
+    * Countertrend/Reversal
+    * Market_Trends
+*** Technical Analysis ***
+    * Keltner_Channel
+    * Supports_and_Resistances
+    * Bollinger_Band_Width
+    * Stop_Loss
+    * RSI
+    * ADX
+    * Bollinger_Bands
+    * MACD
+    * Keltner_Channel
+    * Supports_and_Resistances
+    * Bollinger_Band_Width
+    * Stop_Loss
+    * RSI
+    * ADX
+    * Bollinger_Bands
+    * MACD
+*** Guides ***
+    * Position_Sizing_Guide
+    * Options_Trading_Guide
+    * Investing_Guide
+    * Algo_Trading_Guide
+    * Basic_Trading_Terms
+    * Technical_Analysis_Guide
+    * Crypto_Trading_Guide
+    * Main_Trading_Orders
+    * Position_Sizing_Guide
+    * Options_Trading_Guide
+    * Investing_Guide
+    * Algo_Trading_Guide
+    * Basic_Trading_Terms
+    * Technical_Analysis_Guide
+    * Crypto_Trading_Guide
+    * Main_Trading_Orders
+*** Resources ***
+    * Blog
+    * Case_Studies
+    * Interviews
+    * Work_with_us
+    * Blog
+    * Case_Studies
+    * Interviews
+    * Work_with_us
+*** Programs ***
+    * AlgoTrader_Fast
+    * AlgoTrader_Fast
+*** Contests ***
+    * Rules
+    * Trader_of_the_Month
+    * Strategy_of_The_Month
+    * Rules
+    * Trader_of_the_Month
+    * Strategy_of_The_Month
+*** Books ***
+    * The_Unger_Method
+    * The_Successful_Trader’s_Guide_to_Money_Management
+    * The_Unger_Method
+    * The_Successful_Trader’s_Guide_to_Money_Management
+*** Legal ***
+    * Privacy_Policy
+    * Cookie_Policy
+    * Terms_of_Service
+    * Disclaimer
+    * Privacy_Policy
+    * Cookie_Policy
+    * Terms_of_Service
+    * Disclaimer
+Instagram   Youtube   Facebook   Telegram   X   LinkedIn   TikTok   Podcast
+
+
+
+Copyright © 2025 Unger Academy® - All right reserved Unger Academy S.r.l. - Via
+Castellana 86/C, 30030 Martellago (VE), Italy - Tax Code/VAT N°: IT04662580275
+- REA: VE-438349 Registration #4/2021 Press Registry Court of Venice,
+authorization of 2021-07-21 - R.G. 3064/2021. Editorial Director: Francesco
+Placci. AGCOM ROC registration #37048 on 2021-08-03. ISSN 2974-5527 Full paid-
+up Share Capital € 75,000 - Privacy_Policy- [email protected] -
+[email protected] Phone: +1 929-279-0202, +44 7723 875926, Whatsapp: +39
+3399957834
+Andrea Unger and Unger Academy can not and do not make any guarantees about
+your ability to get results or earn any money with our ideas, information,
+tools, or strategies.
+
+Nothing on this page, any of our websites, or any of our content or curriculum
+is a promise or guarantee of results or future earnings, and we do not offer
+any legal, medical, tax or other professional advice. Any financial numbers
+referenced here, or on any of our sites, are illustrative of concepts only and
+should not be considered average earnings, exact earnings, or promises for
+actual or future performance. Use caution and always consult your accountant,
+lawyer or professional advisor before acting on this or any information related
+to a lifestyle change or your business or finances. You alone are responsible
+and accountable for your decisions, actions and results in life, and by your
+registration here you agree not to attempt to hold us liable for your
+decisions, actions or results, at any time, under any circumstance.
+

@@ -1,0 +1,168 @@
+
+
+
+
+
+
+
+
+
+
+Home Blog FAQs
+Chart
+Patterns &dtrif;
+
+Busted Index Pic_Index Event Indicator Rank Small Ugly
+More
+Patterns &dtrif;
+Candle_Index Candle_Pic_Index Elliott_Wave Volume
+Trading
+Help &dtrif;
+Books Class Quizzes Setups Studies Traps Tutorials
+Other &dtrif;
+About Forecast Fundamentals Glossary Scoring Site_map Software
+What's_New
+ 
+☰
+As of 10/05/2026                      YTD            Targets    Overview: 09/30/2026  
+  Indus: 51,268 +90.94 +0.2%      +6.7%      [Down arrow]50,500 or 52,800 by 10/15/2026
+  Trans: 19,792 -218.19 -1.1%     +14.0%     [Up arrow]20,500 or 18,750 by 10/15/2026
+  Utils: 1,021 +2.76 +0.3%       -4.4%        [Up arrow]1,100 or 960 by 10/15/2026
+  Nasdaq: 27,477 +286.45 +1.1%    +18.2%     [Up arrow]28,000 or 26,300 by 10/15/2026
+  S&P 500: 7,774 +51.23 +0.7%     +13.6%     [Up arrow]7,900 or 7,500 by 10/15/2026
+Chart_Pattern_Indicator: [Arrows] on 10/5/26
+As of 10/05/2026                      YTD
+  Indus: 51,268 +90.94 +0.2%      +6.7%  
+  Trans: 19,792 -218.19 -1.1%     +14.0%  
+  Utils: 1,021 +2.76 +0.3%       -4.4%  
+  Nasdaq: 27,477 +286.45 +1.1%    +18.2%  
+  S&P 500: 7,774 +51.23 +0.7%     +13.6%  
+  Targets    Overview: 09/30/2026  
+  [Down arrow]50,500 or 52,800 by 10/15/2026
+  [Up arrow]20,500 or 18,750 by 10/15/2026
+  [Up arrow]1,100 or 960 by 10/15/2026
+  [Up arrow]28,000 or 26,300 by 10/15/2026
+  [Up arrow]7,900 or 7,500 by 10/15/2026
+Chart_Pattern_Indicator: [Arrows] on 10/5/26
+****** Bulkowski's Failure Rate Study ******
+My book, Encyclopedia_of_Chart_Patterns_Second_Edition[Encyclopedia_of_Chart
+Patterns_2nd_Edition_book.], shown on the right, has failure rates for most of
+the 63 chart and event patterns discussed in the book.
+If you click on the above link and then buy the book (or anything) while at
+Amazon.com, the referral will help support this site. Thanks.
+-- Tom Bulkowski
+$ $ $
+Do chart patterns fail more often now than they used to? Yes, according to this
+study.
+Summary
+Methodology
+Results:_Upward_Breakouts
+Results:_Downward_Breakouts
+See_Also
+***** Failure Rate Study: Summary *****
+A study using nearly 14,000 chart patterns covering the years from 1991 to 2008
+shows that chart patterns fail between two and four times more often now than
+they did in the past. For example, the average failure rate of chart patterns
+to climb at least 10% in the 1990s bull market was 14%. During the bull market
+years of 2003 to 2007, the failure rate had doubled to 28%.
+Downward breakouts showed a similar trend with the average 10% failure rate
+rising from 26% in the 1990s to 49% during the bull market years of the 2000s.
+Here is a more extreme example. In 1991 the 10% failure rate was 11% but peaked
+at 44% in 2007. In other words, four times as many chart patterns failed to
+show post breakout rises of at least 10% in 2007 compared to 1991.
+***** Failure Rate Study: Methodology *****
+I started with 13,932 chart patterns known to be good. That means I inspected
+them multiple times and have used them as research material for my books. For
+gains, I looked at all chart patterns with upward breakouts and measured the
+rise from the closing price the day before the breakout to the ultimate_high..
+For losses, I used chart patterns with downward breakouts and measured the
+decline from the close the day before the breakout to the ultimate_low..
+I did not use all of the chart pattern types at my disposal because some worked
+best on the weekly scale (horns and pipes) and discarded others because the
+breakout price is often difficult to determine (scallops, rounding turns, and
+broadening patterns, for example). Here is a list of the 23 pattern types that
+I used in the study.
+    * Diamond tops and bottoms
+    * Double tops and bottoms (all combinations of Adam and Eve)
+    * Head-and-shoulder tops and bottoms (both simple and complex)
+    * Rectangle tops and bottoms
+    * Rising and falling wedges
+    * Triangles: ascending, descending, and symmetrical
+    * Triple tops and bottoms
+For more information on any of these chart patterns, click the link to take you
+to the index.
+[Top_of_page] More
+***** Failure Rate Results: Upward Breakouts *****
+[Failure rates for upward breakouts since 1991]
+The above chart shows three failure rates, 10%, 20%, and 40%, arbitrarily
+chosen. The failure rates are a count of the number of times chart patterns
+fail to show post breakout rises of 10%, 20%, and 40% as a percentage of the
+number of chart patterns for that year.
+For example, in 1991, eleven percent of the 140 chart patterns with upward
+breakouts failed to show a post breakout rise of at least 10%. In 1992,
+thirteen percent of the 494 chart patterns failed that year to post gains of at
+least 10%.
+The chart shows the upward trend of failures over time. In 1991, the 10%
+failure rate stood at 11%. By 2007, the failure rate peaked at 44% before
+dropping to 32% in 2008. The 20% failure rate climbed from 22% in 1991 to 64%
+in 2007 before declining slightly to 62% in 2008. Finally, the 40% failure rate
+increased from 64% to 88% over the 1991 to 2008 period.
+If you compare the bull market years in the 1990s to the 2003 to 2007 bull
+market, we find the average 10% failure rate climbed from 14% to 28%. In other
+words, 14% of chart patterns failed to show post breakout rises of at least 10%
+in the 1990s but that had doubled to 28% in the 2000s.
+Looking at the relative height of each line, we see how often chart patterns
+show post breakout rises of 10%, 20% and 40% or higher. In 2008, 88% of chart
+patterns will fail to show post breakout rises of at least 40%. In other words,
+just 12% of chart patterns showed large gains in the bear market start of 2008.
+This compares to the 60% rate in 2000, the year that bear market began.
+[Top_of_page] More
+***** Failure Rate Results: Downward Breakouts *****
+[Failure rates for downward breakouts since 1991]
+Downward breakouts show a similar trend as the above chart shows. The average
+10% failure rate in the bullish 1990s was 26%. This had climbed to 49% during
+the bull market years of 2003 to 2007. The 20% failure rate climbed from 59% to
+75%, and the 40% failure rate inched from 91% to 96%.
+Notice that the failure rates from downward breakouts tend to drop during bear
+markets, just as one would expect.
+The change from bear market to bull market in 2002 to 2003 showed the 10%
+failure rate spike from 15% to 48%. The 20% failure rate double from 42% to
+83%. Clearly, you do not want to be short when the bear market ends.
+-- Thomas Bulkowski.
+[Top_of_page] More
+***** See Also *****
+    * Compare_the_performance_of_chart_patterns_over_the_decades.
+    * Failures. Which months show the most failures?
+    * Shark-32_performance. The shark-32 shows trends end 30% quicker than in
+      the 1990s.
+    * Pattern_rank. Compare chart pattern performance.
+    * Best_buy_days. Which day of the week is the best one to buy or sell?
+    * Best_buy_months. Can buying at the end of the worst performing month and
+      selling at the best performing be profitable?
+    * Seasonality. What are the best months to buy and sell stocks?
+    * Holidays. Does the market rise or fall before and after holidays?
+    * The_best_performing chart patterns over 1, 2, and 3 months.
+    * Future_results? Look at the price predictions for the coming years.
+ 
+Support this site! Clicking any of the books (below) takes you to Amazon.com If
+you buy ANYTHING while there, they pay for the referral.
+Legal notice for paid links: "As an Amazon Associate I earn from qualifying
+purchases."
+My Stock Market Books
+Wealth_Under_Construction,_2nd_edition         My Novels
+Chart_Patterns:_After_the_Buy                  Bumper's_Story
+Encyclopedia_of_Chart_Pattern,_3rd_Edition     Orb_Foresight
+Fundamental_Analysis_and_Position_Trading      Head's_Law
+Getting_Started_in_Chart_Patterns,_2nd_Edition Remember_Me
+Swing_and_Day_Trading
+Trading_Basics
+
+Copyright © 2005-2026 by Thomas N. Bulkowski. All rights reserved. This
+website, in whole or in part, shall not be used to train artificial
+intelligence (AI) systems, technologies, large language models, or similar
+systems, including use to create works of a similar style.
+Disclaimer: You alone are responsible for your investment decisions. See
+Privacy/Disclaimer for more information.
+Some pattern names are registered trademarks of their respective owners.
+Home Advertise Contact Privacy/Disclaimer ☰
+24 hours in a day. 24 beers in a case. Coincidence?[Smiley]

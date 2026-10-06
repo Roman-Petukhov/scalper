@@ -1,0 +1,201 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    * Home
+    * Issues
+      Current Archives Search
+    * For_Authors
+      Make_a_Submission Paper_Promotion
+    * Partnership
+    * Editorial_Board
+    * About
+      About_the_Journal Journal_Policy Peer-Review Register Contact
+    * Login
+lt
+Momentum Trading in Cryptocurrencies: A Comparative Study of Time-Series and
+Cross-Sectional Strategies
+[Momentum_Trading_in_Cryptocurrencies:_A_Comparative_Study_of_Time-Series_and
+Cross-Sectional_Strategies]
+ [Momentum_Trading_in_Cryptocurrencies:_A_Comparative_Study_of_Time-Series_and
+Cross-Sectional_Strategies]
+    * Home
+    * Issues
+      Current Archives Search
+    * For_Authors
+      Make_a_Submission Paper_Promotion
+    * Partnership
+    * Editorial_Board
+    * About
+      About_the_Journal Journal_Policy Peer-Review Register Contact
+    * Login
+lt
+    * Login
+lt
+Articles
+Adedeji Daniel Gbadebo
+Walter Sisulu University <?xml_version="1.0"_encoding="UTF-8"_standalone="no"?>
+image/svg+xml______________
+        https://orcid.org/0000-0002-1929-3291
+Published 2026-06-09
+  https://doi.org/10.15388/batp.2026.1
+PDF
+***** Keywords *****
+cryptocurrency
+momentum strategy
+time-series momentum
+cross-sectional momentum
+***** How to Cite *****
+Gbadebo, A.D. (2026) “Momentum Trading in Cryptocurrencies: A Comparative Study
+of Time-Series and Cross-Sectional Strategies”, Buhalterinės apskaitos teorija
+ir praktika, 33, pp. 1–25. doi:10.15388/batp.2026.1.
+ More Citation Formats
+    * ABNT
+    * ACM
+    * ACS
+    * APA
+    * Chicago
+    * Harvard
+    * IEEE
+    * MLA
+    * Turabian
+    * Vancouver
+Download Citation
+    * _Endnote/Zotero/Mendeley_(RIS)
+    * _BibTeX
+    * Home /
+    * Buhalterinės_apskaitos_teorija_ir_praktika /
+    * Vol._33_(2026):_Accounting_Theory_and_Practice /
+    *  Momentum Trading in Cryptocurrencies: A Comparative Study of Time-Series
+      and Cross-Sectional Strategies
+Vol._33_(2026)
+****** Momentum Trading in Cryptocurrencies: A Comparative Study of Time-Series
+and Cross-Sectional Strategies ******
+***** Abstract *****
+Momentum-based trading strategies are widely employed in financial markets and
+have become increasingly relevant within the cryptocurrency ecosystem. This
+study examines the profitability of momentum-based trading strategies in
+cryptocurrency markets using a multi-horizon exponential moving average (EMA)
+framework. The analysis covers eight major cryptocurrencies, Bitcoin, Ethereum,
+Litecoin, Ripple, Binance Coin, Cardano, Dogecoin, and Solana over the period 1
+January 2020 to 31 October 2025. Momentum signals are constructed using short-
+and long-term Exponential Moving Average (EMAs) combined with volatility
+normalization to ensure comparability across assets. Two portfolio structures
+are evaluated: time-series momentum, which adjusts exposure for each asset
+individually, and cross-sectional momentum, which ranks assets by relative
+strength. Empirical results show that momentum effects remain economically
+meaningful in digital assets. Time-series momentum delivers superior
+performance, achieving an annual return of 31.96% and outperforming cross-
+sectional momentum on a risk-adjusted basis. Cross-sectional momentum exhibits
+higher max drawdowns of 55.0% but lower overall profitability in terms of
+annual returns, partly due to high correlations among cryptocurrencies. The
+findings confirm that trend persistence and volatility remain key drivers of
+momentum profitability in crypto markets.
+PDF
+***** References *****
+[Creative_Commons_License]
+This work is licensed under a Creative_Commons_Attribution_4.0_International
+License.
+***** Downloads *****
+Download data is not yet available.
+***** Most read articles by the same author(s) *****
+    * Adedeji Daniel Gbadebo, Comparative_Analysis_of_Deep_Learning_Models_for
+      Cryptocurrency_Price_Predictions:_Evidence_Based_on_Bitcoin_(BTC),
+      Ethereum_(ETH),_Ripple_(XRP)_and_Solana_(SOL), Buhalterinės_apskaitos
+      teorija_ir_praktika:_Vol._32_(2025):_Accounting_Theory_and_Practice
+***** Make a Submission *****
+Make_a_Submission
+***** Information *****
+    * For_Readers
+    * For_Authors
+    * For_Librarians
+***** Latest publications *****
+    * [Atom_logo]
+    * [RSS2_logo]
+    * [RSS1_logo]
+Vilnius University Press
+Tel. +370 5 268 7184, E-mail: info@leidykla.vu.lt
+9 Saulėtekis av., LT10257 Vilnius
+https://www.leidykla.vu.lt
+[Creative_Commons_License]
+
+Vilnius University Press platform and metadata are distributed by Creative
+Commons_International_License.
+[More_information_about_the_publishing_system,_Platform_and_Workflow_by_OJS/
+PKP.]
+ ×
+
+ Username *  Required   [username            ]
+ Password *  Required   [********************]
+
+Forgot_your_password?
+*  Keep me logged in
+ Login
+or
+ Sign_in_with_Orcid
+
+ Sign_in_with_Google
+No account? Register_here
+
