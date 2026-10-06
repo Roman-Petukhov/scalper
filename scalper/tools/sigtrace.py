@@ -37,7 +37,7 @@ def main(symbol: str, tf_s: str, side: int, since: str) -> None:
         last = len(d) - 1
         c = d["close"].to_numpy()
         atr = _atr(d).to_numpy()
-        trend = htf_trend(d, tf.value)[last]
+        trend = int(htf_trend(d, tf.value)[last])
         buy = d["taker_buy_volume"].iloc[last] / d["volume"].iloc[last]
         aggr = buy if side > 0 else 1 - buy
         rng = d["high"].iloc[last] - d["low"].iloc[last]
