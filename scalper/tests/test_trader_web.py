@@ -29,6 +29,13 @@ class _Market:
         return pd.DataFrame({"open": 100.0, "high": 102.0, "low": 99.0, "close": 101.0, "volume": 1.0,
                              "taker_buy_volume": 0.5}, index=idx)
 
+    async def bars_between(self, symbol, tf, start, end):
+        if symbol == "ETHUSDT":
+            raise RuntimeError("биржа молчит")
+        idx = pd.date_range(start, end, freq=f"{tf.minutes}min")
+        return pd.DataFrame({"open": 100.0, "high": 102.0, "low": 99.0, "close": 101.0, "volume": 1.0,
+                             "taker_buy_volume": 0.5}, index=idx)
+
 
 @pytest.fixture()
 def env(tmp_path):
@@ -410,3 +417,9 @@ def test_journal_export_for_review(env):
     assert row["trade"]["hedge_beta"] == 1.2 and row["trade"]["hedge_r"] is not None
     gone = next(x for x in d["signals"] if x["symbol"] == "ETHUSDT")
     assert gone["status"] == "expired" and gone["note"] == "время на вход вышло" and gone["trade"] is None
+    b = row["bars"]                                       # свечи вокруг сигнала: от начала линии
+    assert row["bars_error"] is None and len(b["t"]) == len(b["c"]) > 20 and b["t"] == sorted(b["t"])
+    assert b["t"][0] <= int(pd.Timestamp(row["line_a_time"]).timestamp())
+    assert gone["bars"] is None and "биржа молчит" in gone["bars_error"]      # одна монета не помешала выгрузке
+    quick = c.get("/export/journal.json?bars=0").json()
+    assert "bars" not in quick["signals"][0] and quick["bars_source"] is None

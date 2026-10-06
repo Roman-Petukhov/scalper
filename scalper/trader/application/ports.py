@@ -23,6 +23,9 @@ class MarketData(Protocol):
     async def live_bars(self, symbol: str, tf: Timeframe, limit: int = 300) -> pd.DataFrame:
         """Последние свечи вместе с текущей, ещё не закрытой (для живого графика)."""
 
+    async def bars_between(self, symbol: str, tf: Timeframe, start: datetime, end: datetime) -> pd.DataFrame:
+        """Свечи с открытием в [start, end] (последняя может быть не закрыта), не больше 1500 — для выгрузки."""
+
 
 class SignalRepository(Protocol):
     def add(self, signal: Signal) -> Signal | None:

@@ -218,6 +218,40 @@ def test_binance_closed_bars_drop_open_candle_and_merge_tail():
     assert calls == [1500, 6] and len(d2) == 3
 
 
+def test_binance_bars_between_asks_window():
+    seen = {}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen.update(req.url.params)
+        return httpx.Response(200, json=[[1_700_000_000_000, "1", "2", "0.5", "1.5", "10", 1_700_014_399_999,
+                                          "15", 3, "6", "9", "0"]])
+
+    md = BinanceMarketData(httpx.AsyncClient(base_url="https://x", transport=httpx.MockTransport(handler)))
+    a, b = datetime(2026, 9, 1, tzinfo=timezone.utc), datetime(2026, 9, 3, tzinfo=timezone.utc)
+    d = asyncio.run(md.bars_between("SOLUSDT", Timeframe.H4, a, b))
+    assert seen["startTime"] == str(int(a.timestamp() * 1000)) and seen["endTime"] == str(int(b.timestamp() * 1000))
+    assert seen["interval"] == "4h" and len(d) == 1 and "close_time" not in d
+
+
+def test_export_bars_window_covers_line_trade_and_aftermath():
+    from trader.application.export import AFTER_EXIT, AFTER_SIGNAL, BARS_BEFORE, MAX_BARS, bars_window
+    from trader.domain.execution import Trade, TradeResult, TradeStatus
+    s = _signal()
+    step = timedelta(hours=4)
+    far = s.bar_time + 1000 * step
+    start, end = bars_window(s, None, far)                         # не вошли: что было потом
+    assert start == max(s.line_points[0][0], s.bar_time - 300 * step) - BARS_BEFORE * step
+    assert end == s.bar_time + AFTER_SIGNAL * step
+    assert bars_window(s, None, s.bar_time + step)[1] == s.bar_time + step     # не заглядываем в будущее
+    t = Trade(1, s.symbol, s.side, s.plan.entry_kind, 1.0, 100.0, 95.0, 115.0, "o", "demo", TradeStatus.FILLED)
+    assert bars_window(s, t, far)[1] == far                        # сделка открыта — до сейчас
+    exit_at = s.bar_time + 30 * step
+    done = replace(t, status=TradeStatus.CLOSED, result=TradeResult(100.0, 115.0, 15.0, exit_at))
+    assert bars_window(s, done, far)[1] == exit_at + AFTER_EXIT * step
+    a, b = bars_window(s, t, s.bar_time + 5000 * step)             # не больше одного запроса к бирже
+    assert (b - a) / step <= MAX_BARS - 1
+
+
 def test_binance_universe_filters_turnover_contracts_and_non_crypto():
     def handler(req: httpx.Request) -> httpx.Response:
         if req.url.path.endswith("exchangeInfo"):

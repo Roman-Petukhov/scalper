@@ -23,7 +23,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .. import scheduler
 from ..application.execution import Executor
-from ..application.export import journal_export
+from ..application.export import collect_bars, journal_export
 from ..application.live_chart import chart_payload
 from ..application.ports import Broker, MarketData, Notifier
 from ..application.services import Scanner, SettingsService, SignalDecisions
@@ -255,12 +255,14 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         return templates.TemplateResponse(request, "index.html", page_context(request))
 
     @app.get("/export/journal.json")
-    async def export_journal(request: Request):
-        """Все сигналы и сделки одним файлом — для разбора: что сработало, что нет."""
+    async def export_journal(request: Request, bars: int = 1):
+        """Все сигналы и сделки одним файлом — для разбора: что сработало, что нет. bars=0 — без свечей (быстро)."""
         guard(request)
         sigs = store.recent(100_000)
         now = datetime.now(timezone.utc)
-        data = journal_export(sigs, store.trades_for([x.id for x in sigs if x.id is not None]), settings_svc.get(), now)
+        trades = store.trades_for([x.id for x in sigs if x.id is not None])
+        candles = await collect_bars(market, sigs, trades, now) if bars else None
+        data = journal_export(sigs, trades, settings_svc.get(), now, candles)
         return JSONResponse(data, headers={"Content-Disposition": f'attachment; filename="journal-{now:%Y%m%d-%H%M}.json"'})
 
     @app.get("/journal", response_class=HTMLResponse)

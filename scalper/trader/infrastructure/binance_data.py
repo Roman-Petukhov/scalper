@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from datetime import datetime
 
 import httpx
 import pandas as pd
@@ -103,6 +104,12 @@ class BinanceMarketData:
         df = self._frame(rows).drop(columns="close_time")
         self._live[key] = (now, df)
         return df
+
+    async def bars_between(self, symbol: str, tf: Timeframe, start: datetime, end: datetime) -> pd.DataFrame:
+        rows = await self._get("/fapi/v1/klines", {"symbol": symbol, "interval": tf.value, "limit": HISTORY,
+                                                   "startTime": int(start.timestamp() * 1000),
+                                                   "endTime": int(end.timestamp() * 1000)})
+        return self._frame(rows).drop(columns="close_time")
 
     async def aclose(self) -> None:
         await self.client.aclose()
