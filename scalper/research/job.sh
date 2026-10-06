@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"prepw wide15"}
+TASKS=${TASKS:-"prepq side"}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
 FILTER="Pandas4Warning\|pd.concat\|файлов$\|мес. свечей"
@@ -87,6 +87,8 @@ tline_report() {
   echo "===== TLINE: линия тренда по закрытиям, пробой с закреплением, ретест, лесенка 3R / 5R ====="
   pip install -q lightgbm && python -m research.tline report
 }
+side_collect() { python -m research.sidecap collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
+side_report() { python -m research.sidecap report; }
 prepw_collect() { python -m research.prepare 1h-qualified 15m-wide; }
 prepw_report() { :; }
 wide15_collect() { python -m research.wide15 collect --symbols "$(cat /tmp/syms_15m-wide.txt)"; }
