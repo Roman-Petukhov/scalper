@@ -83,6 +83,7 @@ class TfParams:
     top_n: int = 0                      # только столько самых ликвидных монет (по обороту за 24 ч); 0 — все с порогом
     max_hold_bars: int = 60             # позиция закрывается по рынку через столько свечей (как в бэктесте)
     max_positions: int = 0              # не больше стольких позиций этого ТФ сразу (внутри общего лимита); 0 — только общий
+    hedge_btc: bool = False             # к сделке — обратная позиция BTC на бету монеты (domain/hedge.py)
 
     def __post_init__(self) -> None:
         if not 0.05 <= self.risk_pct <= 5.0:
@@ -109,6 +110,8 @@ class TfParams:
             raise ValueError("срок сделки — от 1 до 1000 свечей")
         if not (isinstance(self.max_positions, int) and 0 <= self.max_positions <= 50):
             raise ValueError("позиций таймфрейма — от 0 (только общий лимит) до 50")
+        if not isinstance(self.hedge_btc, bool):
+            raise ValueError("хедж BTC — да или нет")
 
 
 # Лучшее по бэктесту (docs/research_report.md): 4h — основная стратегия (ретест, закрытие в верхней половине свечи);
@@ -155,6 +158,11 @@ class Settings:
         missing = set(Timeframe) - set(self.tf_params)
         if missing:
             object.__setattr__(self, "tf_params", {**{t: DEFAULT_TF_PARAMS[t] for t in missing}, **self.tf_params})
+
+    @property
+    def hedging(self) -> bool:
+        """Хедж BTC включён хотя бы для одного таймфрейма."""
+        return any(p.hedge_btc for p in self.tf_params.values())
 
     def p(self, tf: Timeframe) -> TfParams:
         """Правило входа и риск таймфрейма."""

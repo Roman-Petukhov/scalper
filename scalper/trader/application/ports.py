@@ -7,7 +7,7 @@ import pandas as pd
 
 from datetime import datetime
 
-from ..domain.execution import Account, ClosedPnl, Instrument, OrderRequest, Trade, TradeResult, TradeStatus
+from ..domain.execution import Account, ClosedPnl, HedgeLeg, Instrument, OrderRequest, Trade, TradeResult, TradeStatus
 from ..domain.journal import JournalEntry
 from ..domain.models import Settings, Signal, SignalStatus, Timeframe
 
@@ -74,6 +74,9 @@ class Broker(Protocol):
 
     async def cancel(self, symbol: str, order_id: str) -> None: ...
 
+    async def adjust(self, symbol: str, qty: float, leverage: int) -> None:
+        """Рыночный ордер без стопа и цели: qty > 0 — купить, < 0 — продать (позиция хеджа BTC)."""
+
     async def close_position(self, symbol: str) -> None:
         """Закрыть позицию по монете по рынку (reduce-only); стоп и цель биржа снимает сама."""
 
@@ -100,6 +103,8 @@ class TradeRepository(Protocol):
 
     def set_trade_filled(self, trade_id: int, at: datetime) -> None:
         """Вход исполнился: статус «на бирже» и время исполнения."""
+
+    def set_trade_hedge(self, trade_id: int, hedge: HedgeLeg) -> None: ...
 
     def unsettled_trades(self) -> list[Trade]:
         """Исполненные сделки без записанного итога (на бирже или закрытые по сроку), новые первыми."""

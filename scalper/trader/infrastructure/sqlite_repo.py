@@ -8,7 +8,7 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-from ..domain.execution import Trade, TradeResult, TradeStatus
+from ..domain.execution import HedgeLeg, Trade, TradeResult, TradeStatus
 from ..domain.journal import JournalEntry
 from ..domain.models import (DEFAULT_TF_PARAMS, RETIRED_TIMEFRAMES, SETTINGS_ONCE, STRATEGY_RESETS, TF_FIELDS, TF_SETTINGS_ONCE, EntryKind, EntryPolicy, Mode, Settings,
                              Side, SideFilter, Signal, SignalStatus, TfParams, Timeframe, TradePlan)
@@ -38,6 +38,17 @@ CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 
 def _dt(s: str) -> datetime:
     return datetime.fromisoformat(s)
+
+
+def _hedge(raw: str | None) -> HedgeLeg | None:
+    if not raw:
+        return None
+    p = json.loads(raw)
+    return HedgeLeg(p["beta"], p.get("btc_in"), p.get("btc_out"))
+
+
+def _hedge_json(h: HedgeLeg | None) -> str | None:
+    return json.dumps({"beta": h.beta, "btc_in": h.btc_in, "btc_out": h.btc_out}) if h is not None else None
 
 
 def _result(raw: str | None) -> TradeResult | None:
@@ -84,7 +95,8 @@ class SqliteStore:
     def _migrate_trades(self) -> None:
         """Колонки журнала в базе прежней версии: время исполнения, итог, отметка «итог больше не ищем»."""
         have = {r["name"] for r in self.db.execute("PRAGMA table_info(trades)")}
-        for col, ddl in (("filled_at", "TEXT"), ("result", "TEXT"), ("settled", "INTEGER NOT NULL DEFAULT 0")):
+        for col, ddl in (("filled_at", "TEXT"), ("result", "TEXT"), ("settled", "INTEGER NOT NULL DEFAULT 0"),
+                         ("hedge", "TEXT")):
             if col not in have:
                 self.db.execute(f"ALTER TABLE trades ADD COLUMN {col} {ddl}")
 
@@ -295,21 +307,27 @@ class SqliteStore:
                      network=r["network"], status=TradeStatus(r["status"]),
                      expires_at=_dt(r["expires_at"]) if r["expires_at"] else None,
                      created_at=_dt(r["created_at"]), id=r["id"],
-                     filled_at=_dt(r["filled_at"]) if r["filled_at"] else None, result=_result(r["result"]))
+                     filled_at=_dt(r["filled_at"]) if r["filled_at"] else None, result=_result(r["result"]),
+                     hedge=_hedge(r["hedge"]))
 
     def add_trade(self, trade: Trade) -> Trade:
         created = trade.created_at or datetime.now(timezone.utc)
         with self.lock:
             cur = self.db.execute(
                 "INSERT INTO trades(signal_id, symbol, side, kind, qty, price, stop, target, order_id, network, status,"
-                " expires_at, created_at, filled_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                " expires_at, created_at, filled_at, hedge) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (trade.signal_id, trade.symbol, int(trade.side), trade.kind.value, trade.qty, trade.price, trade.stop,
                  trade.target, trade.order_id, trade.network, trade.status.value,
                  trade.expires_at.isoformat() if trade.expires_at else None, created.isoformat(),
-                 trade.filled_at.isoformat() if trade.filled_at else None))
+                 trade.filled_at.isoformat() if trade.filled_at else None, _hedge_json(trade.hedge)))
             self.db.commit()
             row = self.db.execute("SELECT * FROM trades WHERE id = ?", (cur.lastrowid,)).fetchone()
         return self._trade(row)
+
+    def set_trade_hedge(self, trade_id: int, hedge: HedgeLeg) -> None:
+        with self.lock:
+            self.db.execute("UPDATE trades SET hedge = ? WHERE id = ?", (_hedge_json(hedge), trade_id))
+            self.db.commit()
 
     def trades_for(self, signal_ids: list[int]) -> dict[int, Trade]:
         if not signal_ids:

@@ -83,6 +83,13 @@
              value="{{ ((v * k) | round | int) if k == 100 else v }}" aria-label="{{ label }} {{ tf.value }}">
       {% endfor %}
       {% endfor %}
+      <label title="К каждой сделке — обратная позиция BTC на бету монеты к BTC (60 дней 4h)">Хедж BTC на бету</label>
+      {% for tf in Timeframe | reverse %}
+      <select name="{{ tf.value }}__hedge_btc" aria-label="Хедж BTC {{ tf.value }}">
+        <option value="0"{% if not s.p(tf).hedge_btc %} selected{% endif %}>нет</option>
+        <option value="1"{% if s.p(tf).hedge_btc %} selected{% endif %}>да</option>
+      </select>
+      {% endfor %}
       <label>Только после пробоя 4h, ч</label>
       {% for tf in Timeframe | reverse %}
       {% if HTF_CONFIRM.get(tf) %}
@@ -92,6 +99,7 @@
       {% else %}<span class="cell-na" title="Старшего ТФ нет">—</span>{% endif %}
       {% endfor %}
     </div>
+    <p class="hint">Хедж BTC: к каждой сделке — позиция BTCUSDT в обратную сторону на бету монеты, все хеджи сведены в одну позицию и подгоняются раз в минуту. Бэктест 4h: R в месяц +3.1 → +2.6, худший месяц −9.0 → −4.4R — риск на сделку можно поднять до 1.3–1.5%. Пока хедж включён, BTCUSDT бот не торгует, а позицию BTCUSDT на счёте ведёт хедж.</p>
     <div class="sub-label">Общие для счёта</div>
     <div class="per-tf per-acct num" style="--cols: {{ Timeframe | list | length }}">
       <label for="leverage">Плечо, ×</label>
@@ -104,7 +112,7 @@
     <div class="row" style="margin-top:14px">
       <button class="btn primary" type="submit">Сохранить</button>
       <button type="button" class="btn ghost" hx-post="/settings/reset" hx-target="#controls"
-            hx-confirm="Вернуть настройки к стандартным? Для обоих ТФ: агрессоры 55%, цель 3R, закрытие у края свечи 50%; 4h — ретест, обе стороны, риск 1%; 15m — по рынку, только шорт, линия не круче 0.025 ATR/свечу, риск 0.25%; плечо 5×, до 12 позиций, дневной стоп 4%. Таймфреймы и режим ручной / авто не изменятся.">По умолчанию</button>
+            hx-confirm="Вернуть настройки к стандартным? Для обоих ТФ: агрессоры 55%, цель 3R, закрытие у края свечи 50%; 4h — ретест, обе стороны, риск 1%; 15m — по рынку, только шорт, линия не круче 0.025 ATR/свечу, риск 0.25%; плечо 5×, до 12 позиций, дневной стоп 4%, хедж BTC выключен. Таймфреймы и режим ручной / авто не изменятся.">По умолчанию</button>
       {% if params_error %}<span class="err" role="alert">{{ params_error }}</span>
       {% elif params_saved %}<span class="ok" role="status">Сохранено</span>
       {% elif reset_done %}<span class="ok" role="status">Стандартные настройки восстановлены</span>{% endif %}
@@ -170,6 +178,9 @@
       {% if st.level_closed %}
       <p class="hint num">«+ уровень»: {{ st.level_closed }} сделок, {{ '%+.2f' % st.level_avg_r }}R{% if st.plain_avg_r is not none %} · остальные {{ '%+.2f' % st.plain_avg_r }}R{% endif %}</p>
       {% endif %}
+      {% if st.hedged_closed %}
+      <p class="hint num">С хеджем BTC: {{ st.hedged_closed }} сделок, сама сделка {{ '%+.2f' % st.hedged_trade_r }}R · с хеджем {{ '%+.2f' % st.hedged_total_r }}R</p>
+      {% endif %}
       {% if st.health %}<p class="hint jr-health jr-{{ st.health.level.value }}">{{ st.health.text }}</p>{% endif %}
     </div>
   {% endfor %}
@@ -181,7 +192,7 @@
       <span role="cell" class="hint" style="margin:0">{{ t.result.closed_at | lt if t.result else t.created_at | lt('dm') }}</span>
       <span role="cell">{{ t.symbol }} {{ e.timeframe.value }} <span class="{{ 'jr-up' if t.side.value == 1 else 'jr-down' }}">{{ t.side.label }}</span>{% if e.at_level %} · ур.{% endif %}</span>
       <span role="cell" class="{{ 'jr-up' if (t.r_multiple or 0) > 0 else 'jr-down' }}">{{ '%+.2f' % t.r_multiple ~ 'R' if t.r_multiple is not none else '—' }}</span>
-      <span role="cell" class="hint" style="margin:0">{{ t.exit_reason }}{% if t.slippage_r is not none and t.slippage_r|abs >= 0.05 %} · проск. {{ '%+.2f' % t.slippage_r }}R{% endif %}</span>
+      <span role="cell" class="hint" style="margin:0">{{ t.exit_reason }}{% if t.slippage_r is not none and t.slippage_r|abs >= 0.05 %} · проск. {{ '%+.2f' % t.slippage_r }}R{% endif %}{% if t.hedge_r is not none %} · хедж {{ '%+.2f' % t.hedge_r }}R{% endif %}</span>
     </div>
     {% endfor %}
   </div>

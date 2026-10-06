@@ -122,16 +122,19 @@ class BybitBroker:
         return Account(equity=equity, available=available, upnl=sum(p.upnl for p in pos),
                        positions=tuple(sorted(pos, key=lambda x: -abs(x.upnl))), pending_symbols=pending)
 
+    async def _set_leverage(self, leverage: int, sym: str) -> None:
+        try:
+            await self.ex.set_leverage(leverage, sym)
+        except ccxt.BadRequest as e:                           # 110043: плечо уже такое
+            if "110043" not in str(e) and "not modified" not in str(e).lower():
+                raise
+
     async def place(self, order: OrderRequest) -> str:
         m = await self._market(order.symbol)
         if m is None:
             raise ValueError(f"{order.symbol} не торгуется на Bybit")
         sym = m["symbol"]
-        try:
-            await self.ex.set_leverage(order.leverage, sym)
-        except ccxt.BadRequest as e:                           # 110043: плечо уже такое
-            if "110043" not in str(e) and "not modified" not in str(e).lower():
-                raise
+        await self._set_leverage(order.leverage, sym)
         side = "buy" if order.side is Side.LONG else "sell"
         params = {"stopLoss": {"triggerPrice": order.stop}, "takeProfit": {"triggerPrice": order.target},
                   "positionIdx": 0, "clientOrderId": order.client_id}
@@ -150,6 +153,14 @@ class BybitBroker:
         if m is None:
             raise ValueError(f"{symbol} не торгуется на Bybit")
         await self.ex.cancel_order(order_id, m["symbol"])
+
+    async def adjust(self, symbol: str, qty: float, leverage: int) -> None:
+        m = await self._market(symbol)
+        if m is None:
+            raise ValueError(f"{symbol} не торгуется на Bybit")
+        await self._set_leverage(leverage, m["symbol"])
+        await self.ex.create_order(m["symbol"], "market", "buy" if qty > 0 else "sell", abs(qty), None,
+                                   {"positionIdx": 0})
 
     async def close_position(self, symbol: str) -> None:
         m = await self._market(symbol)

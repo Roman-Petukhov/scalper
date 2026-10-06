@@ -171,6 +171,17 @@ def build_order(signal: Signal, settings: Settings, account: Account, instrument
                         qty * abs(entry - stop))
 
 
+HEDGE_FEE = 5.5e-4          # тейкер Bybit на сторону: оценка комиссий хеджа BTC в журнале (domain/hedge.py)
+
+
+@dataclass(frozen=True)
+class HedgeLeg:
+    """Хедж сделки позицией BTC (domain/hedge.py): бета на момент входа и цена BTC, когда хедж добавлен и снят."""
+    beta: float
+    btc_in: float | None = None
+    btc_out: float | None = None
+
+
 class TradeStatus(str, Enum):
     PLACED = "placed"           # ордер входа на бирже (лимитка ждёт ретеста)
     FILLED = "filled"           # вход исполнен, позиция со стопом и целью на бирже
@@ -227,6 +238,18 @@ class Trade:
     id: int | None = None
     filled_at: datetime | None = None       # когда вход исполнился (рынок — сразу, ретест — когда заметили)
     result: TradeResult | None = None
+    hedge: HedgeLeg | None = None
+
+    @property
+    def hedge_r(self) -> float | None:
+        """Итог хеджа BTC в R сделки (оценка по ценам BTC при добавлении и снятии хеджа, с комиссиями тейкера):
+        BTC против стороны сделки на бету × номинал входа."""
+        h = self.hedge
+        if h is None or not h.btc_in or not h.btc_out or self.qty * self.risk_per_unit <= 0:
+            return None
+        notional = h.beta * self.qty * self.price
+        pnl = -int(self.side) * notional * (h.btc_out / h.btc_in - 1) - 2 * HEDGE_FEE * notional
+        return pnl / (self.qty * self.risk_per_unit)
 
     @property
     def opened_at(self) -> datetime | None:

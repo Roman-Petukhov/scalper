@@ -86,7 +86,7 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
                 if cfg.telegram_token and cfg.telegram_chat_id else None)
     notify = MultiNotifier(push, telegram, notifier)
     holder = BrokerHolder(store)
-    executor = Executor(broker or holder, store, store, store, notify)
+    executor = Executor(broker or holder, store, store, store, notify, market=market)
     heartbeat = HttpHeartbeat(cfg.heartbeat_url) if cfg.heartbeat_url else None
     scanner = Scanner(market, store, store, charts, notify, cfg.panel_url, executor=executor, heartbeat=heartbeat)
     settings_svc = SettingsService(store)
@@ -314,7 +314,8 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
                               "htf_confirm_h": int(form.get(f"{tf.value}__htf_confirm_h", "0")),
                               "sides": SideFilter(f("sides")), "max_slope_atr": float(f("max_slope_atr")),
                               "top_n": int(f("top_n")), "max_hold_bars": int(f("max_hold_bars")),
-                              "max_positions": int(f("tf_max_positions"))}
+                              "max_positions": int(f("tf_max_positions")),
+                              "hedge_btc": form.get(f"{tf.value}__hedge_btc", "0") == "1"}
             settings_svc.update(g, per_tf)
         except KeyError as e:
             err = f"не заполнено поле {e.args[0]}"

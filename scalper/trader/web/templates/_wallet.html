@@ -29,7 +29,7 @@
     <tbody>
     {% for p in a.positions %}
       <tr>
-        <td>{{ p.symbol }}</td>
+        <td>{{ p.symbol }}{% if p.symbol == w.hedge_symbol %} <span class="badge" title="Позиция ведётся хеджем BTC: против открытых сделок на бету монет">хедж</span>{% endif %}</td>
         <td class="{{ 'long' if p.side.value > 0 else 'short' }}">{{ p.side.label }}</td>
         <td>{{ '%.6g' | format(p.qty) }}</td>
         <td>{{ '%.6g' | format(p.entry) }}</td>

@@ -10,17 +10,19 @@ from datetime import datetime, timezone
 
 from datetime import timedelta
 
-from ..domain.execution import (Account, ExecutionRefused, Trade, TradeResult, TradeStatus, build_order, settle,
-                                target_reached)
+from ..domain.execution import (Account, ExecutionRefused, HedgeLeg, Trade, TradeResult, TradeStatus, build_order,
+                                settle, target_reached)
+from ..domain.hedge import HEDGE_SYMBOL, beta, held_qty, rebalance, target_qty, without_hedge
 from ..domain.journal import Health, tf_stats
 from ..domain.models import Signal, SignalStatus, Timeframe
 from .pnl import PnlHistory, PnlPeriod
-from .ports import Broker, Notifier, SettingsRepository, SignalRepository, TradeRepository
+from .ports import Broker, MarketData, Notifier, SettingsRepository, SignalRepository, TradeRepository
 
 log = logging.getLogger(__name__)
 
 PNL_WINDOW = timedelta(days=6, hours=23)    # биржа отдаёт закрытия окнами не длиннее 7 дней
 GIVE_UP = timedelta(days=8)                 # закрытия так и не нашлось — итог «нет данных», больше не ищем
+HEDGE_KEY = "hedge:held"                    # "1" — позицию BTCUSDT ведёт хедж (не трогать ручную, пока хеджа не было)
 
 
 def _utcnow() -> datetime:
@@ -34,6 +36,7 @@ class Wallet:
     day_start: float
     updated: datetime
     periods: tuple[PnlPeriod, ...] = ()
+    hedge_symbol: str | None = None         # эта позиция — хедж BTC, а не сделка
 
     @property
     def day_pnl(self) -> float:
@@ -48,9 +51,9 @@ class Wallet:
 class Executor:
     def __init__(self, broker: Callable[[], Broker | None], signals: SignalRepository,
                  settings: SettingsRepository, trades: TradeRepository, notifier: Notifier | None = None,
-                 clock: Callable[[], datetime] = _utcnow) -> None:
+                 clock: Callable[[], datetime] = _utcnow, market: MarketData | None = None) -> None:
         self.broker, self.signals, self.settings, self.trades = broker, signals, settings, trades
-        self.notifier, self.clock = notifier, clock
+        self.notifier, self.clock, self.market = notifier, clock, market
         self.lock = asyncio.Lock()          # ручной и авто-вход не должны открыть одну монету дважды
         self.pnl = PnlHistory(trades, clock)
 
@@ -73,7 +76,8 @@ class Executor:
             return None
         acc = await b.account()
         return Wallet(b.network, acc, self._day_start(acc.equity), self.clock(),
-                      tuple(self.pnl.periods(b.network, acc.equity)))
+                      tuple(self.pnl.periods(b.network, acc.equity)),
+                      HEDGE_SYMBOL if self._hedge_managed(self.settings.load()) else None)
 
     async def refresh_pnl(self) -> None:
         """Раз в минуту: реализованный PnL за сегодня и догрузка истории для недели / 30 дней / полугода."""
@@ -103,22 +107,32 @@ class Executor:
             fresh = self.signals.get(signal.id) if signal.id is not None else None
             if fresh is None or fresh.status is not SignalStatus.NEW:
                 raise ExecutionRefused("сигнал уже обработан")
+            settings = self.settings.load()
+            hedged = self._hedge_managed(settings)
+            if hedged and signal.symbol == HEDGE_SYMBOL:
+                raise ExecutionRefused(f"{HEDGE_SYMBOL} занят хеджем — по нему бот не входит")
             try:
                 inst = await b.instrument(signal.symbol)
                 if inst is None:
                     raise ExecutionRefused(f"{signal.symbol} не торгуется на Bybit")
                 acc, price = await asyncio.gather(b.account(), b.price(signal.symbol))
-                req = build_order(signal, self.settings.load(), acc, inst, price, self._day_start(acc.equity),
+                if hedged:
+                    acc = without_hedge(acc)                         # позиция хеджа не занимает место сделки
+                req = build_order(signal, settings, acc, inst, price, self._day_start(acc.equity),
                                   self.clock(), self._tf_open(acc, signal.timeframe))
+                leg = await self._hedge_leg(signal) if settings.p(signal.timeframe).hedge_btc else None
                 order_id = await b.place(req)
             except ExecutionRefused:
                 raise
             except Exception as e:                                   # сеть, ключи, отказ биржи
                 log.exception("ордер %s", signal.symbol)
                 raise ExecutionRefused(f"биржа отклонила: {_short(e)}") from e
-            trade = self.trades.add_trade(Trade.from_order(req, order_id, b.network, self.clock()))
+            trade = self.trades.add_trade(replace(Trade.from_order(req, order_id, b.network, self.clock()), hedge=leg))
             label = "Bybit демо" if b.network == "demo" else "Bybit"
-            self.signals.set_status(signal.id, SignalStatus.TAKEN, f"{label}: {req.describe()}")
+            note = ""
+            if settings.p(signal.timeframe).hedge_btc:
+                note = f" · хедж BTC β {leg.beta:.2f}" if leg else " · без хеджа: бету посчитать не удалось"
+            self.signals.set_status(signal.id, SignalStatus.TAKEN, f"{label}: {req.describe()}{note}")
         log.info("ордер %s: %s", order_id, req.describe())
         return trade
 
@@ -129,7 +143,7 @@ class Executor:
         b = self.broker()
         pending, filled = self.trades.pending_trades(), self.trades.filled_trades()
         unsettled = self.trades.unsettled_trades()
-        if b is None or not (pending or filled or unsettled):
+        if b is None or not (pending or filled or unsettled or self.trades.kv_get(HEDGE_KEY) == "1"):
             return
         open_ids, acc = await asyncio.gather(b.open_order_ids(), b.account())
         held = {p.symbol: p for p in acc.positions}
@@ -185,6 +199,71 @@ class Executor:
             self.trades.set_trade_status(t.id, TradeStatus.TIMED_OUT)
             await self._say(f"{t.symbol}: позиция закрыта по рынку — прошло {bars} свечей {sig.timeframe.value}")
         await self._settle_closed(b, held, now)
+        try:
+            await self._rebalance_hedge(b, acc)
+        except Exception:
+            log.exception("хедж BTC")
+
+    def _hedge_managed(self, settings) -> bool:
+        """Позицию BTCUSDT ведёт хедж: он включён в настройках или ещё держится по открытым сделкам."""
+        return settings.hedging or self.trades.kv_get(HEDGE_KEY) == "1"
+
+    async def _hedge_leg(self, signal: Signal) -> HedgeLeg | None:
+        """Бета монеты к BTC по 4h-свечам (60 дней); None — данных нет, сделка пойдёт без хеджа."""
+        if self.market is None:
+            return None
+        try:
+            coin, btc = await asyncio.gather(self.market.closed_bars(signal.symbol, Timeframe.H4),
+                                             self.market.closed_bars(HEDGE_SYMBOL, Timeframe.H4))
+        except Exception:
+            log.exception("бета %s", signal.symbol)
+            return None
+        b = beta(coin["close"], btc["close"])
+        return HedgeLeg(b) if b is not None else None
+
+    async def _rebalance_hedge(self, b: Broker, acc: Account) -> None:
+        """Позиция BTCUSDT = сумма хеджей открытых сделок (против стороны сделки на бету × номинал позиции).
+        Хедж сделки добавляется, когда её позиция появилась на бирже, и снимается, когда позиция закрылась."""
+        marked = self.trades.kv_get(HEDGE_KEY) == "1"
+        latest: dict[str, Trade] = {}
+        for t in self.trades.filled_trades():                    # новые первыми: по монете — последняя сделка
+            latest.setdefault(t.symbol, t)
+        held = {p.symbol: p for p in acc.positions}
+        open_ = [t for t in latest.values() if t.hedge is not None and t.symbol in held
+                 and held[t.symbol].side is t.side]
+        if not open_ and not marked:
+            return
+        px = await b.price(HEDGE_SYMBOL)
+        cur = held_qty(acc)
+        if not open_:
+            if cur:
+                await b.close_position(HEDGE_SYMBOL)
+                await self._say(f"Хедж BTC снят: открытых сделок с хеджем нет (было {cur:+.6g} BTC)")
+            self.trades.kv_set(HEDGE_KEY, "0")
+            return
+        for t in open_:
+            if t.hedge.btc_in is None and t.id is not None:
+                self.trades.set_trade_hedge(t.id, replace(t.hedge, btc_in=px))
+        target = target_qty(((t.side, held[t.symbol].notional, t.hedge.beta) for t in open_), px)
+        inst = await b.instrument(HEDGE_SYMBOL)
+        if inst is None:
+            return
+        self.trades.kv_set(HEDGE_KEY, "1")
+        delta = rebalance(target, cur, inst, px)
+        if delta:
+            await b.adjust(HEDGE_SYMBOL, delta, self.settings.load().leverage)
+            side = "лонг" if cur + delta > 0 else "шорт"
+            await self._say(f"Хедж BTC: {side} {abs(cur + delta):.6g} BTC (≈${abs(cur + delta) * px:,.0f}) "
+                            f"под {len(open_)} сделок")
+
+    async def _close_hedge_leg(self, b: Broker, t: Trade) -> None:
+        """Сделка закрылась: цена BTC в её хедж — для оценки итога хеджа в журнале."""
+        if t.hedge is None or t.hedge.btc_in is None or t.hedge.btc_out is not None or t.id is None:
+            return
+        try:
+            self.trades.set_trade_hedge(t.id, replace(t.hedge, btc_out=await b.price(HEDGE_SYMBOL)))
+        except Exception:
+            log.exception("цена BTC для хеджа %s", t.symbol)
 
     async def _settle_closed(self, b: Broker, held: dict, now: datetime) -> None:
         """Сделки, позиции которых уже нет, получают итог с биржи. Окно поиска — от исполнения до следующей сделки
@@ -209,6 +288,7 @@ class Executor:
             elif t.opened_at is not None and now - t.opened_at > GIVE_UP:
                 self.trades.settle_trade(t.id, status, None)
                 self._close_signal(t.signal_id)
+                await self._close_hedge_leg(b, t)
 
     async def _result(self, b: Broker, t: Trade, until: datetime | None, now: datetime) -> TradeResult | None:
         since = (t.opened_at or now) - timedelta(minutes=1)
@@ -223,6 +303,9 @@ class Executor:
     async def _settle(self, t: Trade, status: TradeStatus, res: TradeResult) -> None:
         self.trades.settle_trade(t.id, status, res)
         self._close_signal(t.signal_id)
+        b = self.broker()
+        if b is not None:
+            await self._close_hedge_leg(b, t)
         done = replace(t, status=status, result=res)
         sig = self.signals.get(t.signal_id)
         tf = f" {sig.timeframe.value}" if sig is not None else ""

@@ -90,6 +90,7 @@ class FakeBroker:
         self.acc, self.px, self.fail = acc, price, fail
         self.placed, self.cancelled, self.open, self.closed = [], [], set(), []
         self.pnl = []                                          # (монета, ClosedPnl)
+        self.adjusted = []                                     # (монета, объём со знаком) — ордера хеджа
 
     async def account(self):
         return self.acc
@@ -117,6 +118,9 @@ class FakeBroker:
 
     async def close_position(self, symbol):
         self.closed.append(symbol)
+
+    async def adjust(self, symbol, qty, leverage):
+        self.adjusted.append((symbol, qty))
 
     async def closed_pnl(self, symbol, since, until):
         return [r for sym, r in self.pnl if sym == symbol and since <= r.closed_at < until]
@@ -579,3 +583,83 @@ def test_health_check_flags_a_strategy_that_stopped_working():
     broken = [-1.0] * 9 + [3.0] + [-1.0] * 10 + [3.0] + [-1.0] * 9     # 2 цели из 30: ≈ −0.73R
     h = health(broken, 0.45, 3.0)
     assert h.level is Health.STOP and "выключить авто" in h.text and h.drawdown_r > h.drawdown_limit_r
+
+
+# ---------------- хедж BTC ----------------
+def _hedge_market(k=1.5):
+    """4h-свечи монеты с бетой k к BTC (плюс шум) и самого BTC."""
+    from test_trader_app import _Market as _M
+    rng = np.random.default_rng(3)
+    idx = pd.date_range("2026-06-01", periods=400, freq="4h", tz="UTC")
+    rb = rng.normal(0, 0.01, len(idx))
+    btc = pd.DataFrame({"close": 60000 * np.exp(np.cumsum(rb))}, index=idx)
+    coin = pd.DataFrame({"close": 100 * np.exp(np.cumsum(k * rb + rng.normal(0, 0.002, len(idx))))}, index=idx)
+    return _M({"SOLUSDT": coin, "BTCUSDT": btc})
+
+
+def test_beta_rebalance_and_hedge_r_domain():
+    from trader.domain.execution import HedgeLeg
+    from trader.domain.hedge import beta, rebalance, target_qty, without_hedge
+    m = _hedge_market(1.5)
+    assert beta(m.frames["SOLUSDT"]["close"], m.frames["BTCUSDT"]["close"]) == pytest.approx(1.5, abs=0.05)
+    assert beta(m.frames["SOLUSDT"]["close"].iloc[:50], m.frames["BTCUSDT"]["close"]) is None   # мало свечей
+    # шорт на $1000 с бетой 1.5 и лонг на $500 с бетой 1 → BTC лонг $1500 − $500 = $1000
+    assert target_qty([(Side.SHORT, 1000, 1.5), (Side.LONG, 500, 1.0)], 50000) == pytest.approx(0.02)
+    btc = replace(INST, symbol="BTCUSDT", qty_step=0.001, min_qty=0.001)
+    assert rebalance(0.020, 0.0, btc, 50000) == pytest.approx(0.020)
+    assert rebalance(0.020, 0.019, btc, 50000) == 0.0                     # разница < 10% — не трогаем
+    assert rebalance(0.0, 0.019, btc, 50000) == pytest.approx(-0.019)     # сделок нет — закрыть всё
+    acc = replace(ACC, positions=(Position("BTCUSDT", Side.LONG, 0.02, 50000, 50000, 0),
+                                  Position("SOLUSDT", Side.SHORT, 10, 100, 100, 0)))
+    assert [p.symbol for p in without_hedge(acc).positions] == ["SOLUSDT"]
+    from trader.domain.execution import Trade
+    t = Trade(1, "SOLUSDT", Side.SHORT, EntryKind.MARKET, 10, 100, 102, 94, "o", "demo",
+              hedge=HedgeLeg(1.5, 50000, 51000))                          # BTC +2%, хедж-лонг на $1500
+    assert t.hedge_r == pytest.approx((1500 * 0.02 - 2 * 5.5e-4 * 1500) / 20)
+
+
+def test_hedged_trade_opens_and_closes_btc_position(tmp_path):
+    b = FakeBroker()
+    clock = Clock(NOW)
+    st = SqliteStore(tmp_path / "t.db")
+    st.save(Settings().with_tf(Timeframe.H4, hedge_btc=True))
+    ex = Executor(lambda: b, st, st, st, None, clock, market=_hedge_market(1.5))
+    s = st.add(_signal())                                   # лонг SOL по рынку
+    tr = asyncio.run(ex.execute(st.get(s.id)))
+    assert tr.hedge is not None and tr.hedge.beta == pytest.approx(1.5, abs=0.05)
+    assert "хедж BTC β" in st.get(s.id).note
+    b.px = 20000.0                                          # цена BTC (FakeBroker отдаёт одну цену на всё)
+    b.acc = replace(ACC, positions=(Position("SOLUSDT", Side.LONG, tr.qty, 101, 101, 0),))
+    asyncio.run(ex.housekeep())
+    (sym, qty), = b.adjusted                                # лонг SOL → шорт BTC на бету × номинал
+    assert sym == "BTCUSDT" and qty == pytest.approx(-tr.hedge.beta * tr.qty * 101 / 20000, abs=0.01)
+    assert st.trades_for([s.id])[s.id].hedge.btc_in == 20000.0
+    # BTC-позиция хеджа не занимает место сделки: при лимите в 1 позицию новая монета всё равно открывается
+    b.acc = replace(ACC, positions=(Position("SOLUSDT", Side.LONG, tr.qty, 101, 101, 0),
+                                    Position("BTCUSDT", Side.SHORT, -qty, 50000, 50000, 0)))
+    st.save(replace(st.load(), max_positions=2))
+    b.px = 101.0
+    s2 = st.add(_signal(symbol="ETHUSDT"))
+    asyncio.run(ex.execute(st.get(s2.id)))
+    btc_sig = st.add(_signal(symbol="BTCUSDT"))
+    with pytest.raises(ExecutionRefused, match="занят хеджем"):
+        asyncio.run(ex.execute(st.get(btc_sig.id)))
+    # SOL закрылась по цели: итог в журнал, цена BTC при снятии хеджа, позиция BTC закрывается
+    b.acc = replace(ACC, positions=(Position("BTCUSDT", Side.SHORT, -qty, 50000, 50000, 0),))
+    st.settle_trade(st.trades_for([s2.id])[s2.id].id, TradeStatus.CANCELLED, None)
+    b.pnl = [("SOLUSDT", ClosedPnl(Side.LONG, tr.qty, 101.0, 110.0, 20.0, NOW + timedelta(hours=2)))]
+    b.px = 19000.0
+    clock.t = NOW + timedelta(hours=3)
+    asyncio.run(ex.housekeep())
+    t = st.trades_for([s.id])[s.id]
+    assert t.status is TradeStatus.CLOSED and t.hedge.btc_out == 19000.0 and t.hedge_r > 0   # BTC упал — шорт BTC в плюсе
+    assert b.closed == ["BTCUSDT"] and st.kv_get("hedge:held") == "0"
+
+
+def test_hedge_off_leaves_manual_btc_position_alone(tmp_path):
+    b = FakeBroker(acc=replace(ACC, positions=(Position("BTCUSDT", Side.LONG, 0.01, 50000, 50000, 0),)))
+    st, ex = _exec(tmp_path, b)
+    s = st.add(_signal())
+    asyncio.run(ex.execute(st.get(s.id)))
+    asyncio.run(ex.housekeep())
+    assert not b.adjusted and not b.closed and st.trades_for([s.id])[s.id].hedge is None

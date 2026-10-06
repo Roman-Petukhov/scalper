@@ -88,6 +88,11 @@ def test_params_per_timeframe(env):
     assert 'name="1h__' not in r
     assert "от 0.05% до 5%" in c.post("/settings/params", data=_params_form(**{"15m__risk_pct": "9"}), headers=HX).text
     assert "плечо — целое от 1× до 10×" in c.post("/settings/params", data=_params_form(leverage="15"), headers=HX).text
+    assert 'name="4h__hedge_btc"' in r
+    c.post("/settings/params", data=_params_form(**{"4h__hedge_btc": "1"}), headers=HX)
+    from trader.infrastructure.sqlite_repo import SqliteStore
+    saved = SqliteStore(tmp / "trader.db").load()
+    assert saved.p(Timeframe.H4).hedge_btc and not saved.p(Timeframe.M15).hedge_btc and saved.hedging
     form = _params_form(leverage="8", **{"15m__target_r": "2", "15m__entry_policy": "market", "4h__min_close_loc_pct": "70",
                                          "15m__sides": "short", "15m__max_slope_atr": "0.05"})
     r = c.post("/settings/params", data=form, headers=HX).text

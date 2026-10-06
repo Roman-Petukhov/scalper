@@ -97,6 +97,9 @@ class TfStats:
     level_closed: int = 0       # из них с пометкой «+ уровень»
     level_avg_r: float | None = None
     plain_avg_r: float | None = None
+    hedged_closed: int = 0      # из них с хеджем BTC (оценка итога хеджа известна)
+    hedged_trade_r: float | None = None     # сами сделки
+    hedged_total_r: float | None = None     # сделка + хедж
 
     @property
     def enough(self) -> bool:
@@ -132,9 +135,11 @@ def tf_stats(entries: list[JournalEntry], target_r: dict[Timeframe, float] | Non
         retest = [t for t in own if t.kind is EntryKind.RETEST and t.status is not TradeStatus.PLACED]
         filled = [t for t in retest if t.filled_at is not None or t.status in
                   (TradeStatus.FILLED, TradeStatus.CLOSED, TradeStatus.TIMED_OUT)]
+        hd = [e.trade for e in done if e.trade.hedge_r is not None]
         bt = BACKTEST_R.get(tf)
         hc = health(rs, bt, (target_r or {}).get(tf, 3.0)) if bt is not None else None
         out.append(TfStats(tf, len(rs), _mean(rs), sum(rs), _mean([float(r > 0) for r in rs]), _mean(slips),
                            len(retest), len(filled) / len(retest) if retest else None, bt, hc,
-                           len(lv), _mean(lv), _mean([e.trade.r_multiple for e in done if not e.at_level])))
+                           len(lv), _mean(lv), _mean([e.trade.r_multiple for e in done if not e.at_level]),
+                           len(hd), _mean([t.r_multiple for t in hd]), _mean([t.r_multiple + t.hedge_r for t in hd])))
     return out
