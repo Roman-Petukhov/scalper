@@ -30,7 +30,7 @@ from ..config import AppConfig
 from ..domain.execution import TradeStatus
 from ..domain.journal import BACKTEST_DD_R, tf_stats
 from ..domain.models import (DEFAULT_TF_PARAMS, HTF_CONFIRM, EntryPolicy, Mode, Settings, SideFilter, SignalStatus,
-                             Timeframe)
+                             Sizing, Timeframe)
 from ..domain.sizing import exposure, risk_notes
 from ..infrastructure.binance_data import BinanceMarketData
 from ..infrastructure.bybit import BrokerHolder, BybitBroker, BybitCredentials
@@ -88,7 +88,7 @@ templates.env.globals.update(ARCHIVED=ARCHIVED, DELETABLE=DELETABLE, TRADE_LABEL
                                           TradeStatus.TIMED_OUT: "закрыт по сроку", TradeStatus.CLOSED: "закрыта"},
                              FEED_TABS=[("all", "Все")] + [(t.value, t.value) for t in Timeframe] + [("archive", "Архив")],
                              STATUS_LABEL=STATUS_LABEL, Timeframe=Timeframe, Mode=Mode, EntryPolicy=EntryPolicy, SideFilter=SideFilter, HTF_CONFIRM=HTF_CONFIRM,
-                             SignalStatus=SignalStatus, DEFAULTS=DEFAULT_TF_PARAMS, ACCOUNT_DEFAULTS=Settings())
+                             SignalStatus=SignalStatus, Sizing=Sizing, DEFAULTS=DEFAULT_TF_PARAMS, ACCOUNT_DEFAULTS=Settings())
 
 
 def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notifier | None = None,
@@ -179,7 +179,7 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         return {"s": s, "signals": signals, "view": view, "last": scanner.last,
                 "journal": tf_stats(entries, {t: s.p(t).target_r for t in Timeframe}), "journal_rows": closed[:JOURNAL_ROWS],
                 "archived_count": store.count(ARCHIVED), "new_count": store.count({SignalStatus.NEW}),
-                "risk": risk_view(s),
+                "risk": risk_view(s), "equity": last_equity(),
                 "trades": store.trades_for([x.id for x in signals if x.id is not None]),
                 "exchange": exchange_label(), "creds": holder.credentials if broker is None else None}
 
@@ -191,10 +191,20 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
             stops = sorted(x.plan.risk_pct_of_price for x in store.recent(200, {tf}))
             stop = stops[len(stops) // 2] if len(stops) >= 5 else TYPICAL_STOP_PCT[tf]
             p = s.p(tf)
-            exp = exposure(p.risk_pct, stop, s.leverage, p.hedge_btc)
-            out[tf] = {"exp": exp, "notes": risk_notes(p.risk_pct, s.daily_loss_pct, exp, BACKTEST_DD_R.get(tf)),
-                       "measured": len(stops) >= 5}
+            by_margin = s.sizing is Sizing.MARGIN
+            exp = exposure(by_margin, p.risk_pct, p.margin_pct, stop, s.leverage, p.hedge_btc)
+            out[tf] = {"exp": exp, "measured": len(stops) >= 5,
+                       "notes": risk_notes(None if by_margin else p.risk_pct, s.daily_loss_pct, exp,
+                                           BACKTEST_DD_R.get(tf))}
         return out
+
+    def last_equity() -> float | None:
+        """Капитал на начало сегодняшнего дня (его запоминает кошелёк) — чтобы показать суммы в $ без запроса к бирже."""
+        v = store.kv_get(f"day_equity:{datetime.now(timezone.utc).date().isoformat()}")
+        try:
+            return float(v) if v else None
+        except ValueError:
+            return None
 
     def exchange_label() -> str | None:
         b = executor.broker()
@@ -328,6 +338,16 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         return templates.TemplateResponse(request, "_controls.html", page_context(request) | {"reset_done": True},
                                           headers={"HX-Trigger": "feed-refresh"})
 
+    @app.post("/settings/sizing/{sizing}", response_class=HTMLResponse)
+    async def set_sizing(request: Request, sizing: str):
+        """Как считать размер сделки: маржа × плечо (как на Bybit) или по риску до стопа (как в бэктесте)."""
+        guard(request, mutate=True)
+        try:
+            settings_svc.set_sizing(Sizing(sizing))
+        except ValueError:
+            raise HTTPException(404, "нет такого способа")
+        return templates.TemplateResponse(request, "_controls.html", page_context(request))
+
     @app.post("/settings/params", response_class=HTMLResponse)
     async def set_params(request: Request):
         """Форма «Риск и правило»: общие поля и по колонке на каждый ТФ (имена полей вида 4h__risk_pct)."""
@@ -349,7 +369,8 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
                               "sides": SideFilter(f("sides")), "max_slope_atr": float(f("max_slope_atr")),
                               "top_n": int(f("top_n")), "max_hold_bars": int(f("max_hold_bars")),
                               "max_positions": int(f("tf_max_positions")),
-                              "hedge_btc": form.get(f"{tf.value}__hedge_btc", "0") == "1"}
+                              "hedge_btc": form.get(f"{tf.value}__hedge_btc", "0") == "1",
+                              "margin_pct": float(form.get(f"{tf.value}__margin_pct", settings_svc.get().p(tf).margin_pct))}
             settings_svc.update(g, per_tf)
         except KeyError as e:
             err = f"не заполнено поле {e.args[0]}"

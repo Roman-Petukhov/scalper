@@ -10,7 +10,7 @@ from pathlib import Path
 
 from ..domain.execution import HedgeLeg, Trade, TradeResult, TradeStatus
 from ..domain.journal import JournalEntry
-from ..domain.models import (DEFAULT_TF_PARAMS, RETIRED_TIMEFRAMES, SETTINGS_ONCE, STRATEGY_RESETS, TF_FIELDS, TF_SETTINGS_ONCE, EntryKind, EntryPolicy, Mode, Settings,
+from ..domain.models import (DEFAULT_TF_PARAMS, RETIRED_TIMEFRAMES, SETTINGS_ONCE, STRATEGY_RESETS, TF_FIELDS, TF_SETTINGS_ONCE, EntryKind, EntryPolicy, Mode, Settings, Sizing,
                              Side, SideFilter, Signal, SignalStatus, TfParams, Timeframe, TradePlan)
 
 SCHEMA = """
@@ -245,6 +245,7 @@ class SqliteStore:
         known = set(Settings.__dataclass_fields__) - {"tf_params"}
         out = {k: v for k, v in p.items() if k in known}
         out["mode"] = Mode(p["mode"])
+        out["sizing"] = Sizing(p.get("sizing", Sizing.RISK.value))
         tfs = {t.value for t in Timeframe}                        # убранные ТФ (1h) из старых настроек отбрасываем
         out["timeframes"] = frozenset(Timeframe(x) for x in p["timeframes"] if x in tfs)
         if "auto_timeframes" in p:
@@ -273,6 +274,7 @@ class SqliteStore:
     def save(self, settings: Settings) -> None:
         p = {k: getattr(settings, k) for k in Settings.__dataclass_fields__ if k != "tf_params"}
         p["mode"] = settings.mode.value
+        p["sizing"] = settings.sizing.value
         p["timeframes"] = sorted(t.value for t in settings.timeframes)
         p["auto_timeframes"] = sorted(t.value for t in settings.auto_timeframes)
         p["tf_params"] = {t.value: self._tf_payload(v) for t, v in settings.tf_params.items()}

@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 
-from ..domain.models import HTF_CONFIRM, Mode, Settings, Signal, SignalStatus, Timeframe
+from ..domain.models import HTF_CONFIRM, Mode, Settings, Signal, SignalStatus, Sizing, Timeframe
 from ..domain.strategy import detect, htf_breakouts, htf_confirmation
 from ..domain.execution import ExecutionRefused
 from .execution import Executor, _short
@@ -233,6 +233,11 @@ class SettingsService:
 
     def set_mode(self, mode: Mode) -> Settings:
         s = replace(self.repo.load(), mode=mode)
+        self.repo.save(s)
+        return s
+
+    def set_sizing(self, sizing: Sizing) -> Settings:
+        s = replace(self.repo.load(), sizing=sizing)
         self.repo.save(s)
         return s
 

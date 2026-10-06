@@ -24,12 +24,28 @@
   <h2>Торговые правила</h2>
   <p class="hint legend"><span class="changed-dot" aria-hidden="true"></span> — не как в бэктесте; наведите, чтобы увидеть стандартное значение.</p>
   <form hx-post="/settings/params" hx-target="#controls">
+    <div class="rules-sec first"><b>Деньги</b><span>размер сделки, плечо и лимиты</span></div>
+    {% set bym = s.sizing == Sizing.MARGIN %}
+    <div class="sizing-pick">
+      <span class="sizing-label" id="sizing-label">Размер сделки</span>
+      <div class="segmented" role="group" aria-labelledby="sizing-label">
+        <button type="button" aria-pressed="{{ 'true' if bym else 'false' }}" hx-post="/settings/sizing/margin" hx-target="#controls">Маржа × плечо, как на Bybit</button>
+        <button type="button" aria-pressed="{{ 'false' if bym else 'true' }}" hx-post="/settings/sizing/risk" hx-target="#controls">По риску до стопа</button>
+      </div>
+      <p class="hint">{% if bym %}Позиция = маржа × плечо. Убыток по стопу зависит от того, как далеко стоп: смотрите расчёт ниже.{% else %}Позиция подбирается так, чтобы убыток по стопу был ровно заданным % капитала — так считался бэктест.{% endif %}</p>
+    </div>
+    <div class="per-tf per-acct num" style="--cols: {{ tfs | length }}">
+      {{ acct("leverage", "Плечо, ×", 1, 1, 10) }}
+    </div>
     <div class="per-tf num" style="--cols: {{ tfs | length }}">
       <span></span>{% for tf in tfs %}<b class="tf-head">{{ tf.value }}</b>{% endfor %}
-
-      <div class="rules-sec"><b>Деньги</b><span>сколько теряем на стопе и сколько сделок держим</span></div>
-      <label>Риск на сделку, % капитала</label>
+      {% if bym %}
+      <label>Маржа на сделку, % капитала</label>
+      {% for tf in tfs %}{{ num(tf, "margin_pct", "margin_pct", "Маржа на сделку", 1, 1, 100) }}{% endfor %}
+      {% else %}
+      <label>Риск на сделку (убыток по стопу), % капитала</label>
       {% for tf in tfs %}{{ num(tf, "risk_pct", "risk_pct", "Риск на сделку", 0.05, 0.05, 5) }}{% endfor %}
+      {% endif %}
       <label>Сделок этого ТФ сразу (0 — без своего лимита)</label>
       {% for tf in tfs %}{{ num(tf, "tf_max_positions", "max_positions", "Сделок этого ТФ сразу", 1, 0, 50) }}{% endfor %}
       <label>Хедж BTC против сделки</label>
@@ -40,24 +56,33 @@
         <option value="1"{% if v %} selected{% endif %}>да</option>
       </select>{% endfor %}
     </div>
+    {% for tf in tfs %}
+    <input type="hidden" name="{{ tf.value }}__{{ 'risk_pct' if bym else 'margin_pct' }}" value="{{ s.p(tf).risk_pct if bym else s.p(tf).margin_pct }}">
+    {% endfor %}
     <div class="per-tf per-acct num" style="--cols: {{ tfs | length }}">
-      {{ acct("leverage", "Плечо на бирже, ×", 1, 1, 10) }}
       {{ acct("max_positions", "Сделок всего сразу", 1, 1, 50) }}
       {{ acct("daily_loss_pct", "Дневной лимит убытка, %", 0.5, 0.5, 30) }}
     </div>
+    {% macro usd(pct) %}{% if equity %} (${{ '{:,.0f}'.format(equity * pct / 100).replace(',', ' ') }}){% endif %}{% endmacro %}
     <div class="risk-says">
-      {% for tf in tfs %}{% set r = risk[tf] %}{% set e = r.exp %}
+      {% for tf in tfs %}{% set r = risk[tf] %}{% set e = r.exp %}{% set p = s.p(tf) %}
       <div class="risk-tf{{ ' has-notes' if r.notes else '' }}">
-        <p><b>{{ tf.value }}</b> стоп обычно ~{{ '%.1f' % e.stop_pct }}% цены{% if not r.measured %} (оценка){% endif %} →
-          позиция {{ '%.1f' % e.notional_x }}× капитала, маржа {{ '%.0f' % e.margin_pct }}%{% if s.p(tf).hedge_btc %} с хеджем{% endif %},
-          одновременно влезет {{ e.fits }}.</p>
+        <p><b>{{ tf.value }}</b>
+        {% if bym %}маржа {{ '%g' % p.margin_pct }}%{{ usd(p.margin_pct) }} × {{ s.leverage }} = позиция {{ '%.1f' % e.notional_x }}× капитала{{ usd(e.notional_x * 100) }}.
+          Стоп обычно ~{{ '%.1f' % e.stop_pct }}% цены{% if not r.measured %} (оценка){% endif %} → убыток по стопу ~{{ '%.1f' % e.loss_pct }}% капитала{{ usd(e.loss_pct) }}.
+        {% else %}убыток по стопу {{ '%g' % p.risk_pct }}%{{ usd(p.risk_pct) }}. Стоп обычно ~{{ '%.1f' % e.stop_pct }}% цены{% if not r.measured %} (оценка){% endif %} →
+          позиция {{ '%.1f' % e.notional_x }}× капитала{{ usd(e.notional_x * 100) }}, маржа {{ '%.0f' % e.trade_margin_pct }}%{{ usd(e.trade_margin_pct) }}.
+        {% endif %}
+        {% if p.hedge_btc %}С хеджем BTC маржа ~{{ '%.0f' % e.margin_pct }}%.{% endif %} Одновременно влезет {{ e.fits }}.</p>
         {% for n in r.notes %}<p class="warn">{{ n }}</p>{% endfor %}
       </div>
       {% endfor %}
+      {% if not equity %}<p class="hint" style="margin:0">Суммы в $ появятся, когда подключена биржа.</p>{% endif %}
     </div>
 
     <div class="per-tf num" style="--cols: {{ tfs | length }}">
       <div class="rules-sec"><b>Вход</b><span>какой пробой берём и как входим</span></div>
+      <span></span>{% for tf in tfs %}<b class="tf-head">{{ tf.value }}</b>{% endfor %}
       <label>Как входить</label>
       {% for tf in tfs %}{{ pick(tf, "entry_policy", "entry_policy", "Как входить", [(EntryPolicy.RETEST, 'ретест'), (EntryPolicy.MARKET, 'рынок'), (EntryPolicy.HYBRID, 'гибрид')]) }}{% endfor %}
       <label>Направление</label>
@@ -96,7 +121,7 @@
     </div>
   </form>
   <details class="more"><summary>Что значат поля</summary>
-    <p><b>Риск</b> — убыток по стопу в % капитала; размер позиции считается от него. <b>Плечо</b> ограничивает номинал позиции (не больше плеча × капитал) и задаёт, сколько маржи она занимает. Если маржи не хватает, объём урезается — в описании ордера будет «вместо $…».</p>
+    <p><b>Размер сделки.</b> «Маржа × плечо» — как на Bybit: на сделку уходит заданный % капитала маржой, позиция = маржа × плечо; убыток по стопу тогда разный — чем дальше стоп, тем больше. «По риску до стопа» — как в бэктесте: позиция подбирается так, чтобы стоп стоил ровно заданный % капитала, а плечо только ограничивает номинал и маржу. Если свободной маржи не хватает, объём урезается — в описании ордера будет «вместо $…».</p>
     <p><b>Как входить</b>: ретест — лимитка на линии; рынок — по закрытию свечи пробоя; гибрид — длинная свеча пробоя (больше порога в ATR) ждёт ретест, короткая — по рынку.</p>
     <p><b>Хедж BTC</b>: к каждой сделке — позиция BTCUSDT в обратную сторону на бету монеты (лонг альта → шорт BTC, шорт альта → лонг BTC). Хеджи всех сделок сводятся в одну позицию BTC: лонги и шорты взаимно гасятся, поэтому противоположные позиции на одном контракте не нужны. Бэктест 4h: R в месяц +3.1 → +2.6, худший месяц −9.0 → −4.4R. Хеджу нужна маржа — она учтена в размере сделки. Пока хедж включён, BTCUSDT бот не торгует.</p>
     <p><b>Бэктест</b>: 4h — основная стратегия (ретест, закрытие в верхней половине свечи, риск 1%). 15m — только шорт от пологой линии по рынку, риск 0.25%; другие настройки 15m не проверены.</p>

@@ -180,7 +180,12 @@ details.more p { margin: 8px 0 0; line-height: 1.55; }
 /* Разделы правил: деньги / вход / выход — строкой на всю ширину таблицы */
 .rules-sec { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
   margin: 14px 0 2px; padding-top: 12px; border-top: 1px solid var(--line); }
-.per-tf > .rules-sec:nth-child(-n + 4) { border-top: 0; padding-top: 0; margin-top: 6px; }
+.rules-sec.first { border-top: 0; padding-top: 0; margin: 2px 0 10px; }
+.sizing-pick { display: grid; gap: 8px; margin-bottom: 12px; }
+.sizing-pick .segmented { width: fit-content; max-width: 100%; flex-wrap: wrap; border-radius: 14px; }
+.sizing-pick .segmented button { border-radius: 11px; }
+.sizing-pick .hint { margin: 0; }
+.sizing-label { font-size: 13px; color: var(--muted); }
 .rules-sec b { font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--text); font-family: system-ui, sans-serif; }
 .rules-sec span { font-size: 12px; color: var(--muted); font-family: system-ui, sans-serif; }
 /* Значение не как в бэктесте: тонкая янтарная рамка и точка — видно, где ушли от проверенного */

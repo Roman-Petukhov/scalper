@@ -370,3 +370,17 @@ def test_times_are_rendered_as_utc_for_the_browser_to_localize():
     out = str(local_time(datetime(2026, 10, 6, 0, 0, tzinfo=timezone.utc)))
     assert out == '<time class="lt" datetime="2026-10-06T00:00:00+00:00" data-f="dmhm">06.10 00:00 UTC</time>'
     assert ">06.10<" in str(local_time(datetime(2026, 10, 6, 21, 5), "dm"))      # без пояса — считается UTC
+
+
+def test_sizing_switch_like_bybit(env):
+    from trader.domain.models import Sizing
+    from trader.infrastructure.sqlite_repo import SqliteStore
+    c, tmp = env
+    _login(c)
+    assert 'name="4h__risk_pct" type="number"' in c.get("/").text
+    r = c.post("/settings/sizing/margin", headers=HX)
+    assert r.status_code == 200 and 'name="4h__margin_pct" type="number"' in r.text and "Маржа на сделку" in r.text
+    c.post("/settings/params", data=_params_form(**{"4h__margin_pct": "15", "4h__risk_pct": "1"}), headers=HX)
+    saved = SqliteStore(tmp / "trader.db").load()
+    assert saved.sizing is Sizing.MARGIN and saved.p(Timeframe.H4).margin_pct == 15.0
+    assert c.post("/settings/sizing/nope", headers=HX).status_code == 404

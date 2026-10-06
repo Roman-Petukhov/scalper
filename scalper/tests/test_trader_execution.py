@@ -674,9 +674,22 @@ def test_order_says_why_risk_was_cut_and_reserves_margin_for_hedge():
     h = build_order(_sig(), s, poor, INST, price=101.0, day_start_equity=1000.0, now=NOW, hedge_beta=1.0)
     assert h.qty == pytest.approx(o.qty / 2, abs=0.02) and "с учётом хеджа BTC" in h.cut
     assert build_order(_sig(), Settings(), ACC, INST, price=101.0, day_start_equity=1000.0, now=NOW).cut == ""
-    e = exposure(5.0, 1.7, 10, hedge=True)                  # как в панели трейдера: риск 5%, плечо 10×, хедж
+    e = exposure(False, 5.0, 10.0, 1.7, 10, hedge=True)     # как в панели трейдера: риск 5%, плечо 10×, хедж
     assert e.notional_x == pytest.approx(5 / 1.7) and e.fits == 1
     notes = risk_notes(5.0, 4.0, e, 13.3)
     assert any("дневного лимита" in n for n in notes) and any("−66%" in n for n in notes)
     assert any("одну такую сделку" in n for n in notes)
-    assert risk_notes(1.0, 4.0, exposure(1.0, 3.0, 5, hedge=False), 13.3) == []
+    assert risk_notes(1.0, 4.0, exposure(False, 1.0, 10.0, 3.0, 5, hedge=False), 13.3) == []
+    m = exposure(True, 1.0, 10.0, 3.0, 10, hedge=False)    # как на Bybit: маржа 10% × 10 = позиция 1× капитала
+    assert m.notional_x == pytest.approx(1.0) and m.loss_pct == pytest.approx(3.0) and m.fits == 9
+
+
+def test_margin_sizing_like_bybit():
+    from trader.domain.models import Sizing
+    s = replace(Settings(sizing=Sizing.MARGIN, leverage=10).with_tf(Timeframe.H4, margin_pct=10.0))
+    o = build_order(_sig(), s, ACC, INST, price=101.0, day_start_equity=1000.0, now=NOW)
+    # маржа $100 × 10 = позиция $1000 → 9.9 монеты по 101; риск = объём × (101 − 98)
+    assert o.qty == pytest.approx(9.9) and o.risk_usd == pytest.approx(9.9 * 3) and o.leverage == 10
+    assert "маржа $99.99 × 10" in o.describe() and o.cut == ""
+    poor = build_order(_sig(), s, replace(ACC, available=50.0), INST, price=101.0, day_start_equity=1000.0, now=NOW)
+    assert poor.cut.startswith("маржа $") and "не хватило свободной маржи" in poor.cut

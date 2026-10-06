@@ -47,6 +47,12 @@ class EntryPolicy(str, Enum):
     HYBRID = "hybrid"          # свеча пробоя длиннее hybrid_range_atr — ретест, иначе по рынку
 
 
+class Sizing(str, Enum):
+    """Как считать размер сделки."""
+    RISK = "risk"              # по риску до стопа: убыток по стопу = risk_pct% капитала (как в бэктесте, итог в R ровный)
+    MARGIN = "margin"          # как на Bybit: маржа = margin_pct% капитала, позиция = маржа × плечо; убыток зависит от стопа
+
+
 class SideFilter(str, Enum):
     """Какие стороны торговать на таймфрейме."""
     BOTH = "both"
@@ -84,6 +90,7 @@ class TfParams:
     max_hold_bars: int = 60             # позиция закрывается по рынку через столько свечей (как в бэктесте)
     max_positions: int = 0              # не больше стольких позиций этого ТФ сразу (внутри общего лимита); 0 — только общий
     hedge_btc: bool = False             # к сделке — обратная позиция BTC на бету монеты (domain/hedge.py)
+    margin_pct: float = 10.0            # размер «как на Bybit»: маржа сделки, % капитала (Settings.sizing = MARGIN)
 
     def __post_init__(self) -> None:
         if not 0.05 <= self.risk_pct <= 5.0:
@@ -110,6 +117,8 @@ class TfParams:
             raise ValueError("срок сделки — от 1 до 1000 свечей")
         if not (isinstance(self.max_positions, int) and 0 <= self.max_positions <= 50):
             raise ValueError("позиций таймфрейма — от 0 (только общий лимит) до 50")
+        if not 1.0 <= self.margin_pct <= 100.0:
+            raise ValueError("маржа на сделку — от 1% до 100% капитала")
         if not isinstance(self.hedge_btc, bool):
             raise ValueError("хедж BTC — да или нет")
 
@@ -147,6 +156,7 @@ class Settings:
     max_positions: int = 12             # 4h: обычно открыто 3, в пике истории 12; лимит 5 терял ~14% сигналов
     daily_loss_pct: float = 4.0         # дневной лимит убытка, % капитала: дальше авто не открывает
     min_turnover_usd: float = 20e6      # оборот монеты за 24 ч
+    sizing: Sizing = Sizing.RISK        # размер сделки: по риску до стопа или маржа × плечо, как на Bybit
 
     def __post_init__(self) -> None:
         if not (isinstance(self.leverage, int) and 1 <= self.leverage <= MAX_LEVERAGE):

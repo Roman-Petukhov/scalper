@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from datetime import datetime, timedelta
 
-from .models import EntryKind, Settings, Side, Signal, TradePlan
+from .models import EntryKind, Settings, Side, Signal, Sizing, TradePlan
 from .sizing import position_size
 
 MIN_RR = 1.5                # рыночный вход: если цена ушла и до цели осталось меньше 1.5 стопа — не входим
@@ -85,7 +85,8 @@ class OrderRequest:
     def describe(self) -> str:
         kind = "лимит" if self.kind is EntryKind.RETEST else "рынок"
         return (f"{self.side.label} {self.symbol} · {kind} {_fmt(self.qty)} @ {_fmt(self.price)} · "
-                f"стоп {_fmt(self.stop)} · цель {_fmt(self.target)} · риск ${self.risk_usd:.2f}"
+                f"стоп {_fmt(self.stop)} · цель {_fmt(self.target)} · маржа ${self.qty * self.price / self.leverage:.2f} "
+                f"× {self.leverage} · риск ${self.risk_usd:.2f}"
                 + (f" ({self.cut})" if self.cut else ""))
 
 
@@ -156,26 +157,35 @@ def build_order(signal: Signal, settings: Settings, account: Account, instrument
 
     entry = round_price(entry, instrument.tick)
     stop, target = round_price(plan.stop, instrument.tick), round_price(plan.target, instrument.tick)
-    risk_pct = settings.p(signal.timeframe).risk_pct
-    sized = position_size(account.equity, risk_pct,
-                          TradePlan(plan.entry_kind, entry, stop, target, plan.valid_bars), settings.leverage)
+    tp = settings.p(signal.timeframe)
     lev = int(max(1, min(settings.leverage, instrument.max_leverage)))
+    if settings.sizing is Sizing.MARGIN:                                 # как на Bybit: маржа × плечо
+        want_qty = account.equity * tp.margin_pct / 100 * lev / entry
+        lev_capped, size_label = False, f"при марже {tp.margin_pct:g}%"
+    else:                                                                # убыток по стопу = risk_pct% капитала
+        sized = position_size(account.equity, tp.risk_pct,
+                              TradePlan(plan.entry_kind, entry, stop, target, plan.valid_bars), lev)
+        want_qty = sized.qty
+        lev_capped, size_label = sized.risk_usd < account.equity * tp.risk_pct / 100 * 0.999, f"при риске {tp.risk_pct:g}%"
     # запас 5% на комиссию и проскальзывание; хедж BTC займёт ещё hedge_beta × номинал / плечо
     margin_cap = max(account.available, 0.0) * 0.95 * lev / (entry * (1 + max(hedge_beta, 0.0)))
-    qty = round_down(min(sized.qty, margin_cap), instrument.qty_step)
+    qty = round_down(min(want_qty, margin_cap), instrument.qty_step)
     if margin_cap < instrument.min_qty:
         raise ExecutionRefused("не хватает свободной маржи на счёте")
     if qty < instrument.min_qty or qty <= 0:
-        raise ExecutionRefused(f"при риске {risk_pct:g}% объём меньше минимального для {sym} "
-                               f"({_fmt(instrument.min_qty)})")
+        raise ExecutionRefused(f"{size_label} объём меньше минимального для {sym} ({_fmt(instrument.min_qty)})")
     if qty * entry < instrument.min_notional:
         raise ExecutionRefused(f"ордер меньше минимальных ${instrument.min_notional:g}")
-    wanted = account.equity * risk_pct / 100
     cut = ""
-    if qty * abs(entry - stop) < 0.9 * wanted:
-        why = (f"номинал упёрся в плечо {settings.leverage}×" if sized.qty < margin_cap
-               else "не хватило свободной маржи" + (" с учётом хеджа BTC" if hedge_beta > 0 else ""))
-        cut = f"вместо ${wanted:.2f}: {why}"
+    if qty < 0.9 * want_qty or lev_capped:
+        if settings.sizing is Sizing.MARGIN:
+            cut = f"маржа ${qty * entry / lev:.2f} вместо ${want_qty * entry / lev:.2f}: не хватило свободной маржи"
+        elif lev_capped and want_qty <= margin_cap:
+            cut = f"вместо ${account.equity * tp.risk_pct / 100:.2f}: номинал упёрся в плечо {lev}×"
+        else:
+            cut = f"вместо ${account.equity * tp.risk_pct / 100:.2f}: не хватило свободной маржи"
+        if hedge_beta > 0 and qty < 0.9 * want_qty:
+            cut += " с учётом хеджа BTC"
     return OrderRequest(signal.id, sym, side, plan.entry_kind, qty, entry, stop, target, lev, expires,
                         qty * abs(entry - stop), cut=cut)
 

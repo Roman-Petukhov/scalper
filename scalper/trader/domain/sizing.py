@@ -32,32 +32,40 @@ TYPICAL_HEDGE_BETA = 1.3        # медиана беты монет бота к
 class Exposure:
     """Во что обходится одна сделка при типичном стопе: доли капитала."""
     stop_pct: float         # стоп, % от цены входа (типичный для ТФ)
-    loss_pct: float         # убыток по стопу, % капитала (меньше риска, если номинал упёрся в плечо)
+    loss_pct: float         # убыток по стопу, % капитала
     notional_x: float       # номинал позиции, × капитала
-    margin_pct: float       # маржа сделки (и хеджа BTC, если включён), % капитала
+    trade_margin_pct: float # маржа самой сделки, % капитала
+    margin_pct: float       # маржа сделки и хеджа BTC (если включён), % капитала
     fits: int               # столько таких сделок помещается в маржу одновременно
 
 
-def exposure(risk_pct: float, stop_pct: float, leverage: float, hedge: bool) -> Exposure:
-    notional_x = min(risk_pct / stop_pct, leverage) if stop_pct > 0 else 0.0
-    margin = notional_x * (1 + (TYPICAL_HEDGE_BETA if hedge else 0.0)) / leverage * 100
+def exposure(by_margin: bool, risk_pct: float, margin_pct: float, stop_pct: float, leverage: float,
+             hedge: bool) -> Exposure:
+    """by_margin — размер как на Bybit (маржа margin_pct% × плечо), иначе по риску risk_pct% до стопа."""
+    if by_margin:
+        notional_x = margin_pct / 100 * leverage
+    else:
+        notional_x = min(risk_pct / stop_pct, leverage) if stop_pct > 0 else 0.0
+    own = notional_x / leverage * 100
+    margin = own * (1 + (TYPICAL_HEDGE_BETA if hedge else 0.0))
     fits = int(95 // margin) if margin > 0 else 0              # 5% капитала — запас на комиссии
-    return Exposure(stop_pct, notional_x * stop_pct, notional_x, margin, fits)
+    return Exposure(stop_pct, notional_x * stop_pct, notional_x, own, margin, fits)
 
 
-def risk_notes(risk_pct: float, daily_loss_pct: float, exp: Exposure, backtest_dd_r: float | None) -> list[str]:
-    """Предупреждения о сочетании риска, плеча и дневного лимита — простыми словами."""
+def risk_notes(risk_pct: float | None, daily_loss_pct: float, exp: Exposure, backtest_dd_r: float | None) -> list[str]:
+    """Предупреждения о сочетании размера, плеча и дневного лимита — простыми словами. risk_pct — заданный риск
+    (режим «по риску»), None — размер задан маржой."""
     notes = []
-    if risk_pct >= daily_loss_pct:
-        notes.append(f"Один стоп ({risk_pct:g}%) не меньше дневного лимита ({daily_loss_pct:g}%): после первого убытка "
-                     "новых входов до конца дня не будет.")
-    if backtest_dd_r is not None and risk_pct * backtest_dd_r >= 25:
-        notes.append(f"Худшая просадка бэктеста — {backtest_dd_r:g}R (стопов): при риске {risk_pct:g}% это "
-                     f"−{min(risk_pct * backtest_dd_r, 100):.0f}% капитала.")
-    if exp.loss_pct < 0.9 * risk_pct:
-        notes.append(f"Номинал упирается в плечо: при стопе ~{exp.stop_pct:.1f}% реальный риск ~{exp.loss_pct:.1f}%, "
+    loss = exp.loss_pct
+    if loss >= daily_loss_pct:
+        notes.append(f"Один стоп (~{loss:.1f}% капитала) не меньше дневного лимита ({daily_loss_pct:g}%): после первого "
+                     "убытка новых входов до конца дня не будет.")
+    if backtest_dd_r is not None and loss * backtest_dd_r >= 25:
+        notes.append(f"Худшая просадка бэктеста — {backtest_dd_r:g} стопов: при убытке ~{loss:.1f}% на стоп это "
+                     f"−{min(loss * backtest_dd_r, 100):.0f}% капитала.")
+    if risk_pct is not None and loss < 0.9 * risk_pct:
+        notes.append(f"Номинал упирается в плечо: при стопе ~{exp.stop_pct:.1f}% реальный риск ~{loss:.1f}%, "
                      "а не заданный.")
     if exp.fits < 2:
-        notes.append("Маржи хватает только на одну такую сделку: следующие будут урезаны или не откроются. "
-                     "Снизьте риск или поднимите плечо.")
+        notes.append("Маржи хватает только на одну такую сделку: следующие будут урезаны или не откроются.")
     return notes
