@@ -7,7 +7,7 @@ name: research
 on:
   workflow_dispatch:
   push:
-    branches: [main-t2qdvg]
+    branches: [main-t2qdvg, weekly-research]
     paths: ["scalper/research/*.py", "scalper/research/breakout/*.py", "scalper/research/job.sh", ".github/workflows/research.yml"]
 
 permissions:
