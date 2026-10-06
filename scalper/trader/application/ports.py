@@ -5,7 +5,10 @@ from typing import Protocol
 
 import pandas as pd
 
-from ..domain.execution import Account, Instrument, OrderRequest, Trade, TradeStatus
+from datetime import datetime
+
+from ..domain.execution import Account, ClosedPnl, Instrument, OrderRequest, Trade, TradeResult, TradeStatus
+from ..domain.journal import JournalEntry
 from ..domain.models import Settings, Signal, SignalStatus, Timeframe
 
 
@@ -74,6 +77,9 @@ class Broker(Protocol):
     async def close_position(self, symbol: str) -> None:
         """Закрыть позицию по монете по рынку (reduce-only); стоп и цель биржа снимает сама."""
 
+    async def closed_pnl(self, symbol: str, since: datetime, until: datetime) -> list[ClosedPnl]:
+        """Закрытия позиций по монете за окно (не длиннее 7 дней — ограничение биржи)."""
+
     async def close(self) -> None: ...
 
 
@@ -88,6 +94,18 @@ class TradeRepository(Protocol):
         """Сделки со статусом «на бирже», новые первыми."""
 
     def set_trade_status(self, trade_id: int, status: TradeStatus) -> None: ...
+
+    def set_trade_filled(self, trade_id: int, at: datetime) -> None:
+        """Вход исполнился: статус «на бирже» и время исполнения."""
+
+    def unsettled_trades(self) -> list[Trade]:
+        """Исполненные сделки без записанного итога (на бирже или закрытые по сроку), новые первыми."""
+
+    def settle_trade(self, trade_id: int, status: TradeStatus, result: TradeResult | None) -> None:
+        """Записать итог (None — биржа итога не вернула, больше не ищем)."""
+
+    def journal(self, limit: int = 500) -> list[JournalEntry]:
+        """Сделки с таймфреймом сигнала, новые первыми."""
 
     def kv_get(self, key: str) -> str | None: ...
 

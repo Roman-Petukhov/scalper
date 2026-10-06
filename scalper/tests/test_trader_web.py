@@ -336,3 +336,19 @@ def test_auto_timeframe_chips(env):
     assert r.status_code == 200 and 'hx-post="/settings/auto-tf/15m"' in r.text and "нет сигналов" in r.text
     from trader.infrastructure.sqlite_repo import SqliteStore
     assert SqliteStore(tmp / "trader.db").load().auto_timeframes == {Timeframe.H4, Timeframe.M15}
+
+
+def test_journal_card_shows_live_results_against_backtest(env):
+    from trader.domain.execution import Trade, TradeResult, TradeStatus
+    from trader.infrastructure.sqlite_repo import SqliteStore
+    from test_trader_app import _signal
+    c, tmp = env
+    st = SqliteStore(tmp / "trader.db")
+    s = st.add(_signal())
+    t = st.add_trade(Trade(s.id, "SOLUSDT", s.side, s.plan.entry_kind, 2.0, 101.0, 98.0, 110.0, "o1", "demo",
+                           TradeStatus.FILLED))
+    st.settle_trade(t.id, TradeStatus.CLOSED, TradeResult(101.3, 110.0, 17.4, s.bar_time))
+    _login(c)
+    r = c.get("/")
+    assert "Журнал: биржа против бэктеста" in r.text and "+2.90R" in r.text and "бэктест +0.45R" in r.text
+    assert "нужно ещё 29 сделок" in r.text and "цель" in r.text and "проск. +0.10R" in r.text

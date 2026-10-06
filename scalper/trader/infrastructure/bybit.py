@@ -6,11 +6,12 @@ import asyncio
 import json
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
 
 import ccxt.async_support as ccxt
 
-from ..domain.execution import Account, Instrument, OrderRequest, Position
+from ..domain.execution import Account, ClosedPnl, Instrument, OrderRequest, Position
 from ..domain.models import EntryKind, Side
 
 log = logging.getLogger(__name__)
@@ -152,6 +153,23 @@ class BybitBroker:
                 side = "sell" if p.get("side") == "long" else "buy"
                 await self.ex.create_order(m["symbol"], "market", side, qty, None,
                                            {"reduceOnly": True, "positionIdx": 0})
+
+    async def closed_pnl(self, symbol: str, since: datetime, until: datetime) -> list[ClosedPnl]:
+        """/v5/position/closed-pnl: closedPnl — итог с комиссиями; side — сторона закрывающего ордера (Sell закрывает
+        лонг)."""
+        m = await self._market(symbol)
+        if m is None:
+            return []
+        rows = await self.ex.fetch_positions_history([m["symbol"]], int(since.timestamp() * 1000), 100,
+                                                     {"until": int(until.timestamp() * 1000)})
+        out = []
+        for p in rows:
+            i = p.get("info") or {}
+            out.append(ClosedPnl(side=Side.LONG if i.get("side") == "Sell" else Side.SHORT, qty=_f(i.get("closedSize")),
+                                 entry=_f(i.get("avgEntryPrice")), exit=_f(i.get("avgExitPrice")),
+                                 pnl=_f(i.get("closedPnl")),
+                                 closed_at=datetime.fromtimestamp(int(_f(i.get("updatedTime"))) / 1000, timezone.utc)))
+        return out
 
     async def close(self) -> None:
         await self.ex.close()

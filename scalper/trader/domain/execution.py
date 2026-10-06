@@ -177,6 +177,36 @@ class TradeStatus(str, Enum):
     EXPIRED = "expired"         # лимитка не исполнилась вовремя (или цена ушла к цели без ретеста) и снята
     TIMED_OUT = "timed_out"     # позиция закрыта по рынку: истёк срок сделки (max_hold_bars)
     CANCELLED = "cancelled"     # снята вручную на бирже
+    CLOSED = "closed"           # позиция закрыта (стоп, цель или вручную), итог записан
+
+
+@dataclass(frozen=True)
+class ClosedPnl:
+    """Запись биржи о закрытии позиции (или её части): сторона позиции, объём, средние цены, итог с комиссиями."""
+    side: Side
+    qty: float
+    entry: float
+    exit: float
+    pnl: float                  # $, по данным биржи (за вычетом комиссий)
+    closed_at: datetime
+
+
+@dataclass(frozen=True)
+class TradeResult:
+    entry_fill: float           # средняя цена входа на бирже
+    exit: float                 # средняя цена выхода
+    pnl_usd: float
+    closed_at: datetime
+
+
+def settle(records: list[ClosedPnl], side: Side, since: datetime, until: datetime) -> TradeResult | None:
+    """Итог сделки из записей биржи: только своя сторона и закрытия в окне [since, until); цены — средние по объёму."""
+    own = [r for r in records if r.side is side and since <= r.closed_at < until and r.qty > 0]
+    if not own:
+        return None
+    qty = sum(r.qty for r in own)
+    return TradeResult(entry_fill=sum(r.entry * r.qty for r in own) / qty, exit=sum(r.exit * r.qty for r in own) / qty,
+                       pnl_usd=sum(r.pnl for r in own), closed_at=max(r.closed_at for r in own))
 
 
 @dataclass(frozen=True)
@@ -195,9 +225,47 @@ class Trade:
     expires_at: datetime | None = None
     created_at: datetime | None = None
     id: int | None = None
+    filled_at: datetime | None = None       # когда вход исполнился (рынок — сразу, ретест — когда заметили)
+    result: TradeResult | None = None
+
+    @property
+    def opened_at(self) -> datetime | None:
+        return self.filled_at or self.created_at
+
+    @property
+    def risk_per_unit(self) -> float:
+        return abs(self.price - self.stop)
+
+    @property
+    def r_multiple(self) -> float | None:
+        """Итог в R: R — риск по плану (объём × расстояние от входа до стопа)."""
+        if self.result is None or self.qty * self.risk_per_unit <= 0:
+            return None
+        return self.result.pnl_usd / (self.qty * self.risk_per_unit)
+
+    @property
+    def slippage_r(self) -> float | None:
+        """Проскальзывание входа в R: плюс — вошли хуже плана."""
+        if self.result is None or self.risk_per_unit <= 0:
+            return None
+        return int(self.side) * (self.result.entry_fill - self.price) / self.risk_per_unit
+
+    @property
+    def exit_reason(self) -> str:
+        if self.status is TradeStatus.TIMED_OUT:
+            return "по сроку"
+        if self.result is None:
+            return "нет данных"
+        x, r = self.result.exit, self.risk_per_unit
+        if r > 0 and abs(x - self.target) <= 0.25 * r:
+            return "цель"
+        if r > 0 and abs(x - self.stop) <= 0.25 * r:
+            return "стоп"
+        return "вручную"
 
     @staticmethod
     def from_order(req: OrderRequest, order_id: str, network: str, now: datetime) -> Trade:
         status = TradeStatus.PLACED if req.kind is EntryKind.RETEST else TradeStatus.FILLED
         return Trade(req.signal_id, req.symbol, req.side, req.kind, req.qty, req.price, req.stop, req.target,
-                     order_id, network, status, req.expires_at, now)
+                     order_id, network, status, req.expires_at, now,
+                     filled_at=now if status is TradeStatus.FILLED else None)

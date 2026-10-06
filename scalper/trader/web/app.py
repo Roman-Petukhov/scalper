@@ -25,6 +25,7 @@ from ..application.ports import Broker, MarketData, Notifier
 from ..application.services import Scanner, SettingsService, SignalDecisions
 from ..config import AppConfig
 from ..domain.execution import TradeStatus
+from ..domain.journal import tf_stats
 from ..domain.models import HTF_CONFIRM, EntryPolicy, Mode, SideFilter, SignalStatus, Timeframe
 from ..infrastructure.binance_data import BinanceMarketData
 from ..infrastructure.bybit import BrokerHolder, BybitBroker, BybitCredentials
@@ -40,6 +41,7 @@ templates = Jinja2Templates(directory=HERE / "templates")
 REMEMBER_S = 365 * 24 * 3600          # «запомнить на этом устройстве»
 SHORT_LOGIN_S = 12 * 3600
 CHART_BARS = 300                      # свечей на живом графике
+JOURNAL_ROWS = 15                     # последних закрытых сделок в журнале
 ARCHIVED = {SignalStatus.EXPIRED, SignalStatus.SKIPPED}
 VIEWS = {"all", "archive"} | {t.value for t in Timeframe}
 STATUS_LABEL = {SignalStatus.NEW: "новый", SignalStatus.TAKEN: "в работе", SignalStatus.SKIPPED: "пропущен",
@@ -54,7 +56,7 @@ def chart_name(path: str) -> str:
 templates.env.filters["chart_name"] = chart_name
 templates.env.globals.update(ARCHIVED=ARCHIVED, TRADE_LABEL={TradeStatus.PLACED: "лимитка ждёт", TradeStatus.FILLED: "на бирже",
                                           TradeStatus.EXPIRED: "лимитка снята", TradeStatus.CANCELLED: "снят / закрыт",
-                                          TradeStatus.TIMED_OUT: "закрыт по сроку"},
+                                          TradeStatus.TIMED_OUT: "закрыт по сроку", TradeStatus.CLOSED: "закрыта"},
                              FEED_TABS=[("all", "Все")] + [(t.value, t.value) for t in Timeframe] + [("archive", "Архив")],
                              STATUS_LABEL=STATUS_LABEL, Timeframe=Timeframe, Mode=Mode, EntryPolicy=EntryPolicy, SideFilter=SideFilter, HTF_CONFIRM=HTF_CONFIRM,
                              SignalStatus=SignalStatus)
@@ -138,7 +140,11 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         else:
             shown = set(s.timeframes) & ({Timeframe(view)} if view != "all" else set(Timeframe))
             signals = store.recent(80, shown, set(SignalStatus) - ARCHIVED)
+        entries = store.journal()
+        closed = [e for e in entries if e.trade.status in (TradeStatus.CLOSED, TradeStatus.TIMED_OUT)
+                  and (e.trade.result is not None or e.trade.status is TradeStatus.TIMED_OUT)]
         return {"s": s, "signals": signals, "view": view, "last": scanner.last,
+                "journal": tf_stats(entries), "journal_rows": closed[:JOURNAL_ROWS],
                 "archived_count": store.count(ARCHIVED),
                 "trades": store.trades_for([x.id for x in signals if x.id is not None]),
                 "exchange": exchange_label(), "creds": holder.credentials if broker is None else None}

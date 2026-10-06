@@ -246,3 +246,20 @@ dl.plan dd { margin: 0; text-align: right; }
   .live-chart { height: 300px; }
   .positions { display: block; overflow-x: auto; white-space: nowrap; }
 }
+
+/* журнал сделок */
+.jr-stats { display: grid; gap: 12px; }
+.jr-tf { padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.jr-tf .hint { margin-top: 4px; }
+.jr-tf .warn { color: var(--warn); }
+.jr-up { color: var(--long); }
+.jr-down { color: var(--short); }
+.jr-rows { display: grid; margin-top: 10px; font-size: 13px; }
+.jr-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "what r" "when why";
+          column-gap: 8px; row-gap: 2px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.jr-row:last-child { border-bottom: 0; }
+.jr-row > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jr-row > span:nth-child(1) { grid-area: when; }
+.jr-row > span:nth-child(2) { grid-area: what; }
+.jr-row > span:nth-child(3) { grid-area: r; text-align: right; font-weight: 600; }
+.jr-row > span:nth-child(4) { grid-area: why; text-align: right; }

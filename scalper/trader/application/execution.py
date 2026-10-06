@@ -5,16 +5,20 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 
 from datetime import timedelta
 
-from ..domain.execution import Account, ExecutionRefused, Trade, TradeStatus, build_order, target_reached
+from ..domain.execution import (Account, ExecutionRefused, Trade, TradeResult, TradeStatus, build_order, settle,
+                                target_reached)
 from ..domain.models import Signal, SignalStatus, Timeframe
 from .ports import Broker, Notifier, SettingsRepository, SignalRepository, TradeRepository
 
 log = logging.getLogger(__name__)
+
+PNL_WINDOW = timedelta(days=6, hours=23)    # биржа отдаёт закрытия окнами не длиннее 7 дней
+GIVE_UP = timedelta(days=8)                 # закрытия так и не нашлось — итог «нет данных», больше не ищем
 
 
 def _utcnow() -> datetime:
@@ -109,17 +113,27 @@ class Executor:
 
     async def housekeep(self) -> None:
         """Раз в минуту, как в бэктесте: лимитка ретеста исполнилась — помечаем; истекло время или цена дошла до цели
-        без ретеста — снимаем; позиция дольше срока сделки (max_hold_bars свечей с отправки ордера) — закрываем."""
+        без ретеста — снимаем; позиция дольше срока сделки (max_hold_bars свечей с исполнения) — закрываем;
+        закрытая позиция — итог с биржи в журнал."""
         b = self.broker()
         pending, filled = self.trades.pending_trades(), self.trades.filled_trades()
-        if b is None or not (pending or filled):
+        unsettled = self.trades.unsettled_trades()
+        if b is None or not (pending or filled or unsettled):
             return
         open_ids, acc = await asyncio.gather(b.open_order_ids(), b.account())
         held = {p.symbol: p for p in acc.positions}
         now = self.clock()
         for t in pending:
             if t.order_id not in open_ids:                         # исчезла из открытых: исполнилась или снята
-                self.trades.set_trade_status(t.id, TradeStatus.FILLED if t.symbol in held else TradeStatus.CANCELLED)
+                if t.symbol in held:
+                    self.trades.set_trade_filled(t.id, now)
+                    continue
+                res = await self._result(b, t, None, now)          # исполнилась и уже закрылась за эту минуту?
+                if res is None:
+                    self.trades.set_trade_status(t.id, TradeStatus.CANCELLED)
+                else:
+                    self.trades.set_trade_filled(t.id, now)
+                    await self._settle(replace(t, status=TradeStatus.FILLED, filled_at=now), TradeStatus.CLOSED, res)
                 continue
             why = None
             if t.expires_at is not None and now >= t.expires_at:
@@ -146,10 +160,10 @@ class Executor:
                 continue
             seen.add(t.symbol)
             pos, sig = held.get(t.symbol), self.signals.get(t.signal_id)
-            if pos is None or pos.side is not t.side or sig is None or t.created_at is None:
+            if pos is None or pos.side is not t.side or sig is None or t.opened_at is None:
                 continue
             bars = settings.p(sig.timeframe).max_hold_bars
-            if now < t.created_at + timedelta(minutes=sig.timeframe.minutes * bars):
+            if now < t.opened_at + timedelta(minutes=sig.timeframe.minutes * bars):
                 continue
             try:
                 await b.close_position(t.symbol)
@@ -158,6 +172,49 @@ class Executor:
                 continue
             self.trades.set_trade_status(t.id, TradeStatus.TIMED_OUT)
             await self._say(f"{t.symbol}: позиция закрыта по рынку — прошло {bars} свечей {sig.timeframe.value}")
+        await self._settle_closed(b, held, now)
+
+    async def _settle_closed(self, b: Broker, held: dict, now: datetime) -> None:
+        """Сделки, позиции которых уже нет, получают итог с биржи. Окно поиска — от исполнения до следующей сделки
+        по той же монете: старая сделка не заберёт закрытие новой."""
+        later: dict[int, datetime] = {}
+        last_at: dict[str, datetime] = {}
+        for e in self.trades.journal():                            # новые первыми
+            t = e.trade
+            if t.id is not None and t.symbol in last_at:
+                later[t.id] = last_at[t.symbol]
+            if t.created_at is not None:
+                last_at[t.symbol] = t.created_at
+        for t in self.trades.unsettled_trades():
+            pos = held.get(t.symbol)
+            if t.id not in later and t.status is TradeStatus.FILLED and pos is not None and pos.side is t.side:
+                continue                                           # ещё открыта
+            until = later.get(t.id, now)
+            res = await self._result(b, t, until, now)
+            status = TradeStatus.TIMED_OUT if t.status is TradeStatus.TIMED_OUT else TradeStatus.CLOSED
+            if res is not None:
+                await self._settle(t, status, res)
+            elif t.opened_at is not None and now - t.opened_at > GIVE_UP:
+                self.trades.settle_trade(t.id, status, None)
+
+    async def _result(self, b: Broker, t: Trade, until: datetime | None, now: datetime) -> TradeResult | None:
+        since = (t.opened_at or now) - timedelta(minutes=1)
+        end = until or now
+        try:
+            recs = await b.closed_pnl(t.symbol, max(since, end - PNL_WINDOW), end)
+        except Exception:
+            log.exception("итог сделки %s", t.symbol)
+            return None
+        return settle(recs, t.side, since, end)
+
+    async def _settle(self, t: Trade, status: TradeStatus, res: TradeResult) -> None:
+        self.trades.settle_trade(t.id, status, res)
+        done = replace(t, status=status, result=res)
+        sig = self.signals.get(t.signal_id)
+        tf = f" {sig.timeframe.value}" if sig is not None else ""
+        r = done.r_multiple
+        await self._say(f"{t.symbol}{tf} {t.side.label} закрыта: "
+                        f"{f'{r:+.2f}R' if r is not None else f'{res.pnl_usd:+.2f} $'} ({done.exit_reason})")
 
     async def _say(self, text: str) -> None:
         if self.notifier is not None:

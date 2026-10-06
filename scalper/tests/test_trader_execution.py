@@ -8,7 +8,7 @@ import pytest
 
 from trader.application.execution import Executor
 from trader.application.services import Scanner, SignalDecisions
-from trader.domain.execution import (Account, ExecutionRefused, Instrument, Position, TradeStatus, build_order,
+from trader.domain.execution import (Account, ClosedPnl, ExecutionRefused, Instrument, Position, TradeStatus, build_order,
                                      round_down, round_price)
 from trader.domain.models import EntryKind, Mode, Settings, Side, SignalStatus, Timeframe, TradePlan
 from trader.infrastructure.bybit import BrokerHolder, BybitBroker, BybitCredentials
@@ -87,6 +87,7 @@ class FakeBroker:
     def __init__(self, acc=ACC, price=101.0, fail=None):
         self.acc, self.px, self.fail = acc, price, fail
         self.placed, self.cancelled, self.open, self.closed = [], [], set(), []
+        self.pnl = []                                          # (монета, ClosedPnl)
 
     async def account(self):
         return self.acc
@@ -114,6 +115,9 @@ class FakeBroker:
 
     async def close_position(self, symbol):
         self.closed.append(symbol)
+
+    async def closed_pnl(self, symbol, since, until):
+        return [r for sym, r in self.pnl if sym == symbol and since <= r.closed_at < until]
 
     async def close(self):
         pass
@@ -251,6 +255,11 @@ class FakeCcxt:
     async def fetch_open_orders(self, symbol, since, limit, params):
         return [{"id": "9", "reduceOnly": False, "info": {"symbol": "ADAUSDT"}},
                 {"id": "10", "reduceOnly": True, "info": {"symbol": "SOLUSDT", "reduceOnly": True}}]
+
+    async def fetch_positions_history(self, symbols, since, limit, params):
+        self.calls.append(("pnl", symbols, since, params["until"]))
+        return [{"info": {"symbol": "SOLUSDT", "side": "Sell", "closedSize": "2", "avgEntryPrice": "100.5",
+                          "avgExitPrice": "110", "closedPnl": "18.7", "updatedTime": "1791000000000"}}]
 
     async def close(self):
         pass
@@ -442,3 +451,66 @@ def test_executor_counts_open_positions_per_timeframe(tmp_path):
     b.acc = replace(ACC, positions=tuple(Position(x, Side.LONG, 1, 100, 101, 1) for x in syms[:2]))
     asyncio.run(ex.execute(st.get(st.add(_signal("FUSDT", Timeframe.M15)).id)))   # одна закрылась — место есть
     assert [o.symbol for o in b.placed] == syms + ["EUSDT", "FUSDT"]
+
+
+
+def test_bybit_closed_pnl_parsing():
+    fx = FakeCcxt()
+    br = BybitBroker(CREDS, exchange=fx)
+    since, until = NOW - timedelta(days=1), NOW
+    (r,) = asyncio.run(br.closed_pnl("SOLUSDT", since, until))
+    assert r.side is Side.LONG and r.qty == 2 and r.entry == 100.5 and r.exit == 110 and r.pnl == 18.7
+    assert fx.calls[-1] == ("pnl", ["SOL/USDT:USDT"], int(since.timestamp() * 1000), int(until.timestamp() * 1000))
+
+
+def test_journal_records_result_in_r_slippage_and_reason(tmp_path):
+    from trader.domain.journal import tf_stats
+    b = FakeBroker()
+    clock = Clock(NOW)
+    st, ex = _exec(tmp_path, b, clock)
+    s = st.add(_signal())                                  # лонг по рынку: план вход 101, стоп 98, цель 110
+    asyncio.run(ex.execute(st.get(s.id)))
+    b.acc = replace(ACC, positions=(Position("SOLUSDT", Side.LONG, 3.33, 101.3, 105, 10),))
+    clock.t = NOW + timedelta(hours=1)
+    asyncio.run(ex.housekeep())                            # позиция ещё открыта — итога нет
+    assert st.unsettled_trades()[0].result is None
+    b.acc = ACC
+    b.pnl = [("SOLUSDT", ClosedPnl(Side.LONG, 3.33, 101.3, 110.0, 28.5, NOW + timedelta(hours=2))),
+             ("SOLUSDT", ClosedPnl(Side.SHORT, 1, 1, 1, -5.0, NOW + timedelta(hours=2))),       # чужая сторона
+             ("SOLUSDT", ClosedPnl(Side.LONG, 1, 1, 1, -5.0, NOW - timedelta(hours=1)))]        # до входа
+    clock.t = NOW + timedelta(hours=3)
+    asyncio.run(ex.housekeep())
+    t = st.trades_for([s.id])[s.id]
+    assert t.status is TradeStatus.CLOSED and t.result.pnl_usd == 28.5 and t.exit_reason == "цель"
+    assert t.r_multiple == pytest.approx(28.5 / (3.33 * 3)) and t.slippage_r == pytest.approx(0.1)
+    assert not st.unsettled_trades()
+    h4 = next(x for x in tf_stats(st.journal()) if x.timeframe is Timeframe.H4)
+    assert h4.closed == 1 and h4.avg_r == pytest.approx(t.r_multiple) and h4.need == 29 and h4.win_share == 1.0
+
+
+def test_journal_gives_up_without_exchange_record_and_hold_counts_from_fill(tmp_path):
+    b = FakeBroker()
+    clock = Clock(NOW)
+    st, ex = _exec(tmp_path, b, clock)
+    s = st.add(_signal())
+    asyncio.run(ex.execute(st.get(s.id)))
+    clock.t = NOW + timedelta(days=2)
+    asyncio.run(ex.housekeep())
+    assert st.trades_for([s.id])[s.id].status is TradeStatus.FILLED      # итог ещё ищем
+    clock.t = NOW + timedelta(days=9)
+    asyncio.run(ex.housekeep())
+    t = st.trades_for([s.id])[s.id]
+    assert t.status is TradeStatus.CLOSED and t.result is None and t.exit_reason == "нет данных"
+
+
+def test_retest_filled_and_closed_within_a_minute_is_journaled_not_cancelled(tmp_path):
+    b = FakeBroker()
+    st, ex = _exec(tmp_path, b, Clock(NOW))
+    s = st.add(replace(_signal(), plan=TradePlan(EntryKind.RETEST, 100.0, 98.0, 106.0, 12)))
+    asyncio.run(ex.execute(st.get(s.id)))
+    b.open.clear()                                          # лимитка исчезла, позиции уже нет
+    b.pnl = [("SOLUSDT", ClosedPnl(Side.LONG, 5, 100.0, 97.9, -10.5, NOW - timedelta(seconds=30)))]
+    asyncio.run(ex.housekeep())
+    t = st.trades_for([s.id])[s.id]
+    assert t.status is TradeStatus.CLOSED and t.filled_at == NOW and t.exit_reason == "стоп"
+    assert t.r_multiple == pytest.approx(-10.5 / (t.qty * 2))

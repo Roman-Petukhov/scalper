@@ -8,7 +8,8 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-from ..domain.execution import Trade, TradeStatus
+from ..domain.execution import Trade, TradeResult, TradeStatus
+from ..domain.journal import JournalEntry
 from ..domain.models import (DEFAULT_TF_PARAMS, RETIRED_TIMEFRAMES, SETTINGS_ONCE, STRATEGY_RESETS, TF_FIELDS, TF_SETTINGS_ONCE, EntryKind, EntryPolicy, Mode, Settings,
                              Side, SideFilter, Signal, SignalStatus, TfParams, Timeframe, TradePlan)
 
@@ -39,6 +40,13 @@ def _dt(s: str) -> datetime:
     return datetime.fromisoformat(s)
 
 
+def _result(raw: str | None) -> TradeResult | None:
+    if not raw:
+        return None
+    p = json.loads(raw)
+    return TradeResult(p["entry_fill"], p["exit"], p["pnl_usd"], _dt(p["closed_at"]))
+
+
 class SqliteStore:
     """Реализует SignalRepository, SettingsRepository и TradeRepository."""
 
@@ -49,6 +57,7 @@ class SqliteStore:
         self.lock = threading.Lock()
         with self.lock:
             self.db.executescript(SCHEMA)
+            self._migrate_trades()
             self._drop_retired()
             self._reset_strategies(STRATEGY_RESETS)
             self._set_once(SETTINGS_ONCE)
@@ -70,6 +79,13 @@ class SqliteStore:
                 p.setdefault("tf_params", {})[tf.value] = self._tf_payload(DEFAULT_TF_PARAMS[tf])
                 self.db.execute("UPDATE settings SET payload = ? WHERE id = 1", (json.dumps(p),))
             self.db.execute("INSERT INTO kv(key, value) VALUES (?, ?)", (key, "done"))
+
+    def _migrate_trades(self) -> None:
+        """Колонки журнала в базе прежней версии: время исполнения, итог, отметка «итог больше не ищем»."""
+        have = {r["name"] for r in self.db.execute("PRAGMA table_info(trades)")}
+        for col, ddl in (("filled_at", "TEXT"), ("result", "TEXT"), ("settled", "INTEGER NOT NULL DEFAULT 0")):
+            if col not in have:
+                self.db.execute(f"ALTER TABLE trades ADD COLUMN {col} {ddl}")
 
     def _set_once(self, once: dict[str, dict[str, object]]) -> None:
         """Один раз поменять общие поля сохранённых настроек; метка в kv — дальше их меняет только трейдер."""
@@ -270,17 +286,19 @@ class SqliteStore:
                      qty=r["qty"], price=r["price"], stop=r["stop"], target=r["target"], order_id=r["order_id"],
                      network=r["network"], status=TradeStatus(r["status"]),
                      expires_at=_dt(r["expires_at"]) if r["expires_at"] else None,
-                     created_at=_dt(r["created_at"]), id=r["id"])
+                     created_at=_dt(r["created_at"]), id=r["id"],
+                     filled_at=_dt(r["filled_at"]) if r["filled_at"] else None, result=_result(r["result"]))
 
     def add_trade(self, trade: Trade) -> Trade:
         created = trade.created_at or datetime.now(timezone.utc)
         with self.lock:
             cur = self.db.execute(
                 "INSERT INTO trades(signal_id, symbol, side, kind, qty, price, stop, target, order_id, network, status,"
-                " expires_at, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                " expires_at, created_at, filled_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (trade.signal_id, trade.symbol, int(trade.side), trade.kind.value, trade.qty, trade.price, trade.stop,
                  trade.target, trade.order_id, trade.network, trade.status.value,
-                 trade.expires_at.isoformat() if trade.expires_at else None, created.isoformat()))
+                 trade.expires_at.isoformat() if trade.expires_at else None, created.isoformat(),
+                 trade.filled_at.isoformat() if trade.filled_at else None))
             self.db.commit()
             row = self.db.execute("SELECT * FROM trades WHERE id = ?", (cur.lastrowid,)).fetchone()
         return self._trade(row)
@@ -308,6 +326,34 @@ class SqliteStore:
         with self.lock:
             self.db.execute("UPDATE trades SET status = ? WHERE id = ?", (status.value, trade_id))
             self.db.commit()
+
+    def set_trade_filled(self, trade_id: int, at: datetime) -> None:
+        with self.lock:
+            self.db.execute("UPDATE trades SET status = ?, filled_at = COALESCE(filled_at, ?) WHERE id = ?",
+                            (TradeStatus.FILLED.value, at.isoformat(), trade_id))
+            self.db.commit()
+
+    def unsettled_trades(self) -> list[Trade]:
+        with self.lock:
+            rows = self.db.execute("SELECT * FROM trades WHERE status IN (?, ?) AND settled = 0 ORDER BY id DESC",
+                                   (TradeStatus.FILLED.value, TradeStatus.TIMED_OUT.value)).fetchall()
+        return [self._trade(r) for r in rows]
+
+    def settle_trade(self, trade_id: int, status: TradeStatus, result: TradeResult | None) -> None:
+        payload = None if result is None else json.dumps(
+            {"entry_fill": result.entry_fill, "exit": result.exit, "pnl_usd": result.pnl_usd,
+             "closed_at": result.closed_at.isoformat()})
+        with self.lock:
+            self.db.execute("UPDATE trades SET status = ?, result = ?, settled = 1 WHERE id = ?",
+                            (status.value, payload, trade_id))
+            self.db.commit()
+
+    def journal(self, limit: int = 500) -> list[JournalEntry]:
+        with self.lock:
+            rows = self.db.execute("SELECT t.*, s.timeframe AS tf FROM trades t JOIN signals s ON s.id = t.signal_id "
+                                   "ORDER BY t.id DESC LIMIT ?", (limit,)).fetchall()
+        tfs = {t.value for t in Timeframe}
+        return [JournalEntry(self._trade(r), Timeframe(r["tf"])) for r in rows if r["tf"] in tfs]
 
     # ---------- резервные копии ----------
     def backup(self, folder: Path, day: str, keep: int) -> Path:
