@@ -96,11 +96,11 @@ def coin_trades(d: pd.DataFrame, liq: np.ndarray, sym: str) -> pd.DataFrame:
             if not (0.3 * a[t] <= risk <= 4.0 * a[t]):
                 continue
             if entry == "retest" and ((side > 0 and lo[fill] <= stop) or (side < 0 and hi[fill] >= stop)):
-                r3 = (side * (stop - px) - (fee + TAKER) * px) / risk
+                r3, ex = (side * (stop - px) - (fee + TAKER) * px) / risk, fill
             else:
-                r3 = two_targets(o, hi, lo, c, f, fill, side, px, stop, 3.0, 3.0, False, HOLD[TF], fee)[0]
+                r3, ex = two_targets(o, hi, lo, c, f, fill, side, px, stop, 3.0, 3.0, False, HOLD[TF], fee)
             rows.append({"symbol": sym, "trig": name, "t": d.index[t], "side": side, "entry": entry, "R3": r3,
-                         "risk_pct": risk / px})
+                         "risk_pct": risk / px, "fill_i": int(fill), "exit_i": int(ex)})
     return pd.DataFrame(rows)
 
 

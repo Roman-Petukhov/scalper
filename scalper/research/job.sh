@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"prepo noline"}
+TASKS=${TASKS:-"prepo hedged"}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
 FILTER="Pandas4Warning\|pd.concat\|файлов$\|мес. свечей"
@@ -129,6 +129,8 @@ trenddef_collect() { python -m research.trenddef collect --symbols "$(cat /tmp/s
 trenddef_report() { python -m research.trenddef report; }
 noline_collect() { python -m research.noline collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
 noline_report() { python -m research.noline report; }
+hedged_collect() { python -m research.hedged collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
+hedged_report() { python -m research.hedged report; }
 robust_collect() { python -m research.robust collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
 robust_report() { python -m research.robust report; }
 crowd_collect() { python -m research.crowd collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
