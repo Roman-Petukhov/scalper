@@ -1,0 +1,50 @@
+name: sigtrace
+
+# Разбор сигнала по свечам: лог — в ветку research-results (runs/sigtrace-<id>).
+on:
+  workflow_dispatch:
+  push:
+    branches: [main-t2qdvg]
+    paths: ["scalper/tools/sigtrace.py", ".github/workflows/sigtrace.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: scalper
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: scalper/requirements.txt
+      - run: pip install -r requirements.txt httpx
+      - name: Lines
+        env:
+          OUT: ../out
+        run: |
+          mkdir -p ../out
+          set -o pipefail
+          python -m tools.sigtrace RVNUSDT 4h -1 2026-09-26 2>&1 | tee ../out/log.txt
+      - name: Publish
+        working-directory: .
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898277+github-actions[bot]@users.noreply.github.com"
+          git fetch origin research-results
+          git worktree add rr origin/research-results
+          git -C rr checkout -B research-results
+          mkdir -p "rr/runs/sigtrace-${GITHUB_RUN_ID}"
+          cp -r out/* "rr/runs/sigtrace-${GITHUB_RUN_ID}/"
+          git -C rr add runs
+          git -C rr commit -qm "sigtrace run ${GITHUB_RUN_ID} (${GITHUB_SHA::7})"
+          for i in 1 2 3 4; do
+            git -C rr push origin research-results && break
+            git -C rr pull --rebase -q origin research-results
+          done
