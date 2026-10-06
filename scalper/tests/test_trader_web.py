@@ -351,4 +351,4 @@ def test_journal_card_shows_live_results_against_backtest(env):
     _login(c)
     r = c.get("/")
     assert "Журнал: биржа против бэктеста" in r.text and "+2.90R" in r.text and "бэктест +0.45R" in r.text
-    assert "нужно ещё 29 сделок" in r.text and "цель" in r.text and "проск. +0.10R" in r.text
+    assert "после 20 сделок (сейчас 1)" in r.text and "цель" in r.text and "проск. +0.10R" in r.text

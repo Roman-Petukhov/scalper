@@ -167,8 +167,7 @@
       {% if st.closed %}
       <p class="hint num">сделок {{ st.closed }} · итог {{ '%+.1f' % st.sum_r }}R · прибыльных {{ '%.0f' % (st.win_share * 100) }}%{% if st.avg_slippage_r is not none %} · проскальзывание {{ '%+.2f' % st.avg_slippage_r }}R{% endif %}{% if st.retest_fill is not none %} · ретест исполнился {{ '%.0f' % (st.retest_fill * 100) }}% из {{ st.retest_orders }}{% endif %}</p>
       {% endif %}
-      {% if not st.enough %}<p class="hint">Для сравнения нужно ещё {{ st.need }} сделок: пока одна сделка двигает среднее на десятые R.</p>
-      {% elif st.backtest_r is not none and st.avg_r < st.backtest_r - 0.25 %}<p class="hint warn">Заметно хуже бэктеста — до реального счёта стоит разобраться, что съедает результат.</p>{% endif %}
+      {% if st.health %}<p class="hint jr-health jr-{{ st.health.level.value }}">{{ st.health.text }}</p>{% endif %}
     </div>
   {% endfor %}
   </div>

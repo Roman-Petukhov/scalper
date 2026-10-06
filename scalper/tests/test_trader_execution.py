@@ -3,6 +3,7 @@ from dataclasses import replace
 from datetime import timedelta
 
 import ccxt.async_support as ccxt
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -550,3 +551,14 @@ def test_pnl_periods_backfill_history_and_count_today(tmp_path):
     asyncio.run(h.refresh(b))
     assert len(b.calls) == n + 1                                # история есть — только сегодняшний день
     assert h.periods("live", 1000.0)[0].usd is None             # другая сеть — своя история
+
+
+def test_health_check_flags_a_strategy_that_stopped_working():
+    from trader.domain.journal import Health, health
+    assert health([1.0] * 5, 0.45, 3.0).level is Health.EARLY
+    rng = np.random.default_rng(1)
+    normal = list(np.where(rng.random(60) < 0.31, 3.0, -1.0))          # около +0.22R — половина бэктеста 4h
+    assert health(normal, 0.45, 3.0).level is Health.OK
+    broken = [-1.0] * 9 + [3.0] + [-1.0] * 10 + [3.0] + [-1.0] * 9     # 2 цели из 30: ≈ −0.73R
+    h = health(broken, 0.45, 3.0)
+    assert h.level is Health.STOP and "выключить авто" in h.text and h.drawdown_r > h.drawdown_limit_r

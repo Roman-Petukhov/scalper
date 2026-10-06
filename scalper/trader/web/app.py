@@ -148,7 +148,7 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         closed = [e for e in entries if e.trade.status in (TradeStatus.CLOSED, TradeStatus.TIMED_OUT)
                   and (e.trade.result is not None or e.trade.status is TradeStatus.TIMED_OUT)]
         return {"s": s, "signals": signals, "view": view, "last": scanner.last,
-                "journal": tf_stats(entries), "journal_rows": closed[:JOURNAL_ROWS],
+                "journal": tf_stats(entries, {t: s.p(t).target_r for t in Timeframe}), "journal_rows": closed[:JOURNAL_ROWS],
                 "archived_count": store.count(ARCHIVED),
                 "trades": store.trades_for([x.id for x in signals if x.id is not None]),
                 "exchange": exchange_label(), "creds": holder.credentials if broker is None else None}

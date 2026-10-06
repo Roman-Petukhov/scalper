@@ -12,6 +12,7 @@ from datetime import timedelta
 
 from ..domain.execution import (Account, ExecutionRefused, Trade, TradeResult, TradeStatus, build_order, settle,
                                 target_reached)
+from ..domain.journal import Health, tf_stats
 from ..domain.models import Signal, SignalStatus, Timeframe
 from .pnl import PnlHistory, PnlPeriod
 from .ports import Broker, Notifier, SettingsRepository, SignalRepository, TradeRepository
@@ -225,6 +226,21 @@ class Executor:
         r = done.r_multiple
         await self._say(f"{t.symbol}{tf} {t.side.label} закрыта: "
                         f"{f'{r:+.2f}R' if r is not None else f'{res.pnl_usd:+.2f} $'} ({done.exit_reason})")
+        if sig is not None:
+            await self._check_health(sig.timeframe)
+
+    async def _check_health(self, tf: Timeframe) -> None:
+        """Детектор «стратегия перестала работать»: при переходе в «присмотреться» или «остановить» — уведомление."""
+        st = next(x for x in tf_stats(self.trades.journal(), {tf: self.settings.load().p(tf).target_r})
+                  if x.timeframe is tf)
+        if st.health is None:
+            return
+        key = f"health:{tf.value}"
+        prev = self.trades.kv_get(key)
+        self.trades.kv_set(key, st.health.level.value)
+        if st.health.level in (Health.WATCH, Health.STOP) and prev != st.health.level.value:
+            icon = "🛑" if st.health.level is Health.STOP else "⚠️"
+            await self._say(f"{icon} {tf.value}: {st.closed} сделок, в среднем {st.health.live_r:+.2f}R. {st.health.text}")
 
     async def _say(self, text: str) -> None:
         if self.notifier is not None:

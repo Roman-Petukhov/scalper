@@ -267,3 +267,5 @@ dl.plan dd { margin: 0; text-align: right; }
 /* PnL за периоды: реализованный, по закрытиям на бирже */
 .stats.periods { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 12px; }
 @media (max-width: 480px) { .stats.periods .stat b { font-size: 16px; } .stats.periods .stat { padding: 8px 10px; } }
+.jr-health.jr-watch { color: var(--warn); }
+.jr-health.jr-stop { color: var(--short); font-weight: 600; }
