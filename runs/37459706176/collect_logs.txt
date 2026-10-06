@@ -1,0 +1,50 @@
+----- prepi collect (часть 0/10) -----
+часть 0/10, набор 1h-qualified: монет 63
+часть 0/10, набор 1h-all: монет 76
+----- improve collect (часть 0/10) -----
+  improve: частей 312
+----- prepi collect (часть 1/10) -----
+часть 1/10, набор 1h-qualified: монет 66
+часть 1/10, набор 1h-all: монет 84
+----- improve collect (часть 1/10) -----
+  improve: частей 310
+----- prepi collect (часть 2/10) -----
+часть 2/10, набор 1h-qualified: монет 78
+часть 2/10, набор 1h-all: монет 93
+----- improve collect (часть 2/10) -----
+  improve: частей 372
+----- prepi collect (часть 3/10) -----
+часть 3/10, набор 1h-qualified: монет 73
+часть 3/10, набор 1h-all: монет 94
+----- improve collect (часть 3/10) -----
+  improve: частей 362
+----- prepi collect (часть 4/10) -----
+часть 4/10, набор 1h-qualified: монет 72
+часть 4/10, набор 1h-all: монет 86
+----- improve collect (часть 4/10) -----
+  improve: частей 362
+----- prepi collect (часть 5/10) -----
+часть 5/10, набор 1h-qualified: монет 83
+часть 5/10, набор 1h-all: монет 98
+----- improve collect (часть 5/10) -----
+  improve: частей 392
+----- prepi collect (часть 6/10) -----
+часть 6/10, набор 1h-qualified: монет 71
+часть 6/10, набор 1h-all: монет 90
+----- improve collect (часть 6/10) -----
+  improve: частей 353
+----- prepi collect (часть 7/10) -----
+часть 7/10, набор 1h-qualified: монет 61
+часть 7/10, набор 1h-all: монет 79
+----- improve collect (часть 7/10) -----
+  improve: частей 288
+----- prepi collect (часть 8/10) -----
+часть 8/10, набор 1h-qualified: монет 75
+часть 8/10, набор 1h-all: монет 90
+----- improve collect (часть 8/10) -----
+  improve: частей 373
+----- prepi collect (часть 9/10) -----
+часть 9/10, набор 1h-qualified: монет 83
+часть 9/10, набор 1h-all: монет 107
+----- improve collect (часть 9/10) -----
+  improve: частей 413
