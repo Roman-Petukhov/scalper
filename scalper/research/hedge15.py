@@ -115,3 +115,18 @@ def report() -> None:
         if len(z) < 10:
             continue
         print(f"  {p:4s} n={len(z):5d}  без хеджа {_row(z, 'R3')}\n{'':16s}с хеджем  {_row(z, 'R3h')}")
+
+
+if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    warnings.filterwarnings("ignore")
+    pd.set_option("display.width", 400)
+    ap = argparse.ArgumentParser()
+    ap.add_argument("mode", choices=["collect", "report"])
+    ap.add_argument("--root", default="~/bn")
+    ap.add_argument("--symbols", default="")
+    a = ap.parse_args()
+    if a.mode == "collect":
+        collect(Path(a.root).expanduser(), [x for x in a.symbols.split(",") if x])
+    else:
+        report()
