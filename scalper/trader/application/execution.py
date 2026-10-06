@@ -22,6 +22,7 @@ log = logging.getLogger(__name__)
 
 PNL_WINDOW = timedelta(days=6, hours=23)    # биржа отдаёт закрытия окнами не длиннее 7 дней
 GIVE_UP = timedelta(days=8)                 # закрытия так и не нашлось — итог «нет данных», больше не ищем
+HEDGE_ERR_KEY = "hedge:error"               # последняя ошибка хеджа: уведомление — один раз, а не каждую минуту
 HEDGE_KEY = "hedge:held"                    # "1" — позицию BTCUSDT ведёт хедж (не трогать ручную, пока хеджа не было)
 
 
@@ -118,9 +119,9 @@ class Executor:
                 acc, price = await asyncio.gather(b.account(), b.price(signal.symbol))
                 if hedged:
                     acc = without_hedge(acc)                         # позиция хеджа не занимает место сделки
-                req = build_order(signal, settings, acc, inst, price, self._day_start(acc.equity),
-                                  self.clock(), self._tf_open(acc, signal.timeframe))
                 leg = await self._hedge_leg(signal) if settings.p(signal.timeframe).hedge_btc else None
+                req = build_order(signal, settings, acc, inst, price, self._day_start(acc.equity),
+                                  self.clock(), self._tf_open(acc, signal.timeframe), leg.beta if leg else 0.0)
                 order_id = await b.place(req)
             except ExecutionRefused:
                 raise
@@ -251,7 +252,15 @@ class Executor:
         self.trades.kv_set(HEDGE_KEY, "1")
         delta = rebalance(target, cur, inst, px)
         if delta:
-            await b.adjust(HEDGE_SYMBOL, delta, self.settings.load().leverage)
+            try:
+                await b.adjust(HEDGE_SYMBOL, delta, self.settings.load().leverage)
+            except Exception as e:                               # обычно не хватает маржи — сказать один раз
+                why = _short(e)
+                if self.trades.kv_get(HEDGE_ERR_KEY) != why:
+                    self.trades.kv_set(HEDGE_ERR_KEY, why)
+                    await self._say(f"⚠️ Хедж BTC не подогнан ({delta:+.6g} BTC): {why}. Повторю через минуту.")
+                raise
+            self.trades.kv_set(HEDGE_ERR_KEY, "")
             side = "лонг" if cur + delta > 0 else "шорт"
             await self._say(f"Хедж BTC: {side} {abs(cur + delta):.6g} BTC (≈${abs(cur + delta) * px:,.0f}) "
                             f"под {len(open_)} сделок")

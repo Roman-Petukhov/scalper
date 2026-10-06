@@ -12,6 +12,8 @@ from .models import EntryKind, Timeframe
 # R на сделку по бэктесту на последнем периоде (HOLDOUT, 2025.07–2026.09), правило бота по умолчанию:
 # 4h — ретест, research/tline.py (followup_report); 15m — пологие шорты, топ-150, research/wide15.py
 BACKTEST_R: dict[Timeframe, float] = {Timeframe.H4: 0.45, Timeframe.M15: 0.08}
+# худшая просадка бэктеста в R (4h, 2020–2026, research/hedged.py): чтобы показать, во что она обходится при риске
+BACKTEST_DD_R: dict[Timeframe, float] = {Timeframe.H4: 13.3}
 MIN_TRADES = 30             # раньше сравнивать с бэктестом бессмысленно: разброс одной сделки — несколько R
 # Детектор «стратегия перестала работать». Норма на реале — половина бэктеста (docs/knowledge.md: вне выборки
 # остаётся 50–57%). Сделка моделируется как стоп (−1R) или цель (+target R) с такой вероятностью, чтобы среднее было

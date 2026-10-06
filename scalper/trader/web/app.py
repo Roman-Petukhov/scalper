@@ -28,8 +28,10 @@ from ..application.ports import Broker, MarketData, Notifier
 from ..application.services import Scanner, SettingsService, SignalDecisions
 from ..config import AppConfig
 from ..domain.execution import TradeStatus
-from ..domain.journal import tf_stats
-from ..domain.models import HTF_CONFIRM, EntryPolicy, Mode, SideFilter, SignalStatus, Timeframe
+from ..domain.journal import BACKTEST_DD_R, tf_stats
+from ..domain.models import (DEFAULT_TF_PARAMS, HTF_CONFIRM, EntryPolicy, Mode, Settings, SideFilter, SignalStatus,
+                             Timeframe)
+from ..domain.sizing import exposure, risk_notes
 from ..infrastructure.binance_data import BinanceMarketData
 from ..infrastructure.bybit import BrokerHolder, BybitBroker, BybitCredentials
 from ..infrastructure.charts import MatplotlibCharts
@@ -45,6 +47,7 @@ REMEMBER_S = 365 * 24 * 3600          # «запомнить на этом ус�
 SHORT_LOGIN_S = 12 * 3600
 CHART_BARS = 300                      # свечей на живом графике
 JOURNAL_ROWS = 15                     # последних закрытых сделок в журнале
+TYPICAL_STOP_PCT = {Timeframe.H4: 3.0, Timeframe.M15: 1.5}   # стоп, % цены — пока своих сигналов мало
 ARCHIVED = {SignalStatus.EXPIRED, SignalStatus.SKIPPED, SignalStatus.CLOSED}
 DELETABLE = {SignalStatus.EXPIRED, SignalStatus.SKIPPED}   # закрытые сделки — история журнала, не удаляем
 VIEWS = {"all", "archive"} | {t.value for t in Timeframe}
@@ -85,7 +88,7 @@ templates.env.globals.update(ARCHIVED=ARCHIVED, DELETABLE=DELETABLE, TRADE_LABEL
                                           TradeStatus.TIMED_OUT: "закрыт по сроку", TradeStatus.CLOSED: "закрыта"},
                              FEED_TABS=[("all", "Все")] + [(t.value, t.value) for t in Timeframe] + [("archive", "Архив")],
                              STATUS_LABEL=STATUS_LABEL, Timeframe=Timeframe, Mode=Mode, EntryPolicy=EntryPolicy, SideFilter=SideFilter, HTF_CONFIRM=HTF_CONFIRM,
-                             SignalStatus=SignalStatus)
+                             SignalStatus=SignalStatus, DEFAULTS=DEFAULT_TF_PARAMS, ACCOUNT_DEFAULTS=Settings())
 
 
 def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notifier | None = None,
@@ -176,8 +179,22 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         return {"s": s, "signals": signals, "view": view, "last": scanner.last,
                 "journal": tf_stats(entries, {t: s.p(t).target_r for t in Timeframe}), "journal_rows": closed[:JOURNAL_ROWS],
                 "archived_count": store.count(ARCHIVED), "new_count": store.count({SignalStatus.NEW}),
+                "risk": risk_view(s),
                 "trades": store.trades_for([x.id for x in signals if x.id is not None]),
                 "exchange": exchange_label(), "creds": holder.credentials if broker is None else None}
+
+    def risk_view(s: Settings) -> dict[Timeframe, dict]:
+        """«Что это значит» под настройками: типичный стоп ТФ (медиана по последним сигналам), доля капитала
+        на сделку и предупреждения."""
+        out = {}
+        for tf in Timeframe:
+            stops = sorted(x.plan.risk_pct_of_price for x in store.recent(200, {tf}))
+            stop = stops[len(stops) // 2] if len(stops) >= 5 else TYPICAL_STOP_PCT[tf]
+            p = s.p(tf)
+            exp = exposure(p.risk_pct, stop, s.leverage, p.hedge_btc)
+            out[tf] = {"exp": exp, "notes": risk_notes(p.risk_pct, s.daily_loss_pct, exp, BACKTEST_DD_R.get(tf)),
+                       "measured": len(stops) >= 5}
+        return out
 
     def exchange_label() -> str | None:
         b = executor.broker()

@@ -663,3 +663,20 @@ def test_hedge_off_leaves_manual_btc_position_alone(tmp_path):
     asyncio.run(ex.execute(st.get(s.id)))
     asyncio.run(ex.housekeep())
     assert not b.adjusted and not b.closed and st.trades_for([s.id])[s.id].hedge is None
+
+
+def test_order_says_why_risk_was_cut_and_reserves_margin_for_hedge():
+    from trader.domain.sizing import exposure, risk_notes
+    s = Settings().with_tf(Timeframe.H4, risk_pct=5.0)
+    poor = replace(ACC, available=100.0)                    # маржи хватает на 500$ номинала при плече 5
+    o = build_order(_sig(), s, poor, INST, price=101.0, day_start_equity=1000.0, now=NOW)
+    assert o.cut.startswith("вместо $50.00: не хватило свободной маржи") and "вместо $50.00" in o.describe()
+    h = build_order(_sig(), s, poor, INST, price=101.0, day_start_equity=1000.0, now=NOW, hedge_beta=1.0)
+    assert h.qty == pytest.approx(o.qty / 2, abs=0.02) and "с учётом хеджа BTC" in h.cut
+    assert build_order(_sig(), Settings(), ACC, INST, price=101.0, day_start_equity=1000.0, now=NOW).cut == ""
+    e = exposure(5.0, 1.7, 10, hedge=True)                  # как в панели трейдера: риск 5%, плечо 10×, хедж
+    assert e.notional_x == pytest.approx(5 / 1.7) and e.fits == 1
+    notes = risk_notes(5.0, 4.0, e, 13.3)
+    assert any("дневного лимита" in n for n in notes) and any("−66%" in n for n in notes)
+    assert any("одну такую сделку" in n for n in notes)
+    assert risk_notes(1.0, 4.0, exposure(1.0, 3.0, 5, hedge=False), 13.3) == []

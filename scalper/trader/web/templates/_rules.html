@@ -1,0 +1,104 @@
+{# Торговые правила: деньги → вход → выход. Значение не как в бэктесте помечено точкой, в подсказке — стандартное #}
+{% set tfs = Timeframe | list | reverse | list %}
+{% macro num(tf, name, field, label, step, lo, hi, pct=false) -%}
+  {%- set v = s.p(tf) | attr(field) -%}{%- set d = DEFAULTS[tf] | attr(field) -%}
+  <input name="{{ tf.value }}__{{ name }}" type="number" step="{{ step }}" min="{{ lo }}" max="{{ hi }}"
+         value="{{ ((v * 100) | round | int) if pct else v }}" aria-label="{{ label }}, {{ tf.value }}"
+         {% if v != d %}class="changed" title="Стандартно (как в бэктесте): {{ ((d * 100) | round | int) if pct else d }}"{% endif %}>
+{%- endmacro %}
+{% macro pick(tf, name, field, label, options) -%}
+  {%- set v = s.p(tf) | attr(field) -%}{%- set d = DEFAULTS[tf] | attr(field) -%}
+  <select name="{{ tf.value }}__{{ name }}" aria-label="{{ label }}, {{ tf.value }}"
+          {% if v != d %}class="changed" title="Стандартно (как в бэктесте): {% for o, t in options %}{% if o == d %}{{ t }}{% endif %}{% endfor %}"{% endif %}>
+    {% for o, t in options %}<option value="{{ o.value }}"{% if o == v %} selected{% endif %}>{{ t }}</option>{% endfor %}
+  </select>
+{%- endmacro %}
+{% macro acct(name, label, step, lo, hi) -%}
+  {%- set v = s | attr(name) -%}{%- set d = ACCOUNT_DEFAULTS | attr(name) -%}
+  <label for="{{ name }}">{{ label }}</label>
+  <input id="{{ name }}" name="{{ name }}" type="number" step="{{ step }}" min="{{ lo }}" max="{{ hi }}" value="{{ v }}"
+         {% if v != d %}class="changed" title="Стандартно: {{ d }}"{% endif %}>
+{%- endmacro %}
+
+<div class="card set-rules">
+  <h2>Торговые правила</h2>
+  <p class="hint legend"><span class="changed-dot" aria-hidden="true"></span> — не как в бэктесте; наведите, чтобы увидеть стандартное значение.</p>
+  <form hx-post="/settings/params" hx-target="#controls">
+    <div class="per-tf num" style="--cols: {{ tfs | length }}">
+      <span></span>{% for tf in tfs %}<b class="tf-head">{{ tf.value }}</b>{% endfor %}
+
+      <div class="rules-sec"><b>Деньги</b><span>сколько теряем на стопе и сколько сделок держим</span></div>
+      <label>Риск на сделку, % капитала</label>
+      {% for tf in tfs %}{{ num(tf, "risk_pct", "risk_pct", "Риск на сделку", 0.05, 0.05, 5) }}{% endfor %}
+      <label>Сделок этого ТФ сразу (0 — без своего лимита)</label>
+      {% for tf in tfs %}{{ num(tf, "tf_max_positions", "max_positions", "Сделок этого ТФ сразу", 1, 0, 50) }}{% endfor %}
+      <label>Хедж BTC против сделки</label>
+      {% for tf in tfs %}{% set v = s.p(tf).hedge_btc %}
+      <select name="{{ tf.value }}__hedge_btc" aria-label="Хедж BTC, {{ tf.value }}"
+              {% if v != DEFAULTS[tf].hedge_btc %}class="changed" title="Стандартно: {{ 'да' if DEFAULTS[tf].hedge_btc else 'нет' }}"{% endif %}>
+        <option value="0"{% if not v %} selected{% endif %}>нет</option>
+        <option value="1"{% if v %} selected{% endif %}>да</option>
+      </select>{% endfor %}
+    </div>
+    <div class="per-tf per-acct num" style="--cols: {{ tfs | length }}">
+      {{ acct("leverage", "Плечо на бирже, ×", 1, 1, 10) }}
+      {{ acct("max_positions", "Сделок всего сразу", 1, 1, 50) }}
+      {{ acct("daily_loss_pct", "Дневной лимит убытка, %", 0.5, 0.5, 30) }}
+    </div>
+    <div class="risk-says">
+      {% for tf in tfs %}{% set r = risk[tf] %}{% set e = r.exp %}
+      <div class="risk-tf{{ ' has-notes' if r.notes else '' }}">
+        <p><b>{{ tf.value }}</b> стоп обычно ~{{ '%.1f' % e.stop_pct }}% цены{% if not r.measured %} (оценка){% endif %} →
+          позиция {{ '%.1f' % e.notional_x }}× капитала, маржа {{ '%.0f' % e.margin_pct }}%{% if s.p(tf).hedge_btc %} с хеджем{% endif %},
+          одновременно влезет {{ e.fits }}.</p>
+        {% for n in r.notes %}<p class="warn">{{ n }}</p>{% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="per-tf num" style="--cols: {{ tfs | length }}">
+      <div class="rules-sec"><b>Вход</b><span>какой пробой берём и как входим</span></div>
+      <label>Как входить</label>
+      {% for tf in tfs %}{{ pick(tf, "entry_policy", "entry_policy", "Как входить", [(EntryPolicy.RETEST, 'ретест'), (EntryPolicy.MARKET, 'рынок'), (EntryPolicy.HYBRID, 'гибрид')]) }}{% endfor %}
+      <label>Направление</label>
+      {% for tf in tfs %}{{ pick(tf, "sides", "sides", "Направление", [(SideFilter.BOTH, 'обе'), (SideFilter.SHORT, 'шорт'), (SideFilter.LONG, 'лонг')]) }}{% endfor %}
+      <label>Агрессоров в свече пробоя ≥, %</label>
+      {% for tf in tfs %}{{ num(tf, "min_aggr_pct", "min_aggr", "Агрессоров ≥", 1, 50, 80, true) }}{% endfor %}
+      <label>Закрытие у края свечи ≥, %</label>
+      {% for tf in tfs %}{{ num(tf, "min_close_loc_pct", "min_close_loc", "Закрытие у края", 5, 0, 90, true) }}{% endfor %}
+      <label>Закрытие за линией ≥, ATR</label>
+      {% for tf in tfs %}{{ num(tf, "min_break_atr", "min_break_atr", "Закрытие за линией", 0.05, 0, 1) }}{% endfor %}
+      <label>Линия не круче, ATR за свечу (0 — любая)</label>
+      {% for tf in tfs %}{{ num(tf, "max_slope_atr", "max_slope_atr", "Наклон линии", 0.005, 0, 1) }}{% endfor %}
+      <label>Монет: топ по обороту (0 — все)</label>
+      {% for tf in tfs %}{{ num(tf, "top_n", "top_n", "Топ монет", 1, 0, 1000) }}{% endfor %}
+      <label>Только после пробоя 4h, не раньше ч</label>
+      {% for tf in tfs %}{% if HTF_CONFIRM.get(tf) %}{{ num(tf, "htf_confirm_h", "htf_confirm_h", "После пробоя 4h", 1, 0, 48) }}{% else %}<span class="cell-na" title="Старшего ТФ нет">—</span>{% endif %}{% endfor %}
+      <label>Лимитка ретеста ждёт, свечей</label>
+      {% for tf in tfs %}{{ num(tf, "retest_bars", "retest_bars", "Ретест ждёт", 1, 1, 48) }}{% endfor %}
+      <label>Гибрид: ретест, если свеча ≥, ATR</label>
+      {% for tf in tfs %}{{ num(tf, "hybrid_range_atr", "hybrid_range_atr", "Гибрид: порог свечи", 0.1, 0.5, 10) }}{% endfor %}
+
+      <div class="rules-sec"><b>Выход</b><span>стоп за свингом; цель и срок</span></div>
+      <label>Цель, R (во сколько стопов)</label>
+      {% for tf in tfs %}{{ num(tf, "target_r", "target_r", "Цель", 0.5, 1, 10) }}{% endfor %}
+      <label>Закрыть по времени через, свечей</label>
+      {% for tf in tfs %}{{ num(tf, "max_hold_bars", "max_hold_bars", "Закрыть через", 1, 1, 1000) }}{% endfor %}
+    </div>
+
+    <div class="row rules-actions">
+      <button class="btn primary" type="submit">Сохранить</button>
+      <button type="button" class="btn ghost" hx-post="/settings/reset" hx-target="#controls"
+            hx-confirm="Вернуть правила как в бэктесте? Оба ТФ: агрессоры 55%, цель 3R, закрытие у края свечи 50%; 4h — ретест, обе стороны, риск 1%; 15m — по рынку, только шорт, линия не круче 0.025 ATR/свечу, риск 0.25%; плечо 5×, до 12 сделок, дневной лимит 4%, хедж BTC выключен. Таймфреймы и режим ручной / авто не изменятся.">Как в бэктесте</button>
+      {% if params_error %}<span class="err" role="alert">{{ params_error }}</span>
+      {% elif params_saved %}<span class="ok" role="status">Сохранено</span>
+      {% elif reset_done %}<span class="ok" role="status">Правила как в бэктесте</span>{% endif %}
+    </div>
+  </form>
+  <details class="more"><summary>Что значат поля</summary>
+    <p><b>Риск</b> — убыток по стопу в % капитала; размер позиции считается от него. <b>Плечо</b> ограничивает номинал позиции (не больше плеча × капитал) и задаёт, сколько маржи она занимает. Если маржи не хватает, объём урезается — в описании ордера будет «вместо $…».</p>
+    <p><b>Как входить</b>: ретест — лимитка на линии; рынок — по закрытию свечи пробоя; гибрид — длинная свеча пробоя (больше порога в ATR) ждёт ретест, короткая — по рынку.</p>
+    <p><b>Хедж BTC</b>: к каждой сделке — позиция BTCUSDT в обратную сторону на бету монеты (лонг альта → шорт BTC, шорт альта → лонг BTC). Хеджи всех сделок сводятся в одну позицию BTC: лонги и шорты взаимно гасятся, поэтому противоположные позиции на одном контракте не нужны. Бэктест 4h: R в месяц +3.1 → +2.6, худший месяц −9.0 → −4.4R. Хеджу нужна маржа — она учтена в размере сделки. Пока хедж включён, BTCUSDT бот не торгует.</p>
+    <p><b>Бэктест</b>: 4h — основная стратегия (ретест, закрытие в верхней половине свечи, риск 1%). 15m — только шорт от пологой линии по рынку, риск 0.25%; другие настройки 15m не проверены.</p>
+  </details>
+</div>

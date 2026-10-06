@@ -176,6 +176,29 @@ details.more p { margin: 8px 0 0; line-height: 1.55; }
   font: inherit; padding: 8px 6px; border-radius: var(--radius-sm); text-align: center; }
 .per-tf .cell-na { text-align: center; color: var(--muted); }
 .per-acct input { grid-column: span var(--cols, 2); }
+.per-acct { margin-top: 6px; }
+/* Разделы правил: деньги / вход / выход — строкой на всю ширину таблицы */
+.rules-sec { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  margin: 14px 0 2px; padding-top: 12px; border-top: 1px solid var(--line); }
+.per-tf > .rules-sec:nth-child(-n + 4) { border-top: 0; padding-top: 0; margin-top: 6px; }
+.rules-sec b { font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--text); font-family: system-ui, sans-serif; }
+.rules-sec span { font-size: 12px; color: var(--muted); font-family: system-ui, sans-serif; }
+/* Значение не как в бэктесте: тонкая янтарная рамка и точка — видно, где ушли от проверенного */
+.per-tf .changed { border-color: color-mix(in srgb, var(--warn) 70%, var(--line));
+  background: color-mix(in srgb, var(--warn) 8%, var(--surface-2)); }
+.changed-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; vertical-align: middle;
+  border: 1px solid var(--warn); background: color-mix(in srgb, var(--warn) 30%, transparent); }
+.legend { margin: -4px 0 10px; }
+/* Что значит риск: сделка в долях капитала и предупреждения */
+.risk-says { display: grid; gap: 8px; margin: 12px 0 4px; }
+.risk-tf { padding: 10px 12px; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--line);
+  font-size: 13px; color: var(--muted); }
+.risk-tf p { margin: 0; }
+.risk-tf p + p { margin-top: 6px; }
+.risk-tf b { color: var(--text); margin-right: 4px; }
+.risk-tf .warn { color: var(--warn); }
+.risk-tf.has-notes { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+.rules-actions { margin-top: 16px; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .ok { color: var(--long); font-size: 13px; }
 .err { color: var(--short); font-size: 13px; }
