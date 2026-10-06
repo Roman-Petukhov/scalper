@@ -112,3 +112,10 @@ def test_hedge_ratio_scales_hedge_and_max_pos_cfg():
     rows = [(f"2024-01-01 {h:02d}:00", "2024-01-09", -1, 1.0, 0.01, NAN, NAN) for h in range(5)]
     res = simulate(trades(rows), Cfg("two", True, 1.0, 10, False, max_pos=2))
     assert (res.opened, res.rej_pos) == (2, 3)
+
+
+def test_hedge15_result_in_r():
+    from research.hedge15 import hedge_r
+    # шорт, BTC упал на 1%: хедж (лонг BTC, бета 1.5) теряет 1.5%, минус комиссии; стоп 1% → в R делим на 0.01
+    r = hedge_r(np.array([-1.0]), np.array([1.5]), np.array([-0.01]), np.array([0.01]))[0]
+    assert r == pytest.approx((-0.015 - 2 * TAKER * 1.5) / 0.01)
