@@ -44,17 +44,23 @@ class Cfg:
     size_pct: float
     lev: int
     hedge: bool
+    hedge_ratio: float = 1.0    # доля беты в хедже (1 — полная, как в боте)
+    hedge_lev: int = 0          # плечо BTC; 0 — то же, что у сделок (в боте сейчас так)
+    max_pos: int = MAX_POS
 
 
 CONFIGS = (
     Cfg("маржа 10% x10 + хедж", True, 10.0, 10, True),
-    Cfg("маржа 10% x10", True, 10.0, 10, False),
-    Cfg("маржа 5% x10 + хедж", True, 5.0, 10, True),
     Cfg("маржа 2.5% x10 + хедж", True, 2.5, 10, True),
     Cfg("риск 1% x5 (сейчас)", False, 1.0, 5, False),
-    Cfg("риск 1% x5 + хедж", False, 1.0, 5, True),
-    Cfg("риск 2.5% x10 + хедж", False, 2.5, 10, True),       # по σ месяца рядом с «маржа 2.5% x10 + хедж»
-    Cfg("риск 5% x10 + хедж", False, 5.0, 10, True),          # по σ месяца рядом с «маржа 5% x10 + хедж»
+    Cfg("риск 1% x10 + хедж", False, 1.0, 10, True),
+    Cfg("риск 2% x10 без хеджа", False, 2.0, 10, False),
+    Cfg("риск 2% x10 + хедж", False, 2.0, 10, True),
+    Cfg("  то же, хедж 50% беты", False, 2.0, 10, True, hedge_ratio=0.5),
+    Cfg("  то же, не больше 6 поз.", False, 2.0, 10, True, max_pos=6),
+    Cfg("  то же, плечо BTC x25", False, 2.0, 10, True, hedge_lev=25),
+    Cfg("риск 2.5% x10 + хедж", False, 2.5, 10, True),
+    Cfg("риск 5% x10 + хедж", False, 5.0, 10, True),
 )
 
 
@@ -113,18 +119,24 @@ class Result:
     peak_open: int = 0
     peak_margin: float = 0.0            # доля капитала под маржой сделок и хеджа
     loss_at_stop: np.ndarray | None = None   # убыток по стопу каждой открытой сделки, % капитала на момент входа
+    util_t: list | None = None          # моменты изменения загрузки маржи
+    util_v: list | None = None          # загрузка после изменения: (маржа сделок + маржа хеджа) / капитал
 
 
 def simulate(df: pd.DataFrame, cfg: Cfg, e0: float = E0) -> Result:
     """Счёт по сделкам в порядке входа: выходы, наступившие к моменту входа, закрываются первыми."""
     d = df.sort_values("t_in", kind="stable")
     rows = zip(d["t_in"], d["t_out"], d["side"].astype(int), d["R3"], d["risk_pct"], d["beta"], d["btc_ret"])
+    hl = cfg.hedge_lev or cfg.lev
     eq, open_, seq = e0, [], 0
     marg, hedge_net = 0.0, 0.0          # маржа открытых сделок; нетто-номинал хеджа BTC (плюс — лонг)
     times, vals = [], []
-    res = Result(pd.Series(dtype="float64"))
+    res = Result(pd.Series(dtype="float64"), util_t=[], util_v=[])
     losses: list[float] = []
     day, day_start = None, e0
+
+    def util() -> float:
+        return (marg + abs(hedge_net) / hl) / eq if eq > 0 else 1.0
 
     def close_until(t: pd.Timestamp | None) -> None:
         """Закрыть выходы не позже t (None — все оставшиеся)."""
@@ -136,21 +148,23 @@ def simulate(df: pd.DataFrame, cfg: Cfg, e0: float = E0) -> Result:
             hedge_net -= hs
             times.append(t_out)
             vals.append(eq)
+            res.util_t.append(t_out)
+            res.util_v.append(util())
 
     for t_in, t_out, side, r3, rp, beta, btc_ret in rows:
         close_until(t_in)
         if t_in.floor("D") != day:
             day, day_start = t_in.floor("D"), eq
-        if len(open_) >= MAX_POS:
+        if len(open_) >= cfg.max_pos:
             res.rej_pos += 1
             continue
         if eq <= day_start * (1 - DAILY_LOSS / 100):
             res.rej_day += 1
             continue
-        b = float(beta) if cfg.hedge and np.isfinite(beta) and np.isfinite(btc_ret) else 0.0
+        b = float(beta) * cfg.hedge_ratio if cfg.hedge and np.isfinite(beta) and np.isfinite(btc_ret) else 0.0
         want = eq * cfg.size_pct / 100 * cfg.lev if cfg.by_margin else min(eq * cfg.size_pct / 100 / rp, eq * cfg.lev)
-        avail = eq - marg - abs(hedge_net) / cfg.lev
-        cap = max(avail, 0.0) * RESERVE * cfg.lev / (1 + b)
+        avail = eq - marg - abs(hedge_net) / hl
+        cap = max(avail, 0.0) * RESERVE / (1 / cfg.lev + b / hl)         # маржа сделки + маржа её хеджа ≤ свободной
         n = min(want, cap)
         if n < MIN_NOTIONAL:
             res.rej_margin += 1
@@ -167,12 +181,28 @@ def simulate(df: pd.DataFrame, cfg: Cfg, e0: float = E0) -> Result:
         hedge_net += hs
         res.opened += 1
         res.peak_open = max(res.peak_open, len(open_))
-        res.peak_margin = max(res.peak_margin, (marg + abs(hedge_net) / cfg.lev) / eq)
+        res.peak_margin = max(res.peak_margin, util())
+        res.util_t.append(t_in)
+        res.util_v.append(util())
         losses.append(n * rp / eq * 100)
     close_until(None)
     res.eq = pd.Series(vals, index=pd.DatetimeIndex(times), dtype="float64")
     res.loss_at_stop = np.asarray(losses)
     return res
+
+
+def util_stats(res: Result) -> tuple[float, float, float]:
+    """Загрузка маржи по времени (от первого входа до последнего выхода): среднее, доля времени выше 50% и выше 80%."""
+    if not res.util_t or len(res.util_t) < 2:
+        return 0.0, 0.0, 0.0
+    t = pd.DatetimeIndex(res.util_t)
+    order = np.argsort(t.asi8, kind="stable")
+    ts, v = t.asi8[order].astype("float64"), np.asarray(res.util_v)[order]
+    w = np.diff(ts)
+    v = v[:-1]
+    if w.sum() <= 0:
+        return 0.0, 0.0, 0.0
+    return float((v * w).sum() / w.sum()), float(w[v > 0.5].sum() / w.sum()), float(w[v > 0.8].sum() / w.sum())
 
 
 def monthly(eq: pd.Series, e0: float = E0) -> pd.Series:
@@ -205,8 +235,11 @@ def summarize(res: Result, e0: float = E0) -> dict[str, object]:
         sub = mo[(mo.index >= a) & (mo.index < b)]
         row[p] = f"{sub.mean():+.1f}" if len(sub) else "-"
     ls = res.loss_at_stop if res.loss_at_stop is not None and len(res.loss_at_stop) else np.array([np.nan])
+    um, u50, u80 = util_stats(res)
     row |= {"сделок": res.opened, "лимит поз.": res.rej_pos, "дн. стоп": res.rej_day, "нет маржи": res.rej_margin,
-            "урезано": res.cut, "пик поз.": res.peak_open, "пик маржи %": f"{res.peak_margin * 100:.0f}",
+            "урезано": res.cut, "пик поз.": res.peak_open,
+            "маржа %: ср. / пик": f"{um * 100:.0f} / {res.peak_margin * 100:.0f}",
+            "время >50% / >80%": f"{u50:.0%} / {u80:.0%}",
             "стоп = % капитала (мед / p90 / макс)": f"{np.nanmedian(ls):.1f} / {np.nanpercentile(ls, 90):.1f} / {np.nanmax(ls):.1f}"}
     return row
 

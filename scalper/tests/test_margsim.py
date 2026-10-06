@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from research.margsim import E0, MAX_POS, Cfg, max_dd, monthly, simulate
+from research.margsim import E0, MAX_POS, Cfg, max_dd, monthly, simulate, util_stats
 from research.tline import TAKER
 
 MARGIN10 = Cfg("m10", True, 10.0, 10, False)
@@ -87,3 +87,28 @@ def test_drawdown_and_monthly():
     eq = pd.Series([1100.0, 880.0, 990.0], index=pd.to_datetime(["2024-01-10", "2024-02-10", "2024-03-10"], utc=True))
     assert max_dd(eq) == pytest.approx(20.0)                                        # 1100 → 880
     assert monthly(eq).round(1).tolist() == [10.0, -20.0, 12.5]
+
+
+def test_margin_utilization_over_time():
+    # сутки под маржой 10% капитала (номинал = капитал, плечо 10×) → среднее 10%, выше 50% не было
+    res = simulate(trades([("2024-01-01", "2024-01-02", -1, 0.0, 0.02, NAN, NAN)]), MARGIN10)
+    mean, over50, over80 = util_stats(res)
+    assert (round(mean, 3), over50, over80) == (0.1, 0.0, 0.0)
+
+
+def test_hedge_margin_share_and_btc_leverage():
+    # хедж с бетой 1 на номинал 1000: при плече BTC 10× — маржа 100 к 100 сделки (загрузка 20%), при 25× — 40 (14%)
+    row = [("2024-01-01", "2024-01-02", -1, 0.0, 0.02, 1.0, 0.0)]
+    same = simulate(trades(row), MARGIN10_HEDGE)
+    wide = simulate(trades(row), Cfg("m10h25", True, 10.0, 10, True, hedge_lev=25))
+    assert same.peak_margin == pytest.approx(0.2)
+    assert wide.peak_margin == pytest.approx(0.14)
+
+
+def test_hedge_ratio_scales_hedge_and_max_pos_cfg():
+    row = [("2024-01-01", "2024-01-02", -1, 0.0, 0.02, 1.0, -0.05)]
+    half = simulate(trades(row), Cfg("m10h50", True, 10.0, 10, True, hedge_ratio=0.5)).eq.iloc[-1]
+    assert half == pytest.approx(E0 - 25 - 2 * TAKER * 500)
+    rows = [(f"2024-01-01 {h:02d}:00", "2024-01-09", -1, 1.0, 0.01, NAN, NAN) for h in range(5)]
+    res = simulate(trades(rows), Cfg("two", True, 1.0, 10, False, max_pos=2))
+    assert (res.opened, res.rej_pos) == (2, 3)
