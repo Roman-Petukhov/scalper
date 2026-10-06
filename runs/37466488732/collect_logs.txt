@@ -1,0 +1,40 @@
+----- prepo collect (часть 0/10) -----
+часть 0/10, набор 1h-qualified: монет 63
+----- funnel collect (часть 0/10) -----
+  funnel: монет 186, со сделками 62
+----- prepo collect (часть 1/10) -----
+часть 1/10, набор 1h-qualified: монет 66
+----- funnel collect (часть 1/10) -----
+  funnel: монет 189, со сделками 63
+----- prepo collect (часть 2/10) -----
+часть 2/10, набор 1h-qualified: монет 78
+----- funnel collect (часть 2/10) -----
+  funnel: монет 228, со сделками 75
+----- prepo collect (часть 3/10) -----
+часть 3/10, набор 1h-qualified: монет 73
+----- funnel collect (часть 3/10) -----
+  funnel: монет 216, со сделками 72
+----- prepo collect (часть 4/10) -----
+часть 4/10, набор 1h-qualified: монет 72
+----- funnel collect (часть 4/10) -----
+  funnel: монет 216, со сделками 72
+----- prepo collect (часть 5/10) -----
+часть 5/10, набор 1h-qualified: монет 83
+----- funnel collect (часть 5/10) -----
+  funnel: монет 243, со сделками 80
+----- prepo collect (часть 6/10) -----
+часть 6/10, набор 1h-qualified: монет 71
+----- funnel collect (часть 6/10) -----
+  funnel: монет 210, со сделками 70
+----- prepo collect (часть 7/10) -----
+часть 7/10, набор 1h-qualified: монет 61
+----- funnel collect (часть 7/10) -----
+  funnel: монет 180, со сделками 60
+----- prepo collect (часть 8/10) -----
+часть 8/10, набор 1h-qualified: монет 75
+----- funnel collect (часть 8/10) -----
+  funnel: монет 225, со сделками 75
+----- prepo collect (часть 9/10) -----
+часть 9/10, набор 1h-qualified: монет 83
+----- funnel collect (часть 9/10) -----
+  funnel: монет 246, со сделками 82
