@@ -48,7 +48,8 @@ REMEMBER_S = 365 * 24 * 3600          # «запомнить на этом ус�
 SHORT_LOGIN_S = 12 * 3600
 CHART_BARS = 300                      # свечей на живом графике
 JOURNAL_ROWS = 15                     # последних закрытых сделок в журнале
-TYPICAL_STOP_PCT = {Timeframe.H4: 3.0, Timeframe.M15: 1.5}   # стоп, % цены — пока своих сигналов мало
+TYPICAL_STOP_PCT = {Timeframe.H4: 8.6, Timeframe.M15: 1.5}   # стоп, % цены, пока своих сигналов мало: 4h — медиана
+#                                                                  бэктеста 2020–2026 (research/margsim.py), 15m — прикидка
 ARCHIVED = {SignalStatus.EXPIRED, SignalStatus.SKIPPED, SignalStatus.CLOSED}
 DELETABLE = {SignalStatus.EXPIRED, SignalStatus.SKIPPED}   # закрытые сделки — история журнала, не удаляем
 VIEWS = {"all", "archive"} | {t.value for t in Timeframe}
