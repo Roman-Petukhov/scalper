@@ -1,0 +1,50 @@
+----- prepq collect (часть 0/10) -----
+часть 0/10, набор 1h-qualified: монет 63
+----- crowd collect (часть 0/10) -----
+  crowd: разлоков с монетой Binance 160
+  crowd: монет со сделками 62
+----- prepq collect (часть 1/10) -----
+часть 1/10, набор 1h-qualified: монет 66
+----- crowd collect (часть 1/10) -----
+  crowd: разлоков с монетой Binance 205
+  crowd: монет со сделками 63
+----- prepq collect (часть 2/10) -----
+часть 2/10, набор 1h-qualified: монет 78
+----- crowd collect (часть 2/10) -----
+  crowd: разлоков с монетой Binance 226
+  crowd: монет со сделками 76
+----- prepq collect (часть 3/10) -----
+часть 3/10, набор 1h-qualified: монет 73
+----- crowd collect (часть 3/10) -----
+  crowd: разлоков с монетой Binance 193
+  crowd: монет со сделками 71
+----- prepq collect (часть 4/10) -----
+часть 4/10, набор 1h-qualified: монет 72
+----- crowd collect (часть 4/10) -----
+  crowd: разлоков с монетой Binance 171
+  crowd: монет со сделками 72
+----- prepq collect (часть 5/10) -----
+часть 5/10, набор 1h-qualified: монет 83
+----- crowd collect (часть 5/10) -----
+  crowd: разлоков с монетой Binance 119
+  crowd: монет со сделками 80
+----- prepq collect (часть 6/10) -----
+часть 6/10, набор 1h-qualified: монет 71
+----- crowd collect (часть 6/10) -----
+  crowd: разлоков с монетой Binance 274
+  crowd: монет со сделками 70
+----- prepq collect (часть 7/10) -----
+часть 7/10, набор 1h-qualified: монет 61
+----- crowd collect (часть 7/10) -----
+  crowd: разлоков с монетой Binance 148
+  crowd: монет со сделками 59
+----- prepq collect (часть 8/10) -----
+часть 8/10, набор 1h-qualified: монет 75
+----- crowd collect (часть 8/10) -----
+  crowd: разлоков с монетой Binance 56
+  crowd: монет со сделками 75
+----- prepq collect (часть 9/10) -----
+часть 9/10, набор 1h-qualified: монет 83
+----- crowd collect (часть 9/10) -----
+  crowd: разлоков с монетой Binance 149
+  crowd: монет со сделками 81
