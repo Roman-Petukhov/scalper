@@ -105,10 +105,12 @@ def report() -> None:
     print("\n  --- бот целиком ---")
     lg, sh = g[g.side == 1], g[g.side == -1]
     _table([("как сейчас", g),
-            ("лонги только при широте > 60%", pd.concat([sh, lg[lg.breadth > 0.6]])),
-            ("лонги только при BTC выше 200-дневной", pd.concat([sh, lg[lg.btc200 == 1]])),
-            ("шорты только при широте < 60%", pd.concat([lg, sh[sh.breadth <= 0.6]])),
-            ("оба: лонги при > 60%, шорты при <= 60%", pd.concat([lg[lg.breadth > 0.6], sh[sh.breadth <= 0.6]]))])
+            ("лонги только при широте > 60%", pd.concat([sh, lg[~(lg.breadth <= 0.6)]])),
+            ("лонги только при BTC выше 200-дневной", pd.concat([sh, lg[~(lg.btc200 == 0)]])),
+            ("шорты только при широте <= 60%", pd.concat([lg, sh[~(sh.breadth > 0.6)]])),
+            ("оба: лонги при > 60%, шорты при <= 60%", pd.concat([lg[~(lg.breadth <= 0.6)], sh[~(sh.breadth > 0.6)]]))])
+    print(f"  режим неизвестен (мало монет / нет 200 дней BTC) — сделка остаётся как сейчас: широта у "
+          f"{g.breadth.isna().mean():.0%} сделок, BTC 200 у {g.btc200.isna().mean():.0%}")
 
 
 if __name__ == "__main__":
