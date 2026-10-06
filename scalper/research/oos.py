@@ -23,11 +23,10 @@ from . import tline
 from .broad import ADV_MIN
 from .shard import all_parts, mine, part_path
 from .smc import _atr, _cell
-from .tline import LEVEL_PIV, LEVEL_TOL, PER, _bot_base, _years, coin_trades, market_context, pivots, tf_frame
+from .tline import LEVEL_PIV, PER, _bot_base, _years, coin_trades, level_break, market_context, pivots, tf_frame
 
 PER_ALL = {"2020": ("2020-01-01", "2021-01-01"), "2021": ("2021-01-01", "2022-01-01"), **PER}
 COLS = ["symbol", "t", "side", "line", "entry", "confirm", "aggr", "with_trend", "close_loc", "adv", "R3", "risk_pct"]
-LEVEL_LOOKBACK = 300
 
 SECTORS: dict[str, tuple[str, ...]] = {
     "мемы": ("DOGE", "SHIB", "PEPE", "FLOKI", "BONK", "WIF", "BOME", "MEME", "PEOPLE", "TURBO", "NEIRO", "POPCAT",
@@ -60,22 +59,6 @@ def sector(sym: str) -> str:
         if base in coins:
             return name
     return "другое"
-
-
-def level_break(c: np.ndarray, a: np.ndarray, e: int, side: int, piv_hi: np.ndarray, piv_lo: np.ndarray) -> bool:
-    """В свече e закрытие прошло горизонтальный уровень: 2+ разворота закрытий (подтверждены до e, за LEVEL_LOOKBACK
-    свечей) в пределах LEVEL_TOL ATR, цена уровня между прошлым и текущим закрытием (с допуском LEVEL_TOL ATR)."""
-    tol = LEVEL_TOL * a[e]
-    pts = np.concatenate([piv_hi[(piv_hi[:, 1] <= e) & (piv_hi[:, 0] >= e - LEVEL_LOOKBACK), 0],
-                          piv_lo[(piv_lo[:, 1] <= e) & (piv_lo[:, 0] >= e - LEVEL_LOOKBACK), 0]])
-    if len(pts) < 2:
-        return False
-    px = np.sort(c[pts])
-    lo_, hi_ = (c[e - 1] - tol, c[e]) if side > 0 else (c[e], c[e - 1] + tol)
-    for p in px[(px >= lo_) & (px <= hi_)]:
-        if np.sum(np.abs(px - p) <= tol) >= 2:
-            return True
-    return False
 
 
 def collect(root: Path, syms: list[str]) -> None:

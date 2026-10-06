@@ -133,6 +133,7 @@ main { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 20px; pa
 .badge { font-size: 12px; font-weight: 650; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
 .badge.long { color: var(--long); border-color: color-mix(in srgb, var(--long) 45%, transparent); }
 .badge.short { color: var(--short); border-color: color-mix(in srgb, var(--short) 45%, transparent); }
+.badge.level { color: var(--text); border-style: dashed; }
 .badge.status-taken { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 dl.plan { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: 14px; }
 dl.plan dt { color: var(--muted); }

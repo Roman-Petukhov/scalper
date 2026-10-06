@@ -216,5 +216,11 @@ class Signal:
         return self.bar_time + timedelta(minutes=self.timeframe.minutes * bars)
 
     @property
+    def at_level(self) -> bool:
+        """Пробой линии совпал с пробоем горизонтального уровня (кандидат по research/oos.py: не фильтр, а пометка
+        для сравнения по журналу)."""
+        return bool(self.extra.get("level"))
+
+    @property
     def key(self) -> tuple[str, str, str, int]:
         return self.symbol, self.timeframe.value, self.bar_time.isoformat(), int(self.side)

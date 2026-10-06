@@ -9,7 +9,7 @@ from ..domain.models import EntryKind, Signal
 def caption(s: Signal, panel_url: str) -> str:
     p = s.plan
     entry = "лимитка на ретесте линии" if p.entry_kind is EntryKind.RETEST else "по рынку"
-    return (f"<b>{s.symbol}</b> · {s.timeframe.value} · {s.side.label}\n"
+    return (f"<b>{s.symbol}</b> · {s.timeframe.value} · {s.side.label}{' · + уровень' if s.at_level else ''}\n"
             f"Вход: {entry} {p.entry:.6g}\nСтоп: {p.stop:.6g} ({p.risk_pct_of_price:.2f}%)\n"
             f"Цель: {p.target:.6g}\nАгрессоры: {s.aggr:.0%}\n"
             f"<a href=\"{panel_url.rstrip('/')}/#signal-{s.id}\">Открыть в панели</a>")

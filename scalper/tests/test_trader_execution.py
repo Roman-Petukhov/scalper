@@ -469,7 +469,7 @@ def test_journal_records_result_in_r_slippage_and_reason(tmp_path):
     b = FakeBroker()
     clock = Clock(NOW)
     st, ex = _exec(tmp_path, b, clock)
-    s = st.add(_signal())                                  # лонг по рынку: план вход 101, стоп 98, цель 110
+    s = st.add(replace(_signal(), extra={"level": True}))  # лонг по рынку: план вход 101, стоп 98, цель 110
     asyncio.run(ex.execute(st.get(s.id)))
     b.acc = replace(ACC, positions=(Position("SOLUSDT", Side.LONG, 3.33, 101.3, 105, 10),))
     clock.t = NOW + timedelta(hours=1)
@@ -487,6 +487,8 @@ def test_journal_records_result_in_r_slippage_and_reason(tmp_path):
     assert not st.unsettled_trades()
     h4 = next(x for x in tf_stats(st.journal()) if x.timeframe is Timeframe.H4)
     assert h4.closed == 1 and h4.avg_r == pytest.approx(t.r_multiple) and h4.need == 29 and h4.win_share == 1.0
+    assert st.journal()[0].at_level and h4.level_closed == 1 and h4.level_avg_r == pytest.approx(t.r_multiple)
+    assert h4.plain_avg_r is None
 
 
 def test_journal_gives_up_without_exchange_record_and_hold_counts_from_fill(tmp_path):

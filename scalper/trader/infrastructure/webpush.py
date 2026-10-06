@@ -47,7 +47,7 @@ def load_or_create_keys(path: Path) -> tuple[Path, str]:
 def payload(s: Signal) -> dict:
     p = s.plan
     kind = "ретест" if p.entry_kind is EntryKind.RETEST else "рынок"
-    return {"title": f"{s.symbol} · {s.timeframe.value} · {s.side.label}",
+    return {"title": f"{s.symbol} · {s.timeframe.value} · {s.side.label}{' · + уровень' if s.at_level else ''}",
             "body": f"Вход ({kind}) {p.entry:.6g} · стоп {p.stop:.6g} · цель {p.target:.6g}\nАгрессоры {s.aggr:.0%}",
             "tag": f"signal-{s.id}", "url": f"/#signal-{s.id}"}
 

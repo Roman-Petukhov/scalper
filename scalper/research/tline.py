@@ -459,6 +459,25 @@ LEVEL_GAP = 20        # касания уровня не ближе 20 свеч�
 LEVEL_LIFE = 300      # уровень живёт 300 свечей после последнего касания (сила уровня затухает)
 
 
+LEVEL_LOOKBACK = 300  # пробой уровня в сигнале: развороты за 300 свечей до пробоя
+
+
+def level_break(c: np.ndarray, a: np.ndarray, e: int, side: int, piv_hi: np.ndarray, piv_lo: np.ndarray) -> bool:
+    """В свече e закрытие прошло горизонтальный уровень: 2+ разворота закрытий (подтверждены до e, за LEVEL_LOOKBACK
+    свечей) в пределах LEVEL_TOL ATR, цена уровня между прошлым и текущим закрытием (с допуском LEVEL_TOL ATR)."""
+    tol = LEVEL_TOL * a[e]
+    pts = np.concatenate([piv_hi[(piv_hi[:, 1] <= e) & (piv_hi[:, 0] >= e - LEVEL_LOOKBACK), 0],
+                          piv_lo[(piv_lo[:, 1] <= e) & (piv_lo[:, 0] >= e - LEVEL_LOOKBACK), 0]])
+    if len(pts) < 2:
+        return False
+    px = np.sort(c[pts])
+    lo_, hi_ = (c[e - 1] - tol, c[e]) if side > 0 else (c[e], c[e - 1] + tol)
+    for p in px[(px >= lo_) & (px <= hi_)]:
+        if np.sum(np.abs(px - p) <= tol) >= 2:
+            return True
+    return False
+
+
 def level_lines(d: pd.DataFrame, min_touches: int = 3) -> list[dict]:
     """Горизонтальные уровни-зоны по скоплениям разворотов (Chung & Bellotti 2021; Osler 2000): развороты —
     экстремумы закрытий среди LEVEL_PIV свечей с каждой стороны (вершины и впадины вместе); разворот в пределах LEVEL_TOL ATR

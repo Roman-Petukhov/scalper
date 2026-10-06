@@ -350,10 +350,13 @@ class SqliteStore:
 
     def journal(self, limit: int = 500) -> list[JournalEntry]:
         with self.lock:
-            rows = self.db.execute("SELECT t.*, s.timeframe AS tf FROM trades t JOIN signals s ON s.id = t.signal_id "
+            rows = self.db.execute("SELECT t.*, s.timeframe AS tf, s.payload AS sig_payload FROM trades t "
+                                   "JOIN signals s ON s.id = t.signal_id "
                                    "ORDER BY t.id DESC LIMIT ?", (limit,)).fetchall()
         tfs = {t.value for t in Timeframe}
-        return [JournalEntry(self._trade(r), Timeframe(r["tf"])) for r in rows if r["tf"] in tfs]
+        return [JournalEntry(self._trade(r), Timeframe(r["tf"]),
+                             bool(json.loads(r["sig_payload"]).get("extra", {}).get("level")))
+                for r in rows if r["tf"] in tfs]
 
     # ---------- резервные копии ----------
     def backup(self, folder: Path, day: str, keep: int) -> Path:

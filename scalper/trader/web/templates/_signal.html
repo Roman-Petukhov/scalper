@@ -7,6 +7,7 @@
     <span class="badge">{{ sig.timeframe.value }}</span>
     <span class="badge {{ 'long' if long else 'short' }}">{{ sig.side.label }}</span>
     <span class="badge">{{ STATUS_LABEL[sig.status] }}</span>
+    {% if sig.at_level %}<span class="badge level" title="Пробой линии совпал с пробоем горизонтального уровня">+ уровень</span>{% endif %}
     <span class="hint num row-time">{{ sig.bar_time.strftime('%d.%m %H:%M') }} UTC</span>
     <span class="row-open" aria-hidden="true">график ▾</span>
     <button type="button" class="row-del" title="Удалить сигнал" aria-label="Удалить сигнал {{ sig.symbol }}"
@@ -29,6 +30,7 @@
       <span class="badge">{{ sig.timeframe.value }}</span>
       <span class="badge {{ 'long' if long else 'short' }}">{{ sig.side.label }}</span>
       <span class="badge status-{{ sig.status.value }}">{{ STATUS_LABEL[sig.status] }}</span>
+      {% if sig.at_level %}<span class="badge level" title="Пробой линии совпал с пробоем горизонтального уровня">+ уровень</span>{% endif %}
     </div>
     <span class="hint" style="margin:0">Свеча пробоя {{ sig.bar_time.strftime('%d.%m %H:%M') }} UTC</span>
     <dl class="plan num">

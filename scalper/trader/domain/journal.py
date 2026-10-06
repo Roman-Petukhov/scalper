@@ -79,6 +79,7 @@ def health(rs: list[float], backtest_r: float, target_r: float) -> HealthCheck:
 class JournalEntry:
     trade: Trade
     timeframe: Timeframe
+    at_level: bool = False      # сигнал с пометкой «+ уровень» (Signal.at_level)
 
 
 @dataclass(frozen=True)
@@ -93,6 +94,9 @@ class TfStats:
     retest_fill: float | None   # доля исполнившихся
     backtest_r: float | None
     health: HealthCheck | None = None
+    level_closed: int = 0       # из них с пометкой «+ уровень»
+    level_avg_r: float | None = None
+    plain_avg_r: float | None = None
 
     @property
     def enough(self) -> bool:
@@ -107,17 +111,23 @@ def _mean(xs: list[float]) -> float | None:
     return sum(xs) / len(xs) if xs else None
 
 
+def _closed(entries: list[JournalEntry], tf: Timeframe) -> list[JournalEntry]:
+    done = [e for e in entries if e.timeframe is tf and e.trade.result is not None and e.trade.r_multiple is not None]
+    return sorted(done, key=lambda e: e.trade.result.closed_at)
+
+
 def closed_rs(entries: list[JournalEntry], tf: Timeframe) -> list[float]:
     """Итоги закрытых сделок ТФ в R по порядку закрытия."""
-    done = [e.trade for e in entries if e.timeframe is tf and e.trade.result is not None and e.trade.r_multiple is not None]
-    return [t.r_multiple for t in sorted(done, key=lambda t: t.result.closed_at)]
+    return [e.trade.r_multiple for e in _closed(entries, tf)]
 
 
 def tf_stats(entries: list[JournalEntry], target_r: dict[Timeframe, float] | None = None) -> list[TfStats]:
     out = []
     for tf in Timeframe:
         own = [e.trade for e in entries if e.timeframe is tf]
-        rs = closed_rs(entries, tf)
+        done = _closed(entries, tf)
+        rs = [e.trade.r_multiple for e in done]
+        lv = [e.trade.r_multiple for e in done if e.at_level]
         slips = [s for s in (t.slippage_r for t in own) if s is not None]
         retest = [t for t in own if t.kind is EntryKind.RETEST and t.status is not TradeStatus.PLACED]
         filled = [t for t in retest if t.filled_at is not None or t.status in
@@ -125,5 +135,6 @@ def tf_stats(entries: list[JournalEntry], target_r: dict[Timeframe, float] | Non
         bt = BACKTEST_R.get(tf)
         hc = health(rs, bt, (target_r or {}).get(tf, 3.0)) if bt is not None else None
         out.append(TfStats(tf, len(rs), _mean(rs), sum(rs), _mean([float(r > 0) for r in rs]), _mean(slips),
-                           len(retest), len(filled) / len(retest) if retest else None, bt, hc))
+                           len(retest), len(filled) / len(retest) if retest else None, bt, hc,
+                           len(lv), _mean(lv), _mean([e.trade.r_multiple for e in done if not e.at_level])))
     return out

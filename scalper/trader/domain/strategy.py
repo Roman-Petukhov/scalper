@@ -5,14 +5,16 @@
 Вход — по настройке: лимитка на линии (ретест, по умолчанию), по рынку на закрытии свечи пробоя или гибрид
 (свеча пробоя короче hybrid_range_atr ATR — по рынку, длиннее — ретест).
 
-Построение линий берётся из research.tline (один источник правды с бэктестом); линии — в обычной шкале (лог-вариант — LOG_LINES)."""
+Построение линий берётся из research.tline (один источник правды с бэктестом); линии — в обычной шкале (лог-вариант — LOG_LINES).
+Пометка extra["level"]: закрытие пробоя прошло и горизонтальный уровень (2+ разворота закрытий в 0.5 ATR за 300 свечей) —
+не фильтр, а признак для сравнения по журналу (research/oos.py, docs/knowledge.md)."""
 from __future__ import annotations
 
 import numpy as np
 import pandas as pd
 
 from research.smc import _atr
-from research.tline import PIV, htf_trend, last_confirmed, pivots, zz_lines
+from research.tline import LEVEL_PIV, PIV, htf_trend, last_confirmed, level_break, pivots, zz_lines
 
 from datetime import datetime, timedelta
 
@@ -55,6 +57,7 @@ def detect(d: pd.DataFrame, tf: Timeframe, symbol: str, settings: Settings) -> l
     buy = d["taker_buy_volume"].to_numpy(dtype="float64") / np.where(d["volume"] > 0, d["volume"], np.nan)
     sw_lo = last_confirmed(pivots(lo, PIV, False), len(c))
     sw_hi = last_confirmed(pivots(hi, PIV, True), len(c))
+    lv_hi, lv_lo = pivots(c, LEVEL_PIV, True), pivots(c, LEVEL_PIV, False)
     tp = settings.p(tf)
     out, seen = [], set()
     for r in recs:
@@ -94,7 +97,8 @@ def detect(d: pd.DataFrame, tf: Timeframe, symbol: str, settings: Settings) -> l
                           line_points=((d.index[a].to_pydatetime(), float(c[a])), (d.index[b].to_pydatetime(), float(c[b]))),
                           aggr=float(aggr), range_atr=float(range_atr), plan=plan,
                           extra={"log_line": LOG_LINES, "break_atr": round(float(brk), 3), "close_loc": round(float(loc), 3),
-                                 "slope_atr": round(float(slope_atr), 4)}))
+                                 "slope_atr": round(float(slope_atr), 4),
+                                 "level": level_break(c, atr, last, int(side), lv_hi, lv_lo)}))
         seen.add(side)
     return out
 
