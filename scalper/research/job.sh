@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"prepw extension15"}
+TASKS=${TASKS:-"prepo regime"}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
 FILTER="Pandas4Warning\|pd.concat\|файлов$\|мес. свечей"
@@ -117,6 +117,8 @@ extension_collect() { python -m research.extension collect --symbols "$(cat /tmp
 extension_report() { python -m research.extension report; }
 extension15_collect() { python -m research.extension15 collect --symbols "$(cat /tmp/syms_15m-wide.txt)"; }
 extension15_report() { python -m research.extension15 report; }
+regime_collect() { python -m research.regime collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
+regime_report() { python -m research.regime report; }
 robust_collect() { python -m research.robust collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
 robust_report() { python -m research.robust report; }
 crowd_collect() { python -m research.crowd collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
