@@ -1,0 +1,138 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Evidence-based investing research
+Login Join
+
+
+[CXO_Advisory]
+
+    * Research
+    * Strategies
+          o Strategy_Overview
+          o What_Works_Best?
+          o Momentum_Strategy
+          o Value_Strategy
+          o Strategy_Tools
+          o Value_+_Momentum
+    * Live_Tests
+    * Research_Assistant_Beta
+    * More
+          o Inflation
+          o Calendar
+          o Guru_Grades
+
+
+[_s                  ]
+
+
+    * Research
+    * Strategies
+          o Strategy_Overview
+          o What_Works_Best?
+          o Momentum_Strategy
+          o Value_Strategy
+          o Strategy_Tools
+          o Value_+_Momentum
+    * Live_Tests
+    * Research_Assistant_Beta
+    * More
+          o Inflation
+          o Calendar
+          o Guru_Grades
+[_s                  ]
+Value Investing Strategy (Strategy_Overview)
+Allocations for October 2026 (Final)
+Cash TLT LQD SPY
+Momentum Investing Strategy (Strategy_Overview)
+Allocations for October 2026 (Final)
+1st ETF 2nd ETF 3rd ETF
+
+
+****** Crypto-asset Trend-following Strategies ******
+Steve LeCompte | May 29, 2025 | Posted in:Currency_Trading, Technical_Trading
+
+Is trend-following generally an attractive strategy for crypto-assets? In their
+April 2025 paper entitled "Catching_Crypto_Trends;_A_Tactical_Approach_for
+Bitcoin_and_Altcoins", Carlo Zarattini, Alberto Pagani and Andrea Barbon test a
+long-only trend-following strategy on Bitcoin. They then extend the strategy to
+all cryptocurrencies listed for at least one year since 2015 with median daily
+trading volume of at least $2 million over the preceding 30 days. Their base
+strategy employs a daily ensemble of short-term and long-term trend signals
+based on the maximum and minimum closes over the last 5, 10, 20, 30, 60, 90,
+150, 250 or 360 days, and the midpoints between them, as follows:
+    * For each lookback interval and each asset, open a position whenever daily
+      closing price crosses above the maximum for the lookback interval.
+    * Close each open position based on a daily trailing stop that is the
+      higher of the prior-day trailing stop and the midpoint of maximum and
+      minimum closes over the associated lookback interval.
+    * Resize each open position daily to 25% target annualized volatility (25%
+      divided by annualized 90-day standard deviation of returns), with
+      leverage capped at 200%.
+    * Reform each day an equal-weighted ensemble portfolio of open positions
+      for all lookback intervals.
+They consider transaction costs of 0.10%, 0.25% and 0.50% and propose a way to
+mitigate impact of these costs. They also analyze whether crypto-asset trend-
+following returns diversify trend-following returns for traditional asset
+classes. Using survivorship bias-free open, high, low, close and volume data
+aggregated across exchanges for 21,616 individual crypto-assets during January
+2010 through mid-March 2025, they find that:
+**** Subscribe to Keep Reading ****
+Get the research edge serious investors rely on.
+    * 1,200+ research articles
+    * Monthly strategy signals
+    * 20+ years of backtested analysis
+$17.99 /month
+Cancel anytime
+Subscribe_Now Already_a_member?_Log_in
+
+***** Further Reading *****
+Individual_Investing___Crypto-asset_Retail_Trading_Frictions__How_material_are
+crypto-asset_trading_frictions?_In_their_June_2026_paper_entitled_“The_‘Actual
+Retail_Price’_of_Crypto..._Aug_6,_2026 Currency_Trading,_Fundamental_Valuation,
+Technical_Trading___Cryptocurrency_Pairs_Trading__Are_there_cryptocurrencies
+that_are_so_alike_that_they_generally_track_each_other_and_reliably_revert
+whenever_they..._Mar_12,_2026 Currency_Trading,_Gold,_Volatility_Effects___The
+BGSV_Portfolio__How_might_an_investor_construct_a_portfolio_of_very_risky
+assets?_To_investigate,_we_revisit_ideas_first_considered..._Aug_27,_2026
+Strategic_Allocation,_Volatility_Effects___SACEMS_with_Inverse_VIX-based
+Lookback_Intervals_Update__One_concern_about_simple_momentum_strategies_is_data
+snooping_bias_impounded_in_selection_of_a_lookback_interval_to..._Sep_11,_2026
+Currency_Trading,_Equity_Premium___Bitcoin_Trend_Predicts_U.S._Stock_Market
+Return?__A_subscriber_asked_about_an_assertion_that_bitcoin_(BTC)_price_trend/
+return_predicts_return_of_the_S&P_500_Index..._Mar_20,_2026 Bonds,_Commodity
+Futures,_Economic_Indicators,_Equity_Premium,_Gold,_Real_Estate___Recent
+Interactions_of_Asset_Classes_with_Inflation_(CPI)__How_do_returns_of_different
+asset_classes_recently_interact_with_inflation_as_measured_by_monthly_change_in
+the..._Sep_15,_2026
+About_CXO Disclaimer Privacy_Policy Terms_of_Service Contact_CXO
+© 2004-2026 The CXO Advisory Group, LLC. All Rights Reserved.
+
+

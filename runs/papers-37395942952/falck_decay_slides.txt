@@ -1,0 +1,365 @@
+Machine Learning in Finance Workshop 2021
+
+
+
+
+             Why and how systematic
+                strategies decay
+                                 Adam Rej
+                 Capital Fund Management International Inc.
+• A lot of time and energy has been devoted to disproving the Efficient Market Hypothesis.
+
+
+
+• A common (but of course not unique) approach is to propose strategies that yield statistically significant
+  excess returns in the backtest and with the expectation that they will continue to do so in the future.
+
+
+
+• Many such strategies have been proposed. Hou et al. (2018) documents 400+… a zoo of strategies
+
+
+
+• Are these genuine findings or data mining? Do market participants arbitrage them away?
+
+
+
+• Several authors (Harvey et al. (2015), McLean and Pontiff (2016), Chen and Zimmerman (2020)) have
+  attempted to quantify what happens to those strategies after publication.
+
+
+
+  2 | © CFM 2021
+• They find a substantial degradation of out-of-sample performance which they attribute to:
+
+                       • overfitting (data mining)
+                       • arbitrage capital
+
+• In this talk I would like to discuss how to detect / differentiate each effect
+
+
+• Talk based on a working paper together with Antoine Falck and David Thesmar, “Why and how systematic
+  strategies decay”
+
+• We have recreated (recoded) 72 equity strategies published in the financial and accounting literature. Many
+  of those are familiar to you: size, book-to-market, momentum, etc.
+
+• Having the code + portfolio positions at our disposal, we are able to propose (cross-sectional) variables that
+  proxy for overfitting and arbitrage.
+
+• We find that several of them are statistically significant.
+  3 | © CFM 2021
+                 Our zoo of strategies
+
+
+
+
+4 | © CFM 2021
+• We replicate 72 long-short strategies (a.k.a factors).
+
+• All strategies were originally proposed using US stock data only (CRSP and Compustat).
+
+• We only took strategies published before 2011 in order to have sufficient OOS period.
+
+
+• We follow the original strategy recipes “line by line”. However we “debias” the final PnL using a 36m rolling
+  window. This ensures the absence of residual market exposure
+
+• Thanks to CFM’s proprietary data sets, we are able to seamlessly define these strategies on international
+  pools: Australia, China, Europe, Hong Kong, Japan, South Korea, UK
+
+• We remove strategies whose in-sample Sharpe is < 0.3
+
+
+
+
+  5 | © CFM 2021
+                 Out-of-sample decay: part 1
+
+
+
+
+6 | © CFM 2021
+                                                               Sharpe decay on CRSP
+
+• We capture the decay using the discount factor
+
+
+
+
+                                                                                      Panel 1
+                           𝑆𝑅𝑂𝑂𝑆
+                       𝑞 = 𝑆𝑅
+                              𝐼𝑆
+
+
+
+
+• Bouchaud, Rej and Seager (2019) have proposed a simple
+  model of overfitting tailored to investment research. For
+  strategies discussed in this talk, the model predicts q of
+  just above 0.5
+
+
+
+
+                                                                                      Panel 2
+• This is very much in line with what happens to factors in
+  our zoo and in line with McLean and Pontiff (2016), who
+  find a slightly bigger drop on a different set of factors
+
+
+   7 | © CFM 2021
+                 Out-of-sample decay: part 2
+
+
+
+
+8 | © CFM 2021
+• There is yet another way of out-of-sample testing of these strategies…
+
+
+• … by evaluating their performance on international pools. Data not looked at by the authors!
+
+
+• So the entire performance on these pools is out-of-sample. Wait, but what’s the in-sample
+  performance? CRSP!
+
+                                                   𝑆𝑅𝑝𝑜𝑜𝑙
+                                            𝑞 =?     𝐶𝑅𝑆𝑃
+                                                   𝑆𝑅𝐼𝑆
+• This new definition of q is unfortunately flawed, because international pools tend to be much smaller
+  than CRSP (few thousand stocks) and this will bias q to be artificially low.
+
+
+• We need to adjust for the size of the pool.
+
+
+
+  9 | © CFM 2021
+• Let’s assume a simple model of returns in the form
+
+                                                                           (1)
+
+
+
+• This is essentially an extension of CAPM, where 𝑠𝑡 is a predictive characteristic and b, β are scalar
+  loadings. η𝑡 on the other hand captures shocks.
+
+
+• The Sharpe ratio of the strategy is given by                                       (2)
+
+
+
+
+• In the absence of eta shocks, this implies square-root dependence on the pool size N. With shocks
+  however the dependence is
+
+
+                                                                         (3)
+
+
+  10 | © CFM 2021
+• We will use both ways of adjusting for size (without and with the eta shock). The latter requires
+  bootstrap to determine the coefficients
+
+
+
+
+  11 | © CFM 2021
+                                                                                    The average of the two gives 0.57
+                  Determinants of decay
+
+
+
+
+12 | © CFM 2021
+• OOS decay as function of publication
+  date.
+
+
+• Coherent with both hypotheses
+  behind the decay:
+
+   More arbitrage capital rush in
+   recently (arbitrage)
+
+  Low-hanging fruits have been
+  plucked, so people try harder
+  and harder (overfitting)
+
+• Can we determine factors driving the
+                                         CRSP
+  decay?
+
+
+
+ 13 | © CFM 2021
+                  Determinants of decay: arbitrage view
+
+
+
+
+14 | © CFM 2021
+• We propose proxy variables related to broadly-defined liquidity of the stocks used in the portfolio. We work
+  with CRSP.
+
+• The more illiquid stocks in the portfolio, the more difficult it should be to arbitrage away the strategy:
+                                                                                       stock
+                                                                                       return
+                       1.   Amihud’s liquidity                                              volume
+                                                                                            traded
+
+                            computed per stock each day then averaged and weighted by absolute stock
+                            weights in the portfolio
+
+                       2.   Log market cap of factor (the smaller market cap, the more difficult for arbitrage
+                            capital to move in in size)
+
+                       3.   Log market cap of the short leg (should capture the difficulty in shorting stocks)
+
+                       4.   Holding period aka turnover
+
+                       5.   BA?
+  15 | © CFM 2021
+• We perform univariate cross-
+  sectional regressions
+
+
+• I remind you that we have
+  discarded strategies with         CRSP
+  SR<0.3
+
+
+• All regression signs are
+  negative.
+
+
+• 2/4 variables are statistically
+  significant.
+
+
+
+
+  16 | © CFM 2021
+                  Determinants of decay: overfitting view
+
+
+
+
+17 | © CFM 2021
+• We group the variables pertaining to the overfitting view into 2 groups:
+                      Researcher incentives                             Small sample issues
+      1. t-stat < 3 (1)                                     1. Short in-sample period (MINUS # of months in-
+           • t > 3 reduces multiple testing problems           sample) (1)
+               (Harvey et al., 2015)
+           • Bonferroni; 5 independent hyp tests with       2. Sensitivity to random 10% of sample (1):
+               t>3 equivalent to 1 with t>2.5                   • drop randomly 10% of stocks every period
+                                                                    and compute 𝑆𝑅𝑚𝑜𝑑
+      2. Quantile flexibility (2)                               • repeat 100 times
+          • Long-short portfolios use author-specified          • compute log(std(SR𝑚𝑜𝑑 ))
+             quantiles, but we can use it as a param (5%,
+             10%, …)                                        3. Sensitivity to 0.1% of most influential
+                              std 𝑆𝑅𝑞                          observations (1):
+             •      compute    𝑆𝑅𝑖𝑛                             • every day drop 0.1% observations for which
+             •      variant : max 𝑆𝑅𝑞 − 𝑆𝑅𝑖𝑛                        |𝑤𝑖,𝑡 𝑟𝑖,𝑡 | is largest and re-compute the
+                                                                    Sharpe ratio
+      3. Formula flexibility (2)                                • compute the absolute Sharpe loss
+          • # of Compustat fields > 2
+          • # of operations > 2                                        |𝑆𝑅𝑑𝑟𝑜𝑝𝑝𝑒𝑑 0.1% − 𝑆𝑅𝑖𝑛 |
+
+      4. Publication date (people try harder)
+  18 | © CFM 2021
+• We perform univariate cross-
+  sectional regressions
+
+
+• All regression signs save for
+  one are negative.
+
+
+• 4/9 variables are significant   CRSP
+
+
+
+
+  19 | © CFM 2021
+                  Arbitrage vs. overfitting
+
+
+
+
+20 | © CFM 2021
+• We aggregate overfitting
+  variables (bar for DAPUB) into
+  one super variable…
+
+
+• …same for arbitrage proxies…
+
+
+• …and we run a set of
+  regressions
+
+
+• We see that while arbitrage
+  variables are statistically
+  significant, they add little in
+  terms of R2
+
+
+
+
+  21 | © CFM 2021
+                  Outlook and conclusions
+
+
+
+
+22 | © CFM 2021
+• We have recoded a sizeable set of strategies (72).
+
+• This allows us to study their out-of-sample performance. We have reproduced their performance decay on
+  CRSP in line with what other authors have found.
+
+• Using CFM’s proprietary international stock data, we define these strategies on international pools and study
+  their decay. The original papers proposing these investment strategies did not (at least no mention of this)
+  look at international data, so this data is out-of-sample. After accounting for different pool sizes, we find
+  performance decay in line with that on CRSP.
+
+• The control over the code and outputs allows us to define quantities that may capture overfitting or
+  arbitrage effects.
+
+• We have proposed sets of proxy variables for each of these views. Of course our sets are not exhaustive.
+  Bid/ask spreads, for example, would be an even better liq proxy.
+
+• We run univariate regressions to identify variables predictive of out-of-sample decay. We find statistically
+  significant coefficients for variables from both sets.
+
+ 23 | © CFM 2021
+   • Market capitalization (or size-related variables) for the arbitrage set and sensitivity to the pool and big
+     movers together with formula complexity for the overfitting view.
+
+
+   • Date of publication is a strong driver of out-of-sample decay, but it is unclear whether it’s because of
+     overfitting or arbitrage.
+
+
+   • It would be interesting to develop more systematic tools to monitor arbitrage and overfitting. We
+     believe we have made our modest contribution here, but probably a lot more may be done.
+
+
+   • You can incorporate these ideas to have a better idea of expected future returns of your own
+     strategies!
+
+
+
+
+24 | © CFM 2021
+                  THE END
+
+
+
+
+25 | © CFM 2021
+
