@@ -13,3 +13,15 @@ micro_explainable https://arxiv.org/pdf/2602.00776
 orderflow_efma https://www.efmaefm.org/0EFMAMEETINGS/EFMA%20ANNUAL%20MEETINGS/2025-Greece/papers/OrderFlowpaper.pdf
 liq_cascades https://arxiv.org/pdf/2607.27070
 param_opt_oos https://arxiv.org/pdf/2602.10785
+mclean_pontiff https://Www.Gwern.net/doc/economics/2016-mclean.pdf
+mclean_pontiff2 https://ivey.uwo.ca/media/3775549/pontiff.pdf
+falck_decay_slides https://cfe.columbia.edu/sites/default/files/content/RejAdam_slides.pdf
+falck_decay_dspace https://dspace.mit.edu/handle/1721.1/163650
+decay_harbourfront https://harbourfrontquant.substack.com/p/why-and-how-systematic-trading-strategies
+breakdown_stop_criteria https://harbourfrontquant.substack.com/p/when-trading-systems-break-down-causes
+harvey_liu_backtesting https://people.duke.edu/~charvey/Research/Published_Papers/P120_Backtesting.PDF
+momentum_crashes https://www.nber.org/system/files/working_papers/w20439/w20439.pdf
+pbo_tools https://escholarship.org/content/qt2329p290/qt2329p290.pdf
+crypto_mom_size_volume https://quantitative.cz/wp-content/uploads/2023/09/impact_of_size_and_volume_on_cryptocurrency_momentum_and_reversal.pdf
+cfm_cta_dispersion https://www.cfm.com/steady-trends-the-reality-of-cta-return-dispersion/
+trend_regimes_btc_gold https://www.preprints.org/manuscript/202607.1835
