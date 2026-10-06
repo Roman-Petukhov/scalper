@@ -18,6 +18,14 @@ log = logging.getLogger(__name__)
 KV_KEY = "bybit"
 
 
+def _closed(i: dict) -> ClosedPnl:
+    """Запись closed-pnl Bybit: closedPnl — итог с комиссиями; side — сторона закрывающего ордера (Sell закрывает
+    лонг)."""
+    return ClosedPnl(side=Side.LONG if i.get("side") == "Sell" else Side.SHORT, qty=_f(i.get("closedSize")),
+                     entry=_f(i.get("avgEntryPrice")), exit=_f(i.get("avgExitPrice")), pnl=_f(i.get("closedPnl")),
+                     closed_at=datetime.fromtimestamp(int(_f(i.get("updatedTime"))) / 1000, timezone.utc))
+
+
 def _f(x: Any, default: float = 0.0) -> float:
     try:
         v = float(x)
@@ -155,21 +163,29 @@ class BybitBroker:
                                            {"reduceOnly": True, "positionIdx": 0})
 
     async def closed_pnl(self, symbol: str, since: datetime, until: datetime) -> list[ClosedPnl]:
-        """/v5/position/closed-pnl: closedPnl — итог с комиссиями; side — сторона закрывающего ордера (Sell закрывает
-        лонг)."""
+        """/v5/position/closed-pnl по одной монете."""
         m = await self._market(symbol)
         if m is None:
             return []
         rows = await self.ex.fetch_positions_history([m["symbol"]], int(since.timestamp() * 1000), 100,
                                                      {"until": int(until.timestamp() * 1000)})
-        out = []
-        for p in rows:
-            i = p.get("info") or {}
-            out.append(ClosedPnl(side=Side.LONG if i.get("side") == "Sell" else Side.SHORT, qty=_f(i.get("closedSize")),
-                                 entry=_f(i.get("avgEntryPrice")), exit=_f(i.get("avgExitPrice")),
-                                 pnl=_f(i.get("closedPnl")),
-                                 closed_at=datetime.fromtimestamp(int(_f(i.get("updatedTime"))) / 1000, timezone.utc)))
-        return out
+        return [_closed(p.get("info") or {}) for p in rows]
+
+    async def closed_pnl_all(self, since: datetime, until: datetime) -> list[ClosedPnl]:
+        """/v5/position/closed-pnl по всем USDT-перпетуалам, постранично (по 100 записей)."""
+        out: list[ClosedPnl] = []
+        cursor = None
+        while True:
+            req = {"category": "linear", "startTime": int(since.timestamp() * 1000),
+                   "endTime": int(until.timestamp() * 1000), "limit": 100}
+            if cursor:
+                req["cursor"] = cursor
+            res = (await self.ex.privateGetV5PositionClosedPnl(req)).get("result") or {}
+            rows = res.get("list") or []
+            out += [_closed(i) for i in rows]
+            cursor = res.get("nextPageCursor")
+            if not cursor or not rows:
+                return out
 
     async def close(self) -> None:
         await self.ex.close()

@@ -80,6 +80,9 @@ class Broker(Protocol):
     async def closed_pnl(self, symbol: str, since: datetime, until: datetime) -> list[ClosedPnl]:
         """Закрытия позиций по монете за окно (не длиннее 7 дней — ограничение биржи)."""
 
+    async def closed_pnl_all(self, since: datetime, until: datetime) -> list[ClosedPnl]:
+        """Закрытия позиций по всем монетам за окно (не длиннее 7 дней), все страницы."""
+
     async def close(self) -> None: ...
 
 

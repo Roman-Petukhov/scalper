@@ -13,6 +13,7 @@ from datetime import timedelta
 from ..domain.execution import (Account, ExecutionRefused, Trade, TradeResult, TradeStatus, build_order, settle,
                                 target_reached)
 from ..domain.models import Signal, SignalStatus, Timeframe
+from .pnl import PnlHistory, PnlPeriod
 from .ports import Broker, Notifier, SettingsRepository, SignalRepository, TradeRepository
 
 log = logging.getLogger(__name__)
@@ -31,6 +32,7 @@ class Wallet:
     account: Account
     day_start: float
     updated: datetime
+    periods: tuple[PnlPeriod, ...] = ()
 
     @property
     def day_pnl(self) -> float:
@@ -49,6 +51,7 @@ class Executor:
         self.broker, self.signals, self.settings, self.trades = broker, signals, settings, trades
         self.notifier, self.clock = notifier, clock
         self.lock = asyncio.Lock()          # ручной и авто-вход не должны открыть одну монету дважды
+        self.pnl = PnlHistory(trades, clock)
 
     @property
     def connected(self) -> bool:
@@ -68,7 +71,14 @@ class Executor:
         if b is None:
             return None
         acc = await b.account()
-        return Wallet(b.network, acc, self._day_start(acc.equity), self.clock())
+        return Wallet(b.network, acc, self._day_start(acc.equity), self.clock(),
+                      tuple(self.pnl.periods(b.network, acc.equity)))
+
+    async def refresh_pnl(self) -> None:
+        """Раз в минуту: реализованный PnL за сегодня и догрузка истории для недели / 30 дней / полугода."""
+        b = self.broker()
+        if b is not None:
+            await self.pnl.refresh(b)
 
     def _tf_open(self, acc: Account, tf: Timeframe) -> int:
         """Сколько занятых монет (позиция или лимитка) заняты сделками таймфрейма tf: по монете — последняя сделка."""

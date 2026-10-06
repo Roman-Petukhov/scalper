@@ -13,6 +13,16 @@
     <div class="stat {{ 'up' if w.day_pnl > 0 else ('down' if w.day_pnl < 0 else '') }}"><span>Сегодня</span>
       <b>{{ '%+.2f' | format(w.day_pnl) }}</b><small>{{ '%+.2f' | format(w.day_pnl_pct) }}% с 00:00 UTC</small></div>
   </div>
+  {% if w.periods %}
+  <div class="stats periods num" aria-label="Реализованный PnL за периоды">
+    {% for p in w.periods %}
+    <div class="stat {{ 'up' if (p.usd or 0) > 0 else ('down' if (p.usd or 0) < 0 else '') }}"><span>{{ p.label }}</span>
+      {% if p.usd is not none %}<b>{{ '%+.2f' | format(p.usd) }}</b><small>{{ '%+.2f' | format(p.pct) ~ '%' if p.pct is not none else 'USDT' }}</small>
+      {% else %}<b>…</b><small>загружаю историю</small>{% endif %}</div>
+    {% endfor %}
+  </div>
+  <p class="hint">За периоды — закрытые сделки на Bybit с комиссиями, все монеты; % — к капиталу на начало периода.</p>
+  {% endif %}
   {% if a.positions %}
   <table class="positions num">
     <thead><tr><th>Монета</th><th>Сторона</th><th>Объём</th><th>Вход</th><th>Цена</th><th>Стоп</th><th>Цель</th><th>PnL</th></tr></thead>

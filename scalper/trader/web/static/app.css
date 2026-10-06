@@ -263,3 +263,7 @@ dl.plan dd { margin: 0; text-align: right; }
 .jr-row > span:nth-child(2) { grid-area: what; }
 .jr-row > span:nth-child(3) { grid-area: r; text-align: right; font-weight: 600; }
 .jr-row > span:nth-child(4) { grid-area: why; text-align: right; }
+
+/* PnL за периоды: реализованный, по закрытиям на бирже */
+.stats.periods { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 12px; }
+@media (max-width: 480px) { .stats.periods .stat b { font-size: 16px; } .stats.periods .stat { padding: 8px 10px; } }

@@ -91,6 +91,10 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
                 except Exception:
                     log.exception("копия базы")
             await executor.housekeep()
+            try:
+                await executor.refresh_pnl()
+            except Exception:
+                log.exception("PnL за периоды")
 
         task = None
         if cfg.scheduler:

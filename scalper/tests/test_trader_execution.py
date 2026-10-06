@@ -514,3 +514,39 @@ def test_retest_filled_and_closed_within_a_minute_is_journaled_not_cancelled(tmp
     t = st.trades_for([s.id])[s.id]
     assert t.status is TradeStatus.CLOSED and t.filled_at == NOW and t.exit_reason == "стоп"
     assert t.r_multiple == pytest.approx(-10.5 / (t.qty * 2))
+
+
+class _PnlBroker(FakeBroker):
+    def __init__(self, recs):
+        super().__init__()
+        self.recs, self.calls = recs, []
+
+    async def closed_pnl_all(self, since, until):
+        self.calls.append((since, until))
+        return [r for r in self.recs if since <= r.closed_at < until]
+
+
+def test_pnl_periods_backfill_history_and_count_today(tmp_path):
+    from trader.application.pnl import PnlHistory
+    now = NOW.replace(hour=12, minute=0, second=0, microsecond=0)
+    recs = [ClosedPnl(Side.LONG, 1, 1, 1, 10.0, now - timedelta(hours=1)),          # сегодня
+            ClosedPnl(Side.SHORT, 1, 1, 1, -4.0, now - timedelta(days=3)),          # в неделе
+            ClosedPnl(Side.LONG, 1, 1, 1, 20.0, now - timedelta(days=20)),          # в 30 днях
+            ClosedPnl(Side.LONG, 1, 1, 1, 100.0, now - timedelta(days=100))]        # в полугоде
+    st = SqliteStore(tmp_path / "t.db")
+    h = PnlHistory(st, Clock(now))
+    b = _PnlBroker(recs)
+    asyncio.run(h.refresh(b))
+    assert all(until - since <= timedelta(days=7) for since, until in b.calls)
+    p = {x.label: x for x in h.periods("demo", 1000.0)}
+    assert p["Неделя"].usd == 6.0 and p["30 дней"].usd is None and p["Полгода"].usd is None   # догружается
+    asyncio.run(h.refresh(b))
+    assert h.periods("demo", 1000.0)[1].usd == 26.0
+    for _ in range(10):
+        asyncio.run(h.refresh(b))
+    p = {x.label: x for x in h.periods("demo", 1000.0)}
+    assert p["Полгода"].usd == 126.0 and p["Неделя"].pct == pytest.approx(6.0 / 994.0 * 100)
+    n = len(b.calls)
+    asyncio.run(h.refresh(b))
+    assert len(b.calls) == n + 1                                # история есть — только сегодняшний день
+    assert h.periods("live", 1000.0)[0].usd is None             # другая сеть — своя история
