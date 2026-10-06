@@ -1,0 +1,242 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ [IDEAS_home]
+[q                   ]
+Advanced_search
+
+    * Economic_literature: papers, articles, software, chapters, books.
+    * Authors
+    * Institutions
+    * Rankings
+    * Help/FAQ
+    * MyIDEAS
+    * More options at page bottom
+    * Economic_literature
+    * Authors
+    * Institutions
+    * Rankings
+    * Help/FAQ
+    * MyIDEAS__(now_improved)
+[q                   ]
+Advanced_search
+**** Browse Econ Literature ****
+    * Working_papers
+    * Journals
+    * Software_components
+    * Books
+    * Book_chapters
+    * JEL_classification
+**** More features ****
+    * Subscribe_to_new_research
+    * RePEc_Biblio
+    * Author_registration
+    * Economics_Virtual_Seminar_Calendar
+    * ConfWatcher NEW!
+[IDEAS home] Printed from https://ideas.repec.org/p/chf/rpseri/rp2580.html
+   
+  
+
+ My bibliography
+  Save this paper
+****** Catching Crypto Trends; A Tactical Approach for Bitcoin and Altcoins
+******
+    * Author_&_abstract
+    * Download
+    * Related_works_&_more
+    * Corrections
+***** Author *****
+Listed:
+    * Carlo Zarattini
+      (Concretum Group)
+    * Alberto Pagani
+      (University of Parma)
+    * Andrea Barbon
+      (University of St. Gallen; University of St.Gallen)
+Registered:
+***** Abstract *****
+In recent years, cryptocurrencies have attracted significant attention from
+both retail traders and large institutional investors. As their involvement in
+digital assets grows, so does their interest in active and risk-aware
+investment frameworks. This paper applies a well-established trend-following
+methodology, successfully deployed for decades in traditional asset classes, to
+Bitcoin, and then extends the analysis to a comprehensive, survivorship bias-
+free dataset covering all cryptocurrencies traded since 2015, to evaluate
+whether its robustness persists in the emerging digital asset space. We propose
+an ensemble approach that aggregates multiple Donchian channel-based trend
+models, each calibrated with different lookback periods, into a single signal,
+as well as a volatility-based position sizing method. This model, applied to a
+rotational portfolio of the top 20 most liquid coins, achieved notable net-of-
+fees returns, with a Sharpe ratio above 1.5 and an annualized alpha of 10.8%
+versus Bitcoin. While assessing the impact of transaction costs, we propose a
+straightforward yet effective portfolio technique to mitigate these expenses.
+Finally, we investigate correlations between crypto-focused trend-following
+strategies and those applied to traditional asset classes, concluding with a
+discussion on how investors can execute the proposed strategy through both on-
+chain and off-chain implementations.
+***** Suggested Citation *****
+Carlo Zarattini & Alberto Pagani & Andrea Barbon, 2025. "Catching_Crypto
+Trends;_A_Tactical_Approach_for_Bitcoin_and_Altcoins," Swiss_Finance_Institute
+Research_Paper_Series 25-80, Swiss Finance Institute.
+Handle: RePEc:chf:rpseri:rp2580
+ [Export reference] as [One of: HTML/HTML with abstract/plain text/plain text
+with abstract/BibTeX/RIS (EndNote, RefMan, ProCite)/ReDIF/JSON]
+***** Download full text from publisher *****
+#File URL: https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5209907
+Download Restriction: no
+--->[Download the selected file &#xf08e;]<---
+***** More about this item *****
+**** Keywords ****
+Trading Systems
+;
+Algo Trading
+;
+Momentum
+;
+Trend-Following
+;
+Cryptocurrencies
+;
+Risk Management
+;
+Technical Analysis
+;
+Decentralized Exchanges
+;
+Blockchain
+;
+Decentralized Finance
+;
+All these keywords
+**** NEP fields ****
+This paper has been announced in the following NEP_Reports:
+    * NEP-FMK-2025-10-20 (Financial Markets)
+    * NEP-PAY-2025-10-20 (Payment Systems and Financial Technology)
+**** Statistics ****
+Access_and_download_statistics
+***** Corrections *****
+All material on this site has been provided by the respective publishers and
+authors. You can help correct errors and omissions. When requesting a
+correction, please mention this item's handle: RePEc:chf:rpseri:rp2580. See
+general_information about how to correct material in RePEc.
+If you have authored this item and are not yet registered with RePEc, we
+encourage you to do it here. This allows to link your profile to this item. It
+also allows you to accept potential citations to this item that we are
+uncertain about.
+We have no bibliographic references for this item. You can help adding them by
+using
+this_form
+.
+If you know of missing items citing this one, you can help us creating those
+links by adding the relevant references in the same way as above, for each
+refering item. If you are a registered author of this item, you may also want
+to check the "citations" tab in your RePEc_Author_Service profile, as there may
+be some citations waiting for confirmation.
+For technical questions regarding this item, or to correct its authors, title,
+abstract, bibliographic or download information, contact: Ridima Mittal (email
+available below). General contact details of provider:
+https://edirc.repec.org/data/fameech.html
+.
+[View email address]
+Please note that corrections may take a couple of weeks to filter through the
+various RePEc services.
+**** More services and features ****
+***_MyIDEAS_***
+Follow_serials,_authors,_keywords_&_more
+
+***_Author_registration_***
+Public_profiles_for_Economics_researchers
+
+***_Rankings_***
+Various_research_rankings_in_Economics
+
+***_RePEc_Genealogy_***
+Who_was_a_student_of_whom,_using_RePEc
+
+***_RePEc_Biblio_***
+Curated_articles_&_papers_on_economics_topics
+MPRA
+Upload_your_paper_to_be_listed_on_RePEc_and_IDEAS
+
+New_papers_by_email
+Subscribe_to_new_additions_to_RePEc
+
+***_EconAcademics_***
+Blog_aggregator_for_economics_research
+
+***_Plagiarism_***
+Cases_of_plagiarism_in_Economics
+**** About RePEc ****
+RePEc_home
+Initiative_for_open_bibliographies_in_Economics
+
+Blog
+News_about_RePEc
+
+Help/FAQ
+Questions_about_IDEAS_and_RePEc
+
+***_RePEc_team_***
+RePEc_volunteers
+
+***_Participating_archives_***
+Publishers_indexing_in_RePEc
+
+Privacy_statement
+**** Help us ****
+***_Corrections_***
+Found_an_error_or_omission?
+
+***_Volunteers_***
+Opportunities_to_help_RePEc
+
+***_Get_papers_listed_***
+Have_your_research_listed_on_RePEc
+
+***_Open_a_RePEc_archive_***
+Have_your_institution's/publisher's_output_listed_on_RePEc
+
+***_Get_RePEc_data_***
+Use_data_assembled_by_RePEc
+IDEAS is a
+RePEc
+ service. RePEc uses bibliographic data supplied by the respective publishers.
