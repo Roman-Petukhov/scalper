@@ -54,6 +54,7 @@ HTF = {"15m": "1h", "1h": "4h", "2h": "1D", "4h": "1D", "6h": "1D", "12h": "1W",
 BAR_MIN = {"15m": 15, "1h": 60, "2h": 120, "4h": 240, "6h": 360, "12h": 720, "1d": 1440}
 HIGH_TFS = {"2h": "2h", "4h": "4h", "6h": "6h", "12h": "12h", "1d": "1D"}      # собираются из 1h-свечей
 RETEST_BARS = 12
+RETEST_OFF = 0.0       # лимитка ретеста: сдвиг от линии к цене, ATR (research/improve.py; бот — 0)
 STOP_BUF = 0.1          # стоп за свингом с отступом столько ATR (как у бота)
 
 
@@ -966,7 +967,7 @@ def coin_trades(root: Path, sym: str, tf: str, ctx: pd.DataFrame | None = None) 
                     fill, px, fee = e, c[e], TAKER
                 else:
                     # ретест: лимитка на значении линии на баре сигнала
-                    level = line_c if confirm else line_b
+                    level = (line_c if confirm else line_b) + side * RETEST_OFF * a[e]
                     dist = side * (level - stop)
                     if not (dist > 0):
                         continue
