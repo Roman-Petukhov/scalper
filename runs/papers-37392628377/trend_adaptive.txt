@@ -1,0 +1,415 @@
+                                                     Systematic Trend-Following with Adaptive Portfolio Construction:
+                                                       Enhancing Risk-Adjusted Alpha in Cryptocurrency Markets
+
+                                                                                        Duc Bui       Thanh Nguyen
+                                                                                   Talyxion Research, Hanoi, Vietnam
+                                                                                     talyxionllc@gmail.com
+
+
+                                         Abstract                                                              application to cryptocurrency markets faces three fundamental
+arXiv:2602.11708v1 [cs.CE] 12 Feb 2026
+
+
+
+
+                                                                                                               challenges: (i) the non-stationarity of volatility regimes, which
+                                         Cryptocurrency markets exhibit pronounced momentum ef-                renders fixed lookback windows suboptimal; (ii) the asymmet-
+                                         fects and regime-dependent volatility, presenting both op-            ric return distribution with positive skewness during bull mar-
+                                         portunities and challenges for systematic trading strategies.         kets and heavy left tails during crashes; and (iii) the rapidly
+                                         We propose AdaptiveTrend, a multi-component algorith-                 evolving universe of tradable assets, where market capitaliza-
+                                         mic trading framework that integrates high-frequency trend-           tions shift dramatically on monthly timescales.
+                                         following on 6-hour intervals with monthly adaptive portfo-              In this paper, we propose AdaptiveTrend, a systematic
+                                         lio construction and asymmetric long-short capital allocation.        framework that addresses these challenges through an inte-
+                                         Our framework introduces three key innovations: (1) a dy-             grated three-stage pipeline:
+                                         namic trailing stop mechanism calibrated to intra-day volatil-
+                                         ity regimes, (2) a rolling Sharpe-ratio-based asset selection         1. Signal Generation: A momentum-based entry system op-
+                                         procedure with market-capitalization-aware filtering, and (3)            erating on 6-hour (H6) candlesticks with dynamic trailing
+                                         a theoretically motivated asymmetric 70/30 long-short allo-              stop exits, calibrated to local volatility estimates.
+                                         cation scheme grounded in the empirical positive drift of
+                                                                                                               2. Asset Selection: A monthly rebalancing procedure that
+                                         crypto markets. Through extensive out-of-sample backtest-
+                                                                                                                  filters the tradable universe using market capitalization
+                                         ing across 150+ cryptocurrency pairs over a 36-month evalua-
+                                                                                                                  thresholds and selects assets based on rolling risk-adjusted
+                                         tion window (2022–2024), AdaptiveTrend achieves an annual-
+                                                                                                                  performance (Sharpe ratio).
+                                         ized Sharpe ratio of 2.41, a maximum drawdown of −12.7%,
+                                         and a Calmar ratio of 3.18, significantly outperforming bench-        3. Capital Allocation: An asymmetric allocation scheme dis-
+                                         mark trend-following strategies (TSMOM, time-series mo-                  tributing 70% of capital to long positions and 30% to short
+                                         mentum) and equal-weighted buy-and-hold portfolios. We fur-              positions, with equal-weight diversification within each
+                                         ther conduct rigorous robustness analyses including parameter            portfolio leg.
+                                         sensitivity, transaction cost modeling, and regime-conditional
+                                                                                                                  Our contributions are threefold. First, we demonstrate that
+                                         performance decomposition, demonstrating the strategy’s re-
+                                                                                                               intermediate-frequency trend-following (H6) provides a supe-
+                                         silience across bull, bear, and sideways market conditions.
+                                                                                                               rior trade-off between signal fidelity and transaction cost ef-
+                                         Keywords: algorithmic trading, trend following, cryptocur-
+                                                                                                               ficiency compared to both higher-frequency (H1) and lower-
+                                         rency, portfolio optimization, risk management, momentum
+                                                                                                               frequency (D1) alternatives in crypto markets. Second, we
+                                         strategies
+                                                                                                               introduce a market-cap-aware, performance-filtered portfolio
+                                                                                                               construction methodology that adapts the tradable universe
+                                         1    Introduction                                                     monthly, significantly reducing exposure to illiquid or dete-
+                                         The cryptocurrency market has emerged as a distinctive as-            riorating assets. Third, we provide comprehensive out-of-
+                                         set class characterized by high volatility, fragmented liquid-        sample evidence and robustness analysis across multiple mar-
+                                         ity, and pronounced momentum effects [9, 2]. Unlike tradi-            ket regimes, establishing the strategy’s viability for institu-
+                                         tional financial markets, where trend-following strategies have       tional deployment.
+                                         been extensively studied [12, 1], the crypto ecosystem presents          The remainder of this paper is organized as follows. Sec-
+                                         unique structural properties—24/7 trading, retail-dominated           tion 2 reviews related work on trend-following, crypto trad-
+                                         order flow, and frequent regime shifts—that demand purpose-           ing strategies, and dynamic portfolio construction. Section 3
+                                         built systematic approaches.                                          presents the complete AdaptiveTrend methodology, including
+                                            Classical time-series momentum (TSMOM) strategies [12]             the signal generation, portfolio selection, and capital alloca-
+                                         generate signals based on lagged returns over horizons of 1–          tion modules. Section 4 describes the experimental setup, data
+                                         12 months. While effective in traditional asset classes, direct       sources, and evaluation protocol. Section 5 reports main re-
+                                                                                                               sults, ablation studies, and robustness analyses. Section 6 dis-
+
+
+                                                                                                           1
+cusses practical implications and limitations. Section 7 con- Algorithm 1 Signal Generation & Position Management
+cludes.                                                                                         (i)
+                                                                 Require: OHLCV series {Pτ }, parameters θentry , α, L, k
+                                                                  1: for each 6-hour candle at time t do
+2 Related Work                                                    2:
+                                                                                           (i)
+                                                                       Compute MOMt via Eq. (2)
+                                                                                         (i)
+Trend-following in traditional markets. The seminal work          3:   Compute ATRt over k periods
+                                                                                                        (i)
+of Moskowitz et al. [12] established that time-series mo-         4:   if no open position and MOMt > θentry then
+mentum generates significant abnormal returns across asset        5:      Open long position at Pt
+                                                                                                    (i)
+classes. Baltas and Kosowski [1] extended this to multi-                               (i)     (i)          (i)
+                                                                  6:      Initialize St ← Pt − α · ATRt
+asset portfolios with volatility-scaled positions. Lempérière et
+                                                                  7:   else if position open then
+al. [8] documented that trend-following profits persist across                       (i)
+two centuries of data, suggesting structural rather than anoma-   8:      Update St via Eq. (3)
+                                                                                (i)     (i)
+lous origins.                                                     9:      if Pt < St then
+   Cryptocurrency trading strategies. Empirical evidence 10:                  Close position; record PnL
+for momentum in crypto markets has been established by Liu       11:      end    if
+et al. [9] and Borri [2]. More recently, machine learning ap-    12:   end   if
+proaches have been applied to crypto prediction, including 13: end for
+deep reinforcement learning [6] and transformer-based archi-
+tectures [13]. However, these approaches often lack the inter-
+                                                                        3.2     Signal Generation Module
+pretability and robustness guarantees of systematic rule-based          3.2.1   Momentum Entry Signal
+strategies.                                                             For each asset si , we compute a momentum score based on the
+   Dynamic portfolio construction. The question of how                  rate of change over a lookback window L:
+to select and weight assets in momentum portfolios has
+been addressed through various frameworks, from mean-                                              (i)
+                                                                                                  Pt − Pt−L
+                                                                                                           (i)
+                                                                                              (i)
+variance optimization [11] to risk-parity [10] and hierarchi-                              MOMt =      (i)
+                                                                                                                                      (2)
+cal risk parity [4]. Our approach differs by combining                                               Pt−L
+market-capitalization filtering with performance-based selec-                                                               (i)
+tion, specifically designed for the rapidly shifting crypto asset         A long entry signal is triggered when MOMt > θentry ,
+universe.                                                               where θentry is a threshold parameter optimized monthly. For
+                                                                                                               (i)     (s)
+   Adaptive risk management. Dynamic position sizing and                short signals, entry occurs when MOMt < −θentry .
+stop-loss mechanisms have been studied in the context of                3.2.2   Dynamic Trailing Stop Mechanism
+managed futures [5]. Trailing stops, in particular, have been
+                                                                        Once a position is initiated for asset si at time t0 , we maintain
+analyzed by Kaminski and Lo [7], who showed that trend-                                        (i)
+following with adaptive exits significantly improves downside           a trailing stop level St that adapts to realized price dynamics:
+protection. We extend this analysis to the crypto domain with                         (i)
+                                                                                                   
+                                                                                                     (i)    (i)            (i)
+                                                                                                                               
+volatility-calibrated trailing parameters.                                           St = max St−1 , Pt − α · ATRt                     (3)
+
+                                                                                    (i)
+3     Methodology                                                       where ATRt is the Average True Range computed over k pe-
+                                                                        riods and α > 0 is a volatility multiplier. The position is closed
+                                                                                (i)    (i)
+3.1    Problem Formulation                                              when Pt < St . This mechanism ensures that:
+Let Ut = {s1 , s2 , . . . , sN } denote the universe of N tradable • The stop level monotonically increases during favorable
+cryptocurrency pairs at time t. For each symbol si , we observe      price movements (for long positions), locking in profits.
+the OHLCV (Open, High, Low, Close, Volume) price series
+   (i)                                                             • The distance from current price to stop adapts to local
+{Pτ }Tτ=1 at 6-hour intervals. The objective is to construct a
+                  N                                                  volatility via ATR, providing tighter stops during low-
+portfolio wt ∈ R that maximizes the risk-adjusted return:
+                                                                     volatility regimes and wider stops during high-volatility
+                                                                     regimes.
+                                                                           The complete signal generation logic is presented in Algo-
+                            E[Rp (t)] − rf                              rithm 1.
+                    max                                      (1)
+                     wt       σ(Rp (t))
+                                                                        3.3     Portfolio Selection Module
+                                                                  On the first trading day of each month m, we execute a port-
+                                                                  folio rebalancing procedure consisting of two stages.
+                  PN
+where Rp (t) = i=1 wi,t · ri,t is the portfolio return, rf is the    Stage 1: Universe Filtering. We rank all available cryp-
+risk-free rate, and σ(·) denotes the portfolio return volatility. tocurrency pairs by market capitalization. The long portfo-
+
+
+                                                                    2
+                     (L)
+lio candidate set Cm consists of the top-KL assets (we set Table 1: Out-of-sample performance comparison (Jan 2022 –
+                                                           (S)
+KL = 15), while the short portfolio candidate set Cm con- Dec 2024). Best values in bold.
+sists of the bottom-KS assets by market cap.                          Strategy              Ann. Ret. Ann. Vol. Sharpe  MDD   Calmar Sortino
+   Stage 2: Performance-Based Selection. For each can- AdaptiveTrend (70/30) 40.5%                     16.8%     2.41  −12.7%  3.18   3.62
+                         (·)                                          AdaptiveTrend (50/50)  34.2%     15.1%     2.12  −14.3%  2.39   3.01
+didate asset si ∈ Cm , we optimize the strategy parame- Vol-Scaled TSMOM                     22.8%     10.0%     1.83  −16.1%  1.42   2.15
+ters (θentry , α, L) over the preceding month’s data using grid TSMOM-1M                     18.4%     21.3%     0.65  −34.8%  0.53   0.89
+                                                                      TSMOM-3M               15.1%     19.7%     0.54  −38.2%  0.40   0.73
+                                                      (i)                                                              −72.4%
+search, and compute the resulting Sharpe ratio SRm−1 . Assets         EW-BH                   8.3%     52.1%     0.07          0.11   0.10
+                                                                      BTC-BH                 12.6%     48.7%     0.17  −64.1%  0.20   0.22
+are selected into the active portfolio if:
+                           (
+                                                  (L)
+                                                                     4.3 Benchmark Strategies
+                   (i)       γL = 1.3 if si ∈ Cm
+                SRm−1 ≥                           (S)            (4) We compare AdaptiveTrend against:
+                             γS = 1.7 if si ∈ Cm
+                                                                     1. TSMOM-1M: Classical time-series momentum with 1-
+   The higher threshold for the short portfolio reflects the ele-        month lookback and monthly rebalancing [12].
+vated risk of short positions in a structurally bullish asset class,
+requiring stronger evidence of short momentum.                       2. TSMOM-3M: TSMOM with 3-month lookback.
+                                                                           3. BTC-BH: Buy-and-hold Bitcoin benchmark.
+3.4    Capital Allocation Module
+Let Bm denote the total account balance at the beginning of                4. EW-BH: Equal-weighted buy-and-hold of top-20 crypto
+                     (L)   (S)
+month m, and let nm , nm be the number of selected long                       assets by market cap, rebalanced monthly.
+and short assets respectively. Capital allocation follows:                 5. Vol-Scaled TSMOM: Volatility-targeted TSMOM with
+                                                                              10% annualized volatility target [1].
+                  (L)       λ          (S)     1−λ
+                wi,m =            ,   wj,m =                     (5)
+                            (L)
+                           nm
+                                                (S)
+                                               nm                          4.4   Evaluation Metrics
+where λ = 0.7 is the long allocation ratio. The choice of                  We report: annualized return, annualized volatility, Sharpe
+λ = 0.7 is motivated by two considerations: (i) the empirical              ratio (assuming rf = 4.5%), maximum drawdown (MDD),
+positive drift of cryptocurrency markets, which favors net-long            Calmar ratio (return/MDD), Sortino ratio, average trade profit,
+exposure [9]; and (ii) the higher borrowing costs associated               win rate, and profit factor.
+with short positions in crypto, which erode short-side alpha.
+   Equal weighting within each portfolio leg provides maxi-                5     Results and Analysis
+mum diversification under the assumption of uncertain return
+correlations and avoids concentration risk from estimation er-             5.1   Main Performance Comparison
+ror in covariance matrices [3].                                            Table 1 presents the out-of-sample performance comparison
+                                                                           across all strategies. AdaptiveTrend achieves the highest
+4     Experimental Setup                                                   Sharpe ratio (2.41) and Calmar ratio (3.18), while maintaining
+                                                                           a maximum drawdown of only −12.7%, substantially lower
+4.1    Data                                                                than all benchmarks.
+We source historical data from Binance Futures, covering                      The 70/30 allocation variant outperforms the dollar-neutral
+150+ perpetual swap contracts with 6-hour OHLCV bars from                  (50/50) variant by 29 basis points in Sharpe ratio, confirming
+January 2021 to December 2024. Market capitalization data is               that the asymmetric allocation captures the positive structural
+obtained from CoinGecko API at daily granularity. We parti-                drift in crypto markets without excessively increasing draw-
+tion the data into:                                                        down.
+                                                                              Figure 1 presents the out-of-sample cumulative return
+• In-sample (IS): Jan 2021 – Dec 2021, used for initial pa-
+                                                                           curves for both allocation variants over the full evaluation
+  rameter calibration.
+                                                                           period (Jan 2022 – Oct 2025). Both portfolios demonstrate
+• Out-of-sample (OOS): Jan 2022 – Dec 2024 (36 months),                    consistent capital appreciation with controlled drawdowns,
+  used for all reported performance metrics.                               achieving approximately 140% cumulative returns. Notably,
+                                                                           the equity curves exhibit steady upward trajectories through
+4.2    Transaction Cost Model                                              the 2022 bear market, the 2023 consolidation phase, and the
+We model realistic transaction costs including: (i) a taker fee            2024–2025 bull rally, validating the strategy’s regime-adaptive
+of 4 bps per trade; (ii) slippage modeled as a linear function             properties.
+of trade size relative to the prevailing 5-minute volume, cali-
+brated from historical order book data; and (iii) funding rate 5.2 Regime-Conditional Analysis
+costs for perpetual swap positions, incorporated as a rolling To assess robustness across market conditions, we decompose
+8-hour charge/rebate.                                           the evaluation period into three regimes based on the rolling
+
+                                                                       3
+                                                                     Table 2: Regime-conditional performance of AdaptiveTrend
+                                                                     (70/30).
+                                                                           Metric              Bull     Sideways       Bear
+                                                                           Ann. Return       68.3%       18.7%        −4.2%
+                                                                           Sharpe Ratio        3.42        1.87        −0.31
+                                                                           Max Drawdown      −7.1%       −9.4%        −12.7%
+                                                                           Win Rate           54.2%       47.8%        41.3%
+                                                                           Avg. Trade PnL    +1.82%      +0.63%       −0.21%
+
+                                                                       Table 3: Ablation study: contribution of each component.
+                                                                           Configuration                  Sharpe      MDD
+      (a) 70/30 Long-Short allocation (default configuration).             Full AdaptiveTrend               2.41     −12.7%
+                                                                           w/o Dynamic Trailing Stop        1.68     −22.4%
+                                                                           w/o Market Cap Filter            2.05     −17.8%
+                                                                           w/o Sharpe Ratio Selection       1.92     −19.1%
+                                                                           w/o Asymmetric Allocation        2.12     −14.3%
+                                                                           Fixed Parameters (no opt.)       1.34     −28.6%
+
+                                                                     5.4    Parameter Sensitivity Analysis
+                                                                     We examine sensitivity to the two key hyperparameters: the
+                                                                     ATR multiplier α and the long allocation ratio λ.
+                                                                        Figure 2 visualizes the Sharpe ratio surface over the (α, λ)
+                                                                     parameter space. The strategy exhibits a broad plateau of
+                                                                     strong performance for α ∈ [2.0, 3.5] and λ ∈ [0.60, 0.80],
+                                                                     indicating robustness to parameter perturbation. The optimal
+                                                                     region centers around α = 2.5, λ = 0.70, consistent with our
+                (b) 50/50 Dollar-neutral allocation.
+                                                                     default configuration.
+Figure 1: Out-of-sample cumulative returns for AdaptiveTrend
+under two allocation regimes. Both configurations achieve
+                                                                5.5 Transaction Cost Impact
+∼140% cumulative returns over the evaluation period, with the We evaluate strategy performance under varying transaction
+70/30 variant exhibiting marginally higher peak returns and cost assumptions to assess implementability. Table 4 shows
+comparable drawdown profiles.                                   that AdaptiveTrend retains a Sharpe ratio above 2.0 even at 8
+                                                                bps per trade, demonstrating resilience to execution costs.
+60-day BTC return: Bull (>15%), Bear (<−15%), and Side-
+ways (otherwise). Table 2 shows performance by regime.          5.6 Timeframe Comparison
+   Notably, AdaptiveTrend maintains near-flat performance A key design decision is the choice of the 6-hour (H6) candle-
+during bear markets (−4.2% annualized) compared to catas- stick interval. Table 5 compares performance across different
+trophic losses for buy-and-hold strategies, demonstrating the timeframes while holding all other parameters constant.
+effectiveness of the dynamic trailing stop and short-side allo-    The H6 timeframe achieves the optimal balance: H1 and
+cation.                                                         H4 suffer from excessive turnover and transaction costs, while
+                                                                H8, H12, and D1 miss short-lived momentum signals that are
+5.3 Ablation Study                                              prevalent in crypto markets. The H6 interval aligns naturally
+We conduct an ablation study to quantify the contribution of with the 4-times-daily funding rate cycle on perpetual swap
+each module. Table 3 reports results when systematically re- markets, providing clean signal boundaries that avoid mid-
+moving components.                                              funding-period noise.
+   The dynamic trailing stop contributes the most to perfor-
+mance, improving the Sharpe ratio by 0.73 and reducing MDD 6 Discussion
+by 9.7 percentage points. Monthly parameter optimization
+                                                                Practical deployment considerations. The H6 timeframe
+is the second most impactful component (∆SR = 1.07),
+                                                                aligns with institutional trading desks that typically operate on
+underscoring the importance of adaptive calibration in non-
+                                                                shift-based schedules, allowing 4 natural decision points per
+stationary markets.
+                                                                day. The fully systematic nature of AdaptiveTrend enables au-
+                                                                tomated execution with minimal human intervention, requir-
+
+
+                                                                 4
+                 3                                                   Table 5: Performance comparison across timeframes (net of 4
+                                                                     bps transaction costs).
+  Sharpe Ratio
+
+
+
+                 2
+                                                                         TF     Sharpe     MDD        Trades/M      Turnover
+                                                                         H1      1.54     −21.3%         847          412%
+                         λ = 0.70                                        H4      2.08     −15.6%         213          186%
+                 1       λ = 0.50                                        H6      2.41     −12.7%         142          134%
+                         λ = 0.80                                        H8      2.18     −14.1%         108          112%
+                     1        2             3            4   5
+                                                                         H12     1.91     −16.8%          76           87%
+                                    ATR Multiplier (α)
+                                                                         D1      1.63     −19.4%          41           52%
+
+Figure 2: Sharpe ratio as a function of ATR multiplier α for Table 6: Statistical significance tests: AdaptiveTrend vs.
+different long allocation ratios λ.                                 benchmarks. ∆SR denotes the difference in Sharpe ratios; p-
+                                                                    values from circular block bootstrap.
+      Table 4: Impact of transaction costs on performance.
+                                                                                Benchmark               ∆SR p-value
+   Cost (bps)                  0          4         8        12
+                                                                                Vol-Scaled TSMOM +0.58            0.024
+   Ann. Return              48.2% 40.5% 33.1% 26.3%                             TSMOM-1M                +1.76 <0.001
+   Sharpe Ratio              2.87       2.41      2.01      1.62                TSMOM-3M                +1.87 <0.001
+   Avg. Trades/Month                          142                               EW-BH                   +2.34 <0.001
+                                                                                BTC-BH                  +2.24 <0.001
+ing oversight primarily during the monthly rebalancing phase.
+The strategy’s moderate turnover (142 trades/month across the binding constraint for portfolios up to $50M. The short portfo-
+full portfolio) is well within the capacity of standard exchange lio, composed of lower-cap assets, represents the primary ca-
+API rate limits.                                                    pacity bottleneck. Our analysis of historical order book depth
+   Asymmetric allocation rationale. The 70/30 long-short suggests a practical capacity limit of approximately $5–10M
+split reflects the structural positive drift observed in cryptocur- for the short leg before slippage exceeds 10 bps per trade.
+rency markets over multi-year horizons. Unlike equity mar-             Limitations. Several limitations should be noted. First,
+kets where the long-term equity premium is well-documented our backtesting assumes continuous access to Binance Fu-
+but moderate, crypto assets have exhibited annualized positive tures perpetual swaps, which may face regulatory constraints
+drift exceeding 20% during expansion phases. The asymmet- in certain jurisdictions. Second, the strategy’s capacity is lim-
+ric allocation captures this drift while maintaining meaningful ited by the liquidity of smaller-cap assets in the short portfo-
+short exposure for downside protection.                             lio. Third, while we model realistic transaction costs, extreme
+   Monthly reoptimization. The monthly rebalancing cy- market conditions (e.g., exchange outages, flash crashes) may
+cle balances adaptivity with stability. More frequent rebal- produce adverse slippage beyond our model’s scope. Fourth,
+ancing (e.g., weekly) leads to excessive parameter instability the monthly reoptimization procedure introduces look-ahead
+and higher turnover costs, while quarterly rebalancing fails to bias risk if not carefully implemented; we mitigate this by us-
+adapt to the rapid regime shifts characteristic of crypto mar- ing strictly non-overlapping in-sample and out-of-sample win-
+kets. The monthly Sharpe ratio filter (γL = 1.3, γS = 1.7) dows with a 24-hour buffer period to account for settlement
+ensures quality control: only assets demonstrating recent risk- delays. Future work should incorporate market microstructure
+adjusted momentum are included.                                     models and capacity analysis to quantify scalability bounds.
+   Comparison with ML-based approaches. While deep
+learning methods have shown promise in financial forecasting, 6.1 Statistical Significance
+our rule-based approach offers several practical advantages for To assess statistical robustness, we apply the bootstrap
+institutional deployment: full interpretability of trading deci- methodology of Ledoit and Wolf [14] to test whether Adap-
+sions, deterministic behavior under identical inputs, and ab- tiveTrend’s Sharpe ratio is significantly different from bench-
+sence of retraining risk (model degradation due to distribution mark strategies. Table 6 reports the results using 10,000 boot-
+shift). The systematic nature of AdaptiveTrend also facilitates strap replications with circular block bootstrap (block length =
+regulatory compliance and risk audit requirements, which are 20 periods) to account for serial dependence.
+increasingly relevant as institutional allocators enter the crypto     AdaptiveTrend significantly outperforms all benchmarks at
+space.                                                              the 5% level. The smallest margin is against Vol-Scaled
+   Scalability considerations. The equal-weight allocation TSMOM (p = 0.024), consistent with the fact that volatil-
+within each portfolio leg implicitly addresses capacity con- ity scaling captures some—but not all—of the adaptive risk
+straints by distributing capital evenly. For the long portfolio management benefits provided by our dynamic trailing stop
+targeting top-15 market-cap assets, liquidity is generally not a mechanism.
+
+
+                                                                 5
+7    Conclusion                                                               [6] Z. Jiang, D. Xu, and J. Liang. A deep reinforcement learn-
+                                                                                  ing framework for the financial portfolio management problem.
+We presented AdaptiveTrend, a systematic trend-following                          arXiv preprint arXiv:1706.10059, 2017.
+framework for cryptocurrency markets that integrates high-                    [7] K. M. Kaminski and A. W. Lo. When do stop-loss rules stop
+frequency signal generation, adaptive portfolio selection, and                    losses? Journal of Financial Markets, 18:234–254, 2014.
+asymmetric capital allocation. Through comprehensive out-
+                                                                              [8] Y. Lempérière, C. Deremble, P. Seager, M. Potters, and J. P.
+of-sample evaluation spanning 36 months and 150+ assets,
+                                                                                  Bouchaud. Two centuries of trend following. Journal of Invest-
+we demonstrated that the framework achieves superior risk-                        ment Strategies, 3(3):41–61, 2014.
+adjusted returns (Sharpe 2.41, Calmar 3.18) while main-
+                                                                              [9] Y. Liu, A. Tsyvinski, and X. Wu. Common risk factors in cryp-
+taining controlled drawdowns (−12.7% MDD). The ablation
+                                                                                  tocurrency. The Journal of Finance, 77(2):1133–1177, 2022.
+study confirms that each component—dynamic trailing stops,
+market-cap filtering, Sharpe-based selection, and asymmetric                 [10] S. Maillard, T. Roncalli, and J. Teïletchet. The properties of
+allocation—contributes meaningfully to overall performance.                       equally weighted risk contribution portfolios. The Journal of
+                                                                                  Portfolio Management, 36(4):60–70, 2010.
+Statistical significance tests using block bootstrap methodol-
+ogy confirm the outperformance is robust and not attributable                [11] H. Markowitz. Portfolio selection. The Journal of Finance,
+to sampling variation.                                                            7(1):77–91, 1952.
+   Our findings carry several implications for both practition-              [12] T. J. Moskowitz, Y. H. Ooi, and L. H. Pedersen. Time series
+ers and researchers. For practitioners, AdaptiveTrend pro-                        momentum. Journal of Financial Economics, 104(2):228–250,
+vides a fully systematic, interpretable framework suitable for                    2012.
+institutional deployment with realistic transaction costs. The               [13] Z. Zhang, S. Zohren, and S. Roberts. Transformer-based atten-
+strategy’s regime-conditional analysis demonstrates controlled                    tion network for stock movement prediction. Expert Systems
+behavior across bull, bear, and sideways markets—a critical                       with Applications, 202:117239, 2022.
+property for risk management in volatile asset classes. For                  [14] O. Ledoit and M. Wolf. Robust performance hypothesis testing
+researchers, our work highlights that intermediate-frequency                      with the Sharpe ratio. Journal of Empirical Finance, 15(5):850–
+trend signals (H6), when combined with adaptive parame-                           859, 2008.
+ter optimization and careful portfolio construction, can gen-
+erate significant alpha even after accounting for the well-
+documented challenges of cryptocurrency trading.
+   Future work will explore: (i) integration with cross-
+sectional momentum signals for enhanced signal diversity; (ii)
+reinforcement learning-based dynamic allocation to replace
+the fixed 70/30 split with a state-dependent policy; (iii) ex-
+tension to decentralized exchange (DEX) venues where MEV
+(maximal extractable value) introduces additional execution
+complexity; and (iv) formal capacity analysis under realistic
+liquidity constraints to determine the maximum deployable
+AUM.
+
+References
+ [1] N. Baltas and R. Kosowski. Demystifying time-series momen-
+     tum strategies: Volatility estimators, trading rules and pairwise
+     correlations. Journal of Financial Economics, 2017.
+
+ [2] N. Borri. Conditional tail-risk in cryptocurrency markets. Jour-
+     nal of Empirical Finance, 50:1–19, 2019.
+
+ [3] V. DeMiguel, L. Garlappi, and R. Uppal. Optimal versus naive
+     diversification: How inefficient is the 1/n portfolio strategy?
+     The Review of Financial Studies, 22(5):1915–1953, 2009.
+
+ [4] M. López de Prado. Building diversified portfolios that out-
+     perform out-of-sample. The Journal of Portfolio Management,
+     42(4):59–69, 2016.
+
+ [5] C. R. Harvey, Y. Liu, and H. Zhu. . . . and the cross-section of
+     expected returns. The Review of Financial Studies, 29(1):5–68,
+     2016.
+
+
+                                                                         6
+

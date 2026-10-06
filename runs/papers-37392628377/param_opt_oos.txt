@@ -1,0 +1,1957 @@
+                                               A novel approach to trading strategy parameter optimization,
+                                               using double out-of-sample data and walk-forward techniques∗
+
+                                                                        Tomasz Mroziewicz1 and Robert Ślepaczuk2
+
+                                                1
+                                                University of Warsaw, Faculty of Economic Sciences, Ul. Długa 44/50, 00-241 Warsaw, Poland,
+                                                   ORCID: https://orcid.org/0009-0003-6540-6554, email: tomasz.mroziewicz2@gmail.com
+                                               2
+                                                 University of Warsaw, Faculty of Economic Sciences, Department of Quantitative Finance and
+arXiv:2602.10785v1 [q-fin.TR] 11 Feb 2026
+
+
+
+
+                                              Machine Learning, Quantitative Finance Research Group, Ul. Długa 44/50, 00-241 Warsaw, Poland,
+                                              ORCID: https://orcid.org/0000-0001-5227-2014, Corresponding author: rslepaczuk@wne.uw.edu.pl
+
+                                                                                              Abstract
+                                                        This study introduces a novel approach to walk-forward optimization by parameterizing
+                                                    the lengths of training and testing windows. We demonstrate that the performance of
+                                                    a trading strategy using the Exponential Moving Average (EMA) evaluated within a
+                                                    walk-forward procedure based on the Robust Sharpe Ratio is highly dependent on the
+                                                    chosen window size. We investigated the strategy on intraday Bitcoin data at six frequencies
+                                                    (1 minute to 60 minutes) using 81 combinations of walk-forward window lengths (1 day
+                                                    to 28 days) over a 19-month training period. The two best-performing parameter sets
+                                                    from the training data were applied to a 21-month out-of-sample testing period to ensure
+                                                    data independence. The strategy was only executed once during the testing period. To
+                                                    further validate the framework, strategy parameters estimated on Bitcoin were applied to
+                                                    Binance Coin and Ethereum. Our results suggest the robustness of our custom approach.
+                                                    In the training period for Bitcoin, all combinations of walk-forward windows outperformed
+                                                    a Buy-and-Hold strategy. During the testing period, the strategy performed similarly to
+                                                    Buy-and-Hold but with lower drawdown and a higher Information Ratio. Similar results
+                                                    were observed for Binance Coin and Ethereum. The real strength was demonstrated
+                                                    when a portfolio combining Buy-and-Hold with our strategies outperformed all individual
+                                                    strategies and Buy-and-Hold alone, achieving the highest overall performance and a 50%
+                                                    reduction in drawdown. A conservative fee of 0.1% per transaction was included in all
+                                                    calculations. A cost sensitivity analysis was performed as a sanity check, revealing that
+                                                    the strategy’s break-even point was around 0.4% per transaction. This research highlights
+                                                    the importance of optimizing walk-forward window lengths and emphasizing the value of
+                                                    single-time out-of-sample testing for reliable strategy evaluation.
+
+                                                    Keywords: Testing Architecture, Optimization Techniques, Cryptocurrencies, Mov-
+                                                    ing Averages, Algorithmic Trading, Intraday Trading, High Frequency Trading, Bitcoin,
+                                                    Walk-Forward trading, Rolling window optimization
+
+                                                    JEL Codes: C4, C14, C45, C53, C58, G13
+
+
+
+
+                                               ∗
+                                                 The associated GitHub repository covering all calculations presented in this paper can be found at: https:
+                                            //github.com/tmr-crypto/wf_optim_crypto_analysis
+
+
+                                                                                                  1
+1 Introduction
+
+The development of trading strategies in stock and cryptocurrency markets has been extensively
+explored through technical analysis in prior research. However, these studies frequently over-
+look critical elements such as transaction fees, slippage, and other trading costs. Additionally, a
+common but often unreported issue involves repeated optimizations on data designated as out-
+of-sample, or the complete omission of an out-of-sample evaluation phase. Such practices foster
+unrealistic performance expectations, leading to substantial underperformance when strategies
+are implemented in live trading environments.
+This study addresses key challenges in trading strategy development by providing a practi-
+cal framework for constructing and assessing trading strategies. The framework incorporates
+tools for profitability estimation, statistical significance evaluation, and overfitting risk mitiga-
+tion. Central to this investigation is the integration of the Exponential Moving Averages (EMA)
+Crossover—a momentum-based technical analysis strategy—with the walk-forward optimization
+procedure, which serves as the foundational structure of our approach.
+The study investigates the following research questions:
+RH1: Walk-forward optimization, a method widely used in this work, divides the research period
+into training/testing subperiods instead of optimizing parameters over the entire dataset, which
+risks overfitting. For each training subperiod, optimal parameters are identified and evaluated
+out-of-sample in the corresponding testing subperiod. Out-of-sample results across all testing
+periods are aggregated to assess overall performance. This study examines the effects of varying
+training and testing window lengths on risk-adjusted returns, aiming to identify any dependence
+between window length and investor outcomes. It explores whether shorter or longer windows
+influence results, contrasting with the Eﬀicient Market Hypothesis (Fama 1965), which suggests
+market eﬀiciency precludes significant performance differences from window length variations.
+RH2: How do the choice of data frequency and costs impact strategy results? This research
+utilizes intraday high-frequency data, with frequencies ranging from 1 to 60 minutes evaluated.
+The paper assesses the influence of costs and time frequency on risk-adjusted returns.
+RH3: Is the tested strategy better than random? To evaluate statistical significance, the boot-
+strap methodology is applied to determine if the optimal strategy outperforms randomly con-
+structed alternatives generated during simulations.
+Walk-forward optimization, an established technique in time series analysis, is employed to
+avoid overfitting in parameter estimation. This study extends beyond conventional fixed win-
+dow lengths by examining the effects of varying training and testing window lengths on strategy
+
+
+
+                                                 2
+performance, potentially enhancing strategy eﬀicacy and contributing to a broader theoretical
+understanding of walk-forward optimization. Data utilization is approached innovatively by par-
+titioning available data into a global training period for parameter optimization and an unseen
+period for execution, thereby reducing data mining bias. This differs from typical practices
+where strategies are iteratively tested on purported out-of-sample data, compromising their in-
+tegrity. The analysis incorporates intraday cryptocurrency data, including Bitcoin, Ethereum,
+and Binance Coin, with parameters derived from Bitcoin training applied across assets to test
+adaptability.
+A novel aspect of this work is the systematic investigation of training and testing window lengths
+in walk-forward optimization, moving away from arbitrary fixed lengths to uncover their impact
+on performance. Results indicate that the EMA Crossover strategy combined with walk-forward
+optimization reduces volatility and drawdown relative to Buy-and-Hold approaches. When inte-
+grated into portfolios with Buy-and-Hold, it enhances all performance metrics. The strategy’s
+parameters, optimized on Bitcoin, yield superior results when applied to Ethereum and Binance
+Coin in the testing period. Furthermore, constructing portfolios blending passive Buy-and-Hold
+with the active EMA-walk-forward strategy reveals untapped diversification benefits, achieving
+optimal risk-adjusted measures and drawdown reductions compared to standalone Buy-and-
+Hold or walk-forward strategies. Overall, the framework demonstrates adaptability to evolving
+market regimes, with the strategy delivering positive returns for nearly two years on intraday
+cryptocurrency data without retraining. This persistence prompts further inquiry into potential
+improvements via periodic retraining during testing.
+The paper is organized as follows: Section 2 presents a review of relevant academic literature.
+Section 3 details the methodology employed. Subsequent sections report the results, including
+analyses of cost sensitivity and seasonality in strategy returns. Finally, results on unseen data
+are discussed, followed by conclusions.
+
+
+2 Literature Review
+
+Technical analysis remains underrecognized in academia, likely due to its simplicity and lack of
+alignment with financial ratios or economic indicators. Despite limited scientific explanations, a
+Group of Thirty (1985) survey found that 97
+
+Park and Irwin (2007) reviewed 92 studies on technical analysis, showing 58 profitable, 24
+negative, and 10 mixed results. Pre-1980s strategies were profitable in futures and foreign
+exchange but not in stocks. A recent review by Nti et al. (2020) of 122 papers on technical and
+
+
+
+                                                3
+fundamental analysis reported 87
+
+Hsu et al. (2010) noted that ETFs may reduce technical strategy profitability, yet ineﬀicien-
+cies persist in immature markets, attracting arbitrageurs and enhancing eﬀiciency. Challenges
+include data limitations and assumptions of closing-price executions. Zielonka (2004) found
+investors overestimate technical signals due to cognitive biases like confirmation bias, favoring
+aligned beliefs; simple rules like moving average crossover are often neglected.
+
+Neftçi (1991) described moving average crossover as statistically well-defined, unlike most tech-
+nical rules. Farias Nazário et al. (2017) identified it as the most popular method (44 of 80
+studies), surpassing neural networks or genetic algorithms (15 each). Hybrid approaches include
+Ayala et al. (2021), combining TEMA and MACD with SVMs and Random Forests for positive
+results on stock indices, excluding costs. Karasu et al. (2020) integrated EMA, SMA, Kaufman’s
+adaptive moving average, MOPSO, and RBFSVR to improve crude oil price forecasting over
+traditional methods.
+
+Brock et al. (1992) tested moving average crossover, yielding higher returns and lower volatility
+post-buy signals and negative returns with higher volatility post-sell, outperforming AR(1),
+GARCH, and random walk models. Zakamulin and Giner (2020) compared momentum and
+moving average crossover, finding similarities in strong trends; under random walk, they equate
+to coin flips, but with trends or mean reversion, they exceed 50
+
+As a recent phenomenon, cryptocurrencies have drawn growing academic interest with mixed
+results. Brown and Pelosi (2019) applied moving average crossover to 40 cryptocurrencies,
+outperforming Buy-and-Hold in only 10; 10 lacked data, and Buy-and-Hold won in the remaining
+20.
+
+Walk-forward analysis divides time series into sequential in-sample and out-of-sample periods,
+optimizing parameters in-sample and evaluating out-of-sample. Pardo (2012) argued it reduces
+overfitting, boosts reliability, and assesses market adaptation, though it requires substantial
+data and computation. López de Prado (2019) favored Monte Carlo with synthetic data over
+walk-forward, as the latter assumes consistent data processes and ignores stochasticity. LeBaron
+and Weigend (1998) critiqued train/validation/test splits for overestimating performance, using
+bootstrapping to show variability from splits, not parameters.
+
+Karathanasopoulos et al. (2016) used 300- and 400-day sliding windows to predict crude oil-
+refined product spreads, finding 300-day windows with particle swarm optimization and radial
+basis function neural networks slightly superior in risk-adjusted returns. In cryptocurrencies,
+
+
+
+                                                4
+Ahmed et al. (2020) applied moving average crossover to Dash (2016-2018), yielding 14-18%
+excess over Buy-and-Hold, but not for a 10-coin privacy portfolio. Wen et al. (2022) identified
+intraday predictability, momentum, and reversal in cryptocurrencies, impacted by events like
+FOMC meetings and COVID-19; strategies outperformed Buy-and-Hold, excluding costs.
+
+Alonso-Monsalve et al. (2020) used neural networks with one-minute data and technical indica-
+tors to predict cryptocurrency returns, omitting costs. Wei (2018) found no illiquidity premium
+in 456 cryptocurrencies, with illiquid ones showing antipersistence (low Hurst exponents) and
+deviations from randomness, unlike eﬀicient liquid markets. Anghel (2021) applied White’s Re-
+ality Check to technical and machine learning strategies, finding rare significant returns after
+data snooping and frictions; machine learning underperformed technical analysis due to higher
+transactions, with no added benefits over traditional markets. Kosc et al. (2019) examined mo-
+mentum and contrarian effects in 100 large-cap cryptocurrencies, with short-term contrarian
+outperforming momentum and benchmarks, offering diversification over the S&P 500.
+
+Limitations persist: Farias Nazário et al. (2017) noted only 37% of studies adjust for risk.
+Park and Irwin (2007) highlighted biases like data snooping, rule selection, and cost estimation
+diﬀiculties. Efron (1979) popularized bootstrapping for i.i.d. data, but financial series violate
+assumptions via autocorrelation and heteroscedasticity, per Ruiz and Pascual (2002); block
+bootstrapping by Politis and Romano (1992) addresses this.
+
+Presented research provides insights into technical analysis, though academia lacks consensus
+on its effectiveness or foundations. This study contributes additional questions to the discussion
+rather than definitive answers.
+
+
+3 Data
+
+3.1   Description of data
+
+The analyzed time series represent cryptocurrency prices. The data was acquired from Kag-
+gle.com, which hosted a predictive modeling challenge called G-Forecast in collaboration with
+a commercial partner. The contest data sampled the prices of 10 different cryptocurrencies at
+one-minute intervals, although only a subset was ultimately used in this research.
+
+The data encompasses two distinct periods. Notably, the Unseen Data Period is slightly longer
+than the Global Training Data Period:
+
+  • Global Training Data Period: February 8, 2018, to September 1, 2019
+  • Unseen Data Period: November 7, 2019, to August 22, 2021.
+
+                                                5
+The gap between the end of the Global Training Data Period and the start of the Unseen Data
+Period arises from a walk-forward adjustment to ensure both periods begin and end at the same
+time, despite potential differences in data frequency.
+
+                           Figure 1: Price of Bitcoin with marked Global Training/Unseen Period
+
+
+                                    Bitcoin
+
+
+                 60000
+ Bitcoin Price
+
+
+
+
+                 40000                    Global Training Period                                                           Unseen Period
+
+
+
+
+                 20000
+
+
+
+
+                    0
+
+                            2018                                      2019                                       2020                                      2021
+                                                                                              Research Period
+                         Note: Bitcoin price (shaded area indicates data division). The global trainig data period covers data from February 8, 2018, to September 1, 2019. The unseen data period
+                         covers data from November 7, 2019, to August 22, 2021.
+
+
+
+
+3.2                Description of the Global Training Data Period
+
+3.3                Basic statistic properties
+
+Table 1 explores the basic statistical properties of the Bitcoin price time series across various
+sampling intervals.
+
+Key findings:
+
+           • While high kurtosis is observed consistently, interestingly, it exhibits a decreasing trend
+                  with increasing sampling intervals.
+           • This pattern is disrupted at the 5-minute interval, where kurtosis remains higher compared
+                  to the 1-minute interval. Further investigation is needed to understand the behavior at the
+                  5-minute sampling. High kurtosis indicates a higher probability of large price movement
+                  and a leptokurtic feature of time series; findings align with previous studies, such as the
+                  work by Petukhina Alla A. and Karl (2021), where the kurtosis of intraday data was
+
+                                                                                                 6
+      estimated. It is worth noting that the mentioned research has documented kurtosis for
+      Bitcoin as high as 49 for 5-minute data, which is much higher than presented below.
+  • Across all sampling intervals, the data exhibit positive skew, meaning the right tail extends
+      further than the left. This indicates a higher probability of large positive price movements
+      compared to large negative ones.
+  • Additionally, the maximum values observed in each sampling interval are consistently larger
+      in absolute terms for positive deviations than for negative deviations, further confirming
+      the asymmetry of the distribution.
+
+             Table 1: Descriptive statistics of the global training data for Bitcoin (BTC)
+
+         Freq                                                                                                                        JB
+                    Mean            SD      Median            Min         Max       Range          Skew       Kurtosis
+    Minutes                                                                                                                   P-Value
+
+              1           0    0.0013        0.0000       -0.0465      0.0315       0.0779      -0.0769            18.13               0
+              5           0    0.0027        0.0000       -0.0792      0.0589       0.1382        0.0102           31.97               0
+             10           0    0.0037        0.0000       -0.0760      0.0610       0.1369      -0.0324            26.16               0
+             15           0    0.0045        0.0000       -0.1364      0.0770       0.2134      -0.3408            37.87               0
+             30           0    0.0064        0.0000       -0.0878      0.1033       0.1911        0.0775           22.63               0
+
+             60           0    0.0089        0.0001       -0.0925      0.1081       0.2006        0.1598           16.08               0
+     Note:        Descriptive statistics of the global training data for Bitcoin (BTC). JB P-Value - Jarque–Bera test p-value. The global
+    training data period covers data from February 8, 2018, to September 1, 2019. All statistics are presented on a non-annualized
+    basis.
+
+
+
+
+4 Methodology
+
+The study employed various methodologies to minimize the influence of cognitive biases in
+strategy results. To decrease the risk of data mining bias, during the research architecture design
+phase, the data was divided into two main periods: the Global Training Data Period and the
+Unseen Data Period. All strategy parameter optimization was performed on the Global Training
+Data Period, while the Unseen Data Period was used only once to calculate the performance for
+the final best parameter combination. Using the Unseen Data Period only once ensures that the
+results reflect the strategy’s genuine performance on truly unseen data and are less susceptible
+to data mining bias.
+
+A novel approach to strategy optimization was used. Instead of solely finding the best Moving
+Average crossover parameters, an additional level of optimization involved finding the optimal
+lengths of walk-forward training/testing periods. In typical studies, the length of walk-forward
+steps is chosen arbitrarily. However, in this work, it is part of the optimization process. Currently,
+
+
+                                                                      7
+the literature covering optimization related to the choice of the window size period is very
+limited. Although some studies investigate this in terms of sensitivity analysis, for example,
+Karathanasopoulos et al. (2016) used two different windows for the testing period: 300 days and
+400 days. In other research, Kryńska and Ślepaczuk (2023) investigated the effect of varying in-
+sample and out-of-sample lengths on their trading strategy results. They found that extending
+the training period (in-sample) while decreasing the testing period (out-of-sample) resulted in
+improved performance.
+
+The strategy built in this study uses multiple techniques tailored to its specific needs, including:
+
+   • Walk-forward method optimization
+   • Technical analysis indicator Exponential Moving Average (EMA) with optimized length of
+      MA periods.
+   • Bootstrap
+
+
+4.1   The Walk-Forward Method
+
+This research employed walk-forward optimization (WFO) to ensure that all reported results
+came from out-of-sample data - either from WFO testing periods or single-time evaluations on
+the Unseen Data Period. This approach limits the probability of overfitting, which occurs when
+strategies optimized on in-sample data fail to generalize to new market conditions.
+
+The WFO method is just an adaptation of a popular technique used in data science and quanti-
+tative finance, where the validity and the robustness of model parameters are typically evaluated
+by dividing the data into different sets:
+
+– Training set (in-sample data): This data is used to train the model and fine-tune its parameters
+- Validation set (optional in some cases): This data controls the training process on data that
+has not been seen by the model - Testing set (out-of-sample data): This set of data provides the
+final assessment of the model’s capabilities to generate good performance on truly new data.
+
+The walk-forward optimization technique is a method used to evaluate the robustness and po-
+tential profitability of trading strategies. It involves dividing the historical data into n equal
+periods. Each of these n periods is further divided into two or three when a validation set is
+included, into segments with different lengths:
+
+   • In-sample/training period: This segment is used to optimize the parameters of the trading
+      strategy. Essentially, the strategy is “trained” on this data to find the settings that yield
+      the best performance. In this study, the training period is used to find a combination of
+
+
+
+                                                  8
+      fast/slow lengths of Exponential Moving Average that maximizes Sharpe.
+
+   • Out-of-sample/testing period: This segment is used to validate the performance of the
+      strategy using the parameters found in the in-sample period. This acts as a simulation
+      of applying the strategy to the new set of data, helping to avoid overfitting and assess its
+      adaptability to different market conditions. In the context of this study, the out-of-sample
+      period evaluates a combination of strategy parameters - fast/slow of the Exponential Mov-
+      ing Average found in the in-sample period.
+
+Combining results: Only the results from all out-of-sample periods are used to calculate overall
+statistics for the global training period. This prevents overfitting by avoiding the use of in-sample
+(training) data in performance evaluation.
+
+The impact of using different training and testing data lengths within the walk-forward opti-
+mization process on strategy performance was further investigated and detailed in the following
+sections.
+
+
+4.2   Exponential Moving Average Crossover
+
+It is a momentum strategy using moving averages to generate buy and sell signals. The simplest
+moving average crossover strategy uses two averages of prices. One is shorter and sometimes
+called fast, while the other one is longer and called slow. Crossover occurs when a short-term
+moving average crosses through a long-term moving average. When a crossover occurs, practi-
+tioners believe the momentum of the price is shifting its direction.
+
+This study employed a set of Exponential Moving Averages (EMAs) with periods of 5, 7, 10,
+15, 20, 30, 40, 50, 100, 150, and 200. EMAs with periods longer than 35 were categorized as
+slow, while those with shorter periods were classified as fast. The selection of this threshold was
+somewhat arbitrary.
+
+Formula (1) below presents the recursive form of the Exponential Moving Average:
+
+
+
+                              𝐸𝑀 𝐴n = 𝛼 ∗ 𝑃𝑛 + (1 − 𝛼) ∗ 𝐸𝑀 𝐴n-1                                  (1)
+
+
+
+
+                                                 9
+               where :
+
+                     𝑛 − Number of periods for which EMA should be calculated
+
+                    𝑃𝑛 − Current asset price
+                           2
+                     𝛼=
+                          𝑛+1
+               𝐸𝑀 𝐴0 = 𝑃0
+
+
+4.2.1 Position of strategy
+
+For a specific combination of fast and slow Exponential Moving Average (EMA) parameters, the
+strategy:
+
+   • Enters long positions (buy) when the fast EMA crosses above the slow EMA. This indicates
+      a potential upward trend, suggesting the price might continue to rise, and the strategy aims
+      to capitalize on this movement.
+   • Enters short positions (sell) when the fast EMA crosses below the slow EMA. This suggests
+      a potential downward trend, and the strategy aims to profit from a price decline.
+
+The logic for position calculation could be summarized in the formula (2):
+
+
+                                        ⎧
+                                        {Long,     if 𝐸𝑀 𝐴fast ≥ 𝐸𝑀 𝐴slow
+                         𝐸𝑀 𝐴Position =                                                         (2)
+                                        ⎨
+                                        {Short,    otherwise
+                                        ⎩
+
+
+4.3   Optimization
+
+This study went beyond optimizing EMA parameters and introduced an additional layer of
+optimization by fine-tuning the training/testing period length for the walk-forward, potentially
+leading to a more robust strategy.
+
+
+4.3.1 Specific periods of walk-forward training/testing considered
+
+To investigate the presence of potential weekly seasonality, in addition to shorter periods of 1, 2,
+3, 5, 7, and 10 days, the study explored various training/testing WF period combinations using
+multiples of 7 days. These included periods of 14, 21, and 28 days.
+
+
+
+
+                                                  10
+4.3.2 Optimization approach
+
+Each combination of training and testing window sizes underwent a separate walk-forward op-
+timization process. This process used the entire global training period to assess the impact of
+specific window sizes on the strategy’s performance. Each iteration of the walk-forward proce-
+dure with a unique window size combination produced a Sharpe ratio, which was then stored
+for further analysis. Importantly, the Sharpe Ratio was calculated based on the walk-forward
+returns, specifically derived from the test phase of each of the walk-forward steps.
+
+
+4.3.3 Visualization
+
+The overall results of the above calculation can be presented as a grid in Figure 2. The horizontal
+axis represents the training window size, and the vertical axis represents the test window size.
+Each intersection point displays the Sharpe ratio achieved using that specific combination for
+the global training period.
+
+
+4.3.4 Smoothing grid
+
+The grid presented in Figure 2 reveals clusters of higher and lower Sharpe ratios across differ-
+ent combinations of training and testing periods. However, directly choosing a single set of
+parameters is challenging due to the high variability in results in neighboring states. To address
+this variability, a weighted smoothing method was employed. This method weights the Sharpe
+ratio of a cell based on the average Sharpe ratios of its neighboring cells, effectively giving more
+weight to areas with consistent positive performance.
+
+
+4.3.5 Choice of Smoothing Weights
+
+While the specific choice of smoothing weights can be subjective, in this case, they were chosen
+following the method described in Gómez and Ślepaczuk (2021). Smoothing is achieved by
+using the formula (3) for a weighted average where the original value receives half the weight,
+and the remaining weight is distributed among neighboring values.
+
+                                                           𝑛
+                                     1                  1     1
+                  𝑆𝑚𝑜𝑜𝑡ℎ𝑒𝑑value =      ∗ 𝑂𝑟𝑖𝑔𝑖𝑛𝑎𝑙value + ∗ ∑ 𝑁 𝑒𝑖𝑔ℎ𝑏𝑜𝑟value                      (3)
+                                     2                  2 𝑛=1 𝑛
+
+
+
+
+                                                11
+4.3.6 Identifying optimal parameters for out-of-sample evaluation based on the
+        smoothed grid
+
+After performing the smoothing procedure described in the previous paragraph, the two walk-
+forward parameter combinations with the highest Sharpe ratios in the smoothed grid (Figure
+3) are chosen for further analysis. This selection method is objective and based on the chosen
+performance metric (Sharpe ratio). However, the study acknowledges that this approach might
+not be the most effective, and alternative methods for selecting optimal walk-forward parameters
+could be explored. Alternative methods could include:
+
+  • Minimizing the difference between training and testing period results. This approach aims
+     to select parameters that lead to similar performance in both training and testing phases,
+     suggesting better generalizability to unseen data.
+  • Using bootstrapping to select the walk-forward parameter combination with the highest
+     statistical significance. Bootstrapping is a resampling technique that can help assess the
+     reliability of the parameter selection process.
+
+
+4.3.7 Overall optimization summary
+
+This optimization process effectively assessed the impact of different training and testing period
+combinations on the strategy’s performance, providing valuable insights for selecting a more
+robust parameter set. However, it is important to acknowledge potential limitations:
+
+  • Data mining: Analyzing numerous training/testing window size combinations, combined
+     with selecting the best EMA within the walk-forward training period, raises concerns about
+     data mining. This practice can lead to overfitting, where the chosen parameters perform
+     well on the specific data used but may not generalize well to unseen data.
+
+  • Training/unseen data split: The chosen split between the global training and unseen data
+     periods can also influence parameter selection. Different splits could potentially lead to
+     different optimal parameters.
+
+  • Parameter decay: The optimization process does not consider the possibility that the
+     chosen parameters might become less effective over time. The strategy’s performance on
+     unseen data could potentially deteriorate if the parameters found in the global training
+     period are no longer optimal.
+
+These limitations highlight the need for further investigation into robust parameter selection
+techniques and the potential for performance decay over time.
+
+
+                                               12
+4.4   Statistical significance
+
+This study employed bootstrapping to evaluate statistical significance. However, as noted by
+Ruiz and Pascual (2002), the classical bootstrap introduced by Efron (1979) is not suitable
+for time series data due to potential heteroscedasticity and autocorrelation. Therefore, the
+block bootstrap method developed by Politis and Romano (1994) was customized to specifically
+address these concerns and better fit the nature of time series data, and was the method used
+in this paper.
+
+
+4.4.1 Bootstrap Evaluation of Subsampled EMA Combinations for Walk-Forward
+        Optimization
+
+Within each step of the walk-forward training period, the study evaluated various combinations
+of exponential moving averages (EMAs). The combination that generated the highest Sharpe
+Ratio during the training period was then chosen for further assessment on the subsequent walk-
+forward testing period. In contrast, the bootstrapping method employed a different approach.
+Instead of selecting the best EMA combination based on the training data, it utilized random
+selection. This effectively compared the performance of the “best” parameter choice, identified
+during the walk-forward optimization, against a baseline established by randomly chosen combi-
+nations. Due to the computationally intensive nature of this method (requiring 1,000 iterations),
+it was only applied to the top two train/testing period combinations identified through their
+Sharpe Ratio during the walk-forward process on the global testing period.
+
+
+4.4.2 Bootstrap Evaluation of Shuffled Transaction blocks
+
+The transactional positions bootstrap was another method of bootstrap that was adapted for
+this study. During the walk-forward testing period, “position blocks” were generated. These
+blocks represented consecutive periods where the strategy held long or short positions (e.g.,
+3 periods long, followed by 2 short, then 5 long). In each bootstrap iteration, the order of
+these blocks was shuffled. For example, the 2-period short block might be swapped to come
+before the 8-period long block (5 + 3), and then original asset returns are matched to each
+block to construct the equity line and calculate profitability for a single iteration. Due to the
+computationally intensive nature of this method (requiring 1,000 iterations), it was only applied
+to the top two train/testing period combinations identified through their Sharpe Ratio during
+the walk-forward process on the global testing period.
+
+
+
+
+                                               13
+4.4.3 Null hyphotestis
+
+Both block and moving average (MA) bootstrapping methods assumed a null hypothesis that
+the research strategy does not provide any statistically significant advantage over randomly
+generated trading signals. In simpler terms, the hypothesis assumed the strategy’s performance
+is purely due to chance.
+
+To reject this null hypothesis and conclude that the strategy has a statistically significant edge,
+it needs to outperform a predetermined proportion of random strategies based on the chosen
+confidence level.
+
+Confidence level represents the probability that the observed effect (strategy’s edge) didn’t occur
+by chance. A higher confidence level indicates a stronger likelihood that the effect is real.
+
+For example, with a 5% confidence level, the strategy needs to be demonstrably better than
+95% of randomly generated strategies to be considered statistically significant. This implies
+that the strategy’s performance should consistently outperform 95% of randomly generated
+signals, suggesting it has a genuine advantage over a random approach.
+
+
+4.5   Cost sensitivity
+
+While the influence of transaction costs on the strategy outcomes has received limited academic
+attention, this study delved into this subject. One of the previous studies by Svogun and Bazán-
+Palomino (2022) demonstrated the significant impact of transaction costs on trading strategies
+using intraday data (1-minute), while having a minimal effect on strategies using 1-day data.
+
+Transaction costs are a critical issue, especially for moving average strategies. These strategies
+hold positions continuously, leading to frequent position changes and higher sensitivity to trans-
+action fees. A single long-to-short turnaround with the default cost of 0.1% incurs a total cost
+of 0.2% (entry + exit). This cost scales proportionally with the transaction fee level, reaching
+1% at the highest cost of 0.5% analyzed in this research
+
+This study used a 0.1% cost assumption for all calculations. This fee level is not tied to a specific
+exchange rate but reflects a commonly observed level offered by the largest cryptocurrency
+exchanges.
+
+While some exchanges may offer lower fees under specific circumstances, the 0.1% assumption
+takes into account not only transaction fees but also potential slippage and changing bid-ask
+spread. This broader consideration aims to provide a realistic estimate of trading costs in real-
+world scenarios.
+
+
+                                                 14
+To assess the impact of transaction costs on the strategy’s performance, this study analyzed
+results under seven different cost levels: 0.05%, 0.07%, 0.10%, 0.20%, 0.30%, 0.40%, 0.50%
+
+This study investigated the impact of transaction costs on the performance of the Exponential
+Moving Average Crossover strategy. The strategy generated signals to enter long or short po-
+sitions, and each position change incurred a transaction cost. Notably, switching from a long
+position to a short position requires closing the long position before opening the short, resulting
+in double value of the transaction cost for such a turnaround.
+
+To assess cost sensitivity, the analysis applied varying transaction cost levels throughout the
+global training period to the original positions list generated by the strategy. While this approach
+might not perfectly replicate real-world scenarios where higher costs incentify strategies with
+fewer trades, it provides a valuable starting point for understanding how transaction costs affect
+high-frequency strategy performance with all other factors held constant.
+
+
+4.6   Algorithms descriptions
+
+This section delves into the details of the algorithm employed in the study. The algorithm itself
+is presented in pseudocode format
+
+
+4.6.1 WF parameters optimization algorithm with evaluation of results on the
+        unseen period
+
+Algorithm 1 outlines the steps involved in optimizing parameters for the walk-forward optimiza-
+tion process. To enhance clarity, this algorithm has been segmented into two distinct parts.
+The first part, presented here, focuses on the optimization of training and testing window sizes
+within the walk-forward framework. The second part, detailed in section The Walk-Forward
+procedure algorithm, describes the actual walk-forward procedure itself.
+
+  1. Looping Through Parameter Combinations: The algorithm iterates through all possible
+      combinations of training and testing window sizes, which are the key parameters in the
+      optimization process. This process is described in Algorithm 1.
+  2. Walk-Forward Execution: The walk-forward procedure is executed for each parameter
+      combination. This step constitutes the core trading logic, involving the calculation of the
+      EMA at each walk-forward step. A detailed description of the walk-forward algorithm can
+      be found in Algorithm 2.
+  3. Sharpe Calculation: The performance of each walk-forward evaluation is measured using
+      the Sharpe Ratio, a metric that considers both returns and risk.
+
+
+
+                                                15
+      4. Sharpe Ratio Grid Construction: Once all combinations are tested, the algorithm con-
+        structs a “grid” using the obtained Sharpe Ratios. Each column in this grid represents the
+        training window size used, while each row represents the testing window size.
+      5. Smoothing the Sharpe Ratio Grid: This step involves refining the Sharpe Ratio grid by
+        applying a smoothing technique. This might involve incorporating both the original Sharpe
+        Ratio value and the values of its neighboring cells in the grid into the calculation.
+      6. Selecting Optimal Combinations: Finally, the two combinations of training and testing
+        window size that lead to the highest Sharpe Ratios in the smoothed grid are chosen.
+      7. Applying Strategy to Unseen Data Period: These two chosen parameter combinations
+        are then used to evaluate the walk-forward strategy on the Unseen Data Period for three
+        specific cryptocurrencies: Bitcoin (BTC), Binance Coin (BNB) and Ethereum (ETH).
+
+
+                            Algorithm 1: WF Parameters opitmization
+ 1: procedure WFParamtersOptimization(𝐷𝑎𝑡𝑎𝑆𝑒𝑟𝑖𝑒𝑠)
+ 2:     Divide 𝐷𝑎𝑡𝑎𝑆𝑒𝑟𝑖𝑒𝑠 into 𝑔𝑙𝑜𝑏𝑎𝑙𝑇 𝑟𝑎𝑖𝑛, 𝑢𝑛𝑠𝑒𝑒𝑛𝑇 𝑒𝑠𝑡
+ 3:     Define 𝑡𝑟𝑎𝑖𝑛𝐶𝑜𝑖𝑛 used in global train optimization
+ 4:     Define 𝑡𝑒𝑠𝑡𝐶𝑜𝑖𝑛𝑠 used in unseenTest
+ 5:     Define 𝑊 𝐹 𝑃 𝑎𝑖𝑟𝑠(𝑡𝑟𝑎𝑖𝑛, 𝑡𝑒𝑠𝑡) which consists of a combination of Walk-Forward train/test
+    length period
+ 6:     Define matrix 𝑊 𝐹 𝐺𝑙𝑜𝑏𝑎𝑙𝑇 𝑟𝑎𝑖𝑛𝑆ℎ𝑎𝑟𝑝𝑒 which will store Sharpe for each combination of
+    train/test
+ 7:     for each WFPair(𝑡𝑟𝑎𝑖𝑛, 𝑡𝑒𝑠𝑡) in 𝑊 𝐹 𝑃 𝑎𝑖𝑟𝑠 do
+ 8:         Call 𝑊 𝐹 𝐶𝑎𝑙𝑐𝑢𝑙𝑎𝑡𝑒𝑆ℎ𝑎𝑟𝑝𝑒(𝑔𝑙𝑜𝑏𝑎𝑙𝑇 𝑟𝑎𝑖𝑛𝑓𝑜𝑟trainCoin, 𝑊 𝐹 𝑃 𝑎𝑖𝑟(𝑡𝑟𝑎𝑖𝑛, 𝑡𝑒𝑠𝑡)) proce-
+    dure and store results in 𝑊 𝐹 𝐺𝑙𝑜𝑏𝑎𝑙𝑇 𝑟𝑎𝑖𝑛𝑆ℎ𝑎𝑟𝑝𝑒
+ 9:     From 𝑊 𝐹 𝐺𝑙𝑜𝑏𝑎𝑙𝑇 𝑟𝑎𝑖𝑛𝑆ℎ𝑎𝑟𝑝𝑒 get 2 𝑀 𝑎𝑥𝑊 𝐹 𝑃 𝑎𝑖𝑟𝑠(𝑡𝑟𝑎𝑖𝑛, 𝑡𝑒𝑠𝑡) with highest Sharpe
+10:     for each WFPair(𝑡𝑟𝑎𝑖𝑛, 𝑡𝑒𝑠𝑡) in 𝑀 𝑎𝑥𝑊 𝐹 𝑃 𝑎𝑖𝑟𝑠 do
+11:         Get 𝑢𝑛𝑠𝑒𝑒𝑛𝑇 𝑒𝑠𝑡 for 𝑡𝑒𝑠𝑡𝐶𝑜𝑖𝑛𝑠
+12:         Call 𝑊 𝐹 𝐶𝑎𝑙𝑐𝑢𝑙𝑎𝑡𝑒𝑆ℎ𝑎𝑟𝑝𝑒(unseenTest, 𝑊 𝐹 𝑃 𝑎𝑖𝑟(𝑡𝑟𝑎𝑖𝑛, 𝑡𝑒𝑠𝑡)) procedure and store re-
+    sults in 𝑈 𝑛𝑠𝑒𝑒𝑛𝑅𝑒𝑠𝑢𝑙𝑡𝑠
+13:     Report 𝑈 𝑛𝑠𝑒𝑒𝑛𝑅𝑒𝑠𝑢𝑙𝑡𝑠
+
+
+4.6.2 The Walk-Forward procedure algorithm
+
+The walk-forward procedure is executed for each combination of training/testing window sizes
+during the walk-forward parameter optimization process, which is detailed in section 1.
+
+      1. Data Segmentation: Involves segmenting the historical data series into walk-forward steps.
+        Each walk-forward step has a length equal to the combined size of the training window and
+        the testing window. The specific combination of training window size and testing window
+        size is provided as a parameter when defining the walk-forward optimization process.
+      2. Parameter Definition: Define combinations of fast and slow EMA window sizes for the
+        Exponential Moving Average (EMA) strategy. These parameters will be optimized for
+        each walk-forward training period.
+
+
+                                                  16
+     3. Iterating through walk-forward steps: The procedure iterates through each data walk-
+       forward step containing both a training period and a testing period.
+     4. Training Data Optimization: Within each segment, calculate returns using the EMA strat-
+       egy for various combinations of fast and slow EMA window sizes applied to the training
+       data.
+     5. Performance Evaluation: For each combination of EMA periods, calculate the Sharpe
+       Ratio based on the strategy’s returns on the training data.
+     6. Optimal Combination Selection: After evaluating all EMA parameter combinations,
+       choose the one that leads to the highest Sharpe Ratio as the optimal combination for that
+       specific walk-forward training period.
+     7. Testing with Optimal Parameters: Using the chosen EMA parameters (fast and slow peri-
+       ods), calculate the strategy’s returns on the testing data within the current walk-forward
+       step.
+     8. Test Result Accumulation: Store the returns achieved in the testing period for further
+       analysis.
+     9. Segment-wise Repetition: Repeat steps 3-8 for all steps in the walk-forward process.
+ 10. Overall Performance Calculation: Finally, calculate the overall Sharpe Ratio for the entire
+       walk-forward process, considering the combined returns from all testing periods across all
+       walk-forward steps.
+
+
+                             Algorithm 2: walk-forward (WF) Procedure
+1: procedure WFCalculateSharpe(𝐷𝑎𝑡𝑎𝑆𝑒𝑟𝑖𝑒𝑠,𝑡𝑟𝑎𝑖𝑛,𝑡𝑒𝑠𝑡)
+2:     define 𝑀 𝐴𝑃 𝑎𝑖𝑟𝑠(𝑓𝑎𝑠𝑡, 𝑠𝑙𝑜𝑤)
+3:     Divide 𝐷𝑎𝑡𝑎𝑆𝑒𝑟𝑖𝑒𝑠 into 𝑊 𝐹 𝑆𝑒𝑔𝑚𝑒𝑛𝑡𝑠 with length 𝑡𝑟𝑎𝑖𝑛 + 𝑡𝑒𝑠𝑡
+ 4:    Initialize list 𝑊 𝐹 𝑅𝑒𝑡𝑢𝑟𝑛𝑠 to keep overall returns of the whole WF
+ 5:    for each segment(𝑊 𝐹 𝑇 𝑟𝑎𝑖𝑛, 𝑊 𝐹 𝑇 𝑒𝑠𝑡) in 𝑊 𝐹 𝑆𝑒𝑔𝑚𝑒𝑛𝑡𝑠 do
+ 6:        Define empty 𝑆ℎ𝑎𝑟𝑝𝑒𝐿𝑖𝑠𝑡 for keeping the Sharpe ratio for each MA combination on
+    the testing period
+ 7:        for each 𝑀 𝑎𝑃 𝑎𝑖𝑟(𝑓𝑎𝑠𝑡, 𝑠𝑙𝑜𝑤) in 𝑀 𝑎𝑃 𝑎𝑖𝑟𝑠 do
+ 8:            calculate 𝐸𝑚𝑎𝑅𝑒𝑡𝑢𝑟𝑛𝑠 using 𝑀 𝑎𝑃 𝑎𝑖𝑟(𝑓𝑎𝑠𝑡, 𝑠𝑙𝑜𝑤) on 𝑊 𝐹 𝑇 𝑟𝑎𝑖𝑛
+ 9:            calculate 𝑆ℎ𝑎𝑟𝑝𝑒 using 𝐸𝑚𝑎𝑅𝑒𝑡𝑢𝑟𝑛𝑠
+10:            store 𝑆ℎ𝑎𝑟𝑝𝑒 with 𝑀 𝑎𝑃 𝑎𝑖𝑟(𝑓𝑎𝑠𝑡, 𝑠𝑙𝑜𝑤) in the 𝑆ℎ𝑎𝑟𝑝𝑒𝐿𝑖𝑠𝑡
+11:        End For
+12:        Get 𝐵𝑒𝑠𝑡𝑀 𝑎𝑃 𝑎𝑖𝑟(𝑓𝑎𝑠𝑡, 𝑠𝑙𝑜𝑤) from 𝑆ℎ𝑎𝑟𝑝𝑒𝐿𝑖𝑠𝑡 with highest 𝑆ℎ𝑎𝑟𝑝𝑒
+13:        calculate 𝐸𝑀 𝐴𝑇 𝑒𝑠𝑡𝑅𝑒𝑡𝑢𝑟𝑛 using 𝐵𝑒𝑠𝑡𝑀 𝑎𝑃 𝑎𝑖𝑟(𝑓𝑎𝑠𝑡, 𝑠𝑙𝑜𝑤) on 𝑊 𝐹 𝑇 𝑒𝑠𝑡
+14:        calculate 𝑆ℎ𝑎𝑟𝑝𝑒𝑇 𝑒𝑠𝑡 using 𝐸𝑀 𝐴𝑇 𝑒𝑠𝑡𝑅𝑒𝑡𝑢𝑟𝑛𝑠
+15:        append 𝐸𝑀 𝐴𝑇 𝑒𝑠𝑡𝑅𝑒𝑡𝑢𝑟𝑛𝑠 to 𝑊 𝐹 𝑅𝑒𝑡𝑢𝑟𝑛𝑠
+16:    End For
+17:    calculate 𝑊 𝐹 𝑇 𝑜𝑡𝑎𝑙𝑆ℎ𝑎𝑟𝑝𝑒 using 𝑊 𝐹 𝑅𝑒𝑡𝑢𝑟𝑛𝑠
+18:    return 𝑊 𝐹 𝑇 𝑜𝑡𝑎𝑙𝑆ℎ𝑎𝑟𝑝𝑒
+
+
+
+
+                                                17
+4.6.3 Performance metrics
+
+The following metrics are used across the study to measure profitability and risk.
+
+Appropriate performance statistics presented in Table 2 were selected based on Ryś and
+Ślepaczuk (2019), which extensively describes the process of creating automated trading
+systems and the evaluation of strategies’ performance.
+
+                            Table 2: Performance statistics definitions.
+ Metric                   Formula                                               Additional information
+                                   𝑝
+ Log return               𝑅𝑡 = 𝑙𝑛( 𝑡 )                                          𝑝𝑡 the asset price at time t
+                                  𝑝𝑡−1
+                                𝑁
+ Annualized Mean Return   ( 𝑛1 ∑𝑡=1 𝑅𝑡 ) ∗ 𝑛𝑦𝑒𝑎𝑟                                𝑛𝑦𝑒𝑎𝑟 Number of log returns in the
+                                                                                year
+                                                                                𝑁 number of log returns in the strat-
+                                                                                egy
+ Annualized Volatility       1
+                          √ 𝑁−1  𝑁       ̄ ∗ √𝑛𝑦𝑒𝑎𝑟
+                                ∑ (𝑅𝑡 − 𝑅)                                      𝑅 average log return
+                                     𝑡=1
+
+
+                          Annualized Mean Return−𝑟risk free
+ Sharpe ratio                   Annualized Volatility                           𝑟risk free Risk Free Rate in this study
+                                                                                is assumed to be 0
+ Maximum Drawdown         max𝜏∈[0,𝑇 ) max𝑡∈[𝜏,𝑇 ] (𝑝𝜏 − 𝑝𝑡 , 0)                 Worst cumulative loss from a local
+                                                                                maximum
+                                                                                𝑝𝑡 logarithm of asset price 𝑙𝑛(𝑃𝑡 ) at
+                                                                                the time t and 𝑡 ∈ [0, 𝑇 ]
+                                                                                𝑃𝑡 Asset price at time t
+                                                                            2
+                          𝑠𝑖𝑔𝑛(Annualized Mean Return)∗Annualized Mean Return
+ Information Ratio**            Annualized Volatility∗Maximum Drawdown
+
+
+                              ̄ benchmark
+                            𝑅−𝑟                    √
+ Sortino Ratio            √
+                           𝜎Negative log Returns ∗  𝑛𝑦𝑒𝑎𝑟                       𝑟𝑏𝑒𝑛𝑐ℎ𝑚𝑎𝑟𝑘 Benchmark return in this
+                                                                                study assumed to be 0
+                                                                                𝜎Negative log Returns Standard devia-
+                                                                                tion of downside log returns, lower
+                                                                                than the assumed level of 𝑟𝑏𝑒𝑛𝑐ℎ𝑚𝑎𝑟𝑘
+
+
+
+
+5 Results - Global Training Data Period
+
+5.1   Choice of data frequency on results
+This study employed an exhaustive search to identify the optimal walk-forward (WF) length for
+each timeframe tested. Essentially, for every timeframe (1, 5, 10, 15, 30, and 60 minutes), the
+walk-forward was optimized across all predefined training and testing period length combinations.
+For each interval, the walk-forward performance was estimated using the same combination of
+training and testing lengths for all window sizes (1, 2, 3, 5, 7, 10, 14, 21, 28). This resulted in
+81 strategies per timeframe. Each combination yielded a Sharpe Ratio, reflecting the strategy’s
+risk-adjusted performance. Table 3 summarizes the descriptive statistics of these Sharpe ratios
+for each timeframe. This provides a comprehensive overview of the strategy’s performance across
+different sampling frequencies.
+
+
+
+                                                          18
+Key findings:
+
+  • Higher frequency timeframe (1-15) might be unprofitable due to 0.1% transaction costs,
+      which were assumed
+  • Among the tested timeframes, 15- and 30-minute intervals contain some WF combinations
+      with positive returns.
+  • Notably, the 60-minute timeframe also shows a positive mean Sharpe ratio
+  • No negative Sharpe at 60-minute frequency, even if the strategy is chosen randomly in 60
+      60-minute timeframe, it still exhibits a positive Sharpe Ratio
+
+Table 3:       The Descriptive Statistics of Sharpe Ratio for 81 walk-forward combinations per
+timeframe - Global Train Data Period
+
+           Frequency           Mean            Max           Min           STD          Q25%           Q50%           Q75%
+             Minutes          Sharpe         Sharpe        Sharpe        Sharpe        Sharpe         Sharpe         Sharpe
+
+                      1     -12.7144       -11.4142       -16.6509       1.0943       -12.7549      -12.5585       -12.1700
+                      5      -2.8416        -1.6011        -5.0528       0.8268        -3.0947       -2.6447        -2.3863
+                     10      -1.4896        -0.4917        -2.9345       0.6626        -1.9249       -1.4718        -1.0263
+                     15      -0.9783         0.1951        -2.7203       0.7177        -1.1952       -0.7957        -0.5273
+                     30      -0.4954         0.7372        -2.1529       0.6440        -0.9490       -0.4528        -0.1158
+
+                     60        0.7908        1.2524         0.1863       0.2256         0.6479         0.8124         0.9540
+             Note:      The descriptive statistics of the Sharpe Ratio achieved by Exponential Moving Averages (EMA) strategies
+           with walk-forward optimization executed on different time frequencies within the global training data, using varying
+           training and testing window sizes. For each time frequency, the walk-forward optimization was performed multiple
+           times with the same window combinations. The global training data period covers data from February 8, 2018, to
+           September 1, 2019. Each transaction incurs a 0.1% cost. Changing positions from short to long requires two trans-
+           actions, resulting in a total cost of 0.2%
+
+
+
+
+5.2   The walk-forward optimization results
+
+5.2.1 Walk-Forward Sharpe Ratios: Heatmap by Training/Testing Length (60-
+        Minute)
+
+Figure 2 presents a heatmap visualizing the Sharpe ratios achieved through a walk-forward
+optimization process applied to 60-minute Bitcoin price data within the global training dataset.
+The columns represent the lengths of the training periods, while the rows represent the lengths
+of the testing periods. Each cell in the heatmap displays the Sharpe ratio achieved using a
+specific combination of training and testing period lengths within the global training data.
+
+The heatmap could be divided into four quarters:
+
+First Quadrant (Bottom-Left):
+
+  • This quadrant corresponds to short walk-forward testing lengths (around 1 to 7 days) and
+      short walk-forward training lengths (around 1 to 7 days).
+
+Key insights:
+
+  • Generally low Sharpe ratios.
+  • Best training period: 5 days.
+  • Best testing period: 7 days.
+
+                                                                   19
+  • Surprisingly, combinations <= 3 days yield the lowest Sharpe ratios, suggesting frequent
+     retraining might not always be beneficial.
+  • For 1-day training, testing periods of 5-7 days show the best results
+
+Second Quadrant (Top-Left):
+
+  • Walk-forward training lengths (around 1 to 7 days) and longer walk-forward testing lengths
+     (around 8 to 28 days).
+
+Key insights
+
+  • The highest Sharpe ratios across all training lengths were observed for testing periods of
+     28 days.
+  • Best training periods: 5-7 days.
+  • Best performance: 7-day training and 28-day testing.
+
+Third Quadrant (Bottom-Right):
+
+  • Walk-forward training lengths (around 10 to 28 days) and longer walk-forward testing
+     lengths (around 1 to 7 days).
+
+Key insights:
+
+  • Only 2 combinations with training periods of 10 and 14 days have Sharpe ratios exceeding
+     1.
+  • 1-day testing period consistently yields the lowest Sharpe ratios.
+
+Fourth Quadrant (Top-Right):
+
+  • Walk-forward training lengths (around 10 to 28 days) and longer walk-forward testing
+     lengths (around 10 to 28 days)
+
+Key insights:
+
+  • 8 combinations achieve Sharpe ratios above 1.
+  • Best performance: 14-day training and 10-day testing.
+
+Overall: Quadrant 4 (long training, long testing) surprisingly exhibits the highest Sharpe ratios.
+This finding seems counterintuitive because less frequent retraining might prevent the strategy
+from adapting quickly to changing market conditions. Further investigation is necessary to
+understand this outcome.
+
+
+
+
+                                               20
+                         Figure 2: Walk-Forward Sharpe Ratios: Heatmap by Training/Testing Length
+
+                  28              1                0.99              1.14                1.16               1.25                0.86               1.02                0.98               0.65
+                  21           0.59                0.28              0.41                0.81               0.94                1.12               0.98                1.02               0.76
+                  14            1.1                0.83              1.04                0.69               0.77                0.92               1.01                 1.1               1.15
+ wf.test_length
+
+
+
+
+                  10           0.88                0.95              0.93                0.95               0.69                0.87               1.18                1.02               0.87
+                  7            0.81                0.59              0.78                0.71               0.54                1.09               0.83                0.92               0.79
+                  5            0.57                  0.7             0.36                 0.7               0.39                0.73               0.65                0.88               0.68
+                  3            0.54                0.47              0.19                0.81               0.72                0.85               1.08                0.77               0.87
+                  2            0.49                0.51              0.43                0.77               0.65                0.74               0.85                 0.9               0.86
+                  1            0.47                0.63              0.51                0.62               0.79                0.53                0.8                0.93               0.64
+
+                                  1                   2                 3                  5                   7                 10                  14                 21                  28
+                                                                                                 wf.train_length
+
+
+                                        sharpe_ratio
+                                                                      0.25                        0.50                        0.75                        1.00                       1.25
+
+                       Note: This graph analyzes the Sharpe Ratios for walk−forward optimization on 60−minute Bitcoin price data within the global training period, using Exponential Moving
+                       Averages (EMA).The horizontal axis represents the training window size, which is the amount of historical data used to train the EMA strategy.The vertical axis represents
+                       the testing window size, which is the amount of data used to evaluate the performance of the EMA strategy after training. The intersection of a specific training window
+                       size and testing window size on the chart shows the corresponding Sharpe Ratio achieved by the walk−forward optimization with EMA for those parameters. The global trainig
+                       data period covers data from February 8, 2018, to September 1, 2019. Each transaction incurs a 0.1% cost. Changing positions from short to long requires two transactions,
+                       resulting in a total cost of 0.2%
+
+
+
+
+5.2.1.1                     Walk-Forward Robust Sharpe Ratios: Heatmap (Smoothed Values) by
+Training/Testing Length (60-Minute)
+        Figure 3 presents a heatmap with a Robust Sharpe Ratio derived from the data in Figure
+2. The smoothing formula proposed by Gómez and Ślepaczuk (2021) is described in section
+Choice of Smoothing Weights. This technique takes into account not only each value’s original
+position but also the values of its neighboring cells, resulting in a clearer visualization of overall
+trends. Following the work of Gómez and Ślepaczuk (2021), the formula for the calculation of
+the Robust Sharpe Ratio for a given cell in the heatmap is presented here (4):
+
+                                                                                                     𝑛
+                                                                       1                          1     1
+                       Robust Sharpe Ratio =                             ∗ Sharpe Ratio Original + ∗ ∑ Sharpe Rato Neighbour                                                                      (4)
+                                                                       2                          2 𝑛=1 𝑛
+
+
+
+                                                    where :
+                                                              𝑛 − the index of the neighbor.
+                          Sharpe Ratio Original − Sharpe Ratio for given combination of training/testing period
+      𝑛
+         1
+     ∑ Sharpe Rato Neighbour − The sum of all neighbors
+     𝑛=1
+         𝑛
+
+
+
+
+                                                                                                     21
+Key insights:
+
+           • The highest Sharpe Ratios are observed in the area with longer training periods (14-21-28
+                   days), specifically for 14-days and 10-days testing periods
+           • Based on this Robust Sharpe Ratio heatmap, two combinations were selected for further
+                   testing on Unseen Data Period:
+                         – training 7 days testing 28 days
+                         – training 14 days testing 10 days
+           • It’s important to note that this selection was somewhat subjective, as it assumed the best
+                   training period performance translates to the best performance on the Unseen Data Period.
+                   This is not guaranteed.
+           • Alternative selection criteria could be explored, such as choosing combinations with the
+                   most stable results across different training and testing lengths.
+
+Figure 3:                        Walk-Forward Robust Sharpe Ratios:                                                  Heatmap (Smoothed Values) by Train-
+ing/Testing Length
+
+                  28           0.81               0.84                0.93                1.04                1.12               0.96                  1                0.93                0.78
+                  21           0.71               0.58                0.64                0.87                0.94               1.04               0.99                0.99                0.87
+                  14            0.9                0.8                0.89                0.75                0.82               0.93               1.02                1.05                1.05
+ wf.test_length
+
+
+
+
+                  10           0.87               0.91                0.87                0.86                0.75               0.87               1.07                   1                0.93
+                  7            0.78               0.67                0.76                0.69                0.66               0.91               0.87                0.89                0.83
+                  5             0.6               0.62                0.49                0.63                0.58               0.75               0.77                0.85                0.76
+                  3            0.54               0.47                0.39                0.67                0.71               0.79               0.94                0.81                0.85
+                  2            0.51               0.49                0.49                0.68                0.69               0.76               0.84                0.88                0.84
+                  1            0.51               0.56                0.55                0.62                0.73               0.65               0.79                0.87                0.77
+
+                                 1                   2                   3                   5                  7                 10                  14                  21                    28
+                                                                                                  wf.train_length
+
+
+                                           weighted
+                                                               0.4                               0.6                            0.8                              1.0
+                       Note: This graph analyzes the smoothed heatmap of Robust Sharpe Ratios for walk−forward optimization on 60−minute Bitcoin price data within the global training period,
+                       using Exponential Moving Averages (EMA).The horizontal axis represents the training window size, which is the amount of historical data used to train the EMA strategy.The
+                       vertical axis represents the testing window size, which is the amount of data used to evaluate the performance of the EMA strategy after training. The intersection of
+                       a specific training window size and testing window size on the chart shows the corresponding Sharpe Ratio achieved by the walk−forward optimization with EMA for those
+                       parameters. Robust Sharpe Ratio values were calculated using a weighted average. In this approach, the original value retained half the weight, while the remaining weight
+                       was distributed among its neighboring values. The global trainig data period covers data from February 8, 2018, to September 1, 2019. Each transaction incurs a 0.1% cost.
+                       Changing positions from short to long requires two transactions, resulting in a total cost of 0.2%
+
+
+
+
+5.2.1.2                     Selected Combinations
+This study selected parameters for the Unseen Data Period evaluation based on their perfor-
+mance in the global training period. Specifically, the two parameter sets that achieved the
+highest smoothed Sharpe Ratios (presented in Figure 3) were chosen.
+
+However, it is important to acknowledge potential alternative choices. An astute reader might
+identify combinations like 21/14 on the smoothed Sharpe grid, which appears visually more
+
+                                                                                                       22
+promising due to its location within the central “greyish area” of the heatmap, indicating a
+higher smoothed Sharpe ratio compared to the chosen 14/10.
+
+Furthermore, the choice of 7/28 days raises another potential concern. This selection resides on
+the edge of the search window, with estimates based on only 5 neighboring cells instead of the
+usual 8. This introduces a higher degree of uncertainty compared to centrally located choices.
+
+Despite these considerations, the study emphasizes that the parameter selection process aimed
+for simplicity, prioritizing the two best-performing parameter sets based on the initial smoothing
+pass.
+
+The following combinations achieved the highest Sharpe Ratios in the Robust Sharpe Ratio
+Heatmap (presented in Figure 3) and were chosen for further evaluation:
+
+  • Training 7 days, Testing 28 days
+
+
+  • Training 14 days, Testing 10 days
+
+5.3     Performance Metrics - Global Training Data Period - Walk-Forward Top
+        Combinations
+Table 4 summarizes performance metrics for trading strategies identified through a walk-forward
+optimization process, where the length of the training and testing periods of a walk-forward
+was optimized. These strategies, which use Exponential Moving Averages (EMA) achieved the
+highest Sharpe Ratio for Bitcoin within the global training period. The process of selecting of
+optimal walk-forward parameters was described in the Selected Combinations section.
+
+Key findings:
+
+  • Annualized Mean Return: Both strategies achieved similar returns, with a difference of
+        only 5% compared to the overall 94% return. This difference was considered negligible.
+  • Annualized Volatility: Both strategies exhibited identical volatility.
+  • Sharpe Ratio: The 7/28 combination (7 days training, 28 days testing) had a higher Sharpe
+        ratio due to its slightly higher annualized return.
+  • Maximum Drawdown: The 7/28 combination significantly outperformed the other with a
+        much smaller maximum drawdown, indicating better downside risk protection.
+  • Information Ratio**: The 7/28 combination (training 7 days, testing 28 days) achieved a
+        higher Information Ratio compared to alternatives, driven by its superior performance in
+        both return and drawdown.
+  • Sortino Ratio: While marginally higher for the 7/28 strategy, this was likely related to its
+        better performance in terms of drawdown.
+
+
+
+
+                                                  23
+   Table 4: Trading Metrics: Top Sharpe Ratio Strategies (Walk-Forward, Global Training)
+
+                                    Annualized
+                                                       Annualized         Sharpe       Information              Max          Sortino
+                 Description            Mean
+                                                        Volatility         Ratio           Ratio**         Drawdown           Ratio
+                                       Return
+
+    BTC Train 7 Test 28                    0.9483             0.7572        1.252               4.622           0.3516         1.799
+   BTC Train 14 Test 10                    0.8918             0.7571        1.178               2.902           0.4513         1.678
+     Note:         This table presents trading metrics for strategies identified through a walk-forward optimization process, where the
+   length of the training and testing periods of a walk-forward was optimized. These strategies use Exponential Moving Averages (EMA),
+   achieved the highest Sharpe Ratio for Bitcoin within the global training period. The global training data period covers data from
+   February 8, 2018, to September 1, 2019. Each row showcases the performance metrics when using varying training and testing win-
+   dow sizes for a walk-forward optimization. Each transaction incurs a 0.1% cost. Changing positions from short to long requires two
+   transactions, resulting in a total cost of 0.2%
+
+
+
+
+5.4    Equity Curves - Global Training Data Period - Walk-Forward Top Com-
+       binations
+Figure 4 compares the cumulative returns (equity curves) of a Buy-and-Hold strategy with
+trading strategies identified through a walk-forward optimization process, where the length
+of the training and testing periods of a walk-forward was optimized. These strategies, using
+Exponential Moving Averages (EMA), achieved the highest Sharpe Ratio for Bitcoin within
+the global training period. Buy-and-Hold strategy assumes the purchase of a given asset at the
+beginning and selling it at the end of the period. The process of selecting of optimal walk-forward
+parameters was described in the Selected Combinations section.
+
+Key findings:
+
+  • Both EMA strategies exhibited similar overall performance, outperforming the Buy-and-
+       Hold strategy.
+  • The EMA strategies tended to be more profitable when Bitcoin prices declined, suggesting
+       they capitalized on short-term trends.
+  • Conversely, when Bitcoin prices recovered (e.g., after the Bitcoin decline in early 2019),
+       the EMA strategies underperformed the Buy-and-Hold.
+  • Most of the gains for the EMA strategies occurred in the first half of the period, while the
+       second half saw them lagging behind the recovering Buy-and-Hold.
+
+
+
+
+                                                                   24
+Figure 4: Equity Curves: Top Sharpe Ratio Strategies (Walk-Forward, Global Training Data
+Period)
+
+                       6
+                                      BTC Train 14 Test 10
+                                      BTC Train 7 Test 28
+                       4
+                                      Buy−And−Hold BTC
+ Cummulative Returns
+
+
+
+
+                       2
+
+
+
+
+                                                                     2018−07                                              2019−01                                              2019−07
+                                                                                               Global Training Period
+                           Note: Cumulative Returns (Equity curves) for strategies identified through a walk−forward optimization process, where the length of the training and testing periods of
+                           a walk−forward was optimized. These strategies, used Exponential Moving Averages (EMA), achieved the highest Sharpe Ratio for Bitcoin within the global training period.
+                           Buy−and−hold strategy assumed the purchase of given asset at the beginning and selling it at the end of period. The global trainig data period covers data from February
+                           8, 2018, to September 1, 2019. Each transaction incurs a 0.1% cost. Changing positions from short to long requires two transactions, resulting in a total cost of 0.2%
+
+
+
+
+5.5                        Statistical significance - Bootstraps
+To assess the effectiveness of the chosen parameter combinations for a walk-forward optimization
+and evaluate their statistical significance, two bootstrap procedure tests were performed. Details
+of the procedures are described in the Statistical significance section.
+
+5.5.1 Results - Bootstrap Evaluation of Subsampled EMA Combinations for Walk-
+                              Forward Optimization
+
+Both strategy combinations selected in the Selected Combinations section were evaluated for
+statistical significance using the method detailed in the Bootstrap Evaluation of Subsampled
+EMA Combinations for Walk-Forward Optimization section. This method differs from the
+standard approach by using random EMA parameters drawn from a predefined set described in
+the section Exponential Moving Average Crossover, whereas the standard approach selects the
+best EMA parameters identified during the training period for each walk-forward step. This
+allows assessing the performance of the selection method compared to random selection. A
+bootstrap procedure was performed during the global training period.
+
+
+
+
+                                                                                                            25
+Table 5: Results - Bootstrap Evaluation of Subsampled EMA Combinations for Walk-Forward
+Optimization
+
+                                       Original                 Total No. of              No. Bootstrap Iterations
+                Description                                                                                                      Significance%
+                                   Sharpe Ratio          bootstrap iterations            with Higher Sharpe Ratio
+
+  BTC Train 7 Test 28                         1.252                            1000                                      80                    8.0
+ BTC Train 14 Test 10                         1.178                            1000                                     137                   13.7
+   Note:       Original Sharpe Ratio - Sharpe Ratios of the Pre-Selected Best Strategies from the Global Training Period, Total No. of bootstrap
+ iterations - Number of times the bootstrap procedure was repeated, No. Bootstrap Iterations with Higher Sharpe Ratio - Number of bootstrap
+ iterations that achieved a Sharpe Ratio exceeding the original strategy’s Sharpe Ratio. For clarification, ”original” in this context refers to the
+ strategies that were pre-selected during the global training period, as described in section Selected Combinations. This method differs from
+ the standard approach by using random EMA parameters drawn from a predefined set described in the section [Exponential Moving Average
+ Crossover], whereas the standard approach selects the best EMA parameters identified during the training period for each walk-forward step.
+ This allows assessing the performance of the selection method compared to random selection. A bootstrap procedure was performed on the
+ global training period. The cost assumption remains the same as in previous calculations. The global training data period covers data from
+ February 8, 2018, to September 1, 2019. Each transaction incurs a 0.1% cost. Changing positions from short to long requires two transactions,
+ resulting in a total cost of 0.2%
+
+
+
+
+Table 6 presents the descriptive statistics for Sharpe Ratio achieved during bootstrap iterations.
+
+Key findings:
+
+   • The average Sharpe Ratios across both bootstrap strategies are very close
+   • The maximum Sharpe Ratio is 40-50% higher than the original strategies Sharpe Ratios
+   • The original strategies’ Sharpe Ratios fall within 1 standard deviation of the average
+       Sharpe Ratio across bootstrap iterations. For clarification, “original” in this context refers
+       to the strategies that were pre-selected during the global training period, as described in
+       section Selected Combinations.
+Table 6:       The Descriptive Statistics of Sharpe Ratios - Bootstrap Evaluation of Subsampled
+EMA Combinations for Walk-Forward Optimization
+
+                  Description         Mean             SD      Median            Min        Max       Range          Skew       Kurtosis
+
+    BTC Train 7 Test 28              0.7847       0.3259        0.7888       -0.4584      1.777        2.236      -0.0856          0.1486
+   BTC Train 14 Test 10              0.7901       0.3448        0.7948       -0.3549      1.716        2.071      -0.1403         -0.1138
+     Note:      This method differs from the standard approach by using random EMA parameters drawn from a predefined set described
+   in the section [Exponential Moving Average Crossover], whereas the standard approach selects the best EMA parameters identified
+   during the training period for each walk-forward step. This allows assessing the performance of the selection method compared to
+   random selection. A bootstrap procedure was performed on the global training period. The cost assumption remains the same as in
+   previous calculations. The global training data period covers data from February 8, 2018, to September 1, 2019. Each transaction
+   incurs a 0.1% cost. Changing positions from short to long requires two transactions, resulting in a total cost of 0.2%
+
+
+
+
+5.5.1.1      Results—Bootstrap Evaluation of Shuffled Transaction blocks Both strat-
+egy combinations selected in the Selected Combinations section were evaluated for statistical
+significance using the method detailed in the [Bootstrap Evaluation of Random EMA Combi-
+nations in Walk- Forward Optimization] section. This method of bootstrap shuffles blocks of
+original transactional positions generated by the walk-forward within the global training period.
+
+Key findings:
+
+   • Both combinations were statistically significant
+   • 5% statistical significance was reached by both sets of strategies.
+
+
+
+                                                                     26
+                 Table 7: Results - Bootstrap Evaluation of Shuffled Transaction Blocks
+
+                                       Original                 Total No. of              No. Bootstrap Iterations
+                Description                                                                                                      Significance%
+                                   Sharpe Ratio          bootstrap iterations            with Higher Sharpe Ratio
+
+  BTC Train 7 Test 28                         1.252                            1000                                       35                   3.5
+ BTC Train 14 Test 10                         1.178                            1000                                       44                   4.4
+   Note:       Original Sharpe Ratio - Sharpe Ratios of the Pre-Selected Best Strategies from the Global Training Period, Total No. of bootstrap
+ iterations - Number of times the bootstrap procedure was repeated, No. Bootstrap Iterations with Higher Sharpe Ratio - Number of bootstrap
+ iterations that achieved a Sharpe Ratio exceeding the original strategy’s Sharpe Ratio. For clarification, ”original” in this context refers to the
+ strategies that were pre-selected during the global training period, as described in section Selected Combinations. Bootstrap Evaluation of Shuf-
+ fled Transaction Blocks shuffles blocks of original transactional positions generated by the walk-forward within the global training period. The
+ global training data period covers data from February 8, 2018, to September 1, 2019. Each transaction incurs a 0.1% cost. Changing positions
+ from short to long requires two transactions, resulting in a total cost of 0.2%
+
+
+
+
+Table 8 presents the descriptive statistics of the Sharpe Ratios for random strategies generated
+through bootstrapping.
+
+Key findings :
+
+   • The maximum Sharpe Ratio achieved here is significantly higher than that reached by
+       the original strategy. This suggests there could be a much better method for selecting
+       the EMA for the walk-forward testing period than simply selecting the combination that
+       performs best in the walk-forward training period.
+   • The bootstrap based on shuffled positions from the 7/28 strategy has a smaller range and
+       maximum value compared to the 14/10 strategy.
+   • The average Sharpe Ratio across bootstrap iterations falls below zero for both strategies.
+   • Standard Deviation is much higher than in the other bootstrap method
+   • The original strategies’ Sharpe Ratios fall within 1 standard deviation of the average
+       Sharpe Ratio across bootstrap iterations. For clarification, “original” in this context refers
+       to the strategies that were pre-selected during the global training period, as described in
+       section Selected Combinations.
+Table 8: Descriptive Statistics of Sharpe Ratios - Bootstrap Evaluation of Shuffled Transaction
+blocks
+
+                  Description           Mean            SD      Median           Min       Max       Range           Skew      Kurtosis
+
+    BTC Train 7 Test 28               -0.2373      0.8083       -0.2391       -2.789      2.273        5.062      -0.0440        -0.0346
+   BTC Train 14 Test 10               -0.1737      0.8012       -0.1955       -3.098      2.721        5.819      -0.0435         0.1718
+    Note:       Bootstrap Evaluation of Shuffled Transaction blocks shuffles blocks of original transactional positions generated by the
+   walk-forward within the global training period. The global training data period covers data from February 8, 2018, to September 1,
+   2019. Each transaction incurs a 0.1% cost. Changing positions from short to long requires two transactions, resulting in a total cost
+   of 0.2%
+
+
+
+
+5.6     Cost Sensitivity
+Recognizing the significant influence of cost on strategy outcomes, a cost sensitivity analysis
+investigated how the result characteristics change with varying cost levels, isolating cost as the
+sole variable.
+
+
+
+
+                                                                     27
+5.6.1 Strategy Metrics - Cost sensitivity - Global Training Data Period
+
+Key findings:
+
+   • Profitability: Increasing transaction cost per trade from 0.1% to 0.2% leads to a decrease
+      in annualized profit, while volatility remains largely unchanged.
+   • Sensitivity to Cost Increases: Further increases of 0.1% per transaction (reaching 0.3%)
+      result in an average 0.3% drop in Annualized Mean Return.
+   • Drawdown: Maximum drawdown is affected heavily by rising transaction costs.
+   • Information Ratio (IR): IR decreases non-linearly with rising cost.
+   • Profitability Threshold: The strategy becomes unprofitable at a cost level of around 0.4%
+      per transaction.
+
+                                           Table 9: Cost sensitivity
+
+               Annualized    Annualized
+ Cost level                                Sharpe Ratio     Information Ratio**   Max Drawdown      Sortino Ratio
+              Mean Return     Volatility
+
+ 0.05%              1.1068       0.7569          1.4623                  6.6457            0.3408          2.1035
+ 0.07%              1.0419       0.7570          1.3763                  5.7491            0.3442          1.9788
+ 0.10%              0.9483       0.7572          1.2524                  4.6218            0.3516          1.7990
+ 0.20%              0.6197       0.7584          0.8171                  1.5867            0.4240          1.1699
+ 0.30%              0.2950       0.7604          0.3879                  0.2902            0.4979          0.5531
+
+ 0.40%             -0.0297       0.7633          -0.0390                -0.0024            0.6448         -0.0553
+ 0.50%             -0.3545       0.7670          -0.4622                -0.2193            0.7788         -0.6519
+   Note: Strategy metrics for the Exponential Moving Average strategy optimized with a walk-forward process
+   (7 days training, 28 days testing) applied in the global training period, assuming different transaction costs.
+
+
+
+Strategy Metrics Visualization - Cost sensitivity - Global Training Data Period (Figure 5)
+
+To visualize the impact of transaction costs on the strategy’s performance, metrics are presented
+graphically. The horizontal axis represents the level of transaction cost, while the vertical axis
+displays unitless metric values.
+
+Key findings:
+
+   • Information Ratio** appears to be the metric most significantly affected by cost changes.
+   • The decrease in Information Ratio** is non-linear, with a steeper decline observed at the
+      beginning of the cost range compared to the end.
+   • Other metrics exhibit a nearly linear decrease, with some fluctuations at the start of the
+      cost range.
+   • Based on the observed trends, the breakeven point, where the strategy’s performance
+      breakeven transaction costs, can be estimated to be around 0.36% cost per transaction.
+
+
+
+
+                                                       28
+                                      Figure 5: Strategy metrics for different level of transactional cost
+
+
+
+                6
+
+
+
+
+                                                                                                                                                                    Information Ratio**
+                4                                                                                                                                                   Sharpe Ratio
+ Metric value
+
+
+
+
+                                                                                                                                                                    Sortino Ratio
+
+
+
+
+                2
+
+
+
+
+                0
+
+
+
+                                          0.1%                                  0.2%                             0.3%                                0.4%                                 0.5%
+                                                                                                         Cost
+                    Note: Strategy metrics for Exponential Moving Average strategy optimized with walk−forward process, with parameters of 7 days for training and 28 days for testing,
+                    applied in the global training period, assuming different transactional cost.
+
+
+
+
+Equity Curves - Cost sensitivity - Global Training Data Period (Figure 6)
+
+Key findings:
+
+          • Increasing cost changes the direction of the original equity curve to downward sloping
+          • Equity curves look the same, and their volatility did not increase just change direction
+          • The first equity curve, which is unprofitable, is for a cost of 0.4%, the breakeven point is
+                    somewhere between 0.3% to 0.4%
+
+
+
+
+                                                                                                    29
+                                                        Figure 6: Equity curves for different level of transactional cost
+
+                                8
+                                                0.0005
+                                6               0.0007
+                                                0.001
+                                4               0.002
+ Equity curve different costs
+
+
+
+
+                                                0.003
+                                                0.004
+                                                0.005
+                                2
+
+
+
+
+                                                                               2018−07                                          2019−01                                            2019−07
+                                                                                                            Global Training Period
+                                    Note: Equity curves for Exponential Moving Average strategy optimized with walk−forward process, with parameters of 7 days for training and 28 days for testing, applied
+                                    in the global training period, assuming different transactional cost.
+
+
+
+
+6 Results - Unseen Data Period
+Following the optimization within the global training period, the two walk-forward parameter
+combinations yielding the highest Sharpe ratios were evaluated on unseen data. To further
+validate the method’s robustness, the strategy was then applied to two other cryptocurrencies,
+Ethereum (ETH) and Binance Coin (BNB), which were not included in the global training period
+optimization. The selection of these additional assets was driven by their market capitalization.
+To mitigate the potential for cherry-picking bias, the strategy was evaluated on the unseen data
+period only once. This approach ensured that the results and parameters were not subjected to
+any manipulation or modification after the initial evaluation.
+
+6.1                                 Results for single cryptocurrencies on unseen data
+Table 10 shows metrics of trading strategies executed on the unseen data period. The walk-
+forward parameters of strategies were derived from the global training period. Combinations
+of parameters that achieved the highest Sharpe ratio were selected. Table 10 also includes a
+benchmark, which is Buy-and-Hold strategy.
+
+The best walk-forward window size selected from the Global Training Data Period:
+
+                      • Train 7 days test 28 days (WF 7/28)
+                      • Train 14 days test 10 days (WF 14/10)
+
+
+                                                                                                                  30
+Key findings:
+
+  • Buy-and-Hold - Achieved the highest Sharpe Ratio for all cryptocurrencies, outperforming
+     the walk-forward strategies for the given cryptocurrency Buy-and-Hold for ETH and BNB
+     had higher Sharpe Ratios than BTC.
+  • Selected strategy performance - WF 14/10 outperformed the WF 7/28 strategy across
+     all cryptocurrencies, with an average improvement of 10% in Sharpe Ratio for ETH and
+     BNB, and a 40% higher Sharpe Ratio for BTC. Notably, both ETH and BNB were not
+     included in the optimization process in the global training period, suggesting potential
+     generalizability of the strategy.
+  • Comparison to Buy-and-Hold - No strategy surpassed the respective asset’s Buy-and-Hold
+     performance in terms of Sharpe ratio. For BTC, the WF 14/10 strategy came closest, with
+     Buy-and-Hold outperforming by less than 2%. In contrast, ETH and BNB experienced
+     a more significant performance gap, with Buy-and-Hold outperforming the WF 14/10
+     strategy by 20% and 15%, respectively. The WF 14/10 strategy outperformed Buy-and-
+     Hold on Information Ratio** for ETH and by around 30% for BTC. For BTC only, the
+     WF 14/10 strategy surpassed the performance of Sortino Buy-and-Hold.
+  • Performance by risk-adjusted return measure - (Sharpe Ratio, Sortino Ratio, Information
+     Ratio**) Buy-and-Hold strategies for ETH and BNB achieved the highest Sharpe Ratios,
+     followed by the WF 14/10 strategy in third place. BTC WF 14/10 strategy outperformed
+     Buy-and-Hold in terms of the Sortino ratio, indicating better risk-adjusted returns. ETH
+     and BNB - WF 14/10 strategy underperformed Buy-and-Hold by a smaller margin com-
+     pared to the Sharpe ratio metric, with Buy-and-Hold outperforming by only 13% and 7%
+     for ETH and BNB, respectively. In terms of Information Ratio**, Buy-and-Hold signif-
+     icantly outperformed the WF 14/10 by 35%, while the WF 14/10 reached the highest
+     Information Ratio** among all strategies.
+
+The overall observations:
+
+  • Buy-and-Hold remains a strong benchmark for all three cryptocurrencies, particularly in
+     terms of Sharpe ratio.
+  • The WF 14/10 strategy shows promising results across different asset classes, exceeding
+     other tested strategies and exhibiting potential generalizability.
+  • The choice of risk-adjusted return measure (Sharpe vs. Sortino) can influence the interpre-
+     tation of performance, particularly when comparing strategies with different risk profiles.
+
+
+
+
+                                               31
+Table 10: Performance Metrics - Unseen Data Period - Walk-Forward Top Combinations from
+Global Training Data Period
+
+                                    Annualized
+                                                       Annualized          Sharpe        Information              Max          Sortino
+                Description             Mean
+                                                        Volatility          Ratio            Ratio**         Drawdown           Ratio
+                                       Return
+
+    BTC Buy and Hold                      0.9267             0.8214        1.1281               2.0485            0.6228         1.554
+   BTC Train 7 Test 28                     0.6828             0.8219        0.8307              1.3191            0.5849        1.2198
+  BTC Train 14 Test 10                     0.9091             0.8216        1.1064             2.6275            0.5243        1.6249
+
+    ETH Buy and Hold                      1.5771             1.0264        1.5365               4.0574            0.6937       2.1089
+   ETH Train 7 Test 28                     1.2408             1.0268        1.2085              2.0651            0.7696        1.7669
+  ETH Train 14 Test 10                     1.3727             1.0266        1.3371             4.2635            0.6177         1.9519
+
+    BNB Buy and Hold                      1.7142             1.1705        1.4644              3.5801             0.7483       2.0211
+   BNB Train 7 Test 28                     1.2879             1.1712        1.0997              1.8793            0.7798        1.6298
+  BNB Train 14 Test 10                      1.403              1.171        1.1982              2.6565           0.7275          1.785
+    Note:        Performance metrics for the combination of strategies with the highest Sharpe Ratio identified on the global training
+  period and applied to the unseen period. The global training period was used in the case of BTC to find optimal walk-forward pa-
+  rameters and train/test day lengths of 7/28 and 14/10. Strategy with these combinations of parameters executed on the unseen data
+  period using BTC and the cryptocurrencies not used before i.e., ETH and BNB. The bolded values indicate the best metric within
+  three strategies for each cryptocurrency separately, while the underlined values indicate the best metrics globally for all nine strate-
+  gies. The unseen data period covers data from November 7, 2019, to August 22, 2021. Each transaction incurs a 0.1% cost. Changing
+  positions from short to long requires two transactions, resulting in a total cost of 0.2%
+
+
+
+
+Equity Curves - Unseen Data Period - Walk-Forward Top Combinations from the Global Training
+Data Period (Figure 7)
+
+Key findings:
+
+  • BNB Buy-and-Hold finished with the highest cumulative gains of all strategies, underper-
+      forming in 2020 and overperforming in 2021.
+  • Both variations of strategy performed better than Buy-and-Hold in 2020; BNB WF 14/10
+      was unbeatable in 2020.
+  • The situation changed in 2021 when Buy-and-Hold take the lead and ETH, together with
+      BNB, recovered all it loses.
+  • BTC strategies behaved very similarly to Buy-and-Hold. Buy-and-Hold underperformed
+      throughout the entire period, only delivering some gains at the end of the unseen period.
+      This resulted in a walk-forward strategies slightly underperforming Buy-and-Hold in terms
+      of Sharpe Ratio
+  • All variations of strategies provided good protection against losses in 2020; when Buy-and-
+      Hold lost significantly in March 2020, strategies observed gains.
+  • Problematic periods when the strategy started to lose steadily were the periods when
+      Buy-and-Hold recovered and flat periods with low volatility.
+  • Interestingly, walk-forward strategies dominated throughout 2020, outperforming their
+      Buy-and-Hold counterparts across all cryptocurrencies. If the study had concluded at
+      the end of 2020, walk-forward strategies would likely have been the clear winner in every
+      category. However, 2021 saw a shift, with walk-forward strategies underperforming against
+      Buy-and-Hold strategies. The reason for this reversal remains unclear. However, it’s
+
+
+                                                                    32
+                      possible that walk-forward strategies based on parameters that were optimal in 2018 and
+                      2019 are no longer providing an edge. Therefore, walk-forward strategies may benefit
+                      from retraining and recalibration to identify new optimal windows in changing market
+                      conditions.
+Figure 7: Equity Curves - Unseen Data Period - Walk-Forward Top Combinations from Global
+Training Data Period
+
+
+                     30              BNB Train 14 Test 10                            Buy−And−Hold BTC
+
+                     20              BNB Train 7 Test 28                             Buy−And−Hold ETH
+                                     BTC Train 14 Test 10                            ETH Train 14 Test 10
+
+                     10              BTC Train 7 Test 28                             ETH Train 7 Test 28
+ Cumulative return
+
+
+
+
+                                     Buy−And−Hold BNB
+
+
+
+
+                                        2020−01                                      2020−07                                        2021−01                                      2021−07
+                                                                                               Unseen data period
+                          Note: Equity curves for the combination of strategies with the highest Sharpe Ratio identified on the global training period and applied to the unseen period. The global
+                          training period was used in the case of BTC to find optimal walk−forward parameters train/test days lengths 7/28 and 14/10. Strategy with these combinations of parameters
+                          executed on the unseen data period using BTC and the cryptocurrencies not used before i.e. ETH and BNB. The unseen data period covers data from November 7, 2019, to
+                          August 22, 2021. Each transaction incurs a 0.1% cost. Changing positions from short to long requires two transactions, resulting in a total cost of 0.2%
+
+
+
+
+6.2                       Results for portfolio of cryptocurrencies on unseen data
+Three portfolios were tested on the Unseen Data Period to evaluate their performance:
+
+              • Buy-and-Hold: Benchmark portfolio holding Bitcoin (BTC), Ethereum (ETH), Binance
+                      Coin (BNB) no rebalancing during the whole period.
+              • Portfolio 1 (the walk-forward training 7 days/testing 28 days - WF 7/28): Strategy using
+                      an Exponential Moving Averages and the walk-forward with a 7-day training period and
+                      28-day testing period, using 3 different cryptocurrencies: Bitcoin (BTC), Ethereum (ETH),
+                      Binance Coin (BNB). Equal weights were assigned initially, with no rebalancing during
+                      the whole period.
+              • Portfolio 2 (the walk-forward training 14 days/testing 10 days- WF 14/10): Similar strat-
+                      egy to Portfolio 1, but with a 14-day training period and 10-day testing period, applied to
+                      Bitcoin (BTC), Ethereum (ETH), and Binance Coin (BNB). Equal weights were assigned
+                      initially, with no rebalancing during the whole period.
+              • All portfolios combined: Buy-and-Hold, Portfolio 1, Portfolio 2 combined to assess the
+
+
+                                                                                                        33
+      potential performance benefits of combining active and passive strategies.
+
+Performance Metrics - Portfolio - Unseen Data Period
+
+Key finding:
+
+   • Sharpe Ratio: All portfolios combined reached the highest Sharpe Ratio, beating the
+      second Buy-and-Hold portfolio by 20%. Combining all portfolios decreased volatility sig-
+      nificantly.
+
+   • Information Ratio (IR): The combined portfolio strategy achieved the highest performance
+      once again, surpassing second-placed WF 14/10 by a significant margin and doubling its
+      value.
+
+   • Sortino Ratio: All portfolios combined scored the highest Sortino Ratio, outperforming
+      the second WF 14/10, and the Buy-and-Hold portfolio by more than 30%.
+
+   • Maximum Drawdown: Combining all portfolios also resulted in the smallest maximum
+      drawdown. Maximum drawdown decreased from nearly 70% for Buy-and-Hold to around
+      45%. This is particularly outstanding considering that walk-forward strategies experienced
+      an average drawdown of around 60%.
+
+   • Combining all the portfolios significantly improved each performance metric. This resulted
+      in decreased volatility and maximum drawdown and unleashed the power of diversification.
+
+Table 11: Performance Metrics - Unseen Data Period - Walk-Forward Top Combinations from
+Global Training Data Period - Portfolio
+
+                                           Annualized
+                                                        Annualized    Sharpe   Information        Max    Sortino
+                            Description        Mean
+                                                         Volatility    Ratio       Ratio**   Drawdown     Ratio
+                                              Return
+
+  Portfolio 3 currencies Train 7 Test 28        1.129        0.889      1.27         3.047       0.619    1.874
+ Portfolio 3 currencies Train 14 Test 10        1.269        0.907       1.4         4.274       0.569    2.067
+
+   Portfolio 3 currencies Buy and Hold         1.495           0.97    1.542          3.87       0.683     2.075
+                All Portfolios Combined         1.318        0.686    1.921         9.369       0.438     2.757
+   Note: Trading metrics for portfolios with equal weights at inception: 1. Buy-and-Hold portfolio - BTC,
+   ETH, BNB equally weighted. 2. Portfolio - walk-forward strategy with training for 7 days and testing for
+   28 days - strategy applied to BTC, ETH, and BNB equally weighted. 3. Portfolio - walk-forward strategy
+   with training for 14 days and testing for 10 days - applied to BTC, ETH, and BNB equally weighted. No
+   rebalancing during the whole period. The unseen data period covers data from November 7, 2019, to August
+   22, 2021. The bolded values indicate the best metric within three strategies. Each transaction incurs a 0.1%
+   cost. Changing positions from short to long requires two transactions, resulting in a total cost of 0.2%
+
+
+
+Equity curves - Portfolio - Unseen Data Period (Figure 8)
+
+Key Findings:
+
+   • Profitability: Most profits for the MA/WF strategies occurred during periods of high
+      volatility, coinciding with significant losses of the Buy-and-Hold portfolio.
+   • Recovery Phases: During Buy-and-Hold portfolio recovery periods, both WF portfolios
+      lost momentum or declined.
+
+                                                        34
+                   • Upward Trends: In stable upward markets, the WF portfolios slightly underperformed the
+                             Buy-and-Hold portfolio.
+                   • Recovery Behavior: Portfolio WF 7/28 lost more than Portfolio WF 14/10 during Buy-
+                             and-Hold recovery phases.
+                   • Overall Performance: For about 70% of the time in the Unseen Data Period, the WF
+                             portfolios’ strategies outperformed the Buy-and-Hold portfolio, but ultimately, the Buy-
+                             and-Hold portfolio achieved the highest overall return.
+
+                                    Figure 8: Equity Curves - Unseen Data Period - PortfolioofCrypotcurrencies
+
+
+                            20               Portfolio Buy And Hold
+                            15               Portfolio Strategy 14 10
+
+                            10               Portfolio Strategy 7 28
+                                             Portfolio_Combined
+ Portfolios equity curves
+
+
+
+
+                            5
+
+
+
+
+                                               2020−01                                       2020−07                                        2021−01                                 2021−07
+                                                                                                       Unseen data period
+                                 Note: Equity curves for portfolios equal weights at inception: 1. Buy−and−hold portfolio − BTC, ETH, BNB equally weighted. 2. Portfolio − walk−forward strategy with
+                                 training 7 days and testing 28 days − strategy applied to BTC, ETH, BNB equally weighted. 3. Portfolio − walk−forward strategy with training 14 days and testing 10 days
+                                 − applied to BTC, ETH, BNB equally weighted. No rebalancing during the whole period. The unseen data period covers data from November 7, 2019, to August 22, 2021. Each
+                                 transaction incurs a 0.1% cost. Changing positions from short to long requires two transactions, resulting in a total cost of 0.2%
+
+
+
+
+7 Summary
+We divided the data into roughly equal halves: a global training period and an unseen period,
+each spanning over 18 months of intraday data. Instead of optimizing EMA parameters directly,
+we used a novel walk-forward process to optimize training and testing window lengths. This
+involved multiple walk-forward optimizations on the global training period to find combinations
+maximizing risk-adjusted returns via the Robust Sharpe Ratio.
+
+To avoid cherry-picking bias, unseen data was used only once without further optimizations. Two
+optimal walk-forward parameter sets from training were applied to the unseen period. These
+strategies slightly underperformed Buy-and-Hold in the Sharpe Ratio but outperformed in max-
+imum drawdown. Results were mixed for Sortino and Information Ratios: one set outperformed
+Buy-and-Hold, the other lagged. Notably, the top training performer underperformed in the
+
+
+                                                                                                                35
+unseen period.
+
+Strategy robustness was validated by applying the same parameters (optimized on Bitcoin) to
+Ethereum and Binance Coin in the unseen period—assets unused during optimization. Results
+mirrored Bitcoin: Buy-and-Hold outperformed both walk-forward strategies more in the Sharpe
+Ratio; for other metrics, outcomes were mixed. The 14/10-day training/testing strategy beat
+Buy-and-Hold in Information Ratio and maximum drawdown for ETH, but for BNB, Buy-and-
+Hold excelled in most metrics except drawdown.
+
+Overall, the top training parameters (7/28 days) underperformed Buy-and-Hold and the 14/10-
+day alternative in the unseen period, questioning the parameter selection method’s optimality.
+
+Sharpe Ratio performance dropped 20% on average from training (top 2 of 81 combinations) to
+testing; the best combination fell 30%, the second 10%.
+
+From unseen period results across three cryptocurrencies, we built portfolios using: (1) walk-
+forward 7/28 days, (2) walk-forward 14/10 days, and (3) Buy-and-Hold. Both walk-forward
+portfolios showed lower drawdown (7/28: 10% less; 14/10: 20% less) and volatility than Buy-
+and-Hold. Buy-and-Hold led in Sharpe Ratio, but the 14/10 walk-forward beat it in Information
+Ratio, while 7/28 lagged 20%. Equity curves revealed Buy-and-Hold gains surged in the unseen
+period’s second half, with walk-forward leading initially.
+
+Findings show the EMA strategy excelled in high-volatility periods with large asset gains/losses,
+surpassing Buy-and-Hold, but underperformed in low-volatility phases. It consistently reduced
+maximum drawdown versus Buy-and-Hold.
+
+Heuristically, equity curves indicate our strategy outperformed Buy-and-Hold over a 14-month
+unseen period. Under a common 2:1 training/testing ratio ending after a year, it would still
+excel. This prompts questions on parameter validity, duration, and retraining timing. All 60-
+minute frequency training combinations outperformed Buy-and-Hold, with Sharpe Ratios above
+0 versus Buy-and-Hold’s.
+
+The hybrid portfolio—combining Buy-and-Hold with two walk-forward portfolios—outperformed
+all individuals, single assets, and portfolios across metrics, highlighting diversification value
+even without rebalancing.
+
+Finally, against random strategies via two custom bootstrap methods, one showed statistical
+significance for both top parameter combinations.
+
+
+8 Conclusions
+The development of trading strategies in stock and cryptocurrency markets has been extensively
+explored through technical analysis in prior research. However, these studies frequently overlook
+critical elements such as transaction fees, slippage, and other trading costs. Additionally, a
+common but often unreported issue involves repeated optimizations on data designated as out-
+of-sample or the complete omission of an out-of-sample evaluation phase. Such practices foster
+unrealistic performance expectations, leading to substantial underperformance when strategies
+
+
+                                               36
+are implemented in live trading environments.
+
+This study aimed to develop a trading strategy combining the Exponential Moving Average
+(EMA) and walk-forward optimization, assessing its performance on nearly four years of intraday
+cryptocurrency data. Rather than maximizing results through EMA parameter optimization, a
+unique approach tested how data length periods influence strategy performance. Results show
+that specific training/testing period lengths in walk-forward optimization yield more favorable
+outcomes, contradicting the Eﬀicient Market Hypothesis, which implies no differences across
+period lengths.
+
+The study addressed the following questions:
+
+RH1: What is the optimal length of training/testing periods for the walk-forward technique
+and moving average crossover strategy? The investigation sought ideal training and testing
+lengths. Initial results favored 7-day training and 28-day testing, but unseen data showed a
+14-day training and 10-day testing combination as superior. Periods longer than 7 days for both
+may generally be advantageous.
+
+RH2: How do the choice of data frequency and costs impact strategy results? Performance was
+evaluated across timeframes from 1 to 60 minutes. With 0.1% transaction costs, only intervals
+over 30 minutes appeared profitable, as shorter ones fail to overcome costs. Below 60 minutes
+should be avoided at this cost level. Breakeven was around 0.4% per transaction for 60-minute
+timeframes.
+
+RH3: Is the tested strategy better than random? The strategy was compared to random ap-
+proaches via two bootstrapping methods. Block bootstrap indicated superiority at 5% confidence.
+Random EMA bootstrap found only one random strategy slightly better, aﬀirming merit.
+
+Walk-forward optimization prevented overfitting in parameter estimation. The study examined
+varying training and testing lengths’ effects, enhancing eﬀicacy and theoretical understanding.
+Data were partitioned into global training for optimization and unseen periods for execution,
+minimizing bias—unlike iterative out-of-sample testing. Intraday data for Bitcoin, Ethereum,
+and Binance Coin were used, with Bitcoin parameters applied across assets. Limitations in-
+clude order book impact (average bid-ask prices may not reflect large-order executions), bid-ask
+uncertainty (0.1% cost optimistic for illiquid exchanges), holding costs (for futures), shorting
+availability (assumed but variable), data splitting effects, and unexplored biases.
+
+The novelty lies in examining walk-forward window lengths, revealing performance impacts
+beyond arbitrary values, and opening theoretical frameworks. Findings advise dynamic period
+lengths and single out-of-sample evaluations. The approach reduced drawdown and improved
+risk-adjusted metrics, allowing equivalent profits with lower risk, enhancing stability, confidence,
+and crash resistance. EMA excelled in high volatility but lagged in low volatility; all 60-minute
+training combinations outperformed Buy-and-Hold (Sharpe >0).
+
+The combination of Exponential Moving Average and walk-forward optimization merits further
+investigation. Avenues include temporal parameter validity, exploring re-evaluation every 2-3
+months or varying lengths for improvement, backtesting with updated data, alternative EMA
+
+
+                                                37
+selection minimizing training/testing deviation for robustness, risk management beyond full
+position, and mean reversion with dynamic switching for recovery underperformance.
+
+
+References
+Ahmed, Shaker, Klaus Grobys, and Niranjan Sapkota (2020). “Profitability of technical trad-
+  ing rules among cryptocurrencies with privacy function”. In: Finance Research Letters 35,
+  p. 101495. issn: 1544-6123. doi: https://doi.org/10.1016/j.frl.2020.101495. url: https://ww
+  w.sciencedirect.com/science/article/pii/S1544612320300829.
+Alonso-Monsalve, Saúl et al. (2020). “Convolution on neural networks for high-frequency trend
+  prediction of cryptocurrency exchange rates using technical indicators”. In: Expert Systems
+  with Applications 149, p. 113250. issn: 0957-4174. doi: https://doi.org/10.1016/j.eswa.2020
+  .113250. url: https://www.sciencedirect.com/science/article/pii/S0957417420300750.
+Anghel, Dan-Gabriel (2021). “A reality check on trading rule performance in the cryptocurrency
+  market: Machine learning vs. technical analysis”. In: Finance Research Letters 39, p. 101655.
+  issn: 1544-6123. doi: https://doi.org/10.1016/j.frl.2020.101655. url: https://www.sciencedi
+  rect.com/science/article/pii/S1544612320304414.
+Ayala, Jordan et al. (2021). “Technical analysis strategy optimization using a machine learning
+  approach in stock market indices”. In: Knowledge-Based Systems 225, p. 107119. issn: 0950-
+  7051. doi: https://doi.org/10.1016/j.knosys.2021.107119. url: https://www.sciencedirect.co
+  m/science/article/pii/S0950705121003828.
+Brock, William, Josef Lakonishok, and Blake LeBaron (1992). “Simple technical trading rules
+  and the stochastic properties of stock returns”. In: The Journal of finance 47.5, pp. 1731–1764.
+Brown, Michael and Michael Pelosi (Jan. 2019). “Moving averages trading method applied to
+  cryptocurrencies”. In: 2, pp. 13–22.
+Efron, B (1979). “The 1977 RIETZ lecture”. In: The annals of Statistics 7.1, pp. 1–26.
+Fama, Eugene F (1965). “The behavior of stock-market prices”. In: The journal of Business 38.1,
+  pp. 34–105.
+Farias Nazário, Rodolfo Toríbio et al. (2017). “A literature review of technical analysis on stock
+  markets”. In: The Quarterly Review of Economics and Finance 66, pp. 115–126. issn: 1062-
+  9769. doi: https://doi.org/10.1016/j.qref.2017.01.014. url: https://www.sciencedirect.com/s
+  cience/article/pii/S1062976917300443.
+Gómez, Sergio Castellano and Robert Ślepaczuk (2021). Robust optimisation in algorithmic
+  investment strategies. Tech. rep. WP 27/2021 (375). Working Papers of Faculty of Economic
+  Sciences, University of Warsaw. url: https://www.wne.uw.edu.pl/application/files/8616/38
+  47/9793/WNE_WP375.pdf.
+Hsu, Po-Hsuan, Yu-Chin Hsu, and Chung-Ming Kuan (2010). “Testing the predictive ability
+  of technical analysis using a new stepwise test without data snooping bias”. In: Journal of
+  Empirical Finance 17.3, pp. 471–484. issn: 0927-5398. doi: https://doi.org/10.1016/j.jempfi
+  n.2010.01.001. url: https://www.sciencedirect.com/science/article/pii/S0927539810000022.
+Karasu, Seçkin et al. (2020). “A new forecasting model with wrapper-based feature selection
+  approach using multi-objective optimization technique for chaotic crude oil time series”. In:
+
+
+
+                                               38
+  Energy 212, p. 118750. issn: 0360-5442. doi: https://doi.org/10.1016/j.energy.2020.118750.
+  url: https://www.sciencedirect.com/science/article/pii/S0360544220318570.
+Karathanasopoulos, Andreas, Christian Dunis, and Samer Khalil (Sept. 2016). “Modelling, fore-
+  casting and trading with a new sliding window approach: the crack spread example”. In: Quan-
+  titative Finance 16.12, pp. 1875–1886. issn: 1469-7696. doi: 10.1080/14697688.2016.1211796.
+Kosc, Krzysztof, Paweł Sakowski, and Robert Ślepaczuk (2019). “Momentum and contrarian
+  effects on the cryptocurrency market”. In: Physica A: Statistical Mechanics and its Applications
+  523, pp. 691–701. issn: 0378-4371. doi: https://doi.org/10.1016/j.physa.2019.02.057. url:
+  https://www.sciencedirect.com/science/article/pii/S037843711930216X.
+Kryńska, Katarzyna and Robert Ślepaczuk (2023). “Daily and intraday application of various
+  architectures of the LSTM model in algorithmic investment strategies on Bitcoin and the S&P
+  500 Index”. In: Available at SSRN 4628806.
+LeBaron, B. and A.S. Weigend (1998). “A bootstrap evaluation of the effect of data splitting
+  on financial time series”. In: IEEE Transactions on Neural Networks 9.1, pp. 213–220. doi:
+  10.1109/72.655043.
+López de Prado Marcos (September 26, 2019). (Sept. 2019). “Tactical Investment Algorithms”.
+  In: Available at SSRN: https://ssrn.com/abstract=3459866 or http://dx.doi.org/10.2139/ssrn.3459866.
+  doi: http://dx.doi.org/10.2139/ssrn.3459866.
+Neftçi, Salih N. (1991). “Naive Trading Rules in Financial Markets and Wiener-Kolmogorov
+  Prediction Theory: A Study of ”Technical Analysis.”” In: The Journal of Business 64, pp. 549–
+  571. url: https://api.semanticscholar.org/CorpusID:154105105.
+Nti, Isaac Kofi, Adebayo Felix Adekoya, and Benjamin Asubam Weyori (2020). “A systematic
+  review of fundamental and technical analysis of stock market predictions”. In: Artificial Intel-
+  ligence Review 53.4, pp. 3007–3057. issn: 1573-7462. doi: 10.1007/s10462-019-09754-z. url:
+  https://doi.org/10.1007/s10462-019-09754-z.
+Pardo, R. (2012). “Walk-Forward Analysis”. In: The Evaluation and Optimization of Trading
+  Strategies. John Wiley and Sons, Ltd. Chap. 11, pp. 237–261. isbn: 9781119196969. doi: htt
+  ps://doi.org/10.1002/9781119196969.ch11. eprint: https://onlinelibrary.wiley.com/doi/pdf/1
+  0.1002/9781119196969.ch11. url: https://onlinelibrary.wiley.com/doi/abs/10.1002/9781119
+  196969.ch11.
+Park, Cheol‐ho and Scott Irwin (July 11, 2007). “What do we know about the profitability of
+  Technical Analysis?” In: Journal of Economic Surveys 21.4, pp. 786–826. doi: 10.1111/j.146
+  7-6419.2007.00519.x.
+Petukhina Alla A., Reule Raphael C. G. and Härdle Wolfgang Karl (2021). “Rise of the machines?
+  Intraday high-frequency trading patterns of cryptocurrencies”. In: The European Journal of
+  Finance 27.1-2, pp. 8–30. doi: 10.1080/1351847X.2020.1789684. eprint: https://doi.org/10.1
+  080/1351847X.2020.1789684. url: https://doi.org/10.1080/1351847X.2020.1789684.
+Politis, Dimitris N and Joseph P Romano (Dec. 1994). “The stationary bootstrap”. In: Journal
+  of the American Statistical association 89.428, pp. 1303–1313. issn: 1537-274X. doi: 10.1080
+  /01621459.1994.10476870.
+– (1992). “A General Resampling Scheme for Triangular Arrays of �-Mixing Random Variables
+  with Application to the Problem of Spectral Density Estimation”. In: The Annals of Statistics
+
+
+
+                                               39
+  20.4, pp. 1985–2007. issn: 00905364. url: http://www.jstor.org/stable/2242377 (visited on
+  02/17/2024).
+Ruiz, Esther and Lorenzo Pascual (2002). “Bootstrapping Financial Time Series”. In: Journal of
+  Economic Surveys 16.3, pp. 271–300. doi: https://doi.org/10.1111/1467-6419.00170. eprint:
+  https://onlinelibrary.wiley.com/doi/pdf/10.1111/1467-6419.00170. url: https://onlinelibrar
+  y.wiley.com/doi/abs/10.1111/1467-6419.00170.
+Ryś, Przemysław and Robert Ślepaczuk (2019). “Machine Learning Methods in Algorithmic
+  Trading Strategy Optimization – Design and Time Eﬀiciency”. In: Central European Economic
+  Journal 5.52, pp. 206–229. doi: 10.1515/ceej-2018-0021. url: https://doi.org/10.1515/ceej-2
+  018-0021.
+Svogun, Daniel and Walter Bazán-Palomino (2022). “Technical analysis in cryptocurrency mar-
+  kets: Do transaction costs and bubbles matter?” In: Journal of International Financial Mar-
+  kets, Institutions and Money 79, p. 101601. issn: 1042-4431. doi: https://doi.org/10.1016/j.i
+  ntfin.2022.101601. url: https://www.sciencedirect.com/science/article/pii/S10424431220008
+  16.
+Wei, Wang Chun (July 2018). “Liquidity and market eﬀiciency in cryptocurrencies”. In: Eco-
+  nomics Letters 168, pp. 21–24. issn: 0165-1765. doi: 10.1016/j.econlet.2018.04.003.
+Wen, Zhuzhu et al. (2022). “Intraday return predictability in the cryptocurrency markets: Mo-
+  mentum, reversal, or both”. In: The North American Journal of Economics and Finance
+  62, p. 101733. issn: 1062-9408. doi: https : / / doi . org / 10 . 1016 / j . najef . 2022 . 101733. url:
+  https://www.sciencedirect.com/science/article/pii/S1062940822000833.
+Zakamulin, Valeriy and Javier Giner (2020). “Trend following with momentum versus moving
+  averages: a tale of differences”. In: Quantitative Finance 20, pp. 1007–985.
+Zielonka, Piotr (2004). “Technical analysis as the representation of typical cognitive biases”. In:
+  International Review of Financial Analysis 13.2, pp. 217–225.
+
+
+
+
+                                                   40
+
