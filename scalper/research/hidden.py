@@ -67,7 +67,7 @@ def report() -> None:
                  ("  глубже 0.25 ATR", g[g.hid_atr > 0.25]), ("  не глубже 0.25 ATR", g[(g.hid_n > 0) & (g.hid_atr <= 0.25)]),
                  ("  последнее за 1–12 свечей до пробоя", g[(g.hid_last >= 1) & (g.hid_last <= 12)]),
                  ("  3+ закрытий за линией", g[g.hid_n >= 3])]
-        rows = [{"вариант": nm, **{p: _cell(z[z.per == p].assign(R=z.R3)) for p in PER_ALL},
+        rows = [{"вариант": nm, **{p: _cell(z.assign(R=z.R3)[z.per == p]) for p in PER_ALL},
                  "R/мес " + " / ".join(PER_ALL): _per_month(z)} for nm, z in items]
         print(pd.DataFrame(rows).to_string(index=False))
         for nm, z in items[1:3]:

@@ -182,7 +182,7 @@ def report() -> None:
             for pat in ["все фигуры", *sorted(g0.pattern.unique())]:
                 g = g0 if pat == "все фигуры" else g0[g0.pattern == pat]
                 for fl, z in (("", g), (" + фильтр бота", g[g.bot])):
-                    rows.append({"фигура": pat + fl, **{p: _cell(z[z.per == p].assign(R=z[col])) for p in PER},
+                    rows.append({"фигура": pat + fl, **{p: _cell(z.assign(R=z[col])[z.per == p]) for p in PER},
                                  "R/мес IS / VAL / HO": _per_month(z, col)})
             print(f"\n  --- {tf}, выход {nm} ---")
             print(pd.DataFrame(rows).to_string(index=False))

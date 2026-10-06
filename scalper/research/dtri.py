@@ -68,7 +68,7 @@ def _pm(z: pd.DataFrame, col: str = "R3") -> str:
 
 
 def _table(items: list[tuple[str, pd.DataFrame]], col: str = "R3") -> None:
-    rows = [{"вариант": nm, **{p: _cell(z[z.per == p].assign(R=z[col])) for p in PER_ALL},
+    rows = [{"вариант": nm, **{p: _cell(z.assign(R=z[col])[z.per == p]) for p in PER_ALL},
              "R/мес " + " / ".join(PER_ALL): _pm(z, col)} for nm, z in items]
     print(pd.DataFrame(rows).to_string(index=False))
 

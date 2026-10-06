@@ -58,7 +58,7 @@ def collect(root: Path, syms_all: list[str], syms_q: list[str]) -> None:
 
 
 def _table(items: list[tuple[str, pd.DataFrame]], col: str = "R3") -> None:
-    rows = [{"вариант": nm, **{p: _cell(z[z.per == p].assign(R=z[col])) for p in PER}, "R/мес IS / VAL / HO": _per_month(z, col)}
+    rows = [{"вариант": nm, **{p: _cell(z.assign(R=z[col])[z.per == p]) for p in PER}, "R/мес IS / VAL / HO": _per_month(z, col)}
             for nm, z in items]
     print(pd.DataFrame(rows).to_string(index=False))
 

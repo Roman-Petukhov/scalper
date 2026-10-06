@@ -75,7 +75,7 @@ def report() -> None:
 def exit_tables(g: pd.DataFrame, periods: dict[str, tuple[str, str]], title: str) -> None:
     """Таблицы по выходам EXITS для сделок g (колонки t, per, risk_pct и EXITS)."""
     print(f"\n  --- {title}: R на сделку ---")
-    rows = [{"выход": nm, **{p: _cell(g[g.per == p].assign(R=g[col])) for p in periods}} for col, nm in EXITS]
+    rows = [{"выход": nm, **{p: _cell(g.assign(R=g[col])[g.per == p]) for p in periods}} for col, nm in EXITS]
     print(pd.DataFrame(rows).to_string(index=False))
     print(f"\n  --- {title}: как на счёте (R в месяц / худшая просадка R / убыточных месяцев / разброс месяца R) ---")
     rows = []

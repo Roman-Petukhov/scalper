@@ -1387,7 +1387,7 @@ def lowtf_report(df: pd.DataFrame) -> None:
             rows = []
             for nm, f in rules:
                 z = f(g0)
-                rows.append({"фильтр": nm, **{p: _cell(z[z.per == p].assign(R=z["R3"])) for p in PER},
+                rows.append({"фильтр": nm, **{p: _cell(z.assign(R=z["R3"])[z.per == p]) for p in PER},
                              "R/мес IS / VAL / HO": _per_month(z, "R3")})
             print(pd.DataFrame(rows).to_string(index=False))
             print(f"  --- {tf}, {'ретест' if entry == 'retest' else 'рынок'}: цели (все сделки базы / стоп >= 0.5%) ---")
@@ -1396,7 +1396,7 @@ def lowtf_report(df: pd.DataFrame) -> None:
                 if col not in g0.columns:
                     continue
                 for fn_, z in (("все", g0), ("стоп >= 0.5%", g0[g0.risk_pct >= 0.005])):
-                    rows.append({"выход": nm, "сделки": fn_, **{p: _cell(z[z.per == p].assign(R=z[col])) for p in PER},
+                    rows.append({"выход": nm, "сделки": fn_, **{p: _cell(z.assign(R=z[col])[z.per == p]) for p in PER},
                                  "R/мес IS / VAL / HO": _per_month(z, col)})
             print(pd.DataFrame(rows).to_string(index=False))
 

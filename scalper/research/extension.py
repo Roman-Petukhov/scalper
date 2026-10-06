@@ -25,11 +25,11 @@ from .broad import ADV_MIN
 from .oos import PER_ALL
 from .shard import all_parts, mine, part_path
 from .smc import _atr, _cell
-from .tline import _bot_base, _htf_bars, _years, coin_trades, market_context, tf_frame
+from .tline import BAR_MIN, _bot_base, _htf_bars, _years, coin_trades, market_context, tf_frame
 
 COLS = ["symbol", "t", "side", "line", "entry", "confirm", "aggr", "with_trend", "close_loc", "adv", "risk_pct", "R3",
         "btc_ret7"]
-FEATS = (("r7", "цена за 7 дней"), ("r30", "цена за 30 дней"), ("ema_atr", "от EMA50 дневок, дневных ATR"),
+FEATS = (("r1", "цена за сутки"), ("r7", "цена за 7 дней"), ("r30", "цена за 30 дней"), ("ema_atr", "от EMA50 дневок, дневных ATR"),
          ("rng90", "место в диапазоне 90 дней"), ("rsi", "RSI14 дневок (перепроданность для шорта)"),
          ("btc7", "BTC за 7 дней"))
 
@@ -41,29 +41,30 @@ def _rsi(c: pd.Series, n: int = 14) -> pd.Series:
     return 100 - 100 / (1 + up / dn.replace(0, np.nan))
 
 
-def features(d: pd.DataFrame, pos: np.ndarray, side: np.ndarray) -> pd.DataFrame:
+def features(d: pd.DataFrame, pos: np.ndarray, side: np.ndarray, tf: str = "4h") -> pd.DataFrame:
     c = d["close"].to_numpy(dtype="float64")
+    per_day = 1440 // BAR_MIN[tf]
     day = _htf_bars(d, "1D")
     ema = day["close"].ewm(span=50, adjust=False).mean()
     datr = _atr(day)
     rsi = _rsi(day["close"])
     closed = day.index + pd.Timedelta(days=1)                       # дневка известна после закрытия
-    bar_close = d.index + pd.Timedelta(hours=4)
+    bar_close = d.index + pd.Timedelta(minutes=BAR_MIN[tf])
     k = closed.searchsorted(bar_close, side="right") - 1            # последняя закрытая дневка на закрытии свечи
     out = {n: np.full(len(pos), np.nan) for n, _ in FEATS if n != "btc7"}
     for j, (e, sd) in enumerate(zip(pos, side)):
         if e < 0:
             continue
-        if e >= 42 and c[e - 42] > 0:
-            out["r7"][j] = sd * (c[e] / c[e - 42] - 1)
-        if e >= 180 and c[e - 180] > 0:
-            out["r30"][j] = sd * (c[e] / c[e - 180] - 1)
+        for nm, days in (("r1", 1), ("r7", 7), ("r30", 30)):
+            b = days * per_day
+            if e >= b and c[e - b] > 0:
+                out[nm][j] = sd * (c[e] / c[e - b] - 1)
         kk = k[e]
         if kk >= 50 and datr.iloc[kk] > 0:
             out["ema_atr"][j] = sd * (c[e] - ema.iloc[kk]) / datr.iloc[kk]
             out["rsi"][j] = rsi.iloc[kk] if sd > 0 else 100 - rsi.iloc[kk]
-        if e >= 540:
-            w = c[e - 540: e + 1]
+        if e >= 90 * per_day:
+            w = c[e - 90 * per_day: e + 1]
             span = w.max() - w.min()
             if span > 0:
                 p = (c[e] - w.min()) / span
@@ -99,7 +100,7 @@ def _pm(z: pd.DataFrame) -> str:
 
 
 def _table(items: list[tuple[str, pd.DataFrame]]) -> None:
-    rows = [{"вариант": nm, **{p: _cell(z[z.per == p].assign(R=z.R3)) for p in PER_ALL},
+    rows = [{"вариант": nm, **{p: _cell(z.assign(R=z.R3)[z.per == p]) for p in PER_ALL},
              "R/мес " + " / ".join(PER_ALL): _pm(z)} for nm, z in items]
     print(pd.DataFrame(rows).to_string(index=False))
 
@@ -116,7 +117,11 @@ def report() -> None:
     df["per"] = ""
     for p, (a, b) in PER_ALL.items():
         df.loc[(df.t >= a) & (df.t < b), "per"] = p
-    g = _bot_base(df[df.adv.isna() | (df.adv >= ADV_MIN)])
+    quintile_report(_bot_base(df[df.adv.isna() | (df.adv >= ADV_MIN)]))
+
+
+def quintile_report(g: pd.DataFrame) -> None:
+    """Квинтили признаков FEATS (границы по IS) и правило «без 20% самых вытянутых»; g — сделки с колонкой per."""
     print(f"сделок {len(g)}, шортов {(g.side < 0).mean():.0%}")
     print("медианы признаков по IS: " + ", ".join(f"{n} {g[g.per == 'is'][n].median():+.3f}" for n, _ in FEATS))
     for n, nm in FEATS:
