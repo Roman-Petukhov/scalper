@@ -24,7 +24,7 @@ from .shard import all_parts, mine, part_path
 from .tline import BAR_MIN, PER, _bot_base, coin_trades, market_context
 
 COLS = ["symbol", "t", "side", "tf", "line", "entry", "confirm", "aggr", "with_trend", "close_loc", "adv",
-        "wait_bars", "hold_bars", "R3"]
+        "wait_bars", "hold_bars", "R3", "R3_old", "stop_in_fill"]
 LIMIT, DAILY_STOP = 12, 4.0
 SIDE_CAPS = (np.inf, 8, 6, 5, 4, 3)
 STREAKS = (None, 5, 4)
@@ -103,6 +103,15 @@ def report() -> None:
     df = pd.concat([pd.read_parquet(p) for p in parts], ignore_index=True)
     df["t"] = pd.to_datetime(df["t"], utc=True)
     base = _bot_base(df[df.adv.isna() | (df.adv >= ADV_MIN)])
+    r = base[base.entry == "retest"]
+    if "R3_old" in r.columns and len(r):
+        print("\n  --- ПРОВЕРКА БЭКТЕСТА: ретест исполняется внутри свечи, а стоп в свече исполнения раньше не проверялся ---")
+        print(f"  стоп задет в свече исполнения: {r.stop_in_fill.mean():.1%} сделок ретеста")
+        for p, (a, b) in PER.items():
+            z = r[(r.t >= a) & (r.t < b)]
+            months = (pd.Timestamp(b) - pd.Timestamp(a)).days / 30.4
+            print(f"  {p}: R на сделку было {z.R3_old.mean():+.3f}, стало {z.R3.mean():+.3f}; "
+                  f"R в месяц было {z.R3_old.sum() / months:+.1f}, стало {z.R3.sum() / months:+.1f} (сделок {len(z)})")
     for entry in ("retest", "market"):
         g = base[base.entry == entry]
         if g.empty:

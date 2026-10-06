@@ -942,20 +942,29 @@ def coin_trades(root: Path, sym: str, tf: str, ctx: pd.DataFrame | None = None) 
                 dist_atr = side * (px - stop) / a[e]
                 if not (0.3 <= dist_atr <= 4.0):
                     continue
+                # ретест исполняется внутри бара fill: стоп мог сработать в том же баре после исполнения — тогда
+                # сделка закрыта по стопу (тейк в баре исполнения не засчитываем: порядок цен внутри бара неизвестен)
+                stop_in_fill = entry_kind == "retest" and ((side > 0 and lo[fill] <= stop) or (side < 0 and hi[fill] >= stop))
+                loss = (side * (stop - px) - (fee + TAKER) * px) / (side * (px - stop))
+                fix = (lambda v: loss) if stop_in_fill else (lambda v: v)
+                r3_old = two_targets(o, hi, lo, c, f, fill, side, px, stop, 3.0, 3.0, False, HOLD[tf], fee)[0]
                 for be in (False,):
                     r, ex = two_targets(o, hi, lo, c, f, fill, side, px, stop, 3.0, 5.0, be, HOLD[tf], fee)
-                    r3, _ = two_targets(o, hi, lo, c, f, fill, side, px, stop, 3.0, 3.0, be, HOLD[tf], fee)
+                    r3 = r3_old
                     slope_l = line_c - line_b
                     r3x0, _ = target_exit(o, hi, lo, c, f, fill, side, px, stop, 3.0, HOLD[tf], fee, line_b, tb,
                                           slope_l, 0.0)
                     r3x25, _ = target_exit(o, hi, lo, c, f, fill, side, px, stop, 3.0, HOLD[tf], fee, line_b, tb,
                                            slope_l, 0.25 * a[e])
-                    tg = {}
+                    if stop_in_fill:
+                        ex = fill
+                    r, r3, r3x0, r3x25 = fix(r), fix(r3), fix(r3x0), fix(r3x25)
+                    tg = {"R3_old": r3_old, "stop_in_fill": stop_in_fill}
                     if mode == "zz":                                     # другие цели — для отчёта по 1h / 15m
                         for nm, k1, k2, b_ in (("R15", 1.5, 1.5, False), ("R2", 2.0, 2.0, False),
                                                ("R1_2be", 1.0, 2.0, True), ("R15_3be", 1.5, 3.0, True),
                                                ("R2_4be", 2.0, 4.0, True)):
-                            tg[nm] = two_targets(o, hi, lo, c, f, fill, side, px, stop, k1, k2, b_, HOLD[tf], fee)[0]
+                            tg[nm] = fix(two_targets(o, hi, lo, c, f, fill, side, px, stop, k1, k2, b_, HOLD[tf], fee)[0])
                     if not confirm:                                      # проверки из статей (docs/research_report.md)
                         tg |= article_outcomes(o, hi, lo, c, f, a, tb, e, fill, side, px, stop, fee, HOLD[tf], line_b,
                                                slope_l, int(ia), int(ib))
