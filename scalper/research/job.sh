@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"prepl newlist"}
+TASKS=${TASKS:-"prepo range4"}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
 FILTER="Pandas4Warning\|pd.concat\|файлов$\|мес. свечей"
@@ -143,6 +143,8 @@ prepl_collect() { RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.p
 prepl_report() { :; }
 newlist_collect() { python -m research.newlist collect --symbols "$(cat /tmp/syms_1h-all.txt)"; }
 newlist_report() { python -m research.newlist report; }
+range4_collect() { python -m research.range4 collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
+range4_report() { python -m research.range4 report; }
 robust_collect() { python -m research.robust collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
 robust_report() { python -m research.robust report; }
 crowd_collect() { python -m research.crowd collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
