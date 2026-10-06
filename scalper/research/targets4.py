@@ -69,26 +69,27 @@ def report() -> None:
         df.loc[(df.t >= a) & (df.t < b), "per"] = p
     base = _bot_base(df[df.adv.isna() | (df.adv >= ADV_MIN)])
     for entry in ("retest", "market"):
-        g = base[base.entry == entry]
-        en = "ретест (бот)" if entry == "retest" else "рынок"
-        print(f"\n  --- {en}: R на сделку ---")
-        rows = [{"выход": nm, **{p: _cell(g[g.per == p].assign(R=g[col])) for p in PER_ALL}} for col, nm in EXITS]
-        print(pd.DataFrame(rows).to_string(index=False))
-        print(f"\n  --- {en}: как на счёте (R в месяц / худшая просадка R / убыточных месяцев / разброс месяца R) ---")
-        rows = []
-        for col, nm in EXITS:
-            row = {"выход": nm}
-            for p, (a, b) in PER_ALL.items():
-                z = g[g.per == p]
-                m = _months(z, col, a, b)
-                row[p] = (f"{m.mean():+.1f} / {_dd(z, col):.1f} / {(m < 0).mean():.0%} / {m.std():.1f}"
-                          if len(z) else "—")
-            rows.append(row)
-        print(pd.DataFrame(rows).to_string(index=False))
-        for col, nm in EXITS:
-            print(f"  {nm}: по годам {_years(g, col)}; издержки x2: " + ", ".join(
-                f"{p}: {(z[col] - 2 * TAKER / z.risk_pct).mean():+.3f}" for p, z in g.groupby("per") if p))
+        exit_tables(base[base.entry == entry], PER_ALL, "ретест (бот)" if entry == "retest" else "рынок")
 
+
+def exit_tables(g: pd.DataFrame, periods: dict[str, tuple[str, str]], title: str) -> None:
+    """Таблицы по выходам EXITS для сделок g (колонки t, per, risk_pct и EXITS)."""
+    print(f"\n  --- {title}: R на сделку ---")
+    rows = [{"выход": nm, **{p: _cell(g[g.per == p].assign(R=g[col])) for p in periods}} for col, nm in EXITS]
+    print(pd.DataFrame(rows).to_string(index=False))
+    print(f"\n  --- {title}: как на счёте (R в месяц / худшая просадка R / убыточных месяцев / разброс месяца R) ---")
+    rows = []
+    for col, nm in EXITS:
+        row = {"выход": nm}
+        for p, (a, b) in periods.items():
+            z = g[g.per == p]
+            m = _months(z, col, a, b)
+            row[p] = f"{m.mean():+.1f} / {_dd(z, col):.1f} / {(m < 0).mean():.0%} / {m.std():.1f}" if len(z) else "—"
+        rows.append(row)
+    print(pd.DataFrame(rows).to_string(index=False))
+    for col, nm in EXITS:
+        print(f"  {nm}: по годам {_years(g, col)}; издержки x2: " + ", ".join(
+            f"{p}: {(z[col] - 2 * TAKER / z.risk_pct).mean():+.3f}" for p, z in g.groupby("per") if p))
 
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
