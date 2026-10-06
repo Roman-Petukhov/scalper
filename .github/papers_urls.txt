@@ -6,3 +6,10 @@ aqr_century2 https://fairmodel.econ.yale.edu/ec439/hurst.pdf
 crypto_trend_cxo https://cxoadvisory.com/technical-trading/applying-simple-trend-following-rules-to-cryptocurrencies
 btc_trend_meanrev https://quantpedia.com/?p=17895
 fx_crypto_momentum https://www.journals.vu.lt/BATP/lt/article/download/44540/42590/138419
+quarter_hour https://arxiv.org/pdf/2607.09426
+trend_adaptive https://arxiv.org/pdf/2602.11708
+autoquant https://arxiv.org/pdf/2512.22476
+micro_explainable https://arxiv.org/pdf/2602.00776
+orderflow_efma https://www.efmaefm.org/0EFMAMEETINGS/EFMA%20ANNUAL%20MEETINGS/2025-Greece/papers/OrderFlowpaper.pdf
+liq_cascades https://arxiv.org/pdf/2607.27070
+param_opt_oos https://arxiv.org/pdf/2602.10785
