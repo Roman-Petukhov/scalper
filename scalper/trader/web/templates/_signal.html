@@ -36,8 +36,8 @@
     </div>
     <span class="hint" style="margin:0">Свеча пробоя {{ sig.bar_time | lt }}</span>
     <dl class="plan num">
-      <dt>Вход</dt><dd>{{ '%.6g' | format(sig.plan.entry) }} · {{ 'ретест' if sig.plan.entry_kind.value == 'retest' else 'рынок' }}</dd>
-      <dt>Стоп</dt><dd>{{ '%.6g' | format(sig.plan.stop) }} · {{ '%.2f' | format(sig.plan.risk_pct_of_price) }}%</dd>
+      <dt>Вход</dt><dd>{{ '%.6g' | format(sig.plan.entry) }} <span class="sub">{{ 'ретест' if sig.plan.entry_kind.value == 'retest' else 'рынок' }}</span></dd>
+      <dt>Стоп</dt><dd>{{ '%.6g' | format(sig.plan.stop) }} <span class="sub">{{ '%.2f' | format(sig.plan.risk_pct_of_price) }}%</span></dd>
       <dt>Цель</dt><dd>{{ '%.6g' | format(sig.plan.target) }}</dd>
       <dt>Агрессоры</dt><dd>{{ '%.0f' | format(sig.aggr * 100) }}%</dd>
       <dt>Свеча</dt><dd>{{ '%.1f' | format(sig.range_atr) }} ATR</dd>

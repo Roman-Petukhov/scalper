@@ -41,19 +41,82 @@ body { font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica N
 .num { font-variant-numeric: tabular-nums; font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace; }
 
 header.top {
-  position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 16px;
-  padding: 12px 24px; background: color-mix(in srgb, var(--bg) 88%, transparent);
-  backdrop-filter: blur(10px); border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 14px;
+  padding: 10px 24px; background: color-mix(in srgb, var(--bg) 86%, transparent);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--line);
 }
-.brand { font-weight: 650; letter-spacing: -.01em; }
+.brand { font-weight: 700; letter-spacing: -.01em; white-space: nowrap; }
 .brand small { color: var(--muted); font-weight: 450; margin-left: 8px; }
-header .spacer { flex: 1; }
+.logout { margin-left: auto; }
 
+/* Состояние бота: видно с любого экрана — вручную, авто с биржей (пульс) или авто без биржи (предупреждение) */
+.bot-state {
+  display: inline-flex; align-items: center; gap: 8px; min-width: 0; padding: 5px 12px 5px 10px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--text);
+  font-size: 13px; text-decoration: none; white-space: nowrap; transition: border-color .2s var(--ease);
+}
+.bot-state .bs-mode { font-weight: 650; }
+.bot-state .bs-detail, .bot-state .bs-ex { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.bot-state .bs-detail::before, .bot-state .bs-ex::before { content: "·"; margin-right: 8px; color: var(--line); }
+.bot-state .pulse { position: relative; width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--muted); }
+.bot-state.is-live { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+.bot-state.is-live .pulse { background: var(--warn); }
+.bot-state.is-live .pulse::after {
+  content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 2px solid var(--warn);
+  opacity: 0; animation: beat 2.4s var(--ease) infinite;
+}
+.bot-state.is-warn { border-color: color-mix(in srgb, var(--short) 45%, var(--line)); }
+.bot-state.is-warn .pulse { background: var(--short); }
+@keyframes beat { 0% { opacity: .7; transform: scale(.6); } 70%, 100% { opacity: 0; transform: scale(1.6); } }
+@media (hover: hover) { .bot-state:hover { border-color: var(--accent); } }
+.bot-state:focus-visible, .view-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Разделы панели: на компьютере — вкладки в шапке, на телефоне — панель снизу */
+.views { display: flex; gap: 2px; padding: 3px; margin-left: 8px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; }
+.view-tab {
+  display: inline-flex; align-items: center; gap: 7px; padding: 6px 14px; border-radius: 999px; color: var(--muted);
+  font-weight: 600; font-size: 14px; text-decoration: none; transition: background .2s var(--ease), color .2s var(--ease);
+}
+.view-tab svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.view-tab[aria-current="page"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, .18); }
+@media (hover: hover) { .view-tab:not([aria-current]):hover { color: var(--text); } }
+.nav-count { min-width: 18px; padding: 0 5px; border-radius: 999px; background: var(--accent); color: var(--accent-ink);
+  font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; }
+.nav-count[hidden] { display: none; }
+
+main { max-width: 1320px; margin: 0 auto; padding: 22px 24px 56px; }
 main > * { min-width: 0; }                          /* иначе широкая таблица раздвигает колонку */
-main { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 20px; padding: 20px 24px 48px; max-width: 1400px; margin: 0 auto; }
+body[data-view] .pane { display: none; }
+body[data-view="signals"] .pane-signals, body[data-view="account"] .pane-account,
+body[data-view="settings"] .pane-settings { display: block; animation: rise .25s var(--ease); }
+body:not([data-view]) .pane + .pane { margin-top: 40px; }   /* без JS — все разделы подряд */
+.pane-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.pane-head h1 { font-size: 22px; margin: 0; letter-spacing: -.02em; }
+
+/* Счёт: кошелёк шире, журнал рядом */
+.account-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.account-grid .wallet { margin-bottom: 0; }
+/* Настройки: слева короткие карточки, справа таблица правил на всю высоту */
+.settings-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr); gap: 16px; align-items: start; }
+.set-col { display: grid; gap: 16px; min-width: 0; }
+.set-col > .card { margin: 0; }
+
+/* Длинные пояснения свёрнуты: настройки читаются, объяснение — по нажатию */
+details.more { margin-top: 12px; font-size: 13px; color: var(--muted); }
+details.more > summary { cursor: pointer; color: var(--accent); font-weight: 600; list-style: none; width: fit-content; }
+details.more > summary::-webkit-details-marker { display: none; }
+details.more > summary::after { content: " ▾"; }
+details.more[open] > summary::after { content: " ▴"; }
+details.more > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+details.more p { margin: 8px 0 0; line-height: 1.55; }
+
+/* Последние проверки рынка — строкой над лентой */
+.scan-last { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0 0 12px; font-size: 12px; color: var(--muted); }
+.scan-last b { color: var(--text); font-weight: 650; margin-right: 4px; }
 
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; }
 .card + .card { margin-top: 16px; }
+.journal { margin-top: 0; }
 .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 12px; font-weight: 600; }
 .hint { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
 
@@ -118,8 +181,6 @@ main { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 20px; pa
 .err { color: var(--short); font-size: 13px; }
 
 /* Лента сигналов */
-.feed-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-.feed-head h1 { font-size: 20px; margin: 0; letter-spacing: -.01em; }
 
 .feed-tabs button.is-off { opacity: .45; }
 .tab-count { font-size: 11px; padding: 0 6px; margin-left: 2px; border-radius: 999px; background: var(--line); color: var(--text); }
@@ -141,6 +202,7 @@ main { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 20px; pa
 dl.plan { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; margin: 0; font-size: 14px; }
 dl.plan dt { color: var(--muted); }
 dl.plan dd { margin: 0; text-align: right; min-width: 0; overflow-wrap: anywhere; }
+dl.plan dd .sub { color: var(--muted); font-size: 12px; margin-left: 4px; white-space: nowrap; }
 .empty { text-align: center; color: var(--muted); padding: 48px 16px; }
 /* Разовая проверка рынка: это действие, а не переключатель — одна группа с подписью и результатом под ней */
 .scan-now { display: flex; align-items: center; gap: 12px; }
@@ -235,20 +297,38 @@ dl.plan dd { margin: 0; text-align: right; min-width: 0; overflow-wrap: anywhere
 .lc-tag::first-letter { color: var(--long); }
 .lc-tag.stale::first-letter { color: var(--warn); }
 
-/* Телефон: после базовых правил, чтобы их перекрывать */
-@media (max-width: 900px) {
-  main { grid-template-columns: 1fr; padding: 16px; }
-  main > section { order: -1; }                      /* на телефоне сначала сигналы, настройки ниже */
-  header.top { padding: 10px 16px; }
+/* Планшет: настройки и счёт в одну колонку */
+@media (max-width: 1100px) {
+  .account-grid, .settings-grid { grid-template-columns: 1fr; }
   .brand small { display: none; }
-  .feed-head { flex-direction: column; align-items: stretch; gap: 10px; }
-  .feed-head h1 { text-align: left; }
-  .scan-now { flex-direction: column; align-items: stretch; gap: 6px; }
-  .scan-group { display: flex; }
-  .scan-btn { flex: 1; justify-content: center; }
+}
+
+/* Телефон: разделы — нижней панелью, шапка — только название и состояние бота */
+@media (max-width: 760px) {
+  /* backdrop-filter у шапки сделал бы её контейнером для fixed-панели разделов — на телефоне фон сплошной */
+  header.top { padding: 8px 16px; padding-top: max(8px, env(safe-area-inset-top)); gap: 10px;
+    backdrop-filter: none; -webkit-backdrop-filter: none; background: var(--bg); }
+  .bot-state .bs-ex { display: none; }
+  .views {
+    position: fixed; z-index: 20; left: 0; right: 0; bottom: 0; margin: 0; border-radius: 0; border: 0;
+    border-top: 1px solid var(--line); padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+    background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    justify-content: space-around;
+  }
+  .view-tab { position: relative; flex: 1; flex-direction: column; gap: 2px; padding: 6px 4px; font-size: 11px; border-radius: 12px; }
+  .view-tab svg { width: 22px; height: 22px; }
+  .view-tab[aria-current="page"] { background: transparent; box-shadow: none; color: var(--accent); }
+  .view-tab .nav-count { position: absolute; top: 2px; left: calc(50% + 6px); }
+  main { padding: 16px 16px calc(84px + env(safe-area-inset-bottom)); }
+  .pane-head h1 { font-size: 20px; }
+  .scan-now { width: 100%; justify-content: space-between; }
+  .scan-btn { padding: 8px 18px; }
   .stats { grid-template-columns: 1fr 1fr; }
   .live-chart { height: 300px; }
   .positions { display: block; overflow-x: auto; white-space: nowrap; }
+}
+@media (max-width: 380px) {
+  .bot-state .bs-detail { display: none; }
 }
 
 /* журнал сделок */

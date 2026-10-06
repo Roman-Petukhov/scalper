@@ -1,3 +1,8 @@
+<p class="scan-last num" aria-label="Последние проверки рынка">
+  {% for tf in Timeframe | reverse %}{% set r = last.get(tf) %}
+  <span><b>{{ tf.value }}</b> {% if r %}{{ r.finished | lt('hm') }} · {{ r.symbols }} монет · {{ r.signals | length }} сигн.{% else %}ещё не проверял{% endif %}</span>
+  {% endfor %}
+</p>
 <div class="feed-bar">
 <div class="feed-tabs segmented" role="tablist" aria-label="Какие сигналы показать в ленте">
   {% for key, label in FEED_TABS %}
@@ -26,3 +31,4 @@
   {% else %}Актуальных сигналов нет. Сканер проверяет рынок сразу после закрытия каждой свечи включённых таймфреймов, старые — во вкладке «Архив».{% endif %}
 </div>
 {% endif %}
+{% if request.headers.get('HX-Request') %}{% set oob = true %}{% include "_state.html" %}{% endif %}

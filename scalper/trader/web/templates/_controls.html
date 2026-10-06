@@ -1,4 +1,5 @@
-<div class="card">
+<div class="set-col">
+<div class="card set-mode">
   <h2>Режим</h2>
   <div class="segmented mode" role="group" aria-label="Режим торговли">
     <button type="button" aria-pressed="{{ 'true' if s.mode == Mode.MANUAL else 'false' }}"
@@ -24,7 +25,7 @@
   </div>
 </div>
 
-<div class="card">
+<div class="card set-tfs">
   <h2>Какие сигналы присылать</h2>
   <div class="chips">
     {% for tf in Timeframe | reverse %}
@@ -37,7 +38,47 @@
   <p class="hint">4h — основная стратегия: пробой линии в обе стороны. 15m — отдельная: только шорт от пологой растущей линии, вход по рынку; пока на проверке, автоторговлю по нему лучше не включать.</p>
 </div>
 
-<div class="card">
+<div class="card set-exchange">
+  <h2>Биржа</h2>
+  {% if exchange %}
+    <p class="ok" style="margin:0 0 10px">● {{ exchange }}{% if creds %} · ключ {{ creds.masked_key }}{% endif %}</p>
+    {% if keys_saved %}<p class="ok" role="status" style="margin:0 0 10px">{{ keys_saved }}</p>{% endif %}
+    <p class="hint" style="margin:0 0 12px">«Вхожу» и авто-режим ставят ордер со стопом и целью прямо на бирже.</p>
+    {% if creds %}
+    <button type="button" class="btn ghost" hx-post="/exchange/forget" hx-target="#controls"
+            hx-confirm="Отключить Bybit? Открытые позиции и ордера на бирже останутся.">Отключить</button>
+    {% endif %}
+  {% else %}
+  <form hx-post="/exchange/keys" hx-target="#controls" hx-disabled-elt="find button[type=submit]">
+    <div class="segmented" role="radiogroup" aria-label="Счёт Bybit" style="margin-bottom:12px">
+      <label class="seg-radio"><input type="radio" name="network" value="demo" checked><span>Демо</span></label>
+      <label class="seg-radio"><input type="radio" name="network" value="live"><span>Реальный</span></label>
+    </div>
+    <div class="field"><label for="api_key">API Key</label>
+      <input id="api_key" name="api_key" autocomplete="off" spellcheck="false" required></div>
+    <div class="field" style="margin-top:10px"><label for="secret">API Secret</label>
+      <input id="secret" name="secret" type="password" autocomplete="off" required></div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn primary" type="submit">Подключить</button>
+      {% if keys_error %}<span class="err" role="alert">{{ keys_error }}</span>{% endif %}
+    </div>
+  </form>
+  <p class="hint">Ключ с правами только «Contract — Orders, Positions», без вывода средств. Для демо: Bybit → Demo Trading → API. Ключи хранятся только на этом компьютере.</p>
+  {% endif %}
+</div>
+
+<div class="card set-notify">
+  <h2>Уведомления</h2>
+  <p class="hint" id="notify-state" style="margin:0 0 12px" aria-live="polite">Проверяю…</p>
+  <div class="row">
+    <button type="button" class="btn primary" id="notify-enable" hidden>Включить уведомления</button>
+    <button type="button" class="chip" id="notify-sound" aria-pressed="true"><span class="dot" aria-hidden="true"></span>Звук</button>
+    <button type="button" class="btn ghost" id="notify-test">Проверить</button>
+  </div>
+</div>
+</div>
+<div class="set-col set-col-wide">
+<div class="card set-rules">
   <h2>Правило и риск по таймфреймам</h2>
   <form hx-post="/settings/params" hx-target="#controls">
     {% set rows = [
@@ -70,7 +111,7 @@
       <label>Стороны</label>
       {% for tf in Timeframe | reverse %}
       <select name="{{ tf.value }}__sides" aria-label="Стороны {{ tf.value }}">
-        {% for p, label in [(SideFilter.BOTH, 'лонг и шорт'), (SideFilter.SHORT, 'только шорт'), (SideFilter.LONG, 'только лонг')] %}
+        {% for p, label in [(SideFilter.BOTH, 'обе'), (SideFilter.SHORT, 'шорт'), (SideFilter.LONG, 'лонг')] %}
         <option value="{{ p.value }}"{% if s.p(tf).sides == p %} selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
@@ -99,7 +140,7 @@
       {% else %}<span class="cell-na" title="Старшего ТФ нет">—</span>{% endif %}
       {% endfor %}
     </div>
-    <p class="hint">Хедж BTC: к каждой сделке — позиция BTCUSDT в обратную сторону на бету монеты, все хеджи сведены в одну позицию и подгоняются раз в минуту. Бэктест 4h: R в месяц +3.1 → +2.6, худший месяц −9.0 → −4.4R — риск на сделку можно поднять до 1.3–1.5%. Пока хедж включён, BTCUSDT бот не торгует, а позицию BTCUSDT на счёте ведёт хедж.</p>
+    <details class="more"><summary>Как работает хедж BTC</summary><p>Хедж BTC: к каждой сделке — позиция BTCUSDT в обратную сторону на бету монеты, все хеджи сведены в одну позицию и подгоняются раз в минуту. Бэктест 4h: R в месяц +3.1 → +2.6, худший месяц −9.0 → −4.4R — риск на сделку можно поднять до 1.3–1.5%. Пока хедж включён, BTCUSDT бот не торгует, а позицию BTCUSDT на счёте ведёт хедж.</p></details>
     <div class="sub-label">Общие для счёта</div>
     <div class="per-tf per-acct num" style="--cols: {{ Timeframe | list | length }}">
       <label for="leverage">Плечо, ×</label>
@@ -118,96 +159,7 @@
       {% elif reset_done %}<span class="ok" role="status">Стандартные настройки восстановлены</span>{% endif %}
     </div>
   </form>
-  <p class="hint">Вход: ретест — лимитка на линии; рынок — по закрытию свечи пробоя; гибрид — длинная свеча пробоя (больше порога в ATR) ждёт ретест, короткая — по рынку. Убыток по стопу задаёт риск на сделку, а не плечо: плечо ограничивает размер позиции и маржу. Бэктест: 4h — основная стратегия (ретест + закрытие в верхней половине свечи). На 15m обычный пробой в ноль, но шорт от пологой линии в плюсе на всех трёх периодах (порог наклона взят по 2022–2024), поэтому 15m — отдельная стратегия с риском 0.25%.</p>
+  <details class="more"><summary>Что значат поля</summary><p>Вход: ретест — лимитка на линии; рынок — по закрытию свечи пробоя; гибрид — длинная свеча пробоя (больше порога в ATR) ждёт ретест, короткая — по рынку. Убыток по стопу задаёт риск на сделку, а не плечо: плечо ограничивает размер позиции и маржу. Бэктест: 4h — основная стратегия (ретест + закрытие в верхней половине свечи). На 15m обычный пробой в ноль, но шорт от пологой линии в плюсе на всех трёх периодах (порог наклона взят по 2022–2024), поэтому 15m — отдельная стратегия с риском 0.25%.</p></details>
 </div>
-
-<div class="card">
-  <h2>Биржа</h2>
-  {% if exchange %}
-    <p class="ok" style="margin:0 0 10px">● {{ exchange }}{% if creds %} · ключ {{ creds.masked_key }}{% endif %}</p>
-    {% if keys_saved %}<p class="ok" role="status" style="margin:0 0 10px">{{ keys_saved }}</p>{% endif %}
-    <p class="hint" style="margin:0 0 12px">«Вхожу» и авто-режим ставят ордер со стопом и целью прямо на бирже.</p>
-    {% if creds %}
-    <button type="button" class="btn ghost" hx-post="/exchange/forget" hx-target="#controls"
-            hx-confirm="Отключить Bybit? Открытые позиции и ордера на бирже останутся.">Отключить</button>
-    {% endif %}
-  {% else %}
-  <form hx-post="/exchange/keys" hx-target="#controls" hx-disabled-elt="find button[type=submit]">
-    <div class="segmented" role="radiogroup" aria-label="Счёт Bybit" style="margin-bottom:12px">
-      <label class="seg-radio"><input type="radio" name="network" value="demo" checked><span>Демо</span></label>
-      <label class="seg-radio"><input type="radio" name="network" value="live"><span>Реальный</span></label>
-    </div>
-    <div class="field"><label for="api_key">API Key</label>
-      <input id="api_key" name="api_key" autocomplete="off" spellcheck="false" required></div>
-    <div class="field" style="margin-top:10px"><label for="secret">API Secret</label>
-      <input id="secret" name="secret" type="password" autocomplete="off" required></div>
-    <div class="row" style="margin-top:14px">
-      <button class="btn primary" type="submit">Подключить</button>
-      {% if keys_error %}<span class="err" role="alert">{{ keys_error }}</span>{% endif %}
-    </div>
-  </form>
-  <p class="hint">Ключ с правами только «Contract — Orders, Positions», без вывода средств. Для демо: Bybit → Demo Trading → API. Ключи хранятся только на этом компьютере.</p>
-  {% endif %}
 </div>
-
-<div class="card">
-  <h2>Уведомления</h2>
-  <p class="hint" id="notify-state" style="margin:0 0 12px" aria-live="polite">Проверяю…</p>
-  <div class="row">
-    <button type="button" class="btn primary" id="notify-enable" hidden>Включить уведомления</button>
-    <button type="button" class="chip" id="notify-sound" aria-pressed="true"><span class="dot" aria-hidden="true"></span>Звук</button>
-    <button type="button" class="btn ghost" id="notify-test">Проверить</button>
-  </div>
-</div>
-
-<div class="card">
-  <h2>Журнал: биржа против бэктеста</h2>
-  <div class="jr-stats">
-  {% for st in journal %}
-    <div class="jr-tf">
-      <div class="row" style="justify-content:space-between;align-items:baseline">
-        <b>{{ st.timeframe.value }}</b>
-        {% if st.closed %}
-        <span class="num"><span class="{{ 'jr-up' if st.avg_r > 0 else 'jr-down' }}">{{ '%+.2f' % st.avg_r }}R</span>
-          <span class="hint" style="margin:0">на сделку{% if st.backtest_r is not none %} · бэктест {{ '%+.2f' % st.backtest_r }}R{% endif %}</span></span>
-        {% else %}<span class="hint" style="margin:0">закрытых сделок пока нет</span>{% endif %}
-      </div>
-      {% if st.closed %}
-      <p class="hint num">сделок {{ st.closed }} · итог {{ '%+.1f' % st.sum_r }}R · прибыльных {{ '%.0f' % (st.win_share * 100) }}%{% if st.avg_slippage_r is not none %} · проскальзывание {{ '%+.2f' % st.avg_slippage_r }}R{% endif %}{% if st.retest_fill is not none %} · ретест исполнился {{ '%.0f' % (st.retest_fill * 100) }}% из {{ st.retest_orders }}{% endif %}</p>
-      {% endif %}
-      {% if st.level_closed %}
-      <p class="hint num">«+ уровень»: {{ st.level_closed }} сделок, {{ '%+.2f' % st.level_avg_r }}R{% if st.plain_avg_r is not none %} · остальные {{ '%+.2f' % st.plain_avg_r }}R{% endif %}</p>
-      {% endif %}
-      {% if st.hedged_closed %}
-      <p class="hint num">С хеджем BTC: {{ st.hedged_closed }} сделок, сама сделка {{ '%+.2f' % st.hedged_trade_r }}R · с хеджем {{ '%+.2f' % st.hedged_total_r }}R</p>
-      {% endif %}
-      {% if st.health %}<p class="hint jr-health jr-{{ st.health.level.value }}">{{ st.health.text }}</p>{% endif %}
-    </div>
-  {% endfor %}
-  </div>
-  {% if journal_rows %}
-  <div class="jr-rows num" role="table" aria-label="Последние закрытые сделки">
-    {% for e in journal_rows %}{% set t = e.trade %}
-    <div class="jr-row" role="row">
-      <span role="cell" class="hint" style="margin:0">{{ t.result.closed_at | lt if t.result else t.created_at | lt('dm') }}</span>
-      <span role="cell">{{ t.symbol }} {{ e.timeframe.value }} <span class="{{ 'jr-up' if t.side.value == 1 else 'jr-down' }}">{{ t.side.label }}</span>{% if e.at_level %} · ур.{% endif %}</span>
-      <span role="cell" class="{{ 'jr-up' if (t.r_multiple or 0) > 0 else 'jr-down' }}">{{ '%+.2f' % t.r_multiple ~ 'R' if t.r_multiple is not none else '—' }}</span>
-      <span role="cell" class="hint" style="margin:0">{{ t.exit_reason }}{% if t.slippage_r is not none and t.slippage_r|abs >= 0.05 %} · проск. {{ '%+.2f' % t.slippage_r }}R{% endif %}{% if t.hedge_r is not none %} · хедж {{ '%+.2f' % t.hedge_r }}R{% endif %}</span>
-    </div>
-    {% endfor %}
-  </div>
-  {% endif %}
-</div>
-
-<div class="card">
-  <h2>Последние проверки</h2>
-  {% for tf in Timeframe %}
-    {% set r = last.get(tf) %}
-    <div class="row" style="justify-content:space-between">
-      <span>{{ tf.value }}</span>
-      <span class="num hint" style="margin:0">
-        {% if r %}{{ r.finished | lt }} · {{ r.symbols }} монет · {{ r.signals | length }} сигн.{% else %}ещё не было{% endif %}
-      </span>
-    </div>
-  {% endfor %}
-</div>
+{% if request.headers.get('HX-Request') %}{% set oob = true %}{% include "_state.html" %}{% endif %}

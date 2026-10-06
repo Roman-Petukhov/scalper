@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import functools
+import hashlib
 import hmac
 import logging
 import re
@@ -68,6 +70,16 @@ def local_time(dt: datetime, f: str = "dmhm") -> Markup:
 
 
 templates.env.filters["lt"] = local_time
+
+
+@functools.cache
+def asset(name: str) -> str:
+    """Ссылка на файл из static с меткой содержимого: после обновления браузер не возьмёт старый CSS / JS из кеша."""
+    digest = hashlib.sha1((HERE / "static" / name).read_bytes()).hexdigest()[:10]
+    return f"/static/{name}?v={digest}"
+
+
+templates.env.globals["asset"] = asset
 templates.env.globals.update(ARCHIVED=ARCHIVED, DELETABLE=DELETABLE, TRADE_LABEL={TradeStatus.PLACED: "лимитка ждёт", TradeStatus.FILLED: "на бирже",
                                           TradeStatus.EXPIRED: "лимитка снята", TradeStatus.CANCELLED: "снят / закрыт",
                                           TradeStatus.TIMED_OUT: "закрыт по сроку", TradeStatus.CLOSED: "закрыта"},
@@ -163,7 +175,7 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
                   and (e.trade.result is not None or e.trade.status is TradeStatus.TIMED_OUT)]
         return {"s": s, "signals": signals, "view": view, "last": scanner.last,
                 "journal": tf_stats(entries, {t: s.p(t).target_r for t in Timeframe}), "journal_rows": closed[:JOURNAL_ROWS],
-                "archived_count": store.count(ARCHIVED),
+                "archived_count": store.count(ARCHIVED), "new_count": store.count({SignalStatus.NEW}),
                 "trades": store.trades_for([x.id for x in signals if x.id is not None]),
                 "exchange": exchange_label(), "creds": holder.credentials if broker is None else None}
 
@@ -213,6 +225,11 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         if not authed(request):
             return RedirectResponse("/login", status_code=303)
         return templates.TemplateResponse(request, "index.html", page_context(request))
+
+    @app.get("/journal", response_class=HTMLResponse)
+    async def journal(request: Request):
+        guard(request)
+        return templates.TemplateResponse(request, "_journal.html", page_context(request))
 
     @app.get("/feed", response_class=HTMLResponse)
     async def feed(request: Request, view: str | None = None):

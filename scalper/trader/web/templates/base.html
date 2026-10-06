@@ -11,9 +11,9 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/icons/favicon-32.png">
   <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="/static/app.css">
-  <script src="/static/htmx-2.0.4.min.js" defer></script>
-  <script src="/static/localtime.js" defer></script>
+  <link rel="stylesheet" href="{{ asset('app.css') }}">
+  <script src="{{ asset('htmx-2.0.4.min.js') }}" defer></script>
+  <script src="{{ asset('localtime.js') }}" defer></script>
 </head>
 <body>
 {% block body %}{% endblock %}

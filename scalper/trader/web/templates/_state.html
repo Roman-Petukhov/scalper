@@ -1,0 +1,13 @@
+{# Состояние бота в шапке: видно с любого экрана, ведёт в настройки. oob — обновление вместе с htmx-ответом #}
+{% set auto = s.mode == Mode.AUTO %}
+{% set auto_tfs = s.auto_timeframes | map(attribute='value') | list %}
+<a id="bot-state" href="#settings" data-go="settings"
+   class="bot-state {{ 'is-live' if auto and exchange and auto_tfs else ('is-warn' if auto else 'is-manual') }}"
+   {% if oob %}hx-swap-oob="true"{% endif %}
+   title="Режим и биржа — в настройках">
+  <span class="pulse" aria-hidden="true"></span>
+  <span class="bs-mode">{{ 'Авто' if auto else 'Вручную' }}</span>
+  {% if auto %}<span class="bs-detail num">{{ auto_tfs | join(' · ') if auto_tfs else 'ТФ не выбраны' }}</span>{% endif %}
+  <span class="bs-ex">{{ exchange if exchange else 'биржа не подключена' }}</span>
+</a>
+{% if oob %}<span id="nav-new" class="nav-count num" hx-swap-oob="true"{% if not new_count %} hidden{% endif %}>{{ new_count }}</span>{% endif %}
