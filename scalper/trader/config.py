@@ -16,6 +16,8 @@ class AppConfig:
     telegram_chat_id: str | None
     scan_delay_s: float           # пауза после закрытия свечи: Binance дописывает свечу 1–5 с
     scheduler: bool
+    heartbeat_url: str | None = None   # необязательно: пинг после каждого удачного скана (healthchecks.io и т. п.)
+    backup_days: int = 14              # сколько дневных копий базы хранить в data/backups
 
     @staticmethod
     def from_env() -> AppConfig:
@@ -31,4 +33,6 @@ class AppConfig:
                          telegram_token=os.environ.get("TELEGRAM_TOKEN") or None,
                          telegram_chat_id=os.environ.get("TELEGRAM_CHAT_ID") or None,
                          scan_delay_s=float(os.environ.get("SCAN_DELAY_S", "20")),
-                         scheduler=os.environ.get("SCHEDULER", "1") == "1")
+                         scheduler=os.environ.get("SCHEDULER", "1") == "1",
+                         heartbeat_url=os.environ.get("HEARTBEAT_URL") or None,
+                         backup_days=int(os.environ.get("BACKUP_DAYS", "14")))

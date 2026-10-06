@@ -154,6 +154,49 @@ def test_scanner_respects_timeframe_chips_and_survives_errors(tmp_path, monkeypa
     assert not rep.signals
 
 
+def test_scanner_catches_up_missed_bars_while_entry_is_still_possible(tmp_path, monkeypatch):
+    import trader.application.services as svc_mod
+    st = SqliteStore(tmp_path / "t.db")
+    idx = pd.date_range(end=T0, periods=20, freq="4h", tz="UTC")              # последняя закрытая свеча — T0
+    bars = pd.DataFrame({"open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0, "volume": 1.0, "taker_buy_volume": 0.5},
+                        index=idx)
+    monkeypatch.setattr(svc_mod, "detect", lambda d, tf, sym, s: [replace(_signal(sym, tf), bar_time=d.index[-1].to_pydatetime())])
+
+    class _Charts:
+        def render(self, signal, b):
+            assert b.index[-1].to_pydatetime() == signal.bar_time              # график — по своей свече
+            return "x.png"
+
+    sc = Scanner(_Market({"AAA": bars}), st, st, _Charts(), _Notifier(), "https://panel")
+    rep = asyncio.run(sc.scan(Timeframe.H4, back=5))
+    # рыночный вход живёт 2 свечи после свечи пробоя: с T0-8h уже поздно, с T0-4h ещё можно
+    assert [x.bar_time for x in rep.signals] == [T0 - timedelta(hours=4), T0]
+    assert rep.signals[0].extra.get("caught_up") and not rep.signals[1].extra.get("caught_up")
+
+
+def test_scanner_alerts_on_failed_scan_once_and_pings_heartbeat_when_ok(tmp_path, monkeypatch):
+    import trader.application.services as svc_mod
+    st = SqliteStore(tmp_path / "t.db")
+    monkeypatch.setattr(svc_mod, "detect", lambda d, tf, sym, s: [])
+    texts, beats = [], []
+
+    class _Note(_Notifier):
+        async def text(self, message):
+            texts.append(message)
+
+    async def beat():
+        beats.append(1)
+
+    bars = pd.DataFrame({"close": [1.0]}, index=pd.date_range(end=T0, periods=1, freq="4h", tz="UTC"))
+    sc = Scanner(_Market({"BAD": bars, "AAA": bars}), st, st, None, _Note(), "https://panel", heartbeat=beat)
+    asyncio.run(sc.scan(Timeframe.H4))
+    asyncio.run(sc.scan(Timeframe.H4))
+    assert len(texts) == 1 and "1 из 2" in texts[0] and beats == []           # тревога не чаще раза в 3 часа
+    sc.market = _Market({"AAA": bars})
+    asyncio.run(sc.scan(Timeframe.H4))
+    assert beats == [1]
+
+
 def test_binance_closed_bars_drop_open_candle_and_merge_tail():
     now_ms = int(pd.Timestamp.now(tz="UTC").timestamp() * 1000)
     hour = 3_600_000
@@ -265,3 +308,12 @@ def test_15m_gets_top150_and_own_position_limit_once(tmp_path):
     st2 = SqliteStore(tmp_path / "t.db")
     st2.save(s.with_tf(Timeframe.M15, top_n=100))
     assert SqliteStore(tmp_path / "t.db").load().p(Timeframe.M15).top_n == 100   # правка трейдера остаётся
+
+
+def test_daily_backup_is_a_readable_copy_and_old_ones_are_pruned(tmp_path):
+    st = SqliteStore(tmp_path / "t.db")
+    st.add(_signal())
+    for d in ("2026-10-01", "2026-10-02", "2026-10-03"):
+        out = st.backup(tmp_path / "backups", d, keep=2)
+    assert sorted(p.name for p in (tmp_path / "backups").iterdir()) == ["trader-2026-10-02.db", "trader-2026-10-03.db"]
+    assert len(SqliteStore(out).recent()) == 1

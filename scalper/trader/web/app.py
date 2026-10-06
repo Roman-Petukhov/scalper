@@ -9,6 +9,7 @@ import re
 import time
 from collections.abc import Callable
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import Body, FastAPI, Form, HTTPException, Request
@@ -28,6 +29,7 @@ from ..domain.models import HTF_CONFIRM, EntryPolicy, Mode, SideFilter, SignalSt
 from ..infrastructure.binance_data import BinanceMarketData
 from ..infrastructure.bybit import BrokerHolder, BybitBroker, BybitCredentials
 from ..infrastructure.charts import MatplotlibCharts
+from ..infrastructure.heartbeat import HttpHeartbeat
 from ..infrastructure.sqlite_repo import SqliteStore
 from ..infrastructure.telegram import TelegramNotifier
 from ..infrastructure.webpush import MultiNotifier, WebPushNotifier
@@ -69,7 +71,8 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
     notify = MultiNotifier(push, telegram, notifier)
     holder = BrokerHolder(store)
     executor = Executor(broker or holder, store, store, store, notify)
-    scanner = Scanner(market, store, store, charts, notify, cfg.panel_url, executor=executor)
+    heartbeat = HttpHeartbeat(cfg.heartbeat_url) if cfg.heartbeat_url else None
+    scanner = Scanner(market, store, store, charts, notify, cfg.panel_url, executor=executor, heartbeat=heartbeat)
     settings_svc = SettingsService(store)
     decisions = SignalDecisions(store, store, executor)
 
@@ -78,15 +81,29 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         stop = asyncio.Event()
         async def tick() -> None:
             decisions.expire_stale()
+            day = datetime.now(timezone.utc).date().isoformat()
+            if store.kv_get("backup_day") != day:                     # копия базы раз в сутки
+                try:
+                    await asyncio.to_thread(store.backup, cfg.data_dir / "backups", day, cfg.backup_days)
+                    store.kv_set("backup_day", day)
+                except Exception:
+                    log.exception("копия базы")
             await executor.housekeep()
 
-        task = (asyncio.create_task(scheduler.run(scanner, cfg.scan_delay_s, stop, tick=tick))
-                if cfg.scheduler else None)
+        task = None
+        if cfg.scheduler:
+            task = asyncio.create_task(scheduler.run(scanner, cfg.scan_delay_s, stop, tick=tick, state=store))
+            try:
+                await notify.text("Бот запущен: пропущенные за перерыв свечи проверит сразу.")
+            except Exception:
+                log.exception("уведомление о запуске")
         yield
         stop.set()
         if task is not None:
             await task
         await holder.close()
+        if heartbeat is not None:
+            await heartbeat.close()
 
     app = FastAPI(title="Trendline Trader", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.add_middleware(SessionMiddleware, secret_key=cfg.session_secret, session_cookie="tt_session",

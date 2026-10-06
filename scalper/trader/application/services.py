@@ -3,18 +3,23 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-from datetime import timedelta
+import pandas as pd
 
 from ..domain.models import HTF_CONFIRM, Mode, Settings, Signal, SignalStatus, Timeframe
 from ..domain.strategy import detect, htf_breakouts, htf_confirmation
 from ..domain.execution import ExecutionRefused
-from .execution import Executor
+from .execution import Executor, _short
 from .ports import ChartRenderer, MarketData, Notifier, SettingsRepository, SignalRepository
 
 log = logging.getLogger(__name__)
+
+CATCHUP_BARS = 12                       # после перерыва проверяем до стольких прошлых свечей (окно ретеста 4h)
+ALERT_EVERY = timedelta(hours=3)        # тревога о сбое скана — не чаще раза в 3 часа на ТФ
+ERROR_SHARE = 0.2                       # ошибок больше 20% монет — скан считается сбойным
 
 
 @dataclass
@@ -30,35 +35,45 @@ class ScanReport:
 class Scanner:
     def __init__(self, market: MarketData, signals: SignalRepository, settings: SettingsRepository,
                  charts: ChartRenderer, notifier: Notifier | None, panel_url: str, concurrency: int = 8,
-                 executor: Executor | None = None) -> None:
+                 executor: Executor | None = None, heartbeat: Callable[[], Awaitable[None]] | None = None) -> None:
         self.market, self.signals, self.settings = market, signals, settings
-        self.executor = executor
+        self.executor, self.heartbeat = executor, heartbeat
         self.charts, self.notifier, self.panel_url = charts, notifier, panel_url
         self.sem = asyncio.Semaphore(concurrency)
         self.last: dict[Timeframe, ScanReport] = {}
+        self._alerted: dict[Timeframe, datetime] = {}
 
-    async def _one(self, symbol: str, tf: Timeframe, s: Settings) -> list[Signal]:
+    async def _one(self, symbol: str, tf: Timeframe, s: Settings, back: int = 0) -> list[Signal]:
+        """Сигналы на последней закрытой свече и на `back` свечах до неё (после перерыва); с прошлых свечей —
+        только те, по которым время на вход ещё не вышло."""
         async with self.sem:
             bars = await self.market.closed_bars(symbol, tf)
-        found = detect(bars, tf, symbol, s)
+        now = datetime.now(timezone.utc)
+        found: list[tuple[Signal, pd.DataFrame]] = []
+        for j in range(min(back, max(len(bars) - 1, 0)), -1, -1):
+            sub = bars.iloc[: len(bars) - j] if j else bars
+            for sig in detect(sub, tf, symbol, s):
+                if j and now >= sig.valid_until():
+                    continue
+                found.append((replace(sig, extra={**sig.extra, "caught_up": True}) if j else sig, sub))
         hours, htf = s.p(tf).htf_confirm_h, HTF_CONFIRM.get(tf)
         if found and hours and htf is not None:                     # только вслед за свежим пробоем старшего ТФ
             async with self.sem:
                 hbars = await self.market.closed_bars(symbol, htf)
             brk = htf_breakouts(hbars, htf)
             kept = []
-            for sig in found:
+            for sig, sub in found:
                 age = htf_confirmation(brk, sig.side, sig.bar_time + timedelta(minutes=tf.minutes), hours)
                 if age is not None:
-                    kept.append(replace(sig, extra={**sig.extra, "htf": htf.value, "htf_age_h": round(age, 1)}))
+                    kept.append((replace(sig, extra={**sig.extra, "htf": htf.value, "htf_age_h": round(age, 1)}), sub))
             found = kept
         new = []
-        for sig in found:
+        for sig, sub in found:
             saved = self.signals.add(sig)
             if saved is None:
                 continue
             try:
-                path = await asyncio.to_thread(self.charts.render, saved, bars)
+                path = await asyncio.to_thread(self.charts.render, saved, sub)
                 self.signals.set_chart(saved.id, path)
                 saved = replace(saved, chart_path=path)
             except Exception:
@@ -66,18 +81,24 @@ class Scanner:
             new.append(saved)
         return new
 
-    async def scan(self, tf: Timeframe) -> ScanReport:
-        """Один проход по рынку для таймфрейма. Сигналы появляются, только если ТФ включён в настройках."""
+    async def scan(self, tf: Timeframe, back: int = 0) -> ScanReport:
+        """Один проход по рынку для таймфрейма (back — сколько прошлых свечей проверить после перерыва). Сигналы
+        появляются, только если ТФ включён в настройках. Сбой — тревога в уведомления, иначе отметка heartbeat."""
         s = self.settings.load()
         started = datetime.now(timezone.utc)
         if tf not in s.timeframes:
             rep = ScanReport(tf, 0, [], 0, started, started)
             self.last[tf] = rep
             return rep
-        symbols = await self.market.universe(s.min_turnover_usd)
+        try:
+            symbols = await self.market.universe(s.min_turnover_usd)
+        except Exception as e:
+            log.exception("список монет %s", tf.value)
+            await self._alert(tf, f"не получил список монет с Binance ({_short(e)})")
+            raise
         if s.p(tf).top_n:
             symbols = symbols[: s.p(tf).top_n]                      # только самые ликвидные — как в бэктесте ТФ
-        res = await asyncio.gather(*(self._one(x, tf, s) for x in symbols), return_exceptions=True)
+        res = await asyncio.gather(*(self._one(x, tf, s, back) for x in symbols), return_exceptions=True)
         found, errors = [], 0
         for sym, r in zip(symbols, res):
             if isinstance(r, Exception):
@@ -96,13 +117,36 @@ class Scanner:
             found = [await self._auto(sig) for sig in found]
         rep = ScanReport(tf, len(symbols), found, errors, started, datetime.now(timezone.utc))
         self.last[tf] = rep
-        log.info("скан %s: монет %d, сигналов %d, ошибок %d", tf.value, len(symbols), len(found), errors)
+        log.info("скан %s: монет %d, сигналов %d, ошибок %d%s", tf.value, len(symbols), len(found), errors,
+                 f", проверено и {back} прошлых свечей" if back else "")
+        if not symbols:
+            await self._alert(tf, "ни одной монеты с нужным оборотом — проверь доступ к Binance")
+        elif errors > ERROR_SHARE * len(symbols):
+            await self._alert(tf, f"не загрузились свечи {errors} из {len(symbols)} монет")
+        elif self.heartbeat is not None:
+            try:
+                await self.heartbeat()
+            except Exception:
+                log.exception("heartbeat")
         return rep
+
+    async def _alert(self, tf: Timeframe, what: str) -> None:
+        """Тревога о сбое скана — в уведомления, не чаще ALERT_EVERY на таймфрейм."""
+        now = datetime.now(timezone.utc)
+        if self.notifier is None or now - self._alerted.get(tf, now - ALERT_EVERY) < ALERT_EVERY:
+            return
+        self._alerted[tf] = now
+        try:
+            await self.notifier.text(f"⚠️ Скан {tf.value}: {what}. Сигналы могут не приходить.")
+        except Exception:
+            log.exception("уведомление о сбое")
 
 
     async def _auto(self, sig: Signal) -> Signal:
         """Авто-режим: бот сам отправляет ордер; отказ по правилам риска — сигнал пропущен с причиной."""
         assert self.executor is not None and sig.id is not None
+        if datetime.now(timezone.utc) >= sig.valid_until():          # сигнал со свечи, пропущенной в перерыве
+            return self.signals.set_status(sig.id, SignalStatus.EXPIRED, "бот не вошёл: время на вход вышло") or sig
         try:
             await self.executor.execute(sig)
             msg = f"Бот вошёл: {sig.symbol} {sig.timeframe.value} {sig.side.label}"

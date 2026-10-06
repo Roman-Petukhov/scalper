@@ -309,6 +309,21 @@ class SqliteStore:
             self.db.execute("UPDATE trades SET status = ? WHERE id = ?", (status.value, trade_id))
             self.db.commit()
 
+    # ---------- резервные копии ----------
+    def backup(self, folder: Path, day: str, keep: int) -> Path:
+        """Копия базы за день (онлайн-копия SQLite, без остановки); старше keep последних — удаляются."""
+        folder.mkdir(parents=True, exist_ok=True)
+        out = folder / f"trader-{day}.db"
+        dst = sqlite3.connect(str(out))
+        try:
+            with self.lock:
+                self.db.backup(dst)
+        finally:
+            dst.close()
+        for old in sorted(folder.glob("trader-*.db"))[:-keep]:
+            old.unlink()
+        return out
+
     # ---------- ключ-значение: ключи биржи, капитал на начало дня ----------
     def kv_get(self, key: str) -> str | None:
         with self.lock:
