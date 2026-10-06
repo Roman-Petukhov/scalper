@@ -1,10 +1,10 @@
 {% if disabled %}
 <div class="scan-result warn"><b>{{ tf.value }}</b> выключен — включите его в «Какие сигналы присылать», и проверка заработает.</div>
 {% elif rep.symbols == 0 %}
-<div class="scan-result bad"><b>{{ tf.value }}</b> · {{ rep.finished.strftime('%H:%M') }} UTC · нет данных: биржа не ответила, попробуйте через минуту.</div>
+<div class="scan-result bad"><b>{{ tf.value }}</b> · {{ rep.finished | lt('hm') }} · нет данных: биржа не ответила, попробуйте через минуту.</div>
 {% else %}
 <div class="scan-result {{ 'good' if rep.signals else '' }}">
-  <b>{{ tf.value }}</b> · {{ rep.finished.strftime('%H:%M') }} UTC · проверено {{ rep.symbols }} монет ·
+  <b>{{ tf.value }}</b> · {{ rep.finished | lt('hm') }} · проверено {{ rep.symbols }} монет ·
   {% if rep.signals %}новых сигналов: {{ rep.signals | length }} — смотрите ленту ниже{% else %}пробоев на последней свече нет{% endif %}
   {% if rep.errors %}<span class="muted">· не загрузились {{ rep.errors }}</span>{% endif %}
 </div>

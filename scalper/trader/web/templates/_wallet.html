@@ -3,7 +3,7 @@
 <div class="card wallet">
   <div class="wallet-head">
     <h2>Кошелёк · {{ exchange }}</h2>
-    <span class="hint num" style="margin:0">{{ w.updated.strftime('%H:%M:%S') }} UTC</span>
+    <span class="hint num" style="margin:0">{{ w.updated | lt('hms') }}</span>
   </div>
   <div class="stats num">
     <div class="stat"><span>Капитал</span><b>{{ '{:,.2f}'.format(a.equity).replace(',', ' ') }}</b><small>USDT</small></div>
@@ -11,7 +11,7 @@
     <div class="stat {{ 'up' if a.upnl > 0 else ('down' if a.upnl < 0 else '') }}"><span>Открытые позиции</span>
       <b>{{ '%+.2f' | format(a.upnl) }}</b><small>нереализ. PnL</small></div>
     <div class="stat {{ 'up' if w.day_pnl > 0 else ('down' if w.day_pnl < 0 else '') }}"><span>Сегодня</span>
-      <b>{{ '%+.2f' | format(w.day_pnl) }}</b><small>{{ '%+.2f' | format(w.day_pnl_pct) }}% с 00:00 UTC</small></div>
+      <b>{{ '%+.2f' | format(w.day_pnl) }}</b><small>{{ '%+.2f' | format(w.day_pnl_pct) }}% с {{ w.updated.replace(hour=0, minute=0, second=0, microsecond=0) | lt('hm') }}</small></div>
   </div>
   {% if w.periods %}
   <div class="stats periods num" aria-label="Реализованный PnL за периоды">

@@ -352,3 +352,11 @@ def test_journal_card_shows_live_results_against_backtest(env):
     r = c.get("/")
     assert "Журнал: биржа против бэктеста" in r.text and "+2.90R" in r.text and "бэктест +0.45R" in r.text
     assert "после 20 сделок (сейчас 1)" in r.text and "цель" in r.text and "проск. +0.10R" in r.text
+
+
+def test_times_are_rendered_as_utc_for_the_browser_to_localize():
+    from datetime import datetime, timezone
+    from trader.web.app import local_time
+    out = str(local_time(datetime(2026, 10, 6, 0, 0, tzinfo=timezone.utc)))
+    assert out == '<time class="lt" datetime="2026-10-06T00:00:00+00:00" data-f="dmhm">06.10 00:00 UTC</time>'
+    assert ">06.10<" in str(local_time(datetime(2026, 10, 6, 21, 5), "dm"))      # без пояса — считается UTC

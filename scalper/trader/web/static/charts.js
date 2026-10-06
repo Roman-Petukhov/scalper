@@ -6,12 +6,30 @@
   const live = new Map();                       // элемент → состояние графика
   const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
+  // Время на оси и в перекрестье — в часовом поясе браузера (свечи приходят в секундах UTC)
+  const MONTHS = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+  const pad = (n) => String(n).padStart(2, "0");
+  const stamp = (sec) => {
+    const d = new Date(sec * 1000);
+    return `${pad(d.getDate())}.${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+  const tickLabel = (time, type) => {
+    if (typeof time !== "number") return String(time);
+    const d = new Date(time * 1000);
+    if (type === 0) return String(d.getFullYear());                 // TickMarkType.Year
+    if (type === 1) return MONTHS[d.getMonth()];                     // Month
+    if (type === 2) return String(d.getDate());                      // DayOfMonth
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}`;            // Time
+  };
+
   const theme = () => ({
     layout: { background: { color: css("--surface") }, textColor: css("--muted"), fontSize: 11,
               fontFamily: 'ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace' },
     grid: { vertLines: { color: css("--line") + "66" }, horzLines: { color: css("--line") + "66" } },
     rightPriceScale: { borderColor: css("--line") },
-    timeScale: { borderColor: css("--line"), timeVisible: true, secondsVisible: false, rightOffset: 4 },
+    timeScale: { borderColor: css("--line"), timeVisible: true, secondsVisible: false, rightOffset: 4,
+                 tickMarkFormatter: (time, type) => tickLabel(time, type) },
+    localization: { timeFormatter: (time) => typeof time === "number" ? stamp(time) : String(time) },
     crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
   });
 
@@ -92,8 +110,8 @@
   function paintTag(st, d) {
     const c = d.candles.at(-1);
     if (!c) return;
-    const t = new Date().toISOString().slice(11, 19);
-    st.tag.textContent = `● ${c.close.toFixed(st.digits)} · ${t} UTC`;
+    const now = new Date();
+    st.tag.textContent = `● ${c.close.toFixed(st.digits)} · ${LocalTime.format(now, "hms")} ${LocalTime.zone(now)}`;
     st.tag.classList.toggle("up", c.close >= c.open);
     st.tag.classList.toggle("stale", false);
   }

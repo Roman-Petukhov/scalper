@@ -8,7 +8,7 @@
     <span class="badge {{ 'long' if long else 'short' }}">{{ sig.side.label }}</span>
     <span class="badge">{{ STATUS_LABEL[sig.status] }}</span>
     {% if sig.at_level %}<span class="badge level" title="Пробой линии совпал с пробоем горизонтального уровня">+ уровень</span>{% endif %}
-    <span class="hint num row-time">{{ sig.bar_time.strftime('%d.%m %H:%M') }} UTC</span>
+    <span class="hint num row-time">{{ sig.bar_time | lt }}</span>
     <span class="row-open" aria-hidden="true">график ▾</span>
     <button type="button" class="row-del" title="Удалить сигнал" aria-label="Удалить сигнал {{ sig.symbol }}"
             hx-post="/signals/{{ sig.id }}/delete" hx-target="#signal-{{ sig.id }}" hx-swap="outerHTML"
@@ -32,7 +32,7 @@
       <span class="badge status-{{ sig.status.value }}">{{ STATUS_LABEL[sig.status] }}</span>
       {% if sig.at_level %}<span class="badge level" title="Пробой линии совпал с пробоем горизонтального уровня">+ уровень</span>{% endif %}
     </div>
-    <span class="hint" style="margin:0">Свеча пробоя {{ sig.bar_time.strftime('%d.%m %H:%M') }} UTC</span>
+    <span class="hint" style="margin:0">Свеча пробоя {{ sig.bar_time | lt }}</span>
     <dl class="plan num">
       <dt>Вход</dt><dd>{{ '%.6g' | format(sig.plan.entry) }} · {{ 'ретест' if sig.plan.entry_kind.value == 'retest' else 'рынок' }}</dd>
       <dt>Стоп</dt><dd>{{ '%.6g' | format(sig.plan.stop) }} · {{ '%.2f' | format(sig.plan.risk_pct_of_price) }}%</dd>
@@ -49,7 +49,7 @@
       <span class="badge status-taken">{{ TRADE_LABEL[t.status] }}</span>
       {{ 'демо' if t.network == 'demo' else 'реальный' }} · {{ 'лимит' if t.kind.value == 'retest' else 'рынок' }}
       {{ '%.6g' | format(t.qty) }} @ {{ '%.6g' | format(t.price) }}
-      {% if t.status.value == 'placed' and t.expires_at %}<span class="hint" style="margin:0">· до {{ t.expires_at.strftime('%d.%m %H:%M') }} UTC</span>{% endif %}
+      {% if t.status.value == 'placed' and t.expires_at %}<span class="hint" style="margin:0">· до {{ t.expires_at | lt }}</span>{% endif %}
     </div>
     {% endif %}
     {% if sig.status == SignalStatus.NEW and (s.mode == Mode.MANUAL or sig.timeframe not in s.auto_timeframes) %}

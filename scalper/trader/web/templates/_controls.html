@@ -178,7 +178,7 @@
   <div class="jr-rows num" role="table" aria-label="Последние закрытые сделки">
     {% for e in journal_rows %}{% set t = e.trade %}
     <div class="jr-row" role="row">
-      <span role="cell" class="hint" style="margin:0">{{ t.result.closed_at.strftime('%d.%m %H:%M') if t.result else t.created_at.strftime('%d.%m') }}</span>
+      <span role="cell" class="hint" style="margin:0">{{ t.result.closed_at | lt if t.result else t.created_at | lt('dm') }}</span>
       <span role="cell">{{ t.symbol }} {{ e.timeframe.value }} <span class="{{ 'jr-up' if t.side.value == 1 else 'jr-down' }}">{{ t.side.label }}</span>{% if e.at_level %} · ур.{% endif %}</span>
       <span role="cell" class="{{ 'jr-up' if (t.r_multiple or 0) > 0 else 'jr-down' }}">{{ '%+.2f' % t.r_multiple ~ 'R' if t.r_multiple is not none else '—' }}</span>
       <span role="cell" class="hint" style="margin:0">{{ t.exit_reason }}{% if t.slippage_r is not none and t.slippage_r|abs >= 0.05 %} · проск. {{ '%+.2f' % t.slippage_r }}R{% endif %}</span>
@@ -195,7 +195,7 @@
     <div class="row" style="justify-content:space-between">
       <span>{{ tf.value }}</span>
       <span class="num hint" style="margin:0">
-        {% if r %}{{ r.finished.strftime('%d.%m %H:%M') }} UTC · {{ r.symbols }} монет · {{ r.signals | length }} сигн.{% else %}ещё не было{% endif %}
+        {% if r %}{{ r.finished | lt }} · {{ r.symbols }} монет · {{ r.signals | length }} сигн.{% else %}ещё не было{% endif %}
       </span>
     </div>
   {% endfor %}

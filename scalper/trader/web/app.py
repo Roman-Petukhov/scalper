@@ -16,6 +16,7 @@ from fastapi import Body, FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from markupsafe import Markup
 from starlette.middleware.sessions import SessionMiddleware
 
 from .. import scheduler
@@ -54,6 +55,18 @@ def chart_name(path: str) -> str:
 
 
 templates.env.filters["chart_name"] = chart_name
+
+LT_FORMATS = {"dmhm": "%d.%m %H:%M", "dm": "%d.%m", "hm": "%H:%M", "hms": "%H:%M:%S"}
+
+
+def local_time(dt: datetime, f: str = "dmhm") -> Markup:
+    """Время для панели: UTC в разметке, браузер (static/localtime.js) переводит в свой часовой пояс."""
+    utc = (dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)).astimezone(timezone.utc)
+    text = utc.strftime(LT_FORMATS[f]) + ("" if f == "dm" else " UTC")
+    return Markup(f'<time class="lt" datetime="{utc.isoformat()}" data-f="{f}">{text}</time>')
+
+
+templates.env.filters["lt"] = local_time
 templates.env.globals.update(ARCHIVED=ARCHIVED, TRADE_LABEL={TradeStatus.PLACED: "лимитка ждёт", TradeStatus.FILLED: "на бирже",
                                           TradeStatus.EXPIRED: "лимитка снята", TradeStatus.CANCELLED: "снят / закрыт",
                                           TradeStatus.TIMED_OUT: "закрыт по сроку", TradeStatus.CLOSED: "закрыта"},
