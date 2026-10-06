@@ -54,6 +54,7 @@ HTF = {"15m": "1h", "1h": "4h", "2h": "1D", "4h": "1D", "6h": "1D", "12h": "1W",
 BAR_MIN = {"15m": 15, "1h": 60, "2h": 120, "4h": 240, "6h": 360, "12h": 720, "1d": 1440}
 HIGH_TFS = {"2h": "2h", "4h": "4h", "6h": "6h", "12h": "12h", "1d": "1D"}      # собираются из 1h-свечей
 RETEST_BARS = 12
+STOP_BUF = 0.1          # стоп за свингом с отступом столько ATR (как у бота)
 
 
 @njit(cache=True)
@@ -925,7 +926,7 @@ def coin_trades(root: Path, sym: str, tf: str, ctx: pd.DataFrame | None = None) 
             sw = sw_lo[e] if side > 0 else sw_hi[e]
             if sw < 0:
                 continue
-            stop = (lo[sw] - 0.1 * a[e]) if side > 0 else (hi[sw] + 0.1 * a[e])
+            stop = (lo[sw] - STOP_BUF * a[e]) if side > 0 else (hi[sw] + STOP_BUF * a[e])
             for entry_kind in ("market", "retest"):
                 if entry_kind == "market":
                     fill, px, fee = e, c[e], TAKER
