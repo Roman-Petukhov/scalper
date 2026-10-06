@@ -32,3 +32,10 @@ dsr_bailey https://www.davidhbailey.com/dhbpapers/deflated-sharpe.pdf
 pseudo_math https://www.davidhbailey.com/dhbpapers/pseudo-math.pdf
 vol_target_trendy https://cse.umn.edu/node/165016
 crypto_mom_ts_cs https://www.journals.vu.lt/BATP/en/article/view/44540
+bulk_trend_up https://www.thepatternsite.com/tptrends.html
+bulk_trend_down https://thepatternsite.com/trenddown.html
+bulk_throwpull https://thepatternsite.com/ThrowPull.html
+bulk_failure https://thepatternsite.com/FailureRates.html
+unger_autotl_crypto https://ungeracademy.com/?p=6580
+qs_trendline https://www.quantifiedstrategies.com/trendline-trading-strategy/
+chung_sr_levels https://arxiv.org/pdf/2101.07410
