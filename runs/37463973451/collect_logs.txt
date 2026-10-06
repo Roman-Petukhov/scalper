@@ -1,0 +1,40 @@
+----- prepo collect (часть 0/10) -----
+часть 0/10, набор 1h-qualified: монет 63
+----- regime collect (часть 0/10) -----
+  regime: монет 62, со сделками 62
+----- prepo collect (часть 1/10) -----
+часть 1/10, набор 1h-qualified: монет 66
+----- regime collect (часть 1/10) -----
+  regime: монет 64, со сделками 62
+----- prepo collect (часть 2/10) -----
+часть 2/10, набор 1h-qualified: монет 78
+----- regime collect (часть 2/10) -----
+  regime: монет 77, со сделками 74
+----- prepo collect (часть 3/10) -----
+часть 3/10, набор 1h-qualified: монет 73
+----- regime collect (часть 3/10) -----
+  regime: монет 73, со сделками 72
+----- prepo collect (часть 4/10) -----
+часть 4/10, набор 1h-qualified: монет 72
+----- regime collect (часть 4/10) -----
+  regime: монет 72, со сделками 72
+----- prepo collect (часть 5/10) -----
+часть 5/10, набор 1h-qualified: монет 83
+----- regime collect (часть 5/10) -----
+  regime: монет 83, со сделками 78
+----- prepo collect (часть 6/10) -----
+часть 6/10, набор 1h-qualified: монет 71
+----- regime collect (часть 6/10) -----
+  regime: монет 71, со сделками 70
+----- prepo collect (часть 7/10) -----
+часть 7/10, набор 1h-qualified: монет 61
+----- regime collect (часть 7/10) -----
+  regime: монет 60, со сделками 57
+----- prepo collect (часть 8/10) -----
+часть 8/10, набор 1h-qualified: монет 75
+----- regime collect (часть 8/10) -----
+  regime: монет 75, со сделками 75
+----- prepo collect (часть 9/10) -----
+часть 9/10, набор 1h-qualified: монет 83
+----- regime collect (часть 9/10) -----
+  regime: монет 83, со сделками 82
