@@ -982,6 +982,7 @@ def coin_trades(root: Path, sym: str, tf: str, ctx: pd.DataFrame | None = None) 
                     tg = {"R3_old": r3_old, "stop_in_fill": stop_in_fill}
                     if mode == "zz":                                     # другие цели — для отчёта по 1h / 15m
                         for nm, k1, k2, b_ in (("R15", 1.5, 1.5, False), ("R2", 2.0, 2.0, False),
+                                               ("R25", 2.5, 2.5, False), ("R4", 4.0, 4.0, False),
                                                ("R1_2be", 1.0, 2.0, True), ("R15_3be", 1.5, 3.0, True),
                                                ("R2_4be", 2.0, 4.0, True)):
                             tg[nm] = fix(two_targets(o, hi, lo, c, f, fill, side, px, stop, k1, k2, b_, HOLD[tf], fee)[0])
