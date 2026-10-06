@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"prepo tfup"}
+TASKS=${TASKS:-"prepl newlist"}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
 FILTER="Pandas4Warning\|pd.concat\|файлов$\|мес. свечей"
@@ -139,6 +139,10 @@ hedge15_collect() { python -m research.hedge15 collect --symbols "$(cat /tmp/sym
 hedge15_report() { python -m research.hedge15 report; }
 tfup_collect() { python -m research.tfup collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
 tfup_report() { python -m research.tfup report; }
+prepl_collect() { RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-all; }
+prepl_report() { :; }
+newlist_collect() { python -m research.newlist collect --symbols "$(cat /tmp/syms_1h-all.txt)"; }
+newlist_report() { python -m research.newlist report; }
 robust_collect() { python -m research.robust collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
 robust_report() { python -m research.robust report; }
 crowd_collect() { python -m research.crowd collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
