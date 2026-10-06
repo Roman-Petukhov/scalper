@@ -120,9 +120,11 @@ def day_loss_hit(equity: float, day_start_equity: float | None, daily_loss_pct: 
 
 
 def build_order(signal: Signal, settings: Settings, account: Account, instrument: Instrument, price: float,
-                day_start_equity: float | None, now: datetime, tf_open: int = 0, hedge_beta: float = 0.0) -> OrderRequest:
+                day_start_equity: float | None, now: datetime, tf_open: int = 0, hedge_beta: float = 0.0,
+                hedge_lev: int = 0) -> OrderRequest:
     """Ордер по сигналу или ExecutionRefused с понятной причиной. tf_open — сколько из занятых монет заняты
-    сделками того же таймфрейма; hedge_beta — к сделке добавится хедж BTC на бету × номинал, ему тоже нужна маржа."""
+    сделками того же таймфрейма; hedge_beta — к сделке добавится хедж BTC на бету × номинал, ему тоже нужна маржа
+    (по плечу хеджа hedge_lev; 0 — как у сделки)."""
     if signal.id is None:
         raise ExecutionRefused("сигнал не сохранён")
     sym, side, plan = signal.symbol, signal.side, signal.plan
@@ -167,8 +169,9 @@ def build_order(signal: Signal, settings: Settings, account: Account, instrument
                               TradePlan(plan.entry_kind, entry, stop, target, plan.valid_bars), lev)
         want_qty = sized.qty
         lev_capped, size_label = sized.risk_usd < account.equity * tp.risk_pct / 100 * 0.999, f"при риске {tp.risk_pct:g}%"
-    # запас 5% на комиссию и проскальзывание; хедж BTC займёт ещё hedge_beta × номинал / плечо
-    margin_cap = max(account.available, 0.0) * 0.95 * lev / (entry * (1 + max(hedge_beta, 0.0)))
+    # запас 5% на комиссию и проскальзывание; хедж BTC займёт ещё hedge_beta × номинал / плечо хеджа
+    hl = hedge_lev or lev
+    margin_cap = max(account.available, 0.0) * 0.95 / (entry * (1 / lev + max(hedge_beta, 0.0) / hl))
     qty = round_down(min(want_qty, margin_cap), instrument.qty_step)
     if margin_cap < instrument.min_qty:
         raise ExecutionRefused("не хватает свободной маржи на счёте")

@@ -194,7 +194,7 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
             stop = stops[len(stops) // 2] if len(stops) >= 5 else TYPICAL_STOP_PCT[tf]
             p = s.p(tf)
             by_margin = s.sizing is Sizing.MARGIN
-            exp = exposure(by_margin, p.risk_pct, p.margin_pct, stop, s.leverage, p.hedge_btc)
+            exp = exposure(by_margin, p.risk_pct, p.margin_pct, stop, s.leverage, p.hedge_btc, s.hedge_lev)
             out[tf] = {"exp": exp, "measured": len(stops) >= 5,
                        "notes": risk_notes(None if by_margin else p.risk_pct, s.daily_loss_pct, exp,
                                            BACKTEST_DD_R.get(tf))}
@@ -369,6 +369,7 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         err = None
         try:
             g = {"leverage": int(form["leverage"]), "max_positions": int(form["max_positions"]),
+                 "hedge_leverage": int(form.get("hedge_leverage", settings_svc.get().hedge_leverage)),
                  "daily_loss_pct": float(form["daily_loss_pct"])}
             per_tf = {}
             for tf in Timeframe:

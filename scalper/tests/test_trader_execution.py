@@ -91,6 +91,7 @@ class FakeBroker:
         self.placed, self.cancelled, self.open, self.closed = [], [], set(), []
         self.pnl = []                                          # (монета, ClosedPnl)
         self.adjusted = []                                     # (монета, объём со знаком) — ордера хеджа
+        self.adjust_lev = []                                   # плечо каждого ордера хеджа
 
     async def account(self):
         return self.acc
@@ -121,6 +122,7 @@ class FakeBroker:
 
     async def adjust(self, symbol, qty, leverage):
         self.adjusted.append((symbol, qty))
+        self.adjust_lev.append(leverage)
 
     async def closed_pnl(self, symbol, since, until):
         return [r for sym, r in self.pnl if sym == symbol and since <= r.closed_at < until]
@@ -693,3 +695,66 @@ def test_margin_sizing_like_bybit():
     assert "маржа $99.99 × 10" in o.describe() and o.cut == ""
     poor = build_order(_sig(), s, replace(ACC, available=50.0), INST, price=101.0, day_start_equity=1000.0, now=NOW)
     assert poor.cut.startswith("маржа $") and "не хватило свободной маржи" in poor.cut
+
+
+# ---------------- плечо хеджа BTC ----------------
+def test_hedge_leverage_setting_is_validated_and_defaults_to_trade_leverage():
+    assert Settings().hedge_lev == 5 and Settings(leverage=8).hedge_lev == 8      # 0 — как у сделок (поведение до настройки)
+    assert Settings(leverage=10, hedge_leverage=25).hedge_lev == 25
+    for bad in (-1, 51, 2.5):
+        with pytest.raises(ValueError, match="плечо хеджа"):
+            Settings(hedge_leverage=bad)
+
+
+def test_hedge_leverage_is_capped_by_btc_instrument():
+    from trader.domain.hedge import hedge_leverage
+    s = Settings(leverage=10, hedge_leverage=25)
+    assert hedge_leverage(s, replace(INST, max_leverage=100)) == 25
+    assert hedge_leverage(s, replace(INST, max_leverage=12)) == 12
+    assert hedge_leverage(Settings(leverage=7), replace(INST, max_leverage=100)) == 7
+
+
+def test_hedge_margin_reserve_follows_hedge_leverage():
+    from trader.domain.sizing import exposure
+    s = Settings().with_tf(Timeframe.H4, risk_pct=5.0)
+    poor = replace(ACC, available=100.0)
+    base = build_order(_sig(), s, poor, INST, price=101.0, day_start_equity=1000.0, now=NOW)
+    same = build_order(_sig(), s, poor, INST, price=101.0, day_start_equity=1000.0, now=NOW, hedge_beta=1.0)
+    wide = build_order(_sig(), s, poor, INST, price=101.0, day_start_equity=1000.0, now=NOW, hedge_beta=1.0,
+                       hedge_lev=25)
+    assert same.qty == pytest.approx(base.qty / 2, abs=0.02)                       # плечо хеджа = плечу сделки (5×)
+    assert wide.qty == pytest.approx(base.qty * (1 / 5) / (1 / 5 + 1 / 25), abs=0.03)   # маржа хеджа в 5 раз меньше
+    assert wide.qty > same.qty
+    e_same = exposure(False, 1.0, 10.0, 3.0, 10, hedge=True)
+    e_wide = exposure(False, 1.0, 10.0, 3.0, 10, hedge=True, hedge_leverage=25)
+    own = (1.0 / 3.0) / 10 * 100
+    assert e_same.margin_pct == pytest.approx(own * 2.3) and e_wide.margin_pct == pytest.approx(own + 1.3 * (1.0 / 3.0) / 25 * 100)
+    assert e_wide.fits > e_same.fits
+
+
+def test_hedge_order_uses_hedge_leverage(tmp_path):
+    def run(hedge_leverage):
+        b = FakeBroker()
+        st = SqliteStore(tmp_path / f"t{hedge_leverage}.db")
+        st.save(replace(Settings(hedge_leverage=hedge_leverage), leverage=10).with_tf(Timeframe.H4, hedge_btc=True))
+        ex = Executor(lambda: b, st, st, st, None, Clock(NOW), market=_hedge_market(1.5))
+        s = st.add(_signal())
+        tr = asyncio.run(ex.execute(st.get(s.id)))
+        b.px = 20000.0
+        b.acc = replace(ACC, positions=(Position("SOLUSDT", Side.LONG, tr.qty, 101, 101, 0),))
+        asyncio.run(ex.housekeep())
+        return b.adjust_lev, b.placed[0].leverage
+    assert run(0) == ([10], 10)                                   # не задано — плечо сделок
+    assert run(25) == ([25], 10)                                  # хедж 25×, сделка по-прежнему 10×
+
+
+def test_hedge_leverage_persists_and_old_settings_load_with_default(tmp_path):
+    import json
+    st = SqliteStore(tmp_path / "t.db")
+    st.save(Settings(hedge_leverage=25))
+    assert st.load().hedge_leverage == 25
+    payload = json.loads(st.db.execute("SELECT payload FROM settings WHERE id = 1").fetchone()["payload"])
+    payload.pop("hedge_leverage")                                 # настройки, сохранённые до появления поля
+    st.db.execute("UPDATE settings SET payload = ? WHERE id = 1", (json.dumps(payload),))
+    st.db.commit()
+    assert st.load().hedge_leverage == 0

@@ -423,3 +423,21 @@ def test_journal_export_for_review(env):
     assert gone["bars"] is None and "биржа молчит" in gone["bars_error"]      # одна монета не помешала выгрузке
     quick = c.get("/export/journal.json?bars=0").json()
     assert "bars" not in quick["signals"][0] and quick["bars_source"] is None
+
+
+def test_hedge_leverage_in_params_form(env):
+    from trader.infrastructure.sqlite_repo import SqliteStore
+    c, tmp = env
+    _login(c)
+    load = lambda: SqliteStore(tmp / "trader.db").load()                          # noqa: E731
+    assert 'name="hedge_leverage"' not in c.get("/").text                         # без хеджа поле не показываем
+    c.post("/settings/params", data=_params_form(**{"4h__hedge_btc": "1", "hedge_leverage": "25", "leverage": "10"}),
+           headers=HX)
+    saved = load()
+    assert saved.hedge_leverage == 25 and saved.leverage == 10 and saved.hedging
+    assert 'name="hedge_leverage"' in c.get("/").text
+    assert "плечо хеджа" in c.post("/settings/params", data=_params_form(**{"4h__hedge_btc": "1", "hedge_leverage": "60"}),
+                                   headers=HX).text
+    assert load().hedge_leverage == 25                                            # ошибка — ничего не сохранено
+    c.post("/settings/params", data=_params_form(**{"4h__hedge_btc": "1"}), headers=HX)   # форма без поля — значение цело
+    assert load().hedge_leverage == 25

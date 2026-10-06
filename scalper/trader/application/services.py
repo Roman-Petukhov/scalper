@@ -249,7 +249,7 @@ class SettingsService:
         self.repo.save(s)
         return s
 
-    GLOBAL_FIELDS = {"leverage", "max_positions", "daily_loss_pct"}
+    GLOBAL_FIELDS = {"leverage", "hedge_leverage", "max_positions", "daily_loss_pct"}
 
     def update(self, global_fields: dict, per_tf: dict[Timeframe, dict]) -> Settings:
         """Сохранить общие поля (плечо, позиции, дневной стоп) и правило каждого ТФ одним действием; диапазоны

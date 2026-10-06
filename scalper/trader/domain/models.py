@@ -7,6 +7,7 @@ from enum import Enum
 
 
 MAX_LEVERAGE = 10                       # верхняя граница плеча в панели
+MAX_HEDGE_LEVERAGE = 50                 # плечо позиции BTC-хеджа (BTCUSDT на Bybit допускает до 100×)
 MARKET_VALID_BARS = 2                   # вход по рынку возможен ещё 2 свечи после свечи пробоя
 
 
@@ -153,6 +154,7 @@ class Settings:
     auto_timeframes: frozenset[Timeframe] = frozenset({Timeframe.H4})   # по каким ТФ автобот входит сам
     tf_params: dict[Timeframe, TfParams] = field(default_factory=lambda: dict(DEFAULT_TF_PARAMS))
     leverage: int = 5                   # плечо на бирже и потолок номинала позиции (×капитал); риск задаёт стоп
+    hedge_leverage: int = 0             # плечо позиции BTC-хеджа; 0 — как у сделок. Меняет только маржу под хедж
     max_positions: int = 12             # 4h: обычно открыто 3, в пике истории 12; лимит 5 терял ~14% сигналов
     daily_loss_pct: float = 4.0         # дневной лимит убытка, % капитала: дальше авто не открывает
     min_turnover_usd: float = 20e6      # оборот монеты за 24 ч
@@ -161,6 +163,8 @@ class Settings:
     def __post_init__(self) -> None:
         if not (isinstance(self.leverage, int) and 1 <= self.leverage <= MAX_LEVERAGE):
             raise ValueError(f"плечо — целое от 1× до {MAX_LEVERAGE}×")
+        if not (isinstance(self.hedge_leverage, int) and 0 <= self.hedge_leverage <= MAX_HEDGE_LEVERAGE):
+            raise ValueError(f"плечо хеджа — целое от 1× до {MAX_HEDGE_LEVERAGE}× (0 — как у сделок)")
         if not 1 <= self.max_positions <= 50:
             raise ValueError("одновременных позиций — от 1 до 50")
         if not 0.5 <= self.daily_loss_pct <= 30.0:
@@ -168,6 +172,11 @@ class Settings:
         missing = set(Timeframe) - set(self.tf_params)
         if missing:
             object.__setattr__(self, "tf_params", {**{t: DEFAULT_TF_PARAMS[t] for t in missing}, **self.tf_params})
+
+    @property
+    def hedge_lev(self) -> int:
+        """Плечо позиции BTC-хеджа: своё или, если не задано, как у сделок."""
+        return self.hedge_leverage or self.leverage
 
     @property
     def hedging(self) -> bool:

@@ -11,9 +11,10 @@ import numpy as np
 import pandas as pd
 
 from .execution import HEDGE_FEE, Account, HedgeLeg, Instrument, round_down
-from .models import Side
+from .models import Settings, Side
 
-__all__ = ["HEDGE_FEE", "HEDGE_SYMBOL", "HedgeLeg", "beta", "held_qty", "rebalance", "target_qty", "without_hedge"]
+__all__ = ["HEDGE_FEE", "HEDGE_SYMBOL", "HedgeLeg", "beta", "held_qty", "hedge_leverage", "rebalance", "target_qty",
+           "without_hedge"]
 
 HEDGE_SYMBOL = "BTCUSDT"
 BETA_BARS = 360                 # 4h-свечей: 60 дней, как в бэктесте
@@ -52,6 +53,11 @@ def rebalance(target: float, current: float, inst: Instrument, btc_price: float)
     if size < inst.min_qty or size * btc_price < inst.min_notional or abs(delta) < REBALANCE_SHARE * abs(target):
         return 0.0
     return math.copysign(size, delta)
+
+
+def hedge_leverage(settings: Settings, inst: Instrument) -> int:
+    """Плечо, которое ставится на BTCUSDT: из настроек, но не выше потолка монеты на бирже."""
+    return int(max(1, min(settings.hedge_lev, inst.max_leverage)))
 
 
 def held_qty(acc: Account) -> float:

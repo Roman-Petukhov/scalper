@@ -40,14 +40,15 @@ class Exposure:
 
 
 def exposure(by_margin: bool, risk_pct: float, margin_pct: float, stop_pct: float, leverage: float,
-             hedge: bool) -> Exposure:
-    """by_margin — размер как на Bybit (маржа margin_pct% × плечо), иначе по риску risk_pct% до стопа."""
+             hedge: bool, hedge_leverage: float = 0.0) -> Exposure:
+    """by_margin — размер как на Bybit (маржа margin_pct% × плечо), иначе по риску risk_pct% до стопа.
+    hedge_leverage — плечо позиции BTC-хеджа (0 — как у сделок)."""
     if by_margin:
         notional_x = margin_pct / 100 * leverage
     else:
         notional_x = min(risk_pct / stop_pct, leverage) if stop_pct > 0 else 0.0
     own = notional_x / leverage * 100
-    margin = own * (1 + (TYPICAL_HEDGE_BETA if hedge else 0.0))
+    margin = own + (TYPICAL_HEDGE_BETA * notional_x / (hedge_leverage or leverage) * 100 if hedge else 0.0)
     fits = int(95 // margin) if margin > 0 else 0              # 5% капитала — запас на комиссии
     return Exposure(stop_pct, notional_x * stop_pct, notional_x, own, margin, fits)
 

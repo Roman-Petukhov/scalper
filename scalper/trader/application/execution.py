@@ -12,7 +12,7 @@ from datetime import timedelta
 
 from ..domain.execution import (Account, ExecutionRefused, HedgeLeg, Trade, TradeResult, TradeStatus, build_order,
                                 settle, target_reached)
-from ..domain.hedge import HEDGE_SYMBOL, beta, held_qty, rebalance, target_qty, without_hedge
+from ..domain.hedge import HEDGE_SYMBOL, beta, held_qty, hedge_leverage, rebalance, target_qty, without_hedge
 from ..domain.journal import Health, tf_stats
 from ..domain.models import Signal, SignalStatus, Timeframe
 from .pnl import PnlHistory, PnlPeriod
@@ -121,7 +121,8 @@ class Executor:
                     acc = without_hedge(acc)                         # позиция хеджа не занимает место сделки
                 leg = await self._hedge_leg(signal) if settings.p(signal.timeframe).hedge_btc else None
                 req = build_order(signal, settings, acc, inst, price, self._day_start(acc.equity),
-                                  self.clock(), self._tf_open(acc, signal.timeframe), leg.beta if leg else 0.0)
+                                  self.clock(), self._tf_open(acc, signal.timeframe), leg.beta if leg else 0.0,
+                                  settings.hedge_lev)
                 order_id = await b.place(req)
             except ExecutionRefused:
                 raise
@@ -253,7 +254,7 @@ class Executor:
         delta = rebalance(target, cur, inst, px)
         if delta:
             try:
-                await b.adjust(HEDGE_SYMBOL, delta, self.settings.load().leverage)
+                await b.adjust(HEDGE_SYMBOL, delta, hedge_leverage(self.settings.load(), inst))
             except Exception as e:                               # обычно не хватает маржи — сказать один раз
                 why = _short(e)
                 if self.trades.kv_get(HEDGE_ERR_KEY) != why:
