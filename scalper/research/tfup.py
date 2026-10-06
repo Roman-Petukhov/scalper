@@ -17,7 +17,7 @@ from .shard import all_parts, mine, part_path
 from .smc import _cell
 from .tline import _years, tf_frame
 
-TFS = ("4h", "12h", "1d")
+TFS = tuple(__import__("os").environ.get("TFUP_TFS", "4h,12h,1d").split(","))
 
 
 def collect(root: Path, syms: list[str]) -> None:
@@ -26,7 +26,7 @@ def collect(root: Path, syms: list[str]) -> None:
         for tf in TFS:
             try:
                 d = tf_frame(root, s, tf)
-                if d is None or len(d) < (500 if tf == "4h" else 150):
+                if d is None or len(d) < {"2h": 1000, "4h": 500}.get(tf, 150):
                     continue
                 noline.TF = tf
                 liq = adv30(root, s).reindex(d.index.floor("D")).to_numpy()
@@ -44,7 +44,7 @@ def collect(root: Path, syms: list[str]) -> None:
 
 def report() -> None:
     parts = all_parts("tfup")
-    print("\n===== TFUP: правило бота (линия, ретест, 3R) на 4h / 12h / 1d; ячейка — R на сделку (t по дням, "
+    print("\n===== TFUP: правило бота (линия, ретест, 3R) на старших ТФ; ячейка — R на сделку (t по дням, "
           "прибыльных, сделок в месяц) =====")
     if not parts:
         print("частей нет")
