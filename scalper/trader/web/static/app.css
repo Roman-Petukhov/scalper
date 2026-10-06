@@ -117,6 +117,9 @@ details.more p { margin: 8px 0 0; line-height: 1.55; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; }
 .card + .card { margin-top: 16px; }
 .journal { margin-top: 0; }
+.journal-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.journal-head h2 { margin-bottom: 12px; }
+a.btn { display: inline-block; text-decoration: none; }
 .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 12px; font-weight: 600; }
 .hint { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
 

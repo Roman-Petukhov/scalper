@@ -384,3 +384,29 @@ def test_sizing_switch_like_bybit(env):
     saved = SqliteStore(tmp / "trader.db").load()
     assert saved.sizing is Sizing.MARGIN and saved.p(Timeframe.H4).margin_pct == 15.0
     assert c.post("/settings/sizing/nope", headers=HX).status_code == 404
+
+
+def test_journal_export_for_review(env):
+    from trader.domain.execution import HedgeLeg, Trade, TradeResult, TradeStatus
+    from trader.infrastructure.sqlite_repo import SqliteStore
+    from test_trader_app import _signal
+    c, tmp = env
+    st = SqliteStore(tmp / "trader.db")
+    s = st.add(replace(_signal(), extra={"level": True, "break_atr": 0.3}))
+    skipped = st.add(_signal(symbol="ETHUSDT"))
+    st.set_status(skipped.id, SignalStatus.EXPIRED, "время на вход вышло")
+    t = st.add_trade(Trade(s.id, "SOLUSDT", s.side, s.plan.entry_kind, 2.0, 101.0, 98.0, 110.0, "o1", "demo",
+                           TradeStatus.FILLED, hedge=HedgeLeg(1.2, 60000, 61000)))
+    st.settle_trade(t.id, TradeStatus.CLOSED, TradeResult(101.3, 110.0, 17.4, s.bar_time))
+    assert c.get("/export/journal.json", follow_redirects=False).status_code in (302, 303, 401, 403)   # без входа — нельзя
+    _login(c)
+    assert "/export/journal.json" in c.get("/").text
+    r = c.get("/export/journal.json")
+    assert r.status_code == 200 and "attachment" in r.headers["content-disposition"]
+    d = r.json()
+    assert d["signals_n"] == 2 and d["trades_n"] == 1 and d["settings"]["tf_params"]["4h"]["risk_pct"] == 1.0
+    row = next(x for x in d["signals"] if x["symbol"] == "SOLUSDT")
+    assert row["x_level"] is True and row["trade"]["r"] == pytest.approx(2.9) and row["trade"]["exit_reason"] == "цель"
+    assert row["trade"]["hedge_beta"] == 1.2 and row["trade"]["hedge_r"] is not None
+    gone = next(x for x in d["signals"] if x["symbol"] == "ETHUSDT")
+    assert gone["status"] == "expired" and gone["note"] == "время на вход вышло" and gone["trade"] is None

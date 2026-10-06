@@ -42,7 +42,8 @@
       <dt>Агрессоры</dt><dd>{{ '%.0f' | format(sig.aggr * 100) }}%</dd>
       <dt>Свеча</dt><dd>{{ '%.1f' | format(sig.range_atr) }} ATR</dd>
       {% if sig.extra.break_atr is defined %}<dt>Закрытие за линией</dt><dd>{{ '%.2f' | format(sig.extra.break_atr) }} ATR</dd>
-      <dt>Закрытие у края</dt><dd>{{ '%.0f' | format(sig.extra.close_loc * 100) }}%</dd>{% endif %}
+{% endif %}
+      {% if sig.extra.close_loc is defined %}<dt>Закрытие у края</dt><dd>{{ '%.0f' | format(sig.extra.close_loc * 100) }}%</dd>{% endif %}
       {% if sig.extra.level_px is defined %}<dt>Уровень · {{ sig.extra.level_n }} разворот{{ 'а' if sig.extra.level_n < 5 else 'ов' }}</dt><dd>{{ '%.6g' | format(sig.extra.level_px) }}</dd>{% endif %}
       {% if sig.extra.htf_age_h is defined %}<dt>Пробой {{ sig.extra.htf }}</dt><dd>{{ '%.0f' | format(sig.extra.htf_age_h) }} ч назад, в ту же сторону</dd>{% endif %}
       {% if sig.plan.valid_bars %}<dt>Лимитка живёт</dt><dd>{{ sig.plan.valid_bars }} свечей</dd>{% endif %}

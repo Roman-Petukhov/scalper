@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import Body, FastAPI, Form, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
@@ -23,6 +23,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .. import scheduler
 from ..application.execution import Executor
+from ..application.export import journal_export
 from ..application.live_chart import chart_payload
 from ..application.ports import Broker, MarketData, Notifier
 from ..application.services import Scanner, SettingsService, SignalDecisions
@@ -252,6 +253,15 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         if not authed(request):
             return RedirectResponse("/login", status_code=303)
         return templates.TemplateResponse(request, "index.html", page_context(request))
+
+    @app.get("/export/journal.json")
+    async def export_journal(request: Request):
+        """Все сигналы и сделки одним файлом — для разбора: что сработало, что нет."""
+        guard(request)
+        sigs = store.recent(100_000)
+        now = datetime.now(timezone.utc)
+        data = journal_export(sigs, store.trades_for([x.id for x in sigs if x.id is not None]), settings_svc.get(), now)
+        return JSONResponse(data, headers={"Content-Disposition": f'attachment; filename="journal-{now:%Y%m%d-%H%M}.json"'})
 
     @app.get("/journal", response_class=HTMLResponse)
     async def journal(request: Request):
