@@ -1,0 +1,40 @@
+----- prepo collect (часть 0/10) -----
+часть 0/10, набор 1h-qualified: монет 63
+----- tfup collect (часть 0/10) -----
+  tfup: частей 69
+----- prepo collect (часть 1/10) -----
+часть 1/10, набор 1h-qualified: монет 66
+----- tfup collect (часть 1/10) -----
+  tfup: частей 52
+----- prepo collect (часть 2/10) -----
+часть 2/10, набор 1h-qualified: монет 78
+----- tfup collect (часть 2/10) -----
+  tfup: частей 76
+----- prepo collect (часть 3/10) -----
+часть 3/10, набор 1h-qualified: монет 73
+----- tfup collect (часть 3/10) -----
+  tfup: частей 81
+----- prepo collect (часть 4/10) -----
+часть 4/10, набор 1h-qualified: монет 72
+----- tfup collect (часть 4/10) -----
+  tfup: частей 70
+----- prepo collect (часть 5/10) -----
+часть 5/10, набор 1h-qualified: монет 83
+----- tfup collect (часть 5/10) -----
+  tfup: частей 75
+----- prepo collect (часть 6/10) -----
+часть 6/10, набор 1h-qualified: монет 71
+----- tfup collect (часть 6/10) -----
+  tfup: частей 68
+----- prepo collect (часть 7/10) -----
+часть 7/10, набор 1h-qualified: монет 61
+----- tfup collect (часть 7/10) -----
+  tfup: частей 66
+----- prepo collect (часть 8/10) -----
+часть 8/10, набор 1h-qualified: монет 75
+----- tfup collect (часть 8/10) -----
+  tfup: частей 73
+----- prepo collect (часть 9/10) -----
+часть 9/10, набор 1h-qualified: монет 83
+----- tfup collect (часть 9/10) -----
+  tfup: частей 94
