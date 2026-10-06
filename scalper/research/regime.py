@@ -86,11 +86,10 @@ def report() -> None:
     for p, (a, b) in PER_ALL.items():
         df.loc[(df.t >= a) & (df.t < b), "per"] = p
     g = _bot_base(df[df.adv.isna() | (df.adv >= ADV_MIN)]).sort_values("t")
-    close_t = g.t + pd.Timedelta(hours=4)
-    k = reg.index.searchsorted(close_t, side="right") - 1
-    ok = k >= 0
-    g["breadth"] = np.where(ok, reg.breadth.to_numpy()[np.clip(k, 0, None)], np.nan)
-    g["btc200"] = np.where(ok, reg.btc200.to_numpy()[np.clip(k, 0, None)], np.nan)
+    k = reg.index.searchsorted(g.t + pd.Timedelta(hours=4), side="right") - 1    # последняя закрытая дневка
+    for col in ("breadth", "btc200"):
+        vals = reg[col].to_numpy(dtype="float64")
+        g[col] = np.where(k >= 0, vals[np.clip(k, 0, None)], np.nan) if len(vals) else np.nan
     print("доля дней по широте: " + ", ".join(
         f"{nm} {v:.0%}" for nm, v in (("< 40%", (reg.breadth < 0.4).mean()), ("40–60%", reg.breadth.between(0.4, 0.6).mean()),
                                       ("> 60%", (reg.breadth > 0.6).mean()))))
