@@ -20,13 +20,17 @@ import numpy as np
 import pandas as pd
 from numba import njit
 
-from .broad import adv30
+from .broad import ADV_MIN, adv30
 from .noline import TF, coin_trades
 from .oos import PER_ALL
 from .shard import all_parts, mine, part_path
 from .smc import _cell
 from .targets4 import _dd, _months
-from .tline import HOLD, MAKER, TAKER, _years, tf_frame
+from .tline import HOLD, MAKER, PER, TAKER, _bot_base, _years, market_context, tf_frame
+from .tline import coin_trades as tline_trades
+from .wide15 import MAX_SLOPE_ATR
+
+TOP15 = 150
 
 VOL_REF = 20
 MODES = {"aggr2": 1, "aggr45": 2, "vol": 3, "div": 4}
@@ -81,8 +85,10 @@ def exhaust_exit(o, h, lo, c, fund, own, vol, fill, side, entry, stop, k, max_ho
     return np.nan, n - 1, 0
 
 
-def trade_exits(d: pd.DataFrame, x: pd.DataFrame) -> pd.DataFrame:
-    """Для сделок x (noline.coin_trades: fill_i, side, px, stop, t) — R контроля и всех вариантов."""
+def trade_exits(d: pd.DataFrame, x: pd.DataFrame, tf: str = TF, fee: float = MAKER, keep: tuple[str, ...] = ()
+                ) -> pd.DataFrame:
+    """Для сделок x (fill_i, side, px, stop, t, risk_pct, R3) — R контроля и всех вариантов; keep — колонки x,
+    которые нужно перенести (фильтры отчёта). fee — комиссия входа (ретест — maker, по рынку — taker)."""
     o, hi, lo, c = (d[k].to_numpy(dtype="float64") for k in ("open", "high", "low", "close"))
     f = d["funding"].to_numpy(dtype="float64") if "funding" in d else np.zeros(len(c))
     vol = d["volume"].to_numpy(dtype="float64")
@@ -95,13 +101,14 @@ def trade_exits(d: pd.DataFrame, x: pd.DataFrame) -> pd.DataFrame:
         vref = float(np.nanmean(vol[max(0, t - VOL_REF):t])) if t > 0 else np.nan
         risk = side * (px - stop)
         stop_in_fill = (side > 0 and lo[fill] <= stop) or (side < 0 and hi[fill] >= stop)
-        out = {"symbol": r.symbol, "t": r.t, "side": side, "risk_pct": r.risk_pct, "R3": r.R3}
-        loss = (side * (stop - px) - (MAKER + TAKER) * px) / risk
+        out = {"symbol": r.symbol, "t": r.t, "side": side, "risk_pct": r.risk_pct, "R3": r.R3,
+               **{k: getattr(r, k) for k in keep}}
+        loss = (side * (stop - px) - (fee + TAKER) * px) / risk
         for name, (code, gate) in {"ctl": (0, 0.0), **VARIANTS}.items():
-            if stop_in_fill:
+            if stop_in_fill and fee == MAKER:          # по рынку вход на закрытии fill — стоп в нём уже не сработает
                 out[f"R_{name}"], out[f"E_{name}"] = loss, 0
                 continue
-            rr, _, early = exhaust_exit(o, hi, lo, c, f, own, vol, fill, side, px, stop, 3.0, HOLD[TF], MAKER,
+            rr, _, early = exhaust_exit(o, hi, lo, c, f, own, vol, fill, side, px, stop, 3.0, HOLD[tf], fee,
                                         code, gate, vref)
             out[f"R_{name}"], out[f"E_{name}"] = rr, early
         rows.append(out)
@@ -129,6 +136,58 @@ def collect(root: Path, syms: list[str]) -> None:
         pd.concat(parts, ignore_index=True).to_parquet(part_path("exhaust"), index=False)
 
 
+KEEP15 = ("entry", "aggr", "with_trend", "close_loc", "slope_atr")
+
+
+def collect15(root: Path, syms: list[str]) -> None:
+    """Правило бота 15m (research/hedge15.py): шорт от пологой линии зигзага, по рынку, 3R, 200 свечей."""
+    ctx = market_context(root)
+    parts, advs = [], []
+    for s in mine(syms):
+        try:
+            a = adv30(root, s).dropna()
+            advs.append(pd.DataFrame({"symbol": s, "day": a.index, "adv": a.to_numpy()}))
+            x = tline_trades(root, s, "15m", ctx)
+            if not len(x):
+                continue
+            x = x[~x.confirm & (x.line == "zz") & (x.side == -1) & (x.entry == "market")].copy()
+            if not len(x):
+                continue
+            d = tf_frame(root, s, "15m")
+            x["fill_i"] = d.index.get_indexer(x["t"])
+            x = x[x.fill_i >= 0]
+            x["px"] = d["close"].to_numpy()[x.fill_i.to_numpy()]
+            x["stop"] = x.px * (1 - x.side * x.risk_pct)
+            if len(x):
+                parts.append(trade_exits(d, x, "15m", TAKER, KEEP15))
+        except Exception as e:
+            print(f"  exhaust15 {s}: пропуск ({e})", flush=True)
+    print(f"  exhaust15: монет со сделками {len(parts)}", flush=True)
+    if parts:
+        pd.concat(parts, ignore_index=True).to_parquet(part_path("exhaust15"), index=False)
+    if advs:
+        pd.concat(advs, ignore_index=True).to_parquet(part_path("exhaust15_adv"), index=False)
+
+
+def report15() -> None:
+    tp, ap = all_parts("exhaust15"), all_parts("exhaust15_adv")
+    print(f"\n===== EXHAUST15: правило бота 15m (пологие шорты, по рынку, топ-{TOP15}, 3R), ранний выход при затухании "
+          "потока; ячейка — R на сделку (t по дням, прибыльных, сделок в месяц) =====")
+    if not tp or not ap:
+        print("частей нет")
+        return
+    df = pd.concat([pd.read_parquet(p) for p in tp], ignore_index=True)
+    adv = pd.concat([pd.read_parquet(p) for p in ap], ignore_index=True)
+    df["t"] = pd.to_datetime(df["t"], utc=True)
+    adv["day"] = pd.to_datetime(adv["day"], utc=True)
+    adv["rank"] = adv.groupby("day")["adv"].rank(ascending=False, method="first")
+    df["day"] = df.t.dt.floor("D")
+    df = df.merge(adv[["symbol", "day", "adv", "rank"]], on=["symbol", "day"], how="left")
+    base = _bot_base(df.assign(confirm=False))
+    g = base[(base.adv >= ADV_MIN) & (base.slope_atr <= MAX_SLOPE_ATR) & (base["rank"] <= TOP15)].copy()
+    tables(g, PER)
+
+
 def report() -> None:
     parts = all_parts("exhaust")
     print("\n===== EXHAUST: правило бота 4h (линия, ретест, 3R), ранний выход при затухании потока; ячейка — R на "
@@ -138,8 +197,13 @@ def report() -> None:
         return
     df = pd.concat([pd.read_parquet(p) for p in parts], ignore_index=True)
     df["t"] = pd.to_datetime(df["t"], utc=True)
+    tables(df, PER_ALL)
+
+
+def tables(df: pd.DataFrame, periods: dict[str, tuple[str, str]]) -> None:
+    df = df.copy()
     df["per"] = ""
-    for p, (a, b) in PER_ALL.items():
+    for p, (a, b) in periods.items():
         df.loc[(df.t >= a) & (df.t < b), "per"] = p
     print(f"  сделок {len(df)}; контроль совпадает с ботом: "
           f"{np.isclose(df.R_ctl, df.R3, equal_nan=True).mean():.1%}")
@@ -152,7 +216,7 @@ def report() -> None:
     rows = []
     for v, nm in cols:
         row = {"выход": nm}
-        for p, (a, b) in PER_ALL.items():
+        for p, (a, b) in periods.items():
             z = df[df.per == p]
             m = _months(z, f"R_{v}", a, b)
             row[p] = f"{m.mean():+.2f} / {_dd(z, f'R_{v}'):.1f} / {(m < 0).mean():.0%}" if len(z) else "—"
@@ -176,11 +240,10 @@ if __name__ == "__main__":
     warnings.filterwarnings("ignore")
     pd.set_option("display.width", 400)
     ap = argparse.ArgumentParser()
-    ap.add_argument("mode", choices=["collect", "report"])
+    ap.add_argument("mode", choices=["collect", "report", "collect15", "report15"])
     ap.add_argument("--root", default="~/bn")
     ap.add_argument("--symbols", default="")
     a = ap.parse_args()
-    if a.mode == "collect":
-        collect(Path(a.root).expanduser(), [x for x in a.symbols.split(",") if x])
-    else:
-        report()
+    syms = [x for x in a.symbols.split(",") if x]
+    {"collect": lambda: collect(Path(a.root).expanduser(), syms), "report": report,
+     "collect15": lambda: collect15(Path(a.root).expanduser(), syms), "report15": report15}[a.mode]()

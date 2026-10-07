@@ -59,3 +59,20 @@ def test_volume_fade():
     b = bars([100, 103, 104, 105, 140], [0.6] * 5, [3, 3, 0.4, 0.4, 3])
     r, j, early = run(b, 3, vref=2.0)
     assert (j, early) == (3, 1)
+
+
+def test_trade_exits_market_entry_keeps_columns_and_matches_control():
+    import pandas as pd
+
+    from research.exhaust import VARIANTS, trade_exits
+
+    idx = pd.date_range("2024-01-01", periods=30, freq="15min", tz="UTC")
+    c = np.r_[np.full(25, 100.0), [98, 97, 99, 96, 80]]
+    d = pd.DataFrame({"open": np.r_[c[0], c[:-1]], "high": c + 0.5, "low": c - 0.5, "close": c, "funding": 0.0,
+                      "volume": 1.0, "taker_buy_volume": 0.3}, index=idx)
+    x = pd.DataFrame({"symbol": ["X"], "t": [idx[24]], "side": [-1], "fill_i": [24], "px": [100.0], "stop": [105.0],
+                      "risk_pct": [0.05], "R3": [np.nan], "aggr": [0.6]})
+    out = trade_exits(d, x, "15m", TAKER, ("aggr",))
+    assert out.aggr.iloc[0] == 0.6
+    assert out.R_ctl.iloc[0] == pytest.approx((15 - (TAKER + MAKER) * 100) / 5)       # тейк 3R = 85
+    assert set(f"R_{v}" for v in VARIANTS) <= set(out.columns)
