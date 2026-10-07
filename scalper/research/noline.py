@@ -100,7 +100,7 @@ def coin_trades(d: pd.DataFrame, liq: np.ndarray, sym: str) -> pd.DataFrame:
             else:
                 r3, ex = two_targets(o, hi, lo, c, f, fill, side, px, stop, 3.0, 3.0, False, HOLD[TF], fee)
             rows.append({"symbol": sym, "trig": name, "t": d.index[t], "side": side, "entry": entry, "R3": r3,
-                         "risk_pct": risk / px, "fill_i": int(fill), "exit_i": int(ex)})
+                         "risk_pct": risk / px, "fill_i": int(fill), "exit_i": int(ex), "px": px, "stop": stop})
     return pd.DataFrame(rows)
 
 
