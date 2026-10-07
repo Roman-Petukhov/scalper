@@ -207,7 +207,7 @@ def tables(df: pd.DataFrame, periods: dict[str, tuple[str, str]]) -> None:
         df.loc[(df.t >= a) & (df.t < b), "per"] = p
     print(f"  сделок {len(df)}; контроль совпадает с ботом: "
           f"{np.isclose(df.R_ctl, df.R3, equal_nan=True).mean():.1%}")
-    cols = [("ctl", "контроль: только стоп / 3R / 60 свечей")] + [
+    cols = [("ctl", "контроль: только стоп / 3R / срок сделки")] + [
         (v, f"{NAMES[v.rsplit('_', 1)[0]]}, плюс {'> 0' if v.endswith('p0') else '>= 1R'}") for v in VARIANTS]
     rows = [{"выход": nm, **{p: _cell(df.assign(R=df[f"R_{v}"])[df.per == p]) for p in PER_ALL}} for v, nm in cols]
     print("\n  --- R на сделку ---")
