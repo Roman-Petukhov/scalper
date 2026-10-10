@@ -341,9 +341,10 @@ dl.plan dd .sub { color: var(--muted); font-size: 12px; margin-left: 4px; white-
 .btn.small { padding: 6px 12px; font-size: 13px; }
 
 /* Живой график */
-.live-chart { position: relative; height: 360px; border-radius: var(--radius-sm); border: 1px solid var(--line); overflow: hidden; background: var(--surface); }
+/* на компьютере — по высоте окна: 1440×900 → ~560px; на телефоне ниже — 300px */
+.live-chart { position: relative; height: clamp(400px, 62vh, 720px); border-radius: var(--radius-sm); border: 1px solid var(--line); overflow: hidden; background: var(--surface); }
 .live-chart > img { border: 0; border-radius: 0; height: 100%; object-fit: contain; }
-.live-chart .empty { padding: 140px 16px; }
+.live-chart .empty { height: 100%; display: grid; place-items: center; padding: 16px; }
 .lc-box { position: absolute; inset: 0; }
 .lc-tag { position: absolute; top: 8px; left: 10px; z-index: 3; pointer-events: none; font-size: 11px; color: var(--muted);
   background: color-mix(in srgb, var(--surface) 82%, transparent); padding: 2px 8px; border-radius: 999px; }
