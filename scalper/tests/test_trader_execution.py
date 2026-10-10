@@ -868,3 +868,29 @@ def test_hedge_error_notified_once_despite_changing_exchange_time(tmp_path):
     warn = [t for t in said if "не подогнан" in t]
     assert b.n == 3 and len(warn) == 1
     assert "Bybit 110007: ab not enough for new order — не хватает свободной маржи" in warn[0] and "time" not in warn[0]
+
+
+def test_bybit_switches_symbol_to_one_way_on_position_mode_error():
+    class _Fx(FakeCcxt):
+        hedged, switch_ok = True, True
+
+        async def create_order(self, sym, typ, side, qty, price, params):
+            if self.hedged:
+                raise ccxt.BadRequest('bybit {"retCode":10001,"retMsg":"position idx not match position mode",'
+                                      '"result":{},"retExtInfo":{},"time":1760000000000}')
+            return await super().create_order(sym, typ, side, qty, price, params)
+
+        async def set_position_mode(self, hedged, symbol):
+            self.calls.append(("mode", hedged, symbol))
+            if not self.switch_ok:
+                raise ccxt.BadRequest('bybit {"retCode":110025,"retMsg":"Position mode is not modified"}')
+            self.hedged = hedged
+
+    fx = _Fx()
+    br = BybitBroker(CREDS, exchange=fx)
+    asyncio.run(br.adjust("SOLUSDT", -0.5, 10))
+    assert ("mode", False, "SOL/USDT:USDT") in fx.calls and fx.calls[-1][:4] == ("order", "SOL/USDT:USDT", "market", "sell")
+    fx2 = _Fx()
+    fx2.switch_ok = False
+    with pytest.raises(ValueError, match="режиме хеджирования"):
+        asyncio.run(BybitBroker(CREDS, exchange=fx2).adjust("SOLUSDT", 0.5, 10))

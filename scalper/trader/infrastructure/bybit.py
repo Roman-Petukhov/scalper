@@ -201,6 +201,22 @@ class BybitBroker:
             if "110043" not in str(e) and "not modified" not in str(e).lower():
                 raise
 
+    async def _create(self, sym: str, *args: Any) -> dict:
+        """create_order; если монета на Bybit в режиме хеджирования (две позиции), переключить её в режим одной позиции
+        (бот работает в нём) и повторить. Bybit разрешает это, только пока по монете нет позиции и ордеров."""
+        try:
+            return await self.ex.create_order(sym, *args)
+        except ccxt.ExchangeError as e:
+            if "position idx not match position mode" not in str(e):
+                raise
+        log.warning("%s в режиме хеджирования на Bybit — переключаю в режим одной позиции", sym)
+        try:
+            await self.ex.set_position_mode(False, sym)
+        except ccxt.ExchangeError as e:
+            raise ValueError(f"{sym.replace('/USDT:USDT', 'USDT')} на Bybit в режиме хеджирования, переключить не вышло (есть позиция или ордера). "
+                             f"Bybit → режим позиции → One-Way") from e
+        return await self.ex.create_order(sym, *args)
+
     async def place(self, order: OrderRequest) -> str:
         m = await self._market(order.symbol)
         if m is None:
@@ -211,9 +227,9 @@ class BybitBroker:
         params = {"stopLoss": {"triggerPrice": order.stop}, "takeProfit": {"triggerPrice": order.target},
                   "positionIdx": 0, "clientOrderId": order.client_id}
         if order.kind is EntryKind.RETEST:
-            res = await self.ex.create_order(sym, "limit", side, order.qty, order.price, {**params, "timeInForce": "GTC"})
+            res = await self._create(sym, "limit", side, order.qty, order.price, {**params, "timeInForce": "GTC"})
         else:
-            res = await self.ex.create_order(sym, "market", side, order.qty, None, params)
+            res = await self._create(sym, "market", side, order.qty, None, params)
         return str(res.get("id") or res.get("clientOrderId") or order.client_id)
 
     async def open_order_ids(self) -> set[str]:
@@ -231,8 +247,7 @@ class BybitBroker:
         if m is None:
             raise ValueError(f"{symbol} не торгуется на Bybit")
         await self._set_leverage(leverage, m["symbol"])
-        await self.ex.create_order(m["symbol"], "market", "buy" if qty > 0 else "sell", abs(qty), None,
-                                   {"positionIdx": 0})
+        await self._create(m["symbol"], "market", "buy" if qty > 0 else "sell", abs(qty), None, {"positionIdx": 0})
 
     async def close_position(self, symbol: str) -> None:
         m = await self._market(symbol)
