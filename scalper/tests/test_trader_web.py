@@ -478,3 +478,17 @@ def test_exchange_aliases_checked_by_price(tmp_path):
         assert load_aliases(st) == {"PUMPUSDT": "PUMPFUNUSDT"}
         r = c.post("/exchange/alias/delete", data={"binance": "PUMPUSDT"}, headers=HX)
         assert load_aliases(st) == {} and r.status_code == 200
+
+
+def test_hybrid_default_fits_input_step(env):
+    """Браузер не отправит форму, если значение не ложится на шаг поля (min + k·step): 2.15 должно проходить."""
+    import re
+    from trader.domain.models import DEFAULT_TF_PARAMS
+    c, _ = env
+    _login(c)
+    html = c.get("/").text
+    m = re.search(r'name="4h__hybrid_range_atr" type="number" step="([\d.]+)" min="([\d.]+)"', html)
+    step, lo = float(m.group(1)), float(m.group(2))
+    k = (DEFAULT_TF_PARAMS[Timeframe.H4].hybrid_range_atr - lo) / step
+    assert abs(k - round(k)) < 1e-9
+    assert "Гибрид: по рынку, если свеча пробоя" in html and "Закрытие в своей половине свечи" in html
