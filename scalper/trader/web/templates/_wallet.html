@@ -24,6 +24,7 @@
   <p class="hint">За периоды — закрытые сделки на Bybit с комиссиями, все монеты; % — к капиталу на начало периода.</p>
   {% endif %}
   {% if a.positions %}
+  <div class="scroll-list pos-scroll" tabindex="0" role="region" aria-label="Открытые позиции">
   <table class="positions num">
     <thead><tr><th>Монета</th><th>Сторона</th><th>Объём</th><th>Вход</th><th>Цена</th><th>Стоп</th><th>Цель</th><th>PnL</th></tr></thead>
     <tbody>
@@ -41,6 +42,7 @@
     {% endfor %}
     </tbody>
   </table>
+  </div>
   {% else %}<p class="hint">Открытых позиций нет{% if a.pending_symbols %} · лимитки ждут ретеста: {{ a.pending_symbols | sort | join(', ') }}{% endif %}.</p>{% endif %}
 </div>
 {% elif error %}

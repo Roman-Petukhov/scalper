@@ -27,7 +27,7 @@
   {% endfor %}
   </div>
   {% if journal_rows %}
-  <div class="jr-rows num" role="table" aria-label="Последние закрытые сделки">
+  <div class="jr-rows scroll-list num" role="table" tabindex="0" aria-label="Последние закрытые сделки">
     {% for e in journal_rows %}{% set t = e.trade %}
     <div class="jr-row" role="row">
       <span role="cell" class="hint" style="margin:0">{{ t.result.closed_at | lt if t.result else t.created_at | lt('dm') }}</span>

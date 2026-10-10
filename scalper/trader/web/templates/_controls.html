@@ -54,7 +54,8 @@
         бот её пропускает. Добавьте пару — сохранится, только если цены на биржах расходятся не больше 2%.
         Пары вида 1000SHIBUSDT → SHIB1000USDT бот находит сам.</p>
       {% if aliases %}
-      <table class="positions num" style="margin-bottom:10px">
+      <div class="scroll-list" tabindex="0" role="region" aria-label="Пары монет" style="margin-bottom:10px">
+      <table class="positions num">
         <thead><tr><th>Binance</th><th>Bybit</th><th></th></tr></thead>
         <tbody>
         {% for src, dst in aliases.items() %}
@@ -64,6 +65,7 @@
         {% endfor %}
         </tbody>
       </table>
+      </div>
       {% endif %}
       <form hx-post="/exchange/alias" hx-target="#controls" hx-disabled-elt="find button[type=submit]">
         <div class="alias-pair">
