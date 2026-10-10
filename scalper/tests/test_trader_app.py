@@ -289,10 +289,11 @@ def test_chart_and_caption(tmp_path):
 def test_entry_policy_persists(tmp_path):
     from trader.domain.models import EntryPolicy
     st = SqliteStore(tmp_path / "t.db")
-    assert st.load().p(Timeframe.H4).entry_policy is EntryPolicy.RETEST
-    SettingsService(st).update({}, {Timeframe.M15: {"entry_policy": EntryPolicy.HYBRID}})
+    h4 = st.load().p(Timeframe.H4)                       # 4h по умолчанию — гибрид 2.15 ATR (лучшее по бэктесту)
+    assert h4.entry_policy is EntryPolicy.HYBRID and h4.hybrid_range_atr == 2.15
+    SettingsService(st).update({}, {Timeframe.M15: {"entry_policy": EntryPolicy.RETEST}})
     s = SqliteStore(tmp_path / "t.db").load()
-    assert s.p(Timeframe.M15).entry_policy is EntryPolicy.HYBRID and s.p(Timeframe.H4).entry_policy is EntryPolicy.RETEST
+    assert s.p(Timeframe.M15).entry_policy is EntryPolicy.RETEST and s.p(Timeframe.H4).entry_policy is EntryPolicy.HYBRID
 
 
 def test_png_chart_log_scale(tmp_path):
@@ -323,10 +324,10 @@ def test_reset_defaults_keeps_mode(tmp_path):
     st = SqliteStore(tmp_path / "t.db")
     svc = SettingsService(st)
     st.save(replace(Settings(), mode=Mode.AUTO, leverage=8, timeframes=frozenset(Timeframe)).with_tf(
-        Timeframe.H4, risk_pct=0.5, entry_policy=EntryPolicy.HYBRID, min_close_loc=0.0, min_aggr=0.6))
+        Timeframe.H4, risk_pct=0.5, entry_policy=EntryPolicy.MARKET, hybrid_range_atr=1.0, min_close_loc=0.0, min_aggr=0.6))
     s = svc.reset_defaults()
     h4 = s.p(Timeframe.H4)
-    assert s.timeframes == frozenset(Timeframe) and h4.entry_policy is EntryPolicy.RETEST
+    assert s.timeframes == frozenset(Timeframe) and h4.entry_policy is EntryPolicy.HYBRID and h4.hybrid_range_atr == 2.15
     assert h4.min_close_loc == 0.5 and h4.min_aggr == 0.55 and h4.target_r == 3.0
     assert (s.mode, h4.risk_pct, s.leverage) == (Mode.AUTO, 1.0, 5)
 

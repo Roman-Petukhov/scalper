@@ -2,8 +2,8 @@
 линия по закрытиям через значимые вершины (зигзаг 3 ATR), пробой — первое закрытие за линией; доля агрессоров
 в сторону пробоя >= порога; пробой по тренду старшего ТФ (close последней закрытой свечи старшего ТФ выше /
 ниже EMA50); стоп — за последним свингом (фрактал 5 по теням) ∓ 0.1 ATR, 0.3–4 ATR от цены; цель — target_r·R.
-Вход — по настройке: лимитка на линии (ретест, по умолчанию), по рынку на закрытии свечи пробоя или гибрид
-(свеча пробоя короче hybrid_range_atr ATR — по рынку, длиннее — ретест).
+Вход — по настройке: лимитка на линии (ретест), по рынку на закрытии свечи пробоя или гибрид (свеча пробоя от
+hybrid_range_atr ATR — по рынку: после длинной свечи цена часто не возвращается к линии; короче — ретест).
 
 Построение линий берётся из research.tline (один источник правды с бэктестом); линии — в обычной шкале (лог-вариант — LOG_LINES).
 Пометка extra["level"]: закрытие пробоя прошло и горизонтальный уровень (2+ разворота закрытий в 0.5 ATR за 300 свечей) —
@@ -81,7 +81,7 @@ def detect(d: pd.DataFrame, tf: Timeframe, symbol: str, settings: Settings) -> l
         stop = lo[sw] - 0.1 * atr[last] if side is Side.LONG else hi[sw] + 0.1 * atr[last]
         range_atr = (hi[last] - lo[last]) / atr[last]
         market = (tp.entry_policy is EntryPolicy.MARKET
-                  or (tp.entry_policy is EntryPolicy.HYBRID and range_atr < tp.hybrid_range_atr))
+                  or (tp.entry_policy is EntryPolicy.HYBRID and range_atr >= tp.hybrid_range_atr))
         if market:
             kind, entry = EntryKind.MARKET, c[last]
         else:

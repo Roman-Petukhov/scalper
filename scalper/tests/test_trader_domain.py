@@ -71,17 +71,27 @@ def test_detect_matches_research_rule_on_the_last_closed_bar(seed, stop_atr, mon
         assert len(found) >= 2                              # сверка идёт на настоящих сигналах
 
 
-def test_long_breakout_candle_switches_to_retest_on_the_line():
-    d = _frame()
-    trend = htf_trend(d, "4h")
-    buy = (d.taker_buy_volume / d.volume).to_numpy()
-    t, sd, line = next((r["t"], r["side"], r["line_t"]) for r in zz_lines(d, log=strategy.LOG_LINES) if r["t"] >= 400 and trend[r["t"]] == r["side"]
-                       and (buy[r["t"]] if r["side"] > 0 else 1 - buy[r["t"]]) >= 0.55)
-    sig = [x for x in detect(d.iloc[: t + 1], Timeframe.H4, "X", Settings().with_tf(Timeframe.H4, entry_policy=EntryPolicy.HYBRID, hybrid_range_atr=0.5, min_close_loc=0.0))
-           if int(x.side) == sd]
-    if sig:                                               # стоп от линии может выйти за 0.3–4 ATR
-        assert sig[0].plan.entry_kind is EntryKind.RETEST and sig[0].plan.entry == pytest.approx(line)
-        assert sig[0].plan.valid_bars == 12
+def test_hybrid_long_breakout_candle_goes_market_short_one_waits_for_retest(monkeypatch):
+    import trader.domain.strategy as st
+    monkeypatch.setattr(st, "STOP_ATR", (0.0, 1e9))          # стоп не отсеивает: проверяем только выбор входа
+
+    def plans(d, t, threshold):
+        s = Settings().with_tf(Timeframe.H4, entry_policy=EntryPolicy.HYBRID, hybrid_range_atr=threshold, min_close_loc=0.0)
+        return {int(x.side): x.plan for x in detect(d.iloc[: t + 1], Timeframe.H4, "X", s)}
+
+    checked = {EntryKind.MARKET: 0, EntryKind.RETEST: 0}
+    for seed in (5, 11):
+        d = _frame(seed=seed)
+        lines = {(r["t"], r["side"]): r["line_t"] for r in zz_lines(d, log=strategy.LOG_LINES) if r["t"] >= 400}
+        for t in sorted({t for t, _ in lines}):
+            long_, short = plans(d, t, 0.5), plans(d, t, 10.0)   # свеча длиннее порога / короче порога
+            for sd, p in long_.items():
+                assert p.entry_kind is EntryKind.MARKET and p.entry == pytest.approx(d.close.iloc[t])
+                checked[p.entry_kind] += 1
+            for sd, p in short.items():
+                assert p.entry_kind is EntryKind.RETEST and p.entry == pytest.approx(lines[(t, sd)]) and p.valid_bars == 12
+                checked[p.entry_kind] += 1
+    assert min(checked.values()) >= 1
 
 
 def test_settings_validation_and_toggle():

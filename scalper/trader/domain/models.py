@@ -41,11 +41,12 @@ class EntryKind(str, Enum):
 
 
 class EntryPolicy(str, Enum):
-    """Как входить по сигналу. По бэктесту 4h (docs/research_report.md) ретест лучше на HOLDOUT и в 2026;
-    гибрид по длине свечи не лучше входа по рынку."""
+    """Как входить по сигналу. По бэктесту 4h (research/entrycandle.py, docs/knowledge.md) ретест лучше входа по рынку
+    на HOLDOUT и в 2026, а после длинной свечи пробоя ретест исполняется лишь в половине случаев — там рынок лучше во всех
+    периодах. Гибрид совмещает: длинная свеча — по рынку, остальные — ретест (+0.02…+0.05R на сигнал к ретесту)."""
     RETEST = "retest"
     MARKET = "market"
-    HYBRID = "hybrid"          # свеча пробоя длиннее hybrid_range_atr — ретест, иначе по рынку
+    HYBRID = "hybrid"          # свеча пробоя не короче hybrid_range_atr — по рынку, иначе ретест
 
 
 class Sizing(str, Enum):
@@ -81,7 +82,7 @@ class TfParams:
     target_r: float = 3.0
     min_close_loc: float = 0.0          # закрытие у края свечи в сторону пробоя: 0 — фильтра нет, 1 — у самого края
     min_break_atr: float = 0.0          # закрытие за линией не ближе, чем столько ATR
-    hybrid_range_atr: float = 2.5       # гибрид: свеча пробоя длиннее (в ATR) — ретест, короче — по рынку
+    hybrid_range_atr: float = 2.15      # гибрид: свеча пробоя от стольких ATR — по рынку, короче — ретест (q80 по IS)
     retest_bars: int = 12               # сколько свечей ждём ретест
     htf_confirm_h: int = 0              # только если старший ТФ (HTF_CONFIRM) пробил линию в ту же сторону не раньше
                                         # стольких часов назад (по закрытию его свечи); 0 — без этого условия
@@ -124,13 +125,14 @@ class TfParams:
             raise ValueError("хедж BTC — да или нет")
 
 
-# Лучшее по бэктесту (docs/research_report.md): 4h — основная стратегия (ретест, закрытие в верхней половине свечи);
+# Лучшее по бэктесту (docs/research_report.md, docs/knowledge.md): 4h — основная стратегия (гибрид: ретест, а после
+# свечи пробоя от 2.15 ATR — по рынку; закрытие в верхней половине свечи);
 # 15m: обычный пробой в ноль (и после свежего пробоя 4h тоже), шорт от пологой линии — тонкий плюс: порог наклона
 # 0.025 ATR/свечу — нижняя треть по IS (2022–2024.06), вход по рынку. На 725 монетах с местом в рейтинге оборота на день
 # сигнала (research/wide15.py) топ-150 лучше топ-70 (HO +0.08R против +0.02R на сделку), но сигналов ~100 в месяц и
 # держатся до 2 суток — свой лимит 3 позиции, чтобы 15m не занимал места 4h. Риск 1% / 0.25%.
 DEFAULT_TF_PARAMS: dict[Timeframe, TfParams] = {
-    Timeframe.H4: TfParams(risk_pct=1.0, min_close_loc=0.5),
+    Timeframe.H4: TfParams(risk_pct=1.0, min_close_loc=0.5, entry_policy=EntryPolicy.HYBRID),
     Timeframe.M15: TfParams(risk_pct=0.25, min_close_loc=0.5, entry_policy=EntryPolicy.MARKET, sides=SideFilter.SHORT,
                             max_slope_atr=0.025, top_n=150, max_hold_bars=200, max_positions=3),
 }
