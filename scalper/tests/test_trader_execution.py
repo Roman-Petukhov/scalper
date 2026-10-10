@@ -668,6 +668,20 @@ def test_health_check_flags_a_strategy_that_stopped_working():
     assert h.level is Health.STOP and "выключить авто" in h.text and h.drawdown_r > h.drawdown_limit_r
 
 
+def test_health_check_catches_a_strategy_that_died_after_a_good_run(monkeypatch):
+    import trader.domain.journal as jr
+    rng = np.random.default_rng(3)
+    good = list(np.where(rng.random(300) < 0.40, 3.0, -1.0))              # около +0.6R — лучше бэктеста
+    dead = list(np.where(rng.random(jr.HEALTH_WINDOW) < 0.18, 3.0, -1.0))  # последние 100: −0.2R
+    rs = good + dead
+    h = jr.health(rs, 0.45, 3.0)
+    assert h.level is jr.Health.STOP and h.window == jr.HEALTH_WINDOW and h.trades == 400
+    assert f"последние {jr.HEALTH_WINDOW} сделок" in h.text
+    assert jr.health(good, 0.45, 3.0).level is jr.Health.OK
+    monkeypatch.setattr(jr, "HEALTH_WINDOW", 10 ** 9)                    # по всей истории — ещё норма
+    assert jr.health(rs, 0.45, 3.0).level is jr.Health.OK
+
+
 # ---------------- хедж BTC ----------------
 def _hedge_market(k=1.5):
     """4h-свечи монеты с бетой k к BTC (плюс шум) и самого BTC."""

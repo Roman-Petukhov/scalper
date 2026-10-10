@@ -1,7 +1,7 @@
 """Журнал сделок: итоги на бирже против бэктеста по каждому таймфрейму. Чистая логика без хранилищ."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 
 import numpy as np
@@ -19,8 +19,11 @@ MIN_TRADES = 30             # раньше сравнивать с бэктес�
 # остаётся 50–57%). Сделка моделируется как стоп (−1R) или цель (+target R) с такой вероятностью, чтобы среднее было
 # этой половиной; по 4000 таким последовательностям той же длины видно, насколько плохими бывают среднее и просадка
 # просто от невезения. Хуже, чем в 90% случаев — «присмотреться», хуже, чем в 97.5% — «остановить».
+# Проверка идёт и по всей истории, и по последним HEALTH_WINDOW сделкам: если стратегия умрёт после долгой удачной
+# серии, старые плюсы в общем среднем годами закрывали бы новые минусы. Итог — худший из двух.
 EXPECT_SHARE = 0.5
 HEALTH_MIN_TRADES = 20
+HEALTH_WINDOW = 100
 HEALTH_SIMS = 4000
 WATCH_Q, STOP_Q = 0.90, 0.975
 
@@ -41,13 +44,15 @@ class HealthCheck:
     worst_mean_r: float | None  # граница «присмотреться» для среднего
     drawdown_r: float | None    # текущая худшая просадка, R
     drawdown_limit_r: float | None   # граница «присмотреться» для просадки
+    window: int | None = None   # вывод по последним N сделкам (None — по всей истории)
 
     @property
     def text(self) -> str:
         if self.level is Health.EARLY:
             return f"Оценка — после {HEALTH_MIN_TRADES} сделок (сейчас {self.trades})."
-        base = (f"Ожидание на реале {self.expected_r:+.2f}R (половина бэктеста). Обычное невезение: среднее не ниже "
-                f"{self.worst_mean_r:+.2f}R, просадка не глубже {self.drawdown_limit_r:.1f}R.")
+        scope = f"За последние {self.window} сделок в среднем {self.live_r:+.2f}R. " if self.window else ""
+        base = (f"{scope}Ожидание на реале {self.expected_r:+.2f}R (половина бэктеста). Обычное невезение: среднее "
+                f"не ниже {self.worst_mean_r:+.2f}R, просадка не глубже {self.drawdown_limit_r:.1f}R.")
         return {Health.OK: "В пределах нормы. ", Health.WATCH: "Хуже, чем в 90% случаев — присмотреться. ",
                 Health.STOP: "Хуже, чем в 97.5% случаев: похоже, стратегия не работает — стоит выключить авто. "}[
             self.level] + base
@@ -59,12 +64,9 @@ def _max_dd(eq: np.ndarray) -> np.ndarray:
     return (np.maximum.accumulate(z, axis=1) - z).max(axis=1)
 
 
-def health(rs: list[float], backtest_r: float, target_r: float) -> HealthCheck:
-    """rs — итоги закрытых сделок в R по порядку закрытия."""
+def _check(rs: list[float], mu: float, target_r: float) -> tuple[float, HealthCheck]:
+    """Доля случайных последовательностей той же длины, которые лучше живой, и сама проверка (уровень — OK)."""
     n = len(rs)
-    mu = EXPECT_SHARE * backtest_r
-    if n < HEALTH_MIN_TRADES:
-        return HealthCheck(Health.EARLY, n, mu, float(np.mean(rs)) if rs else None, None, None, None)
     p = min(max((mu + 1.0) / (target_r + 1.0), 0.0), 1.0)       # доля целей при стопе −1R и цели +target R
     rng = np.random.default_rng(n)
     sims = np.where(rng.random((HEALTH_SIMS, n)) < p, target_r, -1.0)
@@ -72,9 +74,23 @@ def health(rs: list[float], backtest_r: float, target_r: float) -> HealthCheck:
     live = np.asarray(rs, dtype="float64")
     live_mean, live_dd = float(live.mean()), float(_max_dd(np.cumsum(live)[None, :])[0])
     worst_share = max(float((means > live_mean).mean()), float((dds < live_dd).mean()))   # хуже скольких случаев
-    level = Health.STOP if worst_share >= STOP_Q else Health.WATCH if worst_share >= WATCH_Q else Health.OK
-    return HealthCheck(level, n, mu, live_mean, float(np.quantile(means, 1 - WATCH_Q)), live_dd,
-                       float(np.quantile(dds, WATCH_Q)))
+    return worst_share, HealthCheck(Health.OK, n, mu, live_mean, float(np.quantile(means, 1 - WATCH_Q)), live_dd,
+                                    float(np.quantile(dds, WATCH_Q)))
+
+
+def health(rs: list[float], backtest_r: float, target_r: float) -> HealthCheck:
+    """rs — итоги закрытых сделок в R по порядку закрытия."""
+    n = len(rs)
+    mu = EXPECT_SHARE * backtest_r
+    if n < HEALTH_MIN_TRADES:
+        return HealthCheck(Health.EARLY, n, mu, float(np.mean(rs)) if rs else None, None, None, None)
+    share, hc = _check(rs, mu, target_r)
+    if n > HEALTH_WINDOW:
+        w_share, w_hc = _check(rs[-HEALTH_WINDOW:], mu, target_r)
+        if w_share > share:
+            share, hc = w_share, replace(w_hc, trades=n, window=HEALTH_WINDOW)
+    level = Health.STOP if share >= STOP_Q else Health.WATCH if share >= WATCH_Q else Health.OK
+    return replace(hc, level=level)
 
 
 @dataclass(frozen=True)

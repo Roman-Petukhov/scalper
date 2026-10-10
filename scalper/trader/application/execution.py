@@ -343,7 +343,7 @@ class Executor:
         self.trades.kv_set(key, st.health.level.value)
         if st.health.level in (Health.WATCH, Health.STOP) and prev != st.health.level.value:
             icon = "🛑" if st.health.level is Health.STOP else "⚠️"
-            await self._say(f"{icon} {tf.value}: {st.closed} сделок, в среднем {st.health.live_r:+.2f}R. {st.health.text}")
+            await self._say(f"{icon} {tf.value}: {st.closed} сделок, в среднем {st.avg_r:+.2f}R. {st.health.text}")
 
     async def _say(self, text: str) -> None:
         if self.notifier is not None:
