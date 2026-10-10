@@ -1,0 +1,24 @@
+{# Открытые позиции: в кошельке («Счёт») и над лентой («Сигналы») — одна разметка #}
+{% macro positions(w, extra="") %}{% set a = w.account %}
+  {% if a.positions %}
+  <div class="scroll-list pos-scroll{{ extra }}" tabindex="0" role="region" aria-label="Открытые позиции">
+  <table class="positions num">
+    <thead><tr><th>Монета</th><th>Сторона</th><th>Объём</th><th>Вход</th><th>Цена</th><th>Стоп</th><th>Цель</th><th>PnL</th></tr></thead>
+    <tbody>
+    {% for p in a.positions %}
+      <tr>
+        <td>{{ p.symbol }}{% if p.symbol == w.hedge_symbol %} <span class="badge" title="Позиция ведётся хеджем BTC: против открытых сделок на бету монет">хедж</span>{% endif %}</td>
+        <td class="{{ 'long' if p.side.value > 0 else 'short' }}">{{ p.side.label }}</td>
+        <td>{{ '%.6g' | format(p.qty) }}</td>
+        <td>{{ '%.6g' | format(p.entry) }}</td>
+        <td>{{ '%.6g' | format(p.mark) }}</td>
+        <td>{{ '%.6g' | format(p.stop) if p.stop else '—' }}</td>
+        <td>{{ '%.6g' | format(p.target) if p.target else '—' }}</td>
+        <td class="{{ 'up' if p.upnl > 0 else ('down' if p.upnl < 0 else '') }}">{{ '%+.2f' | format(p.upnl) }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}<p class="hint">Открытых позиций нет{% if a.pending_symbols %} · лимитки ждут ретеста: {{ a.pending_symbols | sort | join(', ') }}{% endif %}.</p>{% endif %}
+{% endmacro %}

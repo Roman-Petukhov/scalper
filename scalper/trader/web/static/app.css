@@ -312,6 +312,19 @@ dl.plan dd .sub { color: var(--muted); font-size: 12px; margin-left: 4px; white-
 .scroll-list .positions thead th { position: sticky; top: 0; z-index: 2; background: var(--surface); }
 .pos-scroll { margin-top: 14px; }
 .jr-rows.scroll-list { --list-h: 560px; padding-right: 6px; }
+/* Открытые позиции над лентой сигналов: сворачиваются; без биржи блока нет */
+.sig-pos { margin: 0 0 14px; padding: 12px 18px; }
+.sig-pos:has(#sig-pos-body:empty) { display: none; }
+.sig-pos > summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; cursor: pointer; list-style: none; }
+.sig-pos > summary::-webkit-details-marker { display: none; }
+.sig-pos > summary::after { content: "▾"; margin-left: auto; color: var(--muted); transition: transform .2s var(--ease); }
+.sig-pos:not([open]) > summary::after { transform: rotate(-90deg); }
+.sig-pos > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
+.sig-pos-title { white-space: nowrap; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+.sig-pos-sum { display: inline-flex; gap: 10px; font-size: 14px; white-space: nowrap; }
+.sig-pos .pos-scroll { margin-top: 10px; }
+.sig-pos-list { --list-h: 300px; }
+.sig-pos .hint { margin: 8px 0 0; }
 .positions th { text-align: right; color: var(--muted); font-weight: 500; padding: 6px 8px; border-bottom: 1px solid var(--line); font-family: system-ui, sans-serif; }
 .positions td { text-align: right; padding: 7px 8px; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
 .positions th:first-child, .positions td:first-child { text-align: left; }
@@ -381,6 +394,8 @@ dl.plan dd .sub { color: var(--muted); font-size: 12px; margin-left: 4px; white-
   .scan-now { width: 100%; justify-content: space-between; }
   .scan-btn { padding: 8px 18px; }
   .stats { grid-template-columns: 1fr 1fr; }
+  .sig-pos { padding: 12px 14px; }
+  .sig-pos-list { --list-h: 230px; }
   .live-chart { height: 300px; }
   .positions { white-space: nowrap; }
   /* монета остаётся видна, когда таблицу листают вбок */

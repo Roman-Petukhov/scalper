@@ -244,6 +244,8 @@ def test_exchange_wallet_take_and_keys(tmp_path):
         _login(c)
         w = c.get("/wallet").text
         assert "Кошелёк · Bybit демо" in w and "1 000.00" in w and "+4.20" in w and "ETHUSDT" in w and "2550" in w
+        assert 'id="sig-pos-body" hx-swap-oob="innerHTML"' in w and w.count("ETHUSDT") == 2   # и над лентой сигналов
+        assert 'id="sig-pos-sum"' in c.get("/").text
         st = SqliteStore(tmp_path / "trader.db")
         s = st.add(_signal())
         b.acc = Account(1000.0, 900.0, 0.0)
@@ -259,6 +261,7 @@ def test_wallet_hidden_without_exchange(env):
     _login(c)
     r = c.get("/wallet")
     assert r.status_code == 200 and "Bybit не подключён" in r.text
+    assert '<div id="sig-pos-body" hx-swap-oob="innerHTML"></div>' in r.text     # без биржи блок над лентой пуст
     assert "API Key" in c.get("/").text
     r = c.post("/exchange/keys", data={"api_key": "short", "secret": "x", "network": "demo"}, headers=HX)
     assert "неполными" in r.text

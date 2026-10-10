@@ -40,6 +40,10 @@
       </div>
     </div>
     <div id="scan-status" class="scan-status" aria-live="polite"></div>
+    <details class="card sig-pos" open>
+      <summary><span class="sig-pos-title">Открытые позиции</span><span id="sig-pos-sum" class="sig-pos-sum"></span></summary>
+      <div id="sig-pos-body"></div>
+    </details>
     <div id="feed" hx-get="/feed" hx-trigger="every 300s, feed-refresh from:body" hx-swap="innerHTML">
       {% include "_feed.html" %}
     </div>
