@@ -13,7 +13,8 @@ from trader.domain.execution import (Account, ClosedPnl, ExecutionRefused, Instr
                                      build_order,
                                      round_down, round_price)
 from trader.domain.models import EntryKind, Mode, Settings, Side, SignalStatus, Timeframe, TradePlan
-from trader.infrastructure.bybit import BrokerHolder, BybitBroker, BybitCredentials, binance_aliases
+from trader.infrastructure.bybit import (BrokerHolder, BybitBroker, BybitCredentials, binance_aliases, load_aliases,
+                                         parse_symbol, save_aliases)
 from trader.infrastructure.sqlite_repo import SqliteStore
 
 from test_trader_app import T0, _Market, _signal
@@ -350,6 +351,37 @@ def test_bybit_adapter_reloads_markets_for_new_listing():
     now[0] = 16 * 60.0
     assert asyncio.run(br.instrument("NEWUSDT")) is not None and fx.loads == [False, True]
     assert asyncio.run(br.instrument("SOLUSDT")) is not None and len(fx.loads) == 2    # известные — из кэша
+
+
+def test_bybit_adapter_uses_manual_aliases():
+    class _Fx(FakeCcxt):
+        async def load_markets(self, reload=False):
+            m = await super().load_markets()
+            return m | {"PUMPFUN/USDT:USDT": {**m["SOL/USDT:USDT"], "id": "PUMPFUNUSDT", "symbol": "PUMPFUN/USDT:USDT"}}
+
+        async def fetch_positions(self, symbols, params):
+            return [{"contracts": 5.0, "side": "short", "entryPrice": 0.004, "markPrice": 0.004,
+                     "unrealizedPnl": 0, "info": {"symbol": "PUMPFUNUSDT"}}]
+
+    manual = {}
+    br = BybitBroker(CREDS, exchange=_Fx(), manual=lambda: manual)
+    assert asyncio.run(br.instrument("PUMPUSDT")) is None
+    manual["PUMPUSDT"] = "PUMPFUNUSDT"                     # добавили в панели — работает без перезапуска
+    assert asyncio.run(br.instrument("PUMPUSDT")) is not None
+    assert [p.symbol for p in asyncio.run(br.account()).positions] == ["PUMPUSDT"]
+
+
+def test_alias_storage_and_symbol_parsing(tmp_path):
+    st = SqliteStore(tmp_path / "a.db")
+    assert load_aliases(st) == {}
+    save_aliases(st, {"PUMPUSDT": "PUMPFUNUSDT"})
+    assert load_aliases(st) == {"PUMPUSDT": "PUMPFUNUSDT"}
+    st.kv_set("bybit_aliases", "not json")
+    assert load_aliases(st) == {}
+    assert parse_symbol(" pumpusdt ") == "PUMPUSDT"
+    for bad in ("PUMP", "PUMP-USDT", "", "USDT"):
+        with pytest.raises(ValueError):
+            parse_symbol(bad)
 
 
 def test_credentials_and_holder(tmp_path):

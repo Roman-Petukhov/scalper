@@ -48,6 +48,37 @@
     <button type="button" class="btn ghost" hx-post="/exchange/forget" hx-target="#controls"
             hx-confirm="Отключить Bybit? Открытые позиции и ордера на бирже останутся.">Отключить</button>
     {% endif %}
+    <details class="aliases"{% if alias_error or alias_saved %} open{% endif %} style="margin-top:14px">
+      <summary>Монеты с другим именем на Bybit{% if aliases %} · {{ aliases | length }}{% endif %}</summary>
+      <p class="hint" style="margin:8px 0">Сигнал приходит с Binance. Если Bybit называет монету иначе (PUMPUSDT → PUMPFUNUSDT),
+        бот её пропускает. Добавьте пару — сохранится, только если цены на биржах расходятся не больше 2%.
+        Пары вида 1000SHIBUSDT → SHIB1000USDT бот находит сам.</p>
+      {% if aliases %}
+      <table class="positions num" style="margin-bottom:10px">
+        <thead><tr><th>Binance</th><th>Bybit</th><th></th></tr></thead>
+        <tbody>
+        {% for src, dst in aliases.items() %}
+          <tr><td>{{ src }}</td><td>{{ dst }}</td>
+            <td><button type="button" class="btn ghost" hx-post="/exchange/alias/delete" hx-target="#controls"
+                        hx-vals='{"binance": "{{ src }}"}' aria-label="Удалить {{ src }}">Удалить</button></td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+      <form hx-post="/exchange/alias" hx-target="#controls" hx-disabled-elt="find button[type=submit]">
+        <div class="alias-pair">
+          <div class="field"><label for="alias_binance">Binance</label>
+            <input id="alias_binance" name="binance" placeholder="PUMPUSDT" value="{{ alias_in.binance if alias_in else '' }}"
+                   autocomplete="off" spellcheck="false" autocapitalize="characters" required></div>
+          <div class="field"><label for="alias_bybit">Bybit</label>
+            <input id="alias_bybit" name="bybit" placeholder="PUMPFUNUSDT" value="{{ alias_in.bybit if alias_in else '' }}"
+                   autocomplete="off" spellcheck="false" autocapitalize="characters" required></div>
+        </div>
+        <button class="btn" type="submit" style="margin-top:10px">Проверить и добавить</button>
+        {% if alias_saved %}<p class="ok" role="status" style="margin:8px 0 0">{{ alias_saved }}</p>{% endif %}
+        {% if alias_error %}<p class="err" role="alert" style="margin:8px 0 0">{{ alias_error }}</p>{% endif %}
+      </form>
+    </details>
   {% else %}
   <form hx-post="/exchange/keys" hx-target="#controls" hx-disabled-elt="find button[type=submit]">
     <div class="segmented" role="radiogroup" aria-label="Счёт Bybit" style="margin-bottom:12px">

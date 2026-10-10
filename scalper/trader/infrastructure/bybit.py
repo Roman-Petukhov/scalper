@@ -9,7 +9,7 @@ import re
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Callable
 
 import ccxt.async_support as ccxt
 
@@ -37,6 +37,29 @@ def _f(x: Any, default: float = 0.0) -> float:
 
 
 _MULT_SUFFIX = re.compile(r"^([A-Z]+?)(10{2,})USDT$")
+_SYMBOL = re.compile(r"^[A-Z0-9]{1,30}USDT$")
+ALIASES_KEY = "bybit_aliases"
+ALIAS_MAX_GAP = 0.02            # ручное соответствие принимается, если цены Binance и Bybit расходятся не больше чем на 2%
+
+
+def parse_symbol(raw: str) -> str:
+    s = raw.strip().upper()
+    if not _SYMBOL.match(s):
+        raise ValueError(f"«{raw.strip()}» — не похоже на USDT-перпетуал (пример: PUMPUSDT)")
+    return s
+
+
+def load_aliases(kv: Any) -> dict[str, str]:
+    """Ручные соответствия {имя Binance: имя Bybit} из панели."""
+    try:
+        d = json.loads(kv.kv_get(ALIASES_KEY) or "{}")
+    except ValueError:
+        return {}
+    return {str(k): str(v) for k, v in d.items()} if isinstance(d, dict) else {}
+
+
+def save_aliases(kv: Any, aliases: dict[str, str]) -> None:
+    kv.kv_set(ALIASES_KEY, json.dumps(dict(sorted(aliases.items()))))
 
 
 def binance_aliases(bybit_ids: set[str]) -> dict[str, str]:
@@ -86,7 +109,7 @@ MARKETS_MISS_RETRY = 15 * 60     # монеты нет в списке — пе�
 
 class BybitBroker:
     def __init__(self, creds: BybitCredentials, exchange: Any | None = None,
-                 clock: Any = time.monotonic) -> None:
+                 clock: Any = time.monotonic, manual: Callable[[], dict[str, str]] = dict) -> None:
         self.network = creds.network
         self.ex = exchange or ccxt.bybit({"apiKey": creds.api_key, "secret": creds.secret, "enableRateLimit": True,
                                           "options": {"defaultType": "swap"}})
@@ -97,6 +120,7 @@ class BybitBroker:
         self._markets_lock = asyncio.Lock()
         self._clock = clock
         self._loaded_at = 0.0
+        self._manual = manual                      # ручные соответствия из панели: читаются при каждом обращении
 
     async def _markets(self, missing: str | None = None) -> dict[str, dict]:
         async with self._markets_lock:
@@ -115,10 +139,20 @@ class BybitBroker:
 
     async def _market(self, symbol: str) -> dict | None:
         """Рынок ccxt по имени Binance (ETHUSDT, 1000SHIBUSDT): только линейные USDT-перпетуалы."""
-        return (await self._markets(symbol)).get(symbol)
+        target = self._manual().get(symbol, symbol)
+        return (await self._markets(target)).get(target)
 
     def _to_local(self, bybit_id: str) -> str:
-        return self._local.get(bybit_id, bybit_id)
+        back = {v: k for k, v in self._manual().items()}
+        return back.get(bybit_id) or self._local.get(bybit_id, bybit_id)
+
+    async def bybit_price(self, bybit_id: str) -> float:
+        """Последняя цена по имени Bybit (для проверки ручного соответствия)."""
+        m = (await self._markets(bybit_id)).get(bybit_id)
+        if m is None or m.get("id") != bybit_id:
+            raise ValueError(f"на Bybit нет перпетуала {bybit_id}")
+        t = await self.ex.fetch_ticker(m["symbol"])
+        return _f(t.get("last"))
 
     async def instrument(self, symbol: str) -> Instrument | None:
         m = await self._market(symbol)
@@ -255,7 +289,8 @@ class BrokerHolder:
     def __call__(self) -> BybitBroker | None:
         creds = self.credentials
         if creds != self._creds:
-            old, self._broker, self._creds = self._broker, (BybitBroker(creds) if creds else None), creds
+            old, self._creds = self._broker, creds
+            self._broker = BybitBroker(creds, manual=lambda: load_aliases(self.kv)) if creds else None
             if old is not None:
                 try:
                     asyncio.get_running_loop().create_task(old.close())   # закрыть HTTP-сессию старых ключей

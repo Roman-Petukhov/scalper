@@ -25,7 +25,7 @@ async def main(min_turnover: float) -> None:
     bn, by = ccxt.binanceusdm(), ccxt.bybit({"options": {"defaultType": "swap"}})
     try:
         b_ids, y_ids = _perps(await bn.load_markets()), _perps(await by.load_markets())
-        tickers = await bn.fetch_tickers()
+        tickers, y_tickers = await asyncio.gather(bn.fetch_tickers(), by.fetch_tickers())
     finally:
         await asyncio.gather(bn.close(), by.close())
     vol = {(t.get("info") or {}).get("symbol"): float(t.get("quoteVolume") or 0) for t in tickers.values()}
@@ -37,8 +37,26 @@ async def main(min_turnover: float) -> None:
     print(f"Bybit: {len(y_ids)} перпетуалов")
     print(f"под другим именем, бот их теперь находит ({len(mapped)}): "
           + ", ".join(f"{i}→{aliases[i]}" for i in mapped))
+    y_last = {(t.get("info") or {}).get("symbol"): float(t.get("last") or 0) for t in y_tickers.values()}
+    b_last = {(t.get("info") or {}).get("symbol"): float(t.get("last") or 0) for t in tickers.values()}
+    orphans = y_ids - b_ids - set(aliases.values())
     print(f"бот пропустит — нет на Bybit под таким именем ({len(missing)}, {len(missing) / max(len(liquid), 1):.0%} "
           f"ликвидных): " + ", ".join(f"{i} (${vol[i] / 1e6:.0f}M)" for i in missing))
+    for i in missing:
+        print("  " + i + ": " + candidates(i, orphans, b_last.get(i, 0.0), y_last))
+
+
+def candidates(binance_id: str, orphans: set[str], price: float, y_last: dict[str, float]) -> str:
+    """Перпетуалы Bybit без пары на Binance, чьё имя содержит имя монеты (или наоборот), с расхождением цены."""
+    base = binance_id.removesuffix("USDT")
+    out = []
+    for y in sorted(orphans):
+        yb = y.removesuffix("USDT")
+        if base in yb or yb in base:
+            p = y_last.get(y, 0.0)
+            gap = abs(p / price - 1) if price > 0 and p > 0 else float("inf")
+            out.append(f"{y} (цена {p:.6g} против {price:.6g}, {'совпадает' if gap <= 0.02 else f'расходится на {gap:.0%}' if gap < 1 else 'другая монета'})")
+    return "; ".join(out) or "кандидатов по имени нет — монеты, вероятно, нет на Bybit"
 
 
 if __name__ == "__main__":

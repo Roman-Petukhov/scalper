@@ -441,3 +441,37 @@ def test_hedge_leverage_in_params_form(env):
     assert load().hedge_leverage == 25                                            # ошибка — ничего не сохранено
     c.post("/settings/params", data=_params_form(**{"4h__hedge_btc": "1"}), headers=HX)   # форма без поля — значение цело
     assert load().hedge_leverage == 25
+
+
+def test_exchange_aliases_checked_by_price(tmp_path):
+    from test_trader_execution import FakeBroker
+    from trader.domain.execution import Account
+    from trader.infrastructure.bybit import load_aliases
+    from trader.infrastructure.sqlite_repo import SqliteStore
+
+    class _B(FakeBroker):
+        async def bybit_price(self, bybit_id):
+            if bybit_id == "NOPEUSDT":
+                raise ValueError("на Bybit нет перпетуала NOPEUSDT")
+            return {"PUMPFUNUSDT": 101.5, "OTHERUSDT": 140.0}[bybit_id]
+
+    cfg = AppConfig(panel_password="correct-horse-battery", session_secret="x" * 40, data_dir=tmp_path,
+                    panel_url="http://test", telegram_token=None, telegram_chat_id=None, scan_delay_s=0.0,
+                    scheduler=False)
+    app = create_app(cfg, market=_Market(), broker=lambda: _B(acc=Account(1000.0, 900.0, 0.0)))
+    with TestClient(app) as c:
+        _login(c)
+        assert "Монеты с другим именем на Bybit" in c.get("/").text
+        r = c.post("/exchange/alias", data={"binance": "pump usdt", "bybit": "PUMPFUNUSDT"}, headers=HX)
+        assert "не похоже на USDT-перпетуал" in r.text
+        r = c.post("/exchange/alias", data={"binance": "PUMPUSDT", "bybit": "NOPEUSDT"}, headers=HX)
+        assert "нет перпетуала NOPEUSDT" in r.text
+        r = c.post("/exchange/alias", data={"binance": "PUMPUSDT", "bybit": "OTHERUSDT"}, headers=HX)
+        assert "цены не совпадают" in r.text and "38.6%" in r.text
+        st = SqliteStore(tmp_path / "trader.db")
+        assert load_aliases(st) == {}
+        r = c.post("/exchange/alias", data={"binance": "pumpusdt", "bybit": "pumpfunusdt"}, headers=HX)
+        assert "PUMPUSDT → PUMPFUNUSDT" in r.text and "0.50%" in r.text
+        assert load_aliases(st) == {"PUMPUSDT": "PUMPFUNUSDT"}
+        r = c.post("/exchange/alias/delete", data={"binance": "PUMPUSDT"}, headers=HX)
+        assert load_aliases(st) == {} and r.status_code == 200

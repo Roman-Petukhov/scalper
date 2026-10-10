@@ -162,6 +162,8 @@ a.btn { display: inline-block; text-decoration: none; }
 .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .field { display: grid; gap: 4px; }
 .field label { font-size: 13px; color: var(--muted); }
+.alias-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.aliases summary { cursor: pointer; }
 .field input {
   width: 100%; background: var(--surface-2); border: 1px solid var(--line); color: var(--text); font: inherit;
   padding: 8px 10px; border-radius: var(--radius-sm);

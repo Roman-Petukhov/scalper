@@ -34,7 +34,8 @@ from ..domain.models import (DEFAULT_TF_PARAMS, HTF_CONFIRM, EntryPolicy, Mode, 
                              Sizing, Timeframe)
 from ..domain.sizing import exposure, risk_notes
 from ..infrastructure.binance_data import BinanceMarketData
-from ..infrastructure.bybit import BrokerHolder, BybitBroker, BybitCredentials
+from ..infrastructure.bybit import (ALIAS_MAX_GAP, BrokerHolder, BybitBroker, BybitCredentials, load_aliases,
+                                    parse_symbol, save_aliases)
 from ..infrastructure.charts import MatplotlibCharts
 from ..infrastructure.heartbeat import HttpHeartbeat
 from ..infrastructure.sqlite_repo import SqliteStore
@@ -183,7 +184,8 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
                 "archived_count": store.count(ARCHIVED), "new_count": store.count({SignalStatus.NEW}),
                 "risk": risk_view(s), "equity": last_equity(),
                 "trades": store.trades_for([x.id for x in signals if x.id is not None]),
-                "exchange": exchange_label(), "creds": holder.credentials if broker is None else None}
+                "exchange": exchange_label(), "creds": holder.credentials if broker is None else None,
+                "aliases": load_aliases(store)}
 
     def risk_view(s: Settings) -> dict[Timeframe, dict]:
         """«Что это значит» под настройками: типичный стоп ТФ (медиана по последним сигналам), доля капитала
@@ -498,6 +500,45 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         holder.forget()
         return templates.TemplateResponse(request, "_controls.html", page_context(request),
                                           headers={"HX-Trigger": "wallet-refresh"})
+
+    @app.post("/exchange/alias", response_class=HTMLResponse)
+    async def exchange_alias(request: Request, binance: str = Form(...), bybit: str = Form(...)):
+        """Ручное соответствие монеты, которую Bybit называет иначе; сохраняется, только если цены совпадают."""
+        guard(request, mutate=True)
+
+        def answer(**kw):
+            keep = {"alias_in": {"binance": binance.strip(), "bybit": bybit.strip()}} if "alias_error" in kw else {}
+            return templates.TemplateResponse(request, "_controls.html", page_context(request) | keep | kw)
+
+        try:
+            src, dst = parse_symbol(binance), parse_symbol(bybit)
+        except ValueError as e:
+            return answer(alias_error=str(e))
+        b = (broker or holder)()
+        if b is None or not hasattr(b, "bybit_price"):
+            return answer(alias_error="сначала подключите Bybit — без него цену не проверить")
+        try:
+            bars = await market.live_bars(src, Timeframe.M15, 2)
+            p_bn, p_by = float(bars["close"].iloc[-1]), await b.bybit_price(dst)
+        except ValueError as e:
+            return answer(alias_error=str(e))
+        except Exception as e:
+            log.warning("проверка соответствия %s → %s: %s", src, dst, e)
+            return answer(alias_error=f"не удалось сверить цены: {str(e)[:120]}")
+        gap = abs(p_by / p_bn - 1) if p_bn > 0 else float("inf")
+        if gap > ALIAS_MAX_GAP:
+            return answer(alias_error=f"цены не совпадают: Binance {p_bn:.6g}, Bybit {p_by:.6g} "
+                                      f"({gap:.1%}) — похоже, это разные монеты или другой множитель")
+        save_aliases(store, load_aliases(store) | {src: dst})
+        return answer(alias_saved=f"{src} → {dst}: цены {p_bn:.6g} / {p_by:.6g}, расхождение {gap:.2%}")
+
+    @app.post("/exchange/alias/delete", response_class=HTMLResponse)
+    async def exchange_alias_delete(request: Request, binance: str = Form(...)):
+        guard(request, mutate=True)
+        aliases = load_aliases(store)
+        aliases.pop(binance.strip().upper(), None)
+        save_aliases(store, aliases)
+        return templates.TemplateResponse(request, "_controls.html", page_context(request))
 
     @app.get("/charts/{name}")
     async def chart(request: Request, name: str):
