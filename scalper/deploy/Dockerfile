@@ -5,6 +5,7 @@ COPY requirements-trader.txt .
 RUN pip install --no-cache-dir -r requirements-trader.txt
 COPY research ./research
 COPY trader ./trader
+COPY tools ./tools
 RUN useradd --create-home --uid 10001 app && mkdir -p /data && chown app /data
 USER app
 ENV DATA_DIR=/data
