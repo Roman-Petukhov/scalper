@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -32,6 +33,20 @@ def _f(x: Any, default: float = 0.0) -> float:
     except (TypeError, ValueError):
         return default
     return v if v == v else default          # NaN → default
+
+
+_MULT_SUFFIX = re.compile(r"^([A-Z]+?)(10{2,})USDT$")
+
+
+def binance_aliases(bybit_ids: set[str]) -> dict[str, str]:
+    """Имена Binance для перпетуалов, которые Bybit называет иначе: множитель на Binance — приставка (1000SHIBUSDT),
+    на Bybit — суффикс (SHIB1000USDT). Цена и размер контракта у обоих — за 1000 монет. Вернёт {Binance: Bybit}."""
+    out = {}
+    for i in bybit_ids:
+        m = _MULT_SUFFIX.match(i)
+        if m and (alias := f"{m[2]}{m[1]}USDT") not in bybit_ids:
+            out[alias] = i
+    return out
 
 
 @dataclass(frozen=True)
@@ -72,16 +87,26 @@ class BybitBroker:
         if exchange is None and creds.network == "demo":
             self.ex.enable_demo_trading(True)
         self._by_id: dict[str, dict] | None = None
+        self._local: dict[str, str] = {}           # id Bybit → имя Binance, под которым монету знает бот
         self._markets_lock = asyncio.Lock()
 
-    async def _market(self, symbol: str) -> dict | None:
-        """Рынок ccxt по id биржи (ETHUSDT): только линейные USDT-перпетуалы."""
+    async def _markets(self) -> dict[str, dict]:
         async with self._markets_lock:
             if self._by_id is None:
                 markets = await self.ex.load_markets()
-                self._by_id = {m["id"]: m for m in markets.values()
-                               if m.get("swap") and m.get("linear") and m.get("settle") == "USDT"}
-        return self._by_id.get(symbol)
+                by_id = {m["id"]: m for m in markets.values()
+                         if m.get("swap") and m.get("linear") and m.get("settle") == "USDT"}
+                aliases = binance_aliases(set(by_id))
+                self._local = {v: k for k, v in aliases.items()}
+                self._by_id = by_id | {k: by_id[v] for k, v in aliases.items()}
+        return self._by_id
+
+    async def _market(self, symbol: str) -> dict | None:
+        """Рынок ccxt по имени Binance (ETHUSDT, 1000SHIBUSDT): только линейные USDT-перпетуалы."""
+        return (await self._markets()).get(symbol)
+
+    def _to_local(self, bybit_id: str) -> str:
+        return self._local.get(bybit_id, bybit_id)
 
     async def instrument(self, symbol: str) -> Instrument | None:
         m = await self._market(symbol)
@@ -101,6 +126,7 @@ class BybitBroker:
         return _f(t.get("last"))
 
     async def account(self) -> Account:
+        await self._markets()
         bal, positions, orders = await asyncio.gather(
             self.ex.fetch_balance(), self.ex.fetch_positions(None, {"settleCoin": "USDT"}),
             self.ex.fetch_open_orders(None, None, None, {"settleCoin": "USDT"}))
@@ -112,12 +138,12 @@ class BybitBroker:
             qty = _f(p.get("contracts"))
             if qty <= 0:
                 continue
-            raw = (p.get("info") or {}).get("symbol") or p.get("symbol", "")
+            raw = self._to_local((p.get("info") or {}).get("symbol") or p.get("symbol", ""))
             pos.append(Position(symbol=raw, side=Side.LONG if p.get("side") == "long" else Side.SHORT, qty=qty,
                                 entry=_f(p.get("entryPrice")), mark=_f(p.get("markPrice")),
                                 upnl=_f(p.get("unrealizedPnl")),
                                 stop=_f(p.get("stopLossPrice")) or None, target=_f(p.get("takeProfitPrice")) or None))
-        pending = frozenset((o.get("info") or {}).get("symbol", "") for o in orders
+        pending = frozenset(self._to_local((o.get("info") or {}).get("symbol", "")) for o in orders
                             if not o.get("reduceOnly") and not (o.get("info") or {}).get("reduceOnly"))
         return Account(equity=equity, available=available, upnl=sum(p.upnl for p in pos),
                        positions=tuple(sorted(pos, key=lambda x: -abs(x.upnl))), pending_symbols=pending)

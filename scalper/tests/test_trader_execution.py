@@ -13,7 +13,7 @@ from trader.domain.execution import (Account, ClosedPnl, ExecutionRefused, Instr
                                      build_order,
                                      round_down, round_price)
 from trader.domain.models import EntryKind, Mode, Settings, Side, SignalStatus, Timeframe, TradePlan
-from trader.infrastructure.bybit import BrokerHolder, BybitBroker, BybitCredentials
+from trader.infrastructure.bybit import BrokerHolder, BybitBroker, BybitCredentials, binance_aliases
 from trader.infrastructure.sqlite_repo import SqliteStore
 
 from test_trader_app import T0, _Market, _signal
@@ -301,6 +301,32 @@ def test_bybit_adapter_account_parsing():
     assert [(p.symbol, p.side, p.qty, p.stop, p.target) for p in a.positions] == [("SOLUSDT", Side.SHORT, 2.0, 160, None)]
     assert a.pending_symbols == frozenset({"ADAUSDT"}) and a.busy_symbols == {"SOLUSDT", "ADAUSDT"}
     assert asyncio.run(br.open_order_ids()) == {"9", "10"}
+
+
+def test_binance_aliases_for_multiplier_suffix():
+    assert binance_aliases({"SHIB1000USDT", "1000PEPEUSDT", "ETHUSDT", "A8USDT", "BTC10USDT"}) == {
+        "1000SHIBUSDT": "SHIB1000USDT"}
+    assert binance_aliases({"SHIB1000USDT", "1000SHIBUSDT"}) == {}        # оба имени есть — не подменяем
+
+
+def test_bybit_adapter_maps_binance_multiplier_names():
+    class _Fx(FakeCcxt):
+        async def load_markets(self):
+            m = await super().load_markets()
+            return m | {"SHIB1000/USDT:USDT": {**m["SOL/USDT:USDT"], "id": "SHIB1000USDT",
+                                               "symbol": "SHIB1000/USDT:USDT"}}
+
+        async def fetch_positions(self, symbols, params):
+            return [{"contracts": 5.0, "side": "short", "entryPrice": 0.012, "markPrice": 0.011,
+                     "unrealizedPnl": 1, "info": {"symbol": "SHIB1000USDT"}}]
+
+        async def fetch_open_orders(self, symbol, since, limit, params):
+            return [{"id": "9", "reduceOnly": False, "info": {"symbol": "SHIB1000USDT"}}]
+
+    br = BybitBroker(CREDS, exchange=_Fx())
+    assert asyncio.run(br.instrument("1000SHIBUSDT")) is not None
+    a = asyncio.run(br.account())
+    assert [p.symbol for p in a.positions] == ["1000SHIBUSDT"] and a.pending_symbols == frozenset({"1000SHIBUSDT"})
 
 
 def test_credentials_and_holder(tmp_path):
