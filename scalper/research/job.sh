@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"prepo candles"}
+TASKS=${TASKS:-"prepo btcline"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -152,6 +152,10 @@ exhaust15_collect() { python -m research.exhaust collect15 --symbols "$(cat /tmp
 exhaust15_report() { python -m research.exhaust report15; }
 candles_collect() { python -m research.candles collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
 candles_report() { python -m research.candles report; }
+btcline_collect() { python -m research.btcline collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
+btcline_report() { python -m research.btcline report; }
+btcline15_collect() { python -m research.btcline collect15 --symbols "$(cat /tmp/syms_15m-wide.txt)"; }
+btcline15_report() { python -m research.btcline report15; }
 robust_collect() { python -m research.robust collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
 robust_report() { python -m research.robust report; }
 crowd_collect() { python -m research.crowd collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
