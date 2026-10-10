@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
@@ -352,6 +353,15 @@ class Executor:
                 log.exception("уведомление")
 
 
+_EXCHANGE_ERR = re.compile(r'"retCode"\s*:\s*(\d+)\s*,\s*"retMsg"\s*:\s*"([^"]*)"')
+
+
 def _short(e: Exception) -> str:
+    """Причина отказа одной строкой. Из ответа Bybit — только код и текст: в нём есть меняющееся поле time, и без
+    этого одна и та же ошибка выглядела бы новой (уведомление каждую минуту)."""
     msg = str(e) or type(e).__name__
+    if m := _EXCHANGE_ERR.search(msg):
+        code, text = m.groups()
+        hint = " — не хватает свободной маржи" if ("not enough" in text.lower() or "insufficient" in text.lower()) else ""
+        msg = f"Bybit {code}: {text}{hint}"
     return msg if len(msg) <= 160 else msg[:157] + "…"

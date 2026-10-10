@@ -839,3 +839,32 @@ def test_hedge_leverage_persists_and_old_settings_load_with_default(tmp_path):
     st.db.execute("UPDATE settings SET payload = ? WHERE id = 1", (json.dumps(payload),))
     st.db.commit()
     assert st.load().hedge_leverage == 0
+
+
+def test_hedge_error_notified_once_despite_changing_exchange_time(tmp_path):
+    class _B(FakeBroker):
+        n = 0
+
+        async def adjust(self, symbol, qty, leverage):
+            self.n += 1
+            raise ccxt.InsufficientFunds('bybit {"retCode":110007,"retMsg":"ab not enough for new order",'
+                                         f'"result":{{}},"retExtInfo":{{}},"time":{1760000000000 + self.n}}}')
+
+    said = []
+
+    class _N:
+        async def text(self, text):
+            said.append(text)
+
+    b = _B()
+    st = SqliteStore(tmp_path / "t.db")
+    st.save(Settings().with_tf(Timeframe.H4, hedge_btc=True))
+    ex = Executor(lambda: b, st, st, st, _N(), Clock(NOW), market=_hedge_market(1.5))
+    tr = asyncio.run(ex.execute(st.get(st.add(_signal()).id)))
+    b.px = 20000.0
+    b.acc = replace(ACC, positions=(Position("SOLUSDT", Side.LONG, tr.qty, 101, 101, 0),))
+    for _ in range(3):
+        asyncio.run(ex.housekeep())
+    warn = [t for t in said if "не подогнан" in t]
+    assert b.n == 3 and len(warn) == 1
+    assert "Bybit 110007: ab not enough for new order — не хватает свободной маржи" in warn[0] and "time" not in warn[0]
