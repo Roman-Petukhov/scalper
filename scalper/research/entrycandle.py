@@ -110,10 +110,29 @@ def tables(x: pd.DataFrame, periods: dict[str, tuple[str, str]], title: str) -> 
     for k in THRESHOLDS:
         h = x.assign(R_h=np.where(x.rng_atr < k, x.R_mk, x.R_rt))
         rows.append({"вариант": f"гибрид {k:.1f} ATR (рынок у {(x.rng_atr < k).mean():.0%})", **cells("R_h", h)})
+    q80 = float(x.loc[x.per == "is", "rng_atr"].quantile(0.8))
+    for k in (q80, 2.0, 2.5):
+        h = x.assign(R_h=np.where(x.rng_atr >= k, x.R_mk, x.R_rt))
+        nm = f"обратный гибрид {k:.2f} ATR (рынок у {(x.rng_atr >= k).mean():.0%})" + (" — порог IS q80" if k == q80 else "")
+        rows.append({"вариант": nm, **cells("R_h", h)})
     print()
     print(pd.DataFrame(rows)[["вариант"] + cols].to_string(index=False))
-    for nm, col in (("всё по рынку", "R_mk"), ("всё ретест", "R_rt")):
+    x["R_rev"] = np.where(x.rng_atr >= q80, x.R_mk, x.R_rt)
+    for nm, col in (("всё по рынку", "R_mk"), ("всё ретест", "R_rt"), (f"обратный гибрид {q80:.2f}", "R_rev")):
         print(f"  {nm} по годам: {_years(x, col)}")
+    print("  без 5% лучших сигналов (по каждому варианту отдельно): " + "; ".join(
+        f"{nm} " + ", ".join(f"{p} {_trim(x[x.per == p][col]):+.3f}" for p in periods)
+        for nm, col in (("ретест", "R_rt"), ("обратный гибрид", "R_rev"))))
+    d = x.R_rev - x.R_rt
+    days = x.t.dt.floor("D")
+    g = d.groupby(days).sum()
+    print(f"  разница «обратный гибрид − ретест» на сигнал: {d.mean():+.3f}R, t по дням {d.sum() / np.sqrt((g ** 2).sum()):.1f}; "
+          "по периодам " + ", ".join(f"{p} {d[x.per == p].mean():+.3f}" for p in periods))
+
+
+def _trim(r: pd.Series, top: float = 0.05) -> float:
+    r = r.dropna().sort_values()
+    return float(r.iloc[: max(1, int(len(r) * (1 - top)))].mean()) if len(r) else float("nan")
 
 
 def report() -> None:
