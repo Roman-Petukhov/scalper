@@ -238,7 +238,7 @@ class FakeCcxt:
     def __init__(self):
         self.calls = []
 
-    async def load_markets(self):
+    async def load_markets(self, reload=False):
         return {"SOL/USDT:USDT": {"id": "SOLUSDT", "symbol": "SOL/USDT:USDT", "swap": True, "linear": True,
                                   "settle": "USDT", "active": True, "precision": {"amount": 0.1, "price": 0.001},
                                   "limits": {"amount": {"min": 0.1}, "leverage": {"max": 75}, "cost": {"min": None}}},
@@ -311,7 +311,7 @@ def test_binance_aliases_for_multiplier_suffix():
 
 def test_bybit_adapter_maps_binance_multiplier_names():
     class _Fx(FakeCcxt):
-        async def load_markets(self):
+        async def load_markets(self, reload=False):
             m = await super().load_markets()
             return m | {"SHIB1000/USDT:USDT": {**m["SOL/USDT:USDT"], "id": "SHIB1000USDT",
                                                "symbol": "SHIB1000/USDT:USDT"}}
@@ -327,6 +327,29 @@ def test_bybit_adapter_maps_binance_multiplier_names():
     assert asyncio.run(br.instrument("1000SHIBUSDT")) is not None
     a = asyncio.run(br.account())
     assert [p.symbol for p in a.positions] == ["1000SHIBUSDT"] and a.pending_symbols == frozenset({"1000SHIBUSDT"})
+
+
+def test_bybit_adapter_reloads_markets_for_new_listing():
+    class _Fx(FakeCcxt):
+        listed, loads = False, []
+
+        async def load_markets(self, reload=False):
+            self.loads.append(reload)
+            m = await super().load_markets()
+            if self.listed:
+                m |= {"NEW/USDT:USDT": {**m["SOL/USDT:USDT"], "id": "NEWUSDT", "symbol": "NEW/USDT:USDT"}}
+            return m
+
+    now = [0.0]
+    fx = _Fx()
+    br = BybitBroker(CREDS, exchange=fx, clock=lambda: now[0])
+    assert asyncio.run(br.instrument("NEWUSDT")) is None
+    fx.listed = True
+    now[0] = 60.0                                       # минуту спустя — список не дёргаем на каждый промах
+    assert asyncio.run(br.instrument("NEWUSDT")) is None and len(fx.loads) == 1
+    now[0] = 16 * 60.0
+    assert asyncio.run(br.instrument("NEWUSDT")) is not None and fx.loads == [False, True]
+    assert asyncio.run(br.instrument("SOLUSDT")) is not None and len(fx.loads) == 2    # известные — из кэша
 
 
 def test_credentials_and_holder(tmp_path):

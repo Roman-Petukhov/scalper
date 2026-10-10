@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import re
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -79,8 +80,13 @@ class BybitCredentials:
             return None
 
 
+MARKETS_MAX_AGE = 6 * 3600       # список инструментов перечитывается не реже (плечо, шаг цены, делистинги)
+MARKETS_MISS_RETRY = 15 * 60     # монеты нет в списке — перечитать не чаще (новый листинг на Bybit)
+
+
 class BybitBroker:
-    def __init__(self, creds: BybitCredentials, exchange: Any | None = None) -> None:
+    def __init__(self, creds: BybitCredentials, exchange: Any | None = None,
+                 clock: Any = time.monotonic) -> None:
         self.network = creds.network
         self.ex = exchange or ccxt.bybit({"apiKey": creds.api_key, "secret": creds.secret, "enableRateLimit": True,
                                           "options": {"defaultType": "swap"}})
@@ -89,21 +95,27 @@ class BybitBroker:
         self._by_id: dict[str, dict] | None = None
         self._local: dict[str, str] = {}           # id Bybit → имя Binance, под которым монету знает бот
         self._markets_lock = asyncio.Lock()
+        self._clock = clock
+        self._loaded_at = 0.0
 
-    async def _markets(self) -> dict[str, dict]:
+    async def _markets(self, missing: str | None = None) -> dict[str, dict]:
         async with self._markets_lock:
-            if self._by_id is None:
-                markets = await self.ex.load_markets()
+            age = self._clock() - self._loaded_at
+            stale = self._by_id is None or age > MARKETS_MAX_AGE or (
+                missing is not None and missing not in self._by_id and age > MARKETS_MISS_RETRY)
+            if stale:
+                markets = await self.ex.load_markets(self._by_id is not None)
                 by_id = {m["id"]: m for m in markets.values()
                          if m.get("swap") and m.get("linear") and m.get("settle") == "USDT"}
                 aliases = binance_aliases(set(by_id))
                 self._local = {v: k for k, v in aliases.items()}
                 self._by_id = by_id | {k: by_id[v] for k, v in aliases.items()}
+                self._loaded_at = self._clock()
         return self._by_id
 
     async def _market(self, symbol: str) -> dict | None:
         """Рынок ccxt по имени Binance (ETHUSDT, 1000SHIBUSDT): только линейные USDT-перпетуалы."""
-        return (await self._markets()).get(symbol)
+        return (await self._markets(symbol)).get(symbol)
 
     def _to_local(self, bybit_id: str) -> str:
         return self._local.get(bybit_id, bybit_id)
