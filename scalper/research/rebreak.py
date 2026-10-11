@@ -168,6 +168,32 @@ def tables(df: pd.DataFrame, periods: dict[str, tuple[str, str]], entries: tuple
         print(f"  первый пробой (бот) по годам: {_years(fc)}")
 
 
+AGGR_THRESHOLDS = (0.0, 0.5, 0.525, 0.55, 0.575, 0.6, 0.65)
+
+
+def aggr_table(df: pd.DataFrame, periods: dict[str, tuple[str, str]], entries: tuple[str, ...], title: str) -> None:
+    """Порог агрессоров в свече пробоя (первые пробои, остальные фильтры бота): соседние значения вокруг 55%."""
+    df = df[(df.kind == "first") & (df.close_loc >= 0.5)].copy()
+    df["per"] = ""
+    for p, (a, b) in periods.items():
+        df.loc[(df.t >= a) & (df.t < b), "per"] = p
+    print(f"\n===== AGGR {title}: порог доли агрессоров в свече пробоя (бот — 55%); первые пробои, остальные фильтры "
+          "бота; R на сделку, 3R =====")
+    for entry in entries:
+        z = df[df.entry == entry]
+        rows = []
+        for k in AGGR_THRESHOLDS:
+            g = z[z.aggr >= k].assign(R=lambda x: x.R3)
+            rows.append({"агрессоры >=": "без фильтра" if k == 0 else f"{k:.1%}",
+                         **{p: _cell(g[g.per == p]) for p in periods}, "2026": _cell(g[g.t.dt.year == 2026])})
+        for lo_, hi_ in ((0.5, 0.55), (0.55, 0.6), (0.6, 1.01)):
+            g = z[(z.aggr >= lo_) & (z.aggr < hi_)].assign(R=lambda x: x.R3)
+            rows.append({"агрессоры >=": f"только {lo_:.0%}–{min(hi_, 1):.0%}",
+                         **{p: _cell(g[g.per == p]) for p in periods}, "2026": _cell(g[g.t.dt.year == 2026])})
+        print(f"\n  --- вход: {'по рынку' if entry == 'market' else 'ретест'} ---")
+        print(pd.DataFrame(rows).to_string(index=False))
+
+
 def report() -> None:
     parts = all_parts("rebreak")
     if not parts:
@@ -178,6 +204,7 @@ def report() -> None:
         df[k] = pd.to_datetime(df[k], utc=True)
     df = df[(df.adv >= ADV_MIN) & df.with_trend].reset_index(drop=True)
     tables(df, PER_ALL, ("retest", "market"), "4h (правило бота)")
+    aggr_table(df, PER_ALL, ("retest", "market"), "4h")
 
 
 def report15() -> None:
@@ -195,6 +222,7 @@ def report15() -> None:
     df = df.drop(columns="adv").merge(adv[["symbol", "day", "adv", "rank"]], on=["symbol", "day"], how="left")
     df = df[(df.side < 0) & df.with_trend & (df.adv >= ADV_MIN) & (df.slope_atr <= MAX_SLOPE_ATR) & (df["rank"] <= TOP15)]
     tables(df.reset_index(drop=True), PER, ("market",), f"15m (правило бота: пологие шорты, топ-{TOP15})")
+    aggr_table(df.reset_index(drop=True), PER, ("market",), "15m")
 
 
 if __name__ == "__main__":
