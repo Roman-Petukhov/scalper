@@ -84,8 +84,9 @@ def _models(close: pd.DataFrame, n: int, short: bool) -> pd.DataFrame:
 
 
 def portfolio(close: pd.DataFrame, fund: pd.DataFrame, adv: pd.DataFrame, lookbacks=LOOKBACKS, top: int = TOP,
-              short: bool = False, cost_k: float = 1.0, only: list[str] | None = None) -> pd.Series:
-    """Дневная доходность портфеля (с издержками)."""
+              short: bool = False, cost_k: float = 1.0, only: list[str] | None = None,
+              gate: pd.Series | None = None) -> pd.Series:
+    """Дневная доходность портфеля (с издержками). gate — включатель по дням (решение на закрытии дня, как и веса)."""
     sig = sum(_models(close, n, short) for n in lookbacks) / len(lookbacks)
     ret = close.pct_change(fill_method=None)
     vol = ret.rolling(VOL_DAYS, min_periods=30).std() * np.sqrt(365)
@@ -97,6 +98,8 @@ def portfolio(close: pd.DataFrame, fund: pd.DataFrame, adv: pd.DataFrame, lookba
         member = rk <= top
     k = len(only) if only is not None else top
     w = (sig * (COIN_VOL / vol) / k).where(member & close.notna(), 0.0).fillna(0.0)
+    if gate is not None:
+        w = w.mul(gate.reindex(close.index).fillna(False).astype(float), axis=0)
     gross = w.abs().sum(axis=1)
     w = w.mul(np.minimum(1.0, GROSS_MAX / gross.replace(0, np.nan)).fillna(1.0), axis=0)
     held = w.shift(1).fillna(0.0)
