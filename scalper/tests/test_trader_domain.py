@@ -98,8 +98,9 @@ def test_settings_validation_and_toggle():
     s = Settings()
     assert Timeframe.M15 in s.toggle(Timeframe.M15).timeframes
     assert Timeframe.H4 not in s.toggle(Timeframe.H4).timeframes
+    assert s.with_tf(Timeframe.H4, risk_pct=6.0).p(Timeframe.H4).risk_pct == 6.0
     with pytest.raises(ValueError):
-        s.with_tf(Timeframe.H4, risk_pct=10.0)
+        s.with_tf(Timeframe.H4, risk_pct=6.5)
 
 
 def test_position_size_risk_and_leverage_cap():

@@ -59,7 +59,8 @@ def test_leverage_caps_notional_and_is_sent_to_exchange():
     assert o.leverage == 10 and o.risk_usd == pytest.approx(10.0, abs=0.01)
     o = build_order(tight, Settings(leverage=10), ACC, replace(INST, max_leverage=3), 101.0, None, NOW)
     assert o.leverage == 3                                                      # не больше, чем позволяет монета
-    for bad in (0, 11):
+    assert Settings(leverage=12).leverage == 12
+    for bad in (0, 13):
         with pytest.raises(ValueError, match="плечо"):
             Settings(leverage=bad)
 

@@ -35,7 +35,7 @@
       <p class="hint">{% if bym %}Позиция = маржа × плечо. Убыток по стопу зависит от того, как далеко стоп: смотрите расчёт ниже.{% else %}Позиция подбирается так, чтобы убыток по стопу был ровно заданным % капитала — так считался бэктест.{% endif %}</p>
     </div>
     <div class="per-tf per-acct num" style="--cols: {{ tfs | length }}">
-      {{ acct("leverage", "Плечо, ×", 1, 1, 10) }}
+      {{ acct("leverage", "Плечо, ×", 1, 1, 12) }}
       {% if s.hedging %}{{ acct("hedge_leverage", "Плечо хеджа BTC, × (0 — как у сделок)", 1, 0, 50) }}{% endif %}
     </div>
     {% if s.hedging %}<p class="hint">У хеджа плечо своё: маржи под него уходит меньше, а результат хеджа тот же. По бэктесту при риске 2%
@@ -49,7 +49,7 @@
       {% for tf in tfs %}{{ num(tf, "margin_pct", "margin_pct", "Маржа на сделку", 1, 1, 100) }}{% endfor %}
       {% else %}
       <label>Риск на сделку (убыток по стопу), % капитала</label>
-      {% for tf in tfs %}{{ num(tf, "risk_pct", "risk_pct", "Риск на сделку", 0.05, 0.05, 5) }}{% endfor %}
+      {% for tf in tfs %}{{ num(tf, "risk_pct", "risk_pct", "Риск на сделку", 0.05, 0.05, 6) }}{% endfor %}
       {% endif %}
       <label>Сделок этого ТФ сразу (0 — без своего лимита)</label>
       {% for tf in tfs %}{{ num(tf, "tf_max_positions", "max_positions", "Сделок этого ТФ сразу", 1, 0, 50) }}{% endfor %}

@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 
 
-MAX_LEVERAGE = 10                       # верхняя граница плеча в панели
+MAX_LEVERAGE = 12                       # верхняя граница плеча в панели
 MAX_HEDGE_LEVERAGE = 50                 # плечо позиции BTC-хеджа (BTCUSDT на Bybit допускает до 100×)
 MARKET_VALID_BARS = 2                   # вход по рынку возможен ещё 2 свечи после свечи пробоя
 
@@ -95,8 +95,8 @@ class TfParams:
     margin_pct: float = 10.0            # размер «как на Bybit»: маржа сделки, % капитала (Settings.sizing = MARGIN)
 
     def __post_init__(self) -> None:
-        if not 0.05 <= self.risk_pct <= 5.0:
-            raise ValueError("риск на сделку — от 0.05% до 5%")
+        if not 0.05 <= self.risk_pct <= 6.0:
+            raise ValueError("риск на сделку — от 0.05% до 6%")
         if not 0.5 <= self.min_aggr <= 0.8:
             raise ValueError("порог агрессоров — от 50% до 80%")
         if not 1.0 <= self.target_r <= 10.0:
