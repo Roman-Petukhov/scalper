@@ -85,7 +85,7 @@ def _models(close: pd.DataFrame, n: int, short: bool) -> pd.DataFrame:
 
 def portfolio(close: pd.DataFrame, fund: pd.DataFrame, adv: pd.DataFrame, lookbacks=LOOKBACKS, top: int = TOP,
               short: bool = False, cost_k: float = 1.0, only: list[str] | None = None,
-              gate: pd.Series | None = None) -> pd.Series:
+              gate: pd.Series | None = None, skip: int = 0) -> pd.Series:
     """Дневная доходность портфеля (с издержками). gate — включатель по дням (решение на закрытии дня, как и веса)."""
     sig = sum(_models(close, n, short) for n in lookbacks) / len(lookbacks)
     ret = close.pct_change(fill_method=None)
@@ -95,8 +95,8 @@ def portfolio(close: pd.DataFrame, fund: pd.DataFrame, adv: pd.DataFrame, lookba
         member[[c for c in only if c in member.columns]] = True
     else:
         rk = adv.where(adv >= ADV_MIN).rank(axis=1, ascending=False, method="first")
-        member = rk <= top
-    k = len(only) if only is not None else top
+        member = (rk > skip) & (rk <= top)                    # skip — пропустить самые ликвидные (группа 21–50 и т.п.)
+    k = len(only) if only is not None else top - skip
     w = (sig * (COIN_VOL / vol) / k).where(member & close.notna(), 0.0).fillna(0.0)
     if gate is not None:
         w = w.mul(gate.reindex(close.index).fillna(False).astype(float), axis=0)

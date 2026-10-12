@@ -27,3 +27,12 @@ def test_gate_off_means_no_positions_and_no_pnl():
     assert (portfolio(close, fund, adv, gate=off) == 0).all()
     on = pd.Series(True, index=close.index)
     assert portfolio(close, fund, adv, gate=on).equals(portfolio(close, fund, adv))
+
+
+def test_skip_selects_a_lower_turnover_tier():
+    close, fund, adv = _panel(coins=30)
+    adv = adv * np.arange(30, 0, -1)                     # BTC — самый ликвидный, дальше по убыванию
+    top = portfolio(close, fund, adv, top=10)
+    tier = portfolio(close, fund, adv, skip=10, top=20)
+    assert not top.equals(tier)
+    assert (portfolio(close, fund, adv, skip=30, top=40) == 0).all()      # мест в группе нет — позиций нет
