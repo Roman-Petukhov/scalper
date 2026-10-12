@@ -1,0 +1,40 @@
+----- prepq collect (часть 0/10) -----
+часть 0/10, набор 1h-qualified: монет 63
+----- joint collect (часть 0/10) -----
+  joint: сделок бота 56, coil 146
+----- prepq collect (часть 1/10) -----
+часть 1/10, набор 1h-qualified: монет 66
+----- joint collect (часть 1/10) -----
+  joint: сделок бота 43, coil 108
+----- prepq collect (часть 2/10) -----
+часть 2/10, набор 1h-qualified: монет 78
+----- joint collect (часть 2/10) -----
+  joint: сделок бота 47, coil 192
+----- prepq collect (часть 3/10) -----
+часть 3/10, набор 1h-qualified: монет 73
+----- joint collect (часть 3/10) -----
+  joint: сделок бота 54, coil 149
+----- prepq collect (часть 4/10) -----
+часть 4/10, набор 1h-qualified: монет 72
+----- joint collect (часть 4/10) -----
+  joint: сделок бота 41, coil 113
+----- prepq collect (часть 5/10) -----
+часть 5/10, набор 1h-qualified: монет 83
+----- joint collect (часть 5/10) -----
+  joint: сделок бота 45, coil 148
+----- prepq collect (часть 6/10) -----
+часть 6/10, набор 1h-qualified: монет 71
+----- joint collect (часть 6/10) -----
+  joint: сделок бота 39, coil 142
+----- prepq collect (часть 7/10) -----
+часть 7/10, набор 1h-qualified: монет 61
+----- joint collect (часть 7/10) -----
+  joint: сделок бота 42, coil 159
+----- prepq collect (часть 8/10) -----
+часть 8/10, набор 1h-qualified: монет 75
+----- joint collect (часть 8/10) -----
+  joint: сделок бота 52, coil 179
+----- prepq collect (часть 9/10) -----
+часть 9/10, набор 1h-qualified: монет 83
+----- joint collect (часть 9/10) -----
+  joint: сделок бота 61, coil 236
