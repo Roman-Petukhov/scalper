@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"prepq joint"}
+TASKS=${TASKS:-"prepo classic"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -170,6 +170,8 @@ bigflow_collect() { python -m research.bigflow collect --symbols "$(cat /tmp/sym
 bigflow_report() { python -m research.bigflow report; }
 joint_collect() { python -m research.joint collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
 joint_report() { python -m research.joint report; }
+classic_collect() { python -m research.classic collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
+classic_report() { python -m research.classic report; }
 robust_collect() { python -m research.robust collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
 robust_report() { python -m research.robust report; }
 crowd_collect() { python -m research.crowd collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
