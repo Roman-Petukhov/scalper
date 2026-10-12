@@ -1,0 +1,50 @@
+----- prepo collect (часть 0/10) -----
+часть 0/10, набор 1h-qualified: монет 63
+----- bigflow collect (часть 0/10) -----
+  bigflow: событий 225, монет 49
+  bigflow: со сделками 225 из 225
+----- prepo collect (часть 1/10) -----
+часть 1/10, набор 1h-qualified: монет 66
+----- bigflow collect (часть 1/10) -----
+  bigflow: событий 195, монет 43
+  bigflow: со сделками 195 из 195
+----- prepo collect (часть 2/10) -----
+часть 2/10, набор 1h-qualified: монет 78
+----- bigflow collect (часть 2/10) -----
+  bigflow: событий 292, монет 57
+  bigflow: со сделками 292 из 292
+----- prepo collect (часть 3/10) -----
+часть 3/10, набор 1h-qualified: монет 73
+----- bigflow collect (часть 3/10) -----
+  bigflow: событий 225, монет 53
+  bigflow: со сделками 225 из 225
+----- prepo collect (часть 4/10) -----
+часть 4/10, набор 1h-qualified: монет 72
+----- bigflow collect (часть 4/10) -----
+  bigflow: событий 170, монет 49
+  bigflow: со сделками 170 из 170
+----- prepo collect (часть 5/10) -----
+часть 5/10, набор 1h-qualified: монет 83
+----- bigflow collect (часть 5/10) -----
+  bigflow: событий 217, монет 50
+  bigflow: со сделками 217 из 217
+----- prepo collect (часть 6/10) -----
+часть 6/10, набор 1h-qualified: монет 71
+----- bigflow collect (часть 6/10) -----
+  bigflow: событий 224, монет 45
+  bigflow: со сделками 224 из 224
+----- prepo collect (часть 7/10) -----
+часть 7/10, набор 1h-qualified: монет 61
+----- bigflow collect (часть 7/10) -----
+  bigflow: событий 229, монет 41
+  bigflow: со сделками 229 из 229
+----- prepo collect (часть 8/10) -----
+часть 8/10, набор 1h-qualified: монет 75
+----- bigflow collect (часть 8/10) -----
+  bigflow: событий 264, монет 54
+  bigflow: со сделками 264 из 264
+----- prepo collect (часть 9/10) -----
+часть 9/10, набор 1h-qualified: монет 83
+----- bigflow collect (часть 9/10) -----
+  bigflow: событий 309, монет 59
+  bigflow: со сделками 309 из 309
