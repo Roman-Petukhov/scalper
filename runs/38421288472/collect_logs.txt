@@ -1,0 +1,51 @@
+----- prepo collect (часть 0/10) -----
+часть 0/10, набор 1h-qualified: монет 63
+----- trendfam collect (часть 0/10) -----
+  trendfam: монет 63
+----- extreg collect (часть 0/10) -----
+  extreg: стейблкоины 3241 дней (2017-11-29 00:00:00+00:00 … 2026-10-13 00:00:00+00:00), DVOL 2030 дней (2021-03-24 00:00:00+00:00 … 2026-10-13 00:00:00+00:00)
+----- prepo collect (часть 1/10) -----
+часть 1/10, набор 1h-qualified: монет 66
+----- trendfam collect (часть 1/10) -----
+  trendfam: монет 65
+----- extreg collect (часть 1/10) -----
+----- prepo collect (часть 2/10) -----
+часть 2/10, набор 1h-qualified: монет 78
+----- trendfam collect (часть 2/10) -----
+  trendfam: монет 78
+----- extreg collect (часть 2/10) -----
+----- prepo collect (часть 3/10) -----
+часть 3/10, набор 1h-qualified: монет 73
+----- trendfam collect (часть 3/10) -----
+  trendfam: монет 73
+----- extreg collect (часть 3/10) -----
+----- prepo collect (часть 4/10) -----
+часть 4/10, набор 1h-qualified: монет 72
+----- trendfam collect (часть 4/10) -----
+  trendfam: монет 72
+----- extreg collect (часть 4/10) -----
+----- prepo collect (часть 5/10) -----
+часть 5/10, набор 1h-qualified: монет 83
+----- trendfam collect (часть 5/10) -----
+  trendfam: монет 83
+----- extreg collect (часть 5/10) -----
+----- prepo collect (часть 6/10) -----
+часть 6/10, набор 1h-qualified: монет 71
+----- trendfam collect (часть 6/10) -----
+  trendfam: монет 71
+----- extreg collect (часть 6/10) -----
+----- prepo collect (часть 7/10) -----
+часть 7/10, набор 1h-qualified: монет 61
+----- trendfam collect (часть 7/10) -----
+  trendfam: монет 61
+----- extreg collect (часть 7/10) -----
+----- prepo collect (часть 8/10) -----
+часть 8/10, набор 1h-qualified: монет 75
+----- trendfam collect (часть 8/10) -----
+  trendfam: монет 75
+----- extreg collect (часть 8/10) -----
+----- prepo collect (часть 9/10) -----
+часть 9/10, набор 1h-qualified: монет 83
+----- trendfam collect (часть 9/10) -----
+  trendfam: монет 83
+----- extreg collect (часть 9/10) -----
