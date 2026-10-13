@@ -39,11 +39,18 @@ FUND_CAP = 0.001                    # средний funding в день, выш
 ADV_4H = 50e6                       # 4h-свечи собираем только у монет, бывших хоть раз с оборотом от $50M
 
 
+def ensemble(close: pd.DataFrame, lookbacks: tuple[int, ...] = LOOKBACKS, bpd: int = 1) -> pd.DataFrame:
+    """Доля моделей Дончиана в лонге (выход на середине канала)."""
+    return pd.DataFrame(sum(_mid_models(close, n * bpd) for n in lookbacks) / len(lookbacks),
+                        index=close.index, columns=close.columns)
+
+
 def book(close: pd.DataFrame, adv: pd.DataFrame, fund: pd.DataFrame | None = None, *, top: int = TOP, k: int = K,
-         bpd: int = 1, fund_cap: float | None = None) -> pd.DataFrame:
-    """Веса «сильнейшие K + долив» на свечах с bpd свечами в дне (1 — дневки, 6 — 4h)."""
-    sig = pd.DataFrame(sum(_mid_models(close, n * bpd) for n in LOOKBACKS) / len(LOOKBACKS),
-                       index=close.index, columns=close.columns)
+         bpd: int = 1, fund_cap: float | None = None, sig: pd.DataFrame | None = None) -> pd.DataFrame:
+    """Веса «сильнейшие K + долив» на свечах с bpd свечами в дне (1 — дневки, 6 — 4h); sig — готовый сигнал
+    ансамбля вместо полного (9 периодов)."""
+    if sig is None:
+        sig = ensemble(close, LOOKBACKS, bpd)
     hi = close.rolling(20 * bpd, min_periods=20 * bpd).max().shift(1)
     new_hi = (close >= hi).to_numpy()
     on = (sig >= 0.5).to_numpy()
