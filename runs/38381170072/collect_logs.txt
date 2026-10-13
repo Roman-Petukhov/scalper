@@ -1,0 +1,40 @@
+----- preplow collect (часть 0/10) -----
+часть 0/10, набор lowtf-core70: монет 6
+----- lowtf collect (часть 0/10) -----
+  lowtf: частей 18
+----- preplow collect (часть 1/10) -----
+часть 1/10, набор lowtf-core70: монет 6
+----- lowtf collect (часть 1/10) -----
+  lowtf: частей 16
+----- preplow collect (часть 2/10) -----
+часть 2/10, набор lowtf-core70: монет 9
+----- lowtf collect (часть 2/10) -----
+  lowtf: частей 27
+----- preplow collect (часть 3/10) -----
+часть 3/10, набор lowtf-core70: монет 7
+----- lowtf collect (часть 3/10) -----
+  lowtf: частей 21
+----- preplow collect (часть 4/10) -----
+часть 4/10, набор lowtf-core70: монет 6
+----- lowtf collect (часть 4/10) -----
+  lowtf: частей 18
+----- preplow collect (часть 5/10) -----
+часть 5/10, набор lowtf-core70: монет 7
+----- lowtf collect (часть 5/10) -----
+  lowtf: частей 20
+----- preplow collect (часть 6/10) -----
+часть 6/10, набор lowtf-core70: монет 8
+----- lowtf collect (часть 6/10) -----
+  lowtf: частей 22
+----- preplow collect (часть 7/10) -----
+часть 7/10, набор lowtf-core70: монет 6
+----- lowtf collect (часть 7/10) -----
+  lowtf: частей 17
+----- preplow collect (часть 8/10) -----
+часть 8/10, набор lowtf-core70: монет 8
+----- lowtf collect (часть 8/10) -----
+  lowtf: частей 24
+----- preplow collect (часть 9/10) -----
+часть 9/10, набор lowtf-core70: монет 7
+----- lowtf collect (часть 9/10) -----
+  lowtf: частей 21
