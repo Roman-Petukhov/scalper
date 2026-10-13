@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"prepo springbo"}
+TASKS=${TASKS:-"prepq oilong"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -182,6 +182,8 @@ spotlong_collect() { python -m research.spotlong collect --symbols "$(cat /tmp/s
 spotlong_report() { python -m research.spotlong report; }
 springbo_collect() { python -m research.springbo collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
 springbo_report() { python -m research.springbo report; }
+oilong_collect() { python -m research.oilong collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
+oilong_report() { python -m research.oilong report; }
 range4_collect() { python -m research.range4 collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
 range4_report() { python -m research.range4 report; }
 exhaust_collect() { python -m research.exhaust collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
