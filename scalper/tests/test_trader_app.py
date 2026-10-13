@@ -218,6 +218,30 @@ def test_binance_closed_bars_drop_open_candle_and_merge_tail():
     assert calls == [1500, 6] and len(d2) == 3
 
 
+def test_binance_closed_bars_refetch_history_after_gap():
+    now_ms = int(pd.Timestamp.now(tz="UTC").timestamp() * 1000)
+    q = 900_000
+    end = now_ms - (now_ms % q)                                # открытие текущей (незакрытой) свечи
+    calls = []
+
+    def kl(start, n):
+        return [[start + i * q, "1", "2", "0.5", "1.5", "10", start + (i + 1) * q - 1, "15", 3, "6", "9", "0"]
+                for i in range(n)]
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        limit = int(req.url.params["limit"])
+        calls.append(limit)
+        if len(calls) == 1:                                    # история, но 20 свечей назад
+            return httpx.Response(200, json=kl(end - 40 * q, 20))
+        return httpx.Response(200, json=kl(end - (limit - 1) * q, limit))
+
+    md = BinanceMarketData(httpx.AsyncClient(base_url="https://x", transport=httpx.MockTransport(handler)))
+    asyncio.run(md.closed_bars("SOLUSDT", Timeframe.M15))
+    d = asyncio.run(md.closed_bars("SOLUSDT", Timeframe.M15))
+    assert calls == [1500, 6, 1500]
+    assert (d.index.to_series().diff().dropna() == pd.Timedelta(minutes=15)).all()
+
+
 def test_binance_bars_between_asks_window():
     seen = {}
 

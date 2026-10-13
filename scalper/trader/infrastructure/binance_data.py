@@ -85,6 +85,12 @@ class BinanceMarketData:
         limit = HISTORY if old is None else TAIL
         rows = await self._get("/fapi/v1/klines", {"symbol": symbol, "interval": tf.value, "limit": limit})
         new = self._frame(rows)
+        if old is not None and len(old) and len(new) and new.index[0] > old.index[-1] + pd.Timedelta(minutes=tf.minutes):
+            # монета выпадала из скана (оборот, старший ТФ только по сигналу) — хвост не стыкуется с кешем:
+            # без перезагрузки в ряду была бы дыра, и ATR, EMA и линии считались бы по склеенным свечам
+            old = None
+            new = self._frame(await self._get("/fapi/v1/klines", {"symbol": symbol, "interval": tf.value,
+                                                                  "limit": HISTORY}))
         df = new if old is None else pd.concat([old, new])
         df = df[~df.index.duplicated(keep="last")].sort_index()
         now_ms = int(time.time() * 1000)
