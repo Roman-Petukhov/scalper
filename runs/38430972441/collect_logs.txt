@@ -1,0 +1,40 @@
+----- prepq collect (часть 0/10) -----
+часть 0/10, набор 1h-qualified: монет 63
+----- oilong collect (часть 0/10) -----
+  oilong: лонгов 100, с OI 81
+----- prepq collect (часть 1/10) -----
+часть 1/10, набор 1h-qualified: монет 66
+----- oilong collect (часть 1/10) -----
+  oilong: лонгов 77, с OI 59
+----- prepq collect (часть 2/10) -----
+часть 2/10, набор 1h-qualified: монет 78
+----- oilong collect (часть 2/10) -----
+  oilong: лонгов 125, с OI 103
+----- prepq collect (часть 3/10) -----
+часть 3/10, набор 1h-qualified: монет 73
+----- oilong collect (часть 3/10) -----
+  oilong: лонгов 87, с OI 74
+----- prepq collect (часть 4/10) -----
+часть 4/10, набор 1h-qualified: монет 72
+----- oilong collect (часть 4/10) -----
+  oilong: лонгов 74, с OI 55
+----- prepq collect (часть 5/10) -----
+часть 5/10, набор 1h-qualified: монет 83
+----- oilong collect (часть 5/10) -----
+  oilong: лонгов 84, с OI 66
+----- prepq collect (часть 6/10) -----
+часть 6/10, набор 1h-qualified: монет 71
+----- oilong collect (часть 6/10) -----
+  oilong: лонгов 117, с OI 87
+----- prepq collect (часть 7/10) -----
+часть 7/10, набор 1h-qualified: монет 61
+----- oilong collect (часть 7/10) -----
+  oilong: лонгов 91, с OI 68
+----- prepq collect (часть 8/10) -----
+часть 8/10, набор 1h-qualified: монет 75
+----- oilong collect (часть 8/10) -----
+  oilong: лонгов 108, с OI 89
+----- prepq collect (часть 9/10) -----
+часть 9/10, набор 1h-qualified: монет 83
+----- oilong collect (часть 9/10) -----
+  oilong: лонгов 135, с OI 108
