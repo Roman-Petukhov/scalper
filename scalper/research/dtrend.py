@@ -85,9 +85,11 @@ def _models(close: pd.DataFrame, n: int, short: bool) -> pd.DataFrame:
 
 def portfolio(close: pd.DataFrame, fund: pd.DataFrame, adv: pd.DataFrame, lookbacks=LOOKBACKS, top: int = TOP,
               short: bool = False, cost_k: float = 1.0, only: list[str] | None = None,
-              gate: pd.Series | None = None, skip: int = 0) -> pd.Series:
-    """Дневная доходность портфеля (с издержками). gate — включатель по дням (решение на закрытии дня, как и веса)."""
-    sig = sum(_models(close, n, short) for n in lookbacks) / len(lookbacks)
+              gate: pd.Series | None = None, skip: int = 0, sig: pd.DataFrame | None = None) -> pd.Series:
+    """Дневная доходность портфеля (с издержками). gate — включатель по дням (решение на закрытии дня, как и веса);
+    sig — готовый сигнал монет (−1…1) вместо ансамбля Дончиана."""
+    if sig is None:
+        sig = sum(_models(close, n, short) for n in lookbacks) / len(lookbacks)
     ret = close.pct_change(fill_method=None)
     vol = ret.rolling(VOL_DAYS, min_periods=30).std() * np.sqrt(365)
     if only is not None:
