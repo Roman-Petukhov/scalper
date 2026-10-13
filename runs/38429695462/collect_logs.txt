@@ -1,0 +1,40 @@
+----- prepo collect (часть 0/10) -----
+часть 0/10, набор 1h-qualified: монет 63
+----- springbo collect (часть 0/10) -----
+  springbo: лонговых пробоев 396
+----- prepo collect (часть 1/10) -----
+часть 1/10, набор 1h-qualified: монет 66
+----- springbo collect (часть 1/10) -----
+  springbo: лонговых пробоев 295
+----- prepo collect (часть 2/10) -----
+часть 2/10, набор 1h-qualified: монет 78
+----- springbo collect (часть 2/10) -----
+  springbo: лонговых пробоев 465
+----- prepo collect (часть 3/10) -----
+часть 3/10, набор 1h-qualified: монет 73
+----- springbo collect (часть 3/10) -----
+  springbo: лонговых пробоев 349
+----- prepo collect (часть 4/10) -----
+часть 4/10, набор 1h-qualified: монет 72
+----- springbo collect (часть 4/10) -----
+  springbo: лонговых пробоев 333
+----- prepo collect (часть 5/10) -----
+часть 5/10, набор 1h-qualified: монет 83
+----- springbo collect (часть 5/10) -----
+  springbo: лонговых пробоев 394
+----- prepo collect (часть 6/10) -----
+часть 6/10, набор 1h-qualified: монет 71
+----- springbo collect (часть 6/10) -----
+  springbo: лонговых пробоев 431
+----- prepo collect (часть 7/10) -----
+часть 7/10, набор 1h-qualified: монет 61
+----- springbo collect (часть 7/10) -----
+  springbo: лонговых пробоев 395
+----- prepo collect (часть 8/10) -----
+часть 8/10, набор 1h-qualified: монет 75
+----- springbo collect (часть 8/10) -----
+  springbo: лонговых пробоев 474
+----- prepo collect (часть 9/10) -----
+часть 9/10, набор 1h-qualified: монет 83
+----- springbo collect (часть 9/10) -----
+  springbo: лонговых пробоев 574
