@@ -35,3 +35,13 @@ def test_rows_are_liquid_uptrend_longs_and_masks_cover_all_variants():
     assert set(mk) == set(VARIANTS)
     assert mk["none"].all() and (mk["aggr55"] <= mk["aggr52.5"]).all() and (mk["aggr52.5"] <= mk["aggr50"]).all()
     assert not coin_rows(d, np.zeros(len(d)), "X", None)
+
+
+def test_absorption_means_price_up_while_sellers_hit_the_bid():
+    df = pd.DataFrame({"buy": [0.5] * 3, "rel": [0.0] * 3, "vol_x": [1.0] * 3, "rng_atr": [1.0] * 3,
+                       "delta20": [-0.05, 0.05, -0.05], "rs7": [0.0] * 3, "rs30": [0.0] * 3, "loc": [0.6] * 3,
+                       "delta60": [-0.03, -0.03, 0.01], "ret20_atr": [1.0, 1.0, -1.0], "ret60_atr": [3.0, 1.0, 3.0]})
+    mk = masks(df)
+    assert mk["acc20"].tolist() == [True, False, False]
+    assert mk["acc60"].tolist() == [True, True, False]
+    assert mk["acc60s"].tolist() == [True, False, False]

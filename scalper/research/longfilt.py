@@ -10,9 +10,13 @@
     delta20              дельта агрессоров за 20 свечей до пробоя > 0 (накопление до пробоя)
     rs7 / rs30           монета сильнее BTC за 7 / 30 дней
     top25                закрытие в верхней четверти свечи
+Вторая волна (гипотеза «киты покупают лимитками»: цена растёт, а рыночные продажи перевешивают — кто-то поглощает их
+пассивными заявками):
+    acc20 / acc60        за 20 / 60 свечей до пробоя цена выросла, а дельта агрессоров (покупки − продажи) / объём < 0
+    acc60s               то же за 60 свечей, рост не меньше 2 ATR и дельта не выше −2% объёма (явное поглощение)
 Каждый — «вместо 55%» и «добавка к 55%» (сделки, где вариант да, а 55% нет).
 Принятие: R на сделку > 0 во всех периодах 2021 / IS / VAL / HO / 2026, где сделок ≥ 10, и (для «вместо») больше, чем
-у базы без фильтра, в каждом из них. Вариантов 12 × 2 — одиночный «проход» допускает случайность.
+у базы без фильтра, в каждом из них. Вариантов 15 × 2 — одиночный «проход» допускает случайность.
 
     python -m research.longfilt collect --symbols <1h-qualified>
     python -m research.longfilt report
@@ -37,7 +41,7 @@ from .tline import MAKER, PIV, RETEST_BARS, STOP_BUF, TAKER, htf_trend, last_con
 
 TF = "4h"
 BOT_EXIT = EXITS["бот (3R, долив на +1.5R)"]
-REL_BARS, VOL_BARS, DELTA_BARS = 180, 30, 20
+REL_BARS, VOL_BARS, DELTA_BARS, ACC_LONG = 180, 30, 20, 60
 VARIANTS: dict[str, str] = {
     "aggr55": "агрессоры ≥ 55% (бот)",
     "none": "без фильтра",
@@ -52,6 +56,9 @@ VARIANTS: dict[str, str] = {
     "rs7": "сильнее BTC за 7 дней",
     "rs30": "сильнее BTC за 30 дней",
     "top25": "закрытие в верхней четверти",
+    "acc20": "поглощение 20 свечей: цена вверх, дельта < 0",
+    "acc60": "поглощение 60 свечей: цена вверх, дельта < 0",
+    "acc60s": "поглощение 60 свечей: рост ≥ 2 ATR, дельта ≤ −2%",
 }
 
 
@@ -63,8 +70,11 @@ def features(d: pd.DataFrame, btc: pd.Series | None) -> dict[str, np.ndarray]:
     vmed = v.shift(1).rolling(VOL_BARS, min_periods=VOL_BARS // 2).median()
     delta = ((2 * d["taker_buy_volume"] - v).shift(1).rolling(DELTA_BARS).sum()
              / v.shift(1).rolling(DELTA_BARS).sum().replace(0, np.nan))
+    flow = (2 * d["taker_buy_volume"] - v).shift(1)
+    delta60 = flow.rolling(ACC_LONG).sum() / v.shift(1).rolling(ACC_LONG).sum().replace(0, np.nan)
     out = {"buy": buy.to_numpy(), "rel": (buy - norm).to_numpy(), "vol_x": (v / vmed.replace(0, np.nan)).to_numpy(),
-           "delta20": delta.to_numpy()}
+           "delta20": delta.to_numpy(), "delta60": delta60.to_numpy(),
+           "ret20": (c.shift(1) - c.shift(1 + DELTA_BARS)).to_numpy(), "ret60": (c.shift(1) - c.shift(1 + ACC_LONG)).to_numpy()}
     bc = btc.reindex(d.index, method="ffill") if btc is not None else pd.Series(np.nan, index=d.index)
     for days in (7, 30):
         n = days * 6
@@ -98,7 +108,8 @@ def coin_rows(d: pd.DataFrame, liq: np.ndarray, sym: str, btc: pd.Series | None)
              else simulate(o, hi, lo, c, f, fill, 1, level, stop, a[t], BOT_EXIT))
         rows.append({"symbol": sym, "t": d.index[t], "R": r, "buy": fx["buy"][t], "rel": fx["rel"][t],
                      "vol_x": fx["vol_x"][t], "rng_atr": rng[t] / a[t], "delta20": fx["delta20"][t],
-                     "rs7": fx["rs7"][t], "rs30": fx["rs30"][t], "loc": loc[t]})
+                     "rs7": fx["rs7"][t], "rs30": fx["rs30"][t], "loc": loc[t], "delta60": fx["delta60"][t],
+                     "ret20_atr": fx["ret20"][t] / a[t], "ret60_atr": fx["ret60"][t] / a[t]})
     return rows
 
 
@@ -106,7 +117,9 @@ def masks(df: pd.DataFrame) -> dict[str, pd.Series]:
     return {"aggr55": df.buy >= 0.55, "none": pd.Series(True, index=df.index), "aggr50": df.buy >= 0.50,
             "aggr52.5": df.buy >= 0.525, "rel3": df.rel >= 0.03, "rel5": df.rel >= 0.05, "vol2": df.vol_x >= 2,
             "vol3": df.vol_x >= 3, "rng1.5": df.rng_atr >= 1.5, "delta20": df.delta20 > 0, "rs7": df.rs7 > 0,
-            "rs30": df.rs30 > 0, "top25": df["loc"] >= 0.75}
+            "rs30": df.rs30 > 0, "top25": df["loc"] >= 0.75,
+            "acc20": (df.ret20_atr > 0) & (df.delta20 < 0), "acc60": (df.ret60_atr > 0) & (df.delta60 < 0),
+            "acc60s": (df.ret60_atr >= 2) & (df.delta60 <= -0.02)}
 
 
 def collect(root: Path, syms: list[str]) -> None:
