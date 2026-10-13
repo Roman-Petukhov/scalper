@@ -12,6 +12,12 @@
         <span class="hint" style="margin:0">{{ b.rule.backtest }}</span>
       </div>
       {% if b.last %}
+      {% if b.last.gate is not none %}
+      <p class="hint trend-gate {{ 'jr-up' if b.last.gate else 'jr-down' }}">
+        {% if b.last.inflow is not none %}Стейблкоины за 30 дней {{ '%+.1f' | format(b.last.inflow * 100) }}% —
+        {% else %}DefiLlama не ответил, решение вчерашнее —{% endif %}
+        {{ 'в рынке' if b.last.gate else 'вне рынка, ждём притока' }}</p>
+      {% endif %}
       <div class="stats periods num">
         <div class="stat {{ 'up' if b.total > 0 else ('down' if b.total < 0 else '') }}"><span>С {{ b.since.strftime('%d.%m') }}</span>
           <b>{{ '%+.1f' | format(b.total * 100) }}%</b><small>{{ b.days }} дн.</small></div>
@@ -31,6 +37,7 @@
         </div>
         {% endfor %}
       </div>
+      {% elif b.last.gate is sameas false %}<p class="hint">Позиций нет: новые деньги в крипту не приходят.</p>
       {% else %}<p class="hint">Сейчас вне рынка: ни одна из 20 крупнейших монет не в тренде.</p>{% endif %}
       {% else %}
       <p class="hint">Счёт откроется на ближайшем закрытии дня (00:00 UTC): первый шаг — вход в текущие тренды.</p>

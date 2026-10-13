@@ -520,3 +520,7 @@ def test_trend_card_empty_and_with_book(env):
     r = c.get("/trend")
     assert "NEARUSDT" in r.text and "-1.0%" in r.text and "доливов 2" in r.text and "+176.8%" in r.text
     assert "Просадка" in r.text and "2.9%" in r.text
+    st.trend_save(TrendDay("s7_add", date(2026, 10, 13), 0.98, -0.01, 0.001, {}, False, -0.012))
+    r = c.get("/trend")
+    assert "Стейблкоины за 30 дней -1.2%" in r.text and "вне рынка, ждём притока" in r.text
+    assert "новые деньги в крипту не приходят" in r.text

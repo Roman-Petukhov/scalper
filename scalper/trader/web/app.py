@@ -39,6 +39,7 @@ from ..infrastructure.binance_data import BinanceMarketData
 from ..infrastructure.bybit import (ALIAS_MAX_GAP, BrokerHolder, BybitBroker, BybitCredentials, load_aliases,
                                     parse_symbol, save_aliases)
 from ..infrastructure.charts import MatplotlibCharts
+from ..infrastructure.defillama import DefiLlamaStablecoins
 from ..infrastructure.heartbeat import HttpHeartbeat
 from ..infrastructure.sqlite_repo import SqliteStore
 from ..infrastructure.telegram import TelegramNotifier
@@ -128,7 +129,8 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
     scanner = Scanner(market, store, store, charts, notify, cfg.panel_url, executor=executor, heartbeat=heartbeat)
     settings_svc = SettingsService(store)
     decisions = SignalDecisions(store, store, executor)
-    trend = TrendPaper(market, store, notify)
+    stables = DefiLlamaStablecoins()
+    trend = TrendPaper(market, store, notify, stables=stables)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -161,6 +163,7 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         if task is not None:
             await task
         await holder.close()
+        await stables.aclose()
         if heartbeat is not None:
             await heartbeat.close()
 

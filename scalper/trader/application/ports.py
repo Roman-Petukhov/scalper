@@ -144,3 +144,8 @@ class TrendRepository(Protocol):
 
     def trend_history(self, rule: str, limit: int = 400) -> list[TrendDay]:
         """Шаги счёта, старые первыми."""
+
+
+class StablecoinData(Protocol):
+    async def supply(self) -> pd.Series:
+        """Суммарное предложение долларовых стейблкоинов по дням, $; индекс — день UTC."""

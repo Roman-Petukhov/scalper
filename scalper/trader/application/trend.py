@@ -12,8 +12,8 @@ from datetime import date, datetime, time, timedelta, timezone
 
 import pandas as pd
 
-from ..domain.trend import HISTORY_DAYS, RULES, TrendDay, TrendRule, step, targets
-from .ports import MarketData, Notifier, TrendRepository
+from ..domain.trend import HISTORY_DAYS, RULES, TrendDay, TrendRule, inflow, step, targets
+from .ports import MarketData, Notifier, StablecoinData, TrendRepository
 
 log = logging.getLogger(__name__)
 AFTER_CLOSE = timedelta(minutes=3)      # Binance дописывает дневную свечу и funding 00:00, а сканы 15m / 4h в 00:00
@@ -28,8 +28,9 @@ def _utcnow() -> datetime:
 class TrendPaper:
     def __init__(self, market: MarketData, repo: TrendRepository, notifier: Notifier | None = None,
                  rules: tuple[TrendRule, ...] = RULES, concurrency: int = 4,
-                 clock: Callable[[], datetime] = _utcnow) -> None:
+                 clock: Callable[[], datetime] = _utcnow, stables: StablecoinData | None = None) -> None:
         self.market, self.repo, self.notifier, self.rules = market, repo, notifier, rules
+        self.stables = stables
         self.sem = asyncio.Semaphore(concurrency)
         self.clock = clock
         self._tried: datetime | None = None
@@ -94,19 +95,32 @@ class TrendPaper:
             raise RuntimeError(f"последняя дневная свеча {close.index[-1].date()}, ждём {day}")
         prices = {s: float(v) for s, v in close.iloc[-1].items() if pd.notna(v) and v > 0}
         close_at = datetime.combine(now.date(), time(), timezone.utc)
+        supply = None
+        if self.stables is not None and any(r.inflow_gate for r in self.rules):
+            try:
+                supply = await self.stables.supply()
+            except Exception as e:
+                log.warning("тренд: стейблкоины — %s", e)
         out = []
         for rule in self.rules:
             prev = last[rule.key]
             if prev is not None and prev.day >= day:
                 continue
+            gate = chg = None
+            if rule.inflow_gate:
+                chg = inflow(supply, day, rule.inflow_days) if supply is not None else None
+                # нет данных DefiLlama — держим вчерашнее решение; самый первый шаг без данных — вне рынка
+                gate = (chg > 0) if chg is not None else bool(prev is not None and prev.gate)
             tgt = await asyncio.to_thread(targets, close, qv, rule)       # секунда-две счёта — не в цикле событий
+            if gate is False:
+                tgt = []
             fund: dict[str, float] = {}
             if prev is not None and prev.positions:
                 since = datetime.combine(prev.day + timedelta(days=1), time(), timezone.utc)
                 names = list(prev.positions)
                 vals = await asyncio.gather(*(self._funding(s, since, close_at) for s in names))
                 fund = dict(zip(names, vals))
-            new = step(prev, rule.key, day, prices, fund, tgt)
+            new = step(prev, rule.key, day, prices, fund, tgt, gate, chg)
             self.repo.trend_save(new)
             out.append(new)
             await self._notify(rule, prev, new)
@@ -118,9 +132,13 @@ class TrendPaper:
         old = set(prev.positions) if prev is not None else set()
         cur = set(new.positions)
         more = [s for s in cur & old if new.positions[s].adds > prev.positions[s].adds] if prev is not None else []
-        if old == cur and not more:
+        flip = prev is not None and new.gate is not None and prev.gate is not None and new.gate != prev.gate
+        if old == cur and not more and not flip:
             return
         parts = [f"Тренд, бумага · {rule.title}: капитал {(new.equity - 1) * 100:+.1f}% с начала"]
+        if flip:
+            parts.append("приток стейблкоинов вернулся — снова в рынке" if new.gate else
+                         "стейблкоины за 30 дней не выросли — портфель закрыт до возвращения притока")
         if cur - old:
             parts.append("вошёл: " + ", ".join(sorted(cur - old)))
         if old - cur:

@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 
 from trader.application.trend import TrendPaper
-from trader.domain.trend import RULES, TAKER, TrendDay, TrendPosition, TrendTarget, step, targets, weights
+from trader.domain.trend import RULES, TAKER, TrendDay, TrendPosition, TrendTarget, inflow, step, targets, weights
 from trader.infrastructure.sqlite_repo import SqliteStore
 
 
@@ -87,6 +87,18 @@ class _Daily:
         return 0.0001
 
 
+class _Stables:
+    def __init__(self, growing=True, fail=False):
+        self.growing, self.fail = growing, fail
+
+    async def supply(self):
+        if self.fail:
+            raise RuntimeError("нет связи")
+        idx = pd.date_range("2025-01-01", "2026-10-12", freq="1D")
+        v = np.arange(len(idx), dtype=float) + 1e11
+        return pd.Series(v if self.growing else v[::-1], index=idx)
+
+
 class _Note:
     def __init__(self):
         self.msgs = []
@@ -100,7 +112,7 @@ def test_paper_runs_once_per_closed_day(tmp_path):
     st = SqliteStore(tmp_path / "t.db")
     note = _Note()
     now = [datetime(2026, 10, 13, 0, 1, tzinfo=timezone.utc)]
-    tp = TrendPaper(_Daily(close, qv), st, note, clock=lambda: now[0])
+    tp = TrendPaper(_Daily(close, qv), st, note, clock=lambda: now[0], stables=_Stables())
     assert asyncio.run(tp.maybe_run()) == []                                  # день ещё дописывается
     now[0] = datetime(2026, 10, 13, 0, 5, tzinfo=timezone.utc)
     out = asyncio.run(tp.maybe_run())
@@ -116,3 +128,68 @@ def test_paper_refuses_stale_candles(tmp_path):
     tp = TrendPaper(_Daily(close, qv), st, clock=lambda: datetime(2026, 10, 13, 1, 0, tzinfo=timezone.utc))
     assert asyncio.run(tp.maybe_run()) == [] and "ждём 2026-10-12" in tp.last_error
     assert st.trend_last(RULES[0].key) is None
+
+
+def test_inflow_matches_research_gate():
+    from research.dboost2 import inflow_gate
+    idx = pd.date_range("2024-01-01", periods=200, freq="1D")
+    rng = np.random.default_rng(2)
+    st = pd.Series(1e11 + np.cumsum(rng.normal(0, 1e9, 200)), index=idx).drop(idx[[50, 51, 120]])
+    g = inflow_gate(st, idx)
+    for d in idx[40:]:
+        chg = inflow(st, d.date())
+        assert (chg is not None and chg > 0) == bool(g[d])
+    assert inflow(st, idx[10].date()) is None                                 # меньше 30 дней истории
+
+
+def test_gate_off_closes_book_and_falls_back_when_data_missing(tmp_path):
+    close, qv = _market(end="2026-10-12")
+    st = SqliteStore(tmp_path / "t.db")
+    note = _Note()
+    now = [datetime(2026, 10, 13, 0, 5, tzinfo=timezone.utc)]
+    src = _Stables()
+    tp = TrendPaper(_Daily(close, qv), st, note, clock=lambda: now[0], stables=src)
+    first = asyncio.run(tp.run(now[0]))[0]
+    assert first.gate is True and first.inflow > 0 and first.positions
+    close2, qv2 = _market(end="2026-10-13")
+    tp.market = _Daily(close2, qv2)
+    src.fail = True                                                           # DefiLlama молчит — держим вчерашнее
+    now[0] = datetime(2026, 10, 14, 0, 5, tzinfo=timezone.utc)
+    second = asyncio.run(tp.run(now[0]))[0]
+    assert second.gate is True and second.inflow is None and second.positions
+    close3, qv3 = _market(end="2026-10-14")
+    tp.market = _Daily(close3, qv3)
+    src.fail, src.growing = False, False
+    now[0] = datetime(2026, 10, 15, 0, 5, tzinfo=timezone.utc)
+    third = asyncio.run(tp.run(now[0]))[0]
+    assert third.gate is False and third.positions == {} and third.inflow < 0
+    assert any("портфель закрыт" in m for m in note.msgs)
+    assert st.trend_last(RULES[0].key).gate is False
+
+
+def test_first_step_without_data_stays_out(tmp_path):
+    close, qv = _market(end="2026-10-12")
+    st = SqliteStore(tmp_path / "t.db")
+    tp = TrendPaper(_Daily(close, qv), st, stables=_Stables(fail=True))
+    d = asyncio.run(tp.run(datetime(2026, 10, 13, 0, 5, tzinfo=timezone.utc)))[0]
+    assert d.gate is False and d.positions == {} and d.equity == 1.0
+
+
+def test_parse_supply_and_old_table_migration(tmp_path):
+    import sqlite3
+    from trader.infrastructure.defillama import parse_supply
+    s = parse_supply([{"date": "1700000000", "totalCirculatingUSD": {"peggedUSD": 1.5e11}},
+                      {"date": "x"}, {"date": 1700086400, "totalCirculating": {"peggedUSD": 1.6e11}}, "junk"])
+    assert list(s) == [1.5e11, 1.6e11] and s.index[0] == pd.Timestamp("2023-11-14")
+    assert parse_supply({"error": 1}).empty
+    db = sqlite3.connect(tmp_path / "old.db")
+    db.execute("CREATE TABLE trend_days (rule TEXT NOT NULL, day TEXT NOT NULL, equity REAL NOT NULL, pnl REAL NOT NULL, "
+               "cost REAL NOT NULL, positions TEXT NOT NULL, PRIMARY KEY (rule, day))")
+    db.execute("INSERT INTO trend_days VALUES ('s7_add', '2026-10-01', 1.01, 0.01, 0.0, '{}')")
+    db.commit()
+    db.close()
+    st = SqliteStore(tmp_path / "old.db")
+    old = st.trend_last("s7_add")
+    assert old.gate is None and old.inflow is None
+    st.trend_save(TrendDay("s7_add", date(2026, 10, 2), 1.0, 0.0, 0.0, {}, False, -0.01))
+    assert st.trend_last("s7_add").gate is False

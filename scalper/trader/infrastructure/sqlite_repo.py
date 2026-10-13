@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS trades (
 CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS trend_days (
     rule TEXT NOT NULL, day TEXT NOT NULL, equity REAL NOT NULL, pnl REAL NOT NULL, cost REAL NOT NULL,
-    positions TEXT NOT NULL, PRIMARY KEY (rule, day)
+    positions TEXT NOT NULL, gate INTEGER, inflow REAL, PRIMARY KEY (rule, day)
 );
 """
 
@@ -66,7 +66,9 @@ def _result(raw: str | None) -> TradeResult | None:
 def _trend_day(r: sqlite3.Row) -> TrendDay:
     pos = {s: TrendPosition(p["qty"], p["price"], p["weight"], p["adds"], date.fromisoformat(p["entry_day"]),
                             p["entry_price"]) for s, p in json.loads(r["positions"]).items()}
-    return TrendDay(r["rule"], date.fromisoformat(r["day"]), r["equity"], r["pnl"], r["cost"], pos)
+    gate = r["gate"]
+    return TrendDay(r["rule"], date.fromisoformat(r["day"]), r["equity"], r["pnl"], r["cost"], pos,
+                    None if gate is None else bool(gate), r["inflow"])
 
 
 class SqliteStore:
@@ -80,6 +82,7 @@ class SqliteStore:
         with self.lock:
             self.db.executescript(SCHEMA)
             self._migrate_trades()
+            self._migrate_trend()
             self._drop_retired()
             self._close_finished()
             self._reset_strategies(STRATEGY_RESETS)
@@ -110,6 +113,13 @@ class SqliteStore:
                          ("hedge", "TEXT"), ("add_qty", "REAL"), ("add_price", "REAL")):
             if col not in have:
                 self.db.execute(f"ALTER TABLE trades ADD COLUMN {col} {ddl}")
+
+    def _migrate_trend(self) -> None:
+        """Включатель притока появился после таблицы trend_days."""
+        cols = {r["name"] for r in self.db.execute("PRAGMA table_info(trend_days)")}
+        for col, kind in (("gate", "INTEGER"), ("inflow", "REAL")):
+            if col not in cols:
+                self.db.execute(f"ALTER TABLE trend_days ADD COLUMN {col} {kind}")
 
     def _set_once(self, once: dict[str, dict[str, object]]) -> None:
         """Один раз поменять общие поля сохранённых настроек; метка в kv — дальше их меняет только трейдер."""
@@ -412,9 +422,10 @@ class SqliteStore:
         pos = {s: {"qty": p.qty, "price": p.price, "weight": p.weight, "adds": p.adds,
                    "entry_day": p.entry_day.isoformat(), "entry_price": p.entry_price} for s, p in day.positions.items()}
         with self.lock:
-            self.db.execute("INSERT OR REPLACE INTO trend_days(rule, day, equity, pnl, cost, positions) "
-                            "VALUES (?, ?, ?, ?, ?, ?)",
-                            (day.rule, day.day.isoformat(), day.equity, day.pnl, day.cost, json.dumps(pos)))
+            self.db.execute("INSERT OR REPLACE INTO trend_days(rule, day, equity, pnl, cost, positions, gate, inflow) "
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                            (day.rule, day.day.isoformat(), day.equity, day.pnl, day.cost, json.dumps(pos),
+                             None if day.gate is None else int(day.gate), day.inflow))
             self.db.commit()
 
     def trend_history(self, rule: str, limit: int = 400) -> list[TrendDay]:

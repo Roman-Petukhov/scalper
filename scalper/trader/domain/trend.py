@@ -7,6 +7,8 @@
     сильнейшие    из 20 монет с наибольшим средним оборотом за 30 дней и сигналом > 0 — 7 с лучшим моментумом
                   (доходность за 60 дней / волатильность 90 дней); капитал делится на 7
     размер        вес = сигнал × (40% / годовая волатильность монеты за 90 дней) / 7, общий вес не больше 2
+    приток        портфель держится, только пока суммарное предложение долларовых стейблкоинов выросло за 30 дней
+                  (DefiLlama); иначе всё закрыто (research/dboost2.py: Sharpe выше во всех периодах, просадка 32% против 44%)
 Решение — на закрытии дня, исполнение по этому закрытию; издержки — taker с оборота и funding.
 Всё считается заново по истории закрытий каждый день, поэтому состояние стратегии — только бумажный счёт.
 """
@@ -39,11 +41,13 @@ class TrendRule:
     add_step: float = 0.5
     add_max: int = 3
     add_high: int = 20
+    inflow_gate: bool = True
+    inflow_days: int = 30
 
 
 RULES: tuple[TrendRule, ...] = (
-    TrendRule("s7_add", "Сильнейшие 7 + долив",
-              "бэктест с 2022: +30% в год, Sharpe 0.91, просадка 44%"),
+    TrendRule("s7_add", "Сильнейшие 7 + долив, при притоке стейблкоинов",
+              "бэктест с 2022: +38% в год, Sharpe 1.27, просадка 32%"),
 )
 
 
@@ -130,6 +134,23 @@ def targets(close: pd.DataFrame, quote_volume: pd.DataFrame, rule: TrendRule) ->
     return sorted(out, key=lambda t: -t.weight)
 
 
+def inflow(stable: pd.Series, day: date, days: int = 30) -> float | None:
+    """Изменение предложения стейблкоинов за days дней к дню day (пропуски данных — до 3 дней последним значением);
+    None — данных нет."""
+    if not len(stable):
+        return None
+    s = stable.copy()
+    s.index = pd.DatetimeIndex(s.index).tz_localize(None).normalize() if pd.DatetimeIndex(s.index).tz is not None \
+        else pd.DatetimeIndex(s.index).normalize()
+    s = s.groupby(level=0).last()
+    end = pd.Timestamp(day)
+    if s.index[0] > end - pd.Timedelta(days=days):
+        return None
+    full = s.reindex(pd.date_range(s.index[0], end, freq="D")).ffill(limit=3)
+    cur, past = full.iloc[-1], full.iloc[-1 - days]
+    return float(cur / past - 1) if pd.notna(cur) and pd.notna(past) and past > 0 else None
+
+
 @dataclass(frozen=True)
 class TrendPosition:
     qty: float                      # монет на капитал стратегии 1.0
@@ -148,6 +169,8 @@ class TrendDay:
     pnl: float                      # изменение капитала за шаг (с издержками)
     cost: float                     # комиссии и funding за шаг
     positions: dict[str, TrendPosition] = field(default_factory=dict)
+    gate: bool | None = None        # приток стейблкоинов: True — в рынке, False — вне, None — правило без включателя
+    inflow: float | None = None     # изменение предложения стейблкоинов за 30 дней; None — данных не было
 
     @property
     def gross(self) -> float:
@@ -155,7 +178,7 @@ class TrendDay:
 
 
 def step(prev: TrendDay | None, rule: str, day: date, prices: dict[str, float], funding: dict[str, float],
-         tgt: list[TrendTarget]) -> TrendDay:
+         tgt: list[TrendTarget], gate: bool | None = None, inflow_chg: float | None = None) -> TrendDay:
     """Оценить позиции по новым закрытиям, списать funding (лонг платит при ставке > 0), перейти к целевым весам
     с комиссией taker с оборота. Монета без цены (делистинг, нет свечи) закрывается по последней оценке."""
     equity = prev.equity if prev is not None else 1.0
@@ -183,4 +206,5 @@ def step(prev: TrendDay | None, rule: str, day: date, prices: dict[str, float], 
                                    held[s].entry_price if keep else px)
     cost = TAKER * turnover
     equity -= cost
-    return TrendDay(rule, day, equity, equity - (prev.equity if prev is not None else 1.0), fund + cost, out)
+    return TrendDay(rule, day, equity, equity - (prev.equity if prev is not None else 1.0), fund + cost, out,
+                    gate, inflow_chg)
