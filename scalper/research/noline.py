@@ -38,10 +38,13 @@ def _level_series(c: np.ndarray, piv: np.ndarray) -> np.ndarray:
     return np.where(idx >= 0, c[np.maximum(idx, 0)], np.nan)
 
 
-def triggers(d: pd.DataFrame, a: np.ndarray) -> list[tuple[str, int, int, float]]:
-    """(повод, бар пробоя, сторона, уровень для ретеста). Пробой — закрытие за уровнем, прошлое закрытие — нет."""
+def triggers(d: pd.DataFrame, a: np.ndarray, lines_only: bool = False) -> list[tuple[str, int, int, float]]:
+    """(повод, бар пробоя, сторона, уровень для ретеста). Пробой — закрытие за уровнем, прошлое закрытие — нет.
+    lines_only — только пробои линий (на 1m / 5m уровни вроде «бар» дают миллионы поводов)."""
     c, hi, lo = (d[k].to_numpy(dtype="float64") for k in ("close", "high", "low"))
     out = [("line", r["t"], r["side"], r["line_t"]) for r in zz_lines(d) if r["t"] > 0]
+    if lines_only:
+        return out
     zh, zl = zigzag(c, a, ZZ_K)
     s = pd.Series(c)
     levels = {
@@ -61,7 +64,7 @@ def triggers(d: pd.DataFrame, a: np.ndarray) -> list[tuple[str, int, int, float]
     return out
 
 
-def coin_trades(d: pd.DataFrame, liq: np.ndarray, sym: str) -> pd.DataFrame:
+def coin_trades(d: pd.DataFrame, liq: np.ndarray, sym: str, lines_only: bool = False) -> pd.DataFrame:
     o, hi, lo, c = (d[k].to_numpy(dtype="float64") for k in ("open", "high", "low", "close"))
     f = d["funding"].to_numpy(dtype="float64") if "funding" in d else np.zeros(len(c))
     a = _atr(d).to_numpy()
@@ -71,7 +74,7 @@ def coin_trades(d: pd.DataFrame, liq: np.ndarray, sym: str) -> pd.DataFrame:
     loc = (c - lo) / np.where(rng > 0, rng, np.nan)
     sw_lo, sw_hi = last_confirmed(pivots(lo, PIV, False), len(c)), last_confirmed(pivots(hi, PIV, True), len(c))
     rows = []
-    for name, t, side, level in triggers(d, a):
+    for name, t, side, level in triggers(d, a, lines_only):
         if t >= len(c) - 1 or not (a[t] > 0) or not (liq[t] >= ADV_MIN) or trend[t] != side:
             continue
         aggr = buy[t] if side > 0 else 1 - buy[t]

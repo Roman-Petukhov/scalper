@@ -10,6 +10,7 @@
     1h-spot        те же 725 монет: спот-свечи Binance 1h (остаются монеты, у которых есть спот)
     1h-premium     те же 725 монет: 1h + premium index (премия перпа к индексу спота)
     1h-all         все USDT-перпетуалы архива (включая делистнутые), 1h без метрик
+    lowtf-core70   core16 + ext54: 1h, 15m, 5m и 1m (1m — с RESEARCH_START_1M)
 """
 from __future__ import annotations
 
@@ -25,6 +26,7 @@ from .universe import EXTRA
 
 ROOT = Path.home() / "bn"
 START, END = os.environ.get("RESEARCH_START", "2022-01"), "2026-09"   # RESEARCH_START=2020-01 — проверка на 2020–2021
+START_1M = os.environ.get("RESEARCH_START_1M", "2025-07")      # 1m — только HOLDOUT: ~650 тыс. свечей на монету
 METRICS = os.environ.get("RESEARCH_METRICS", "1") != "0"   # 0 — без OI/LSR: ~1.2 млн дневных архивов, на VPS долго
 
 
@@ -51,6 +53,14 @@ def build(name: str) -> list[str]:
         part = mine(json.loads(Path(__file__).with_name("symbols_qualified.json").read_text()))
         D.build(sorted(set(part) | ALWAYS), "1h", START, END, ROOT, 64, metrics=METRICS, premium=True)
         part = [s for s in part if (ROOT / f"{s}-premium-1h.parquet").exists()]
+    elif name == "lowtf-core70":
+        part = mine(list(dict.fromkeys(D.UNIVERSE + list(EXTRA))))
+        syms = sorted(set(part) | ALWAYS)
+        D.build(syms, "1h", START, END, ROOT, 64)                                 # 1h — для фильтра оборота
+        D.build(syms, "15m", START, END, ROOT, 64)
+        D.build(syms, "5m", START, END, ROOT, 64)
+        D.build(syms, "1m", START_1M, END, ROOT, 64)
+        part = [s for s in part if (ROOT / f"{s}-5m.parquet").exists()]
     elif name == "1h-all":
         part = mine(list_symbols())
         D.build(sorted(set(part) | ALWAYS), "1h", START, END, ROOT, 64)

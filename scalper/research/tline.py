@@ -49,9 +49,10 @@ from .wave2 import metrics_on_bars
 PER = {"is": ("2022-01-01", "2024-07-01"), "val": ("2024-07-01", "2025-07-01"), "ho": ("2025-07-01", "2026-10-01")}
 PIV = 5
 MAKER, TAKER = 2e-4, 5.5e-4
-HOLD = {"15m": 200, "1h": 120, "2h": 90, "4h": 60, "6h": 50, "12h": 40, "1d": 30}
-HTF = {"15m": "1h", "1h": "4h", "2h": "1D", "4h": "1D", "6h": "1D", "12h": "1W", "1d": "1W"}
-BAR_MIN = {"15m": 15, "1h": 60, "2h": 120, "4h": 240, "6h": 360, "12h": 720, "1d": 1440}
+HOLD = {"1m": 200, "5m": 200, "15m": 200, "1h": 120, "2h": 90, "4h": 60, "6h": 50, "12h": 40, "1d": 30}
+HTF = {"1m": "15min", "5m": "1h", "15m": "1h", "1h": "4h", "2h": "1D", "4h": "1D", "6h": "1D", "12h": "1W", "1d": "1W"}
+BAR_MIN = {"1m": 1, "5m": 5, "15m": 15, "1h": 60, "2h": 120, "4h": 240, "6h": 360, "12h": 720, "1d": 1440}
+LOW_TFS = ("5m", "1m")                 # свои файлы свечей (research/lowtf.py)
 HIGH_TFS = {"2h": "2h", "4h": "4h", "6h": "6h", "12h": "12h", "1d": "1D"}      # собираются из 1h-свечей
 RETEST_BARS = 12
 RETEST_OFF = 0.0       # лимитка ретеста: сдвиг от линии к цене, ATR (research/improve.py; бот — 0)
@@ -638,7 +639,7 @@ def _extend_daily(sym: str, df: pd.DataFrame, interval: str = "1h") -> pd.DataFr
 
 def tf_frame(root: Path, sym: str, tf: str, extend: bool = False) -> pd.DataFrame | None:
     p15, p1 = root / f"{sym}-15m.parquet", root / f"{sym}-1h.parquet"
-    src = p15 if tf == "15m" else p1
+    src = p15 if tf == "15m" else root / f"{sym}-{tf}.parquet" if tf in LOW_TFS else p1
     if not src.exists():
         return None
     df = pd.read_parquet(src)
@@ -655,7 +656,7 @@ def tf_frame(root: Path, sym: str, tf: str, extend: bool = False) -> pd.DataFram
     return df
 
 
-HTF2 = {"15m": "4h", "1h": "1D", "2h": "1W", "4h": "1W", "6h": "1W", "12h": "1W", "1d": "1W"}          # тренд ещё на ступень старше
+HTF2 = {"1m": "1h", "5m": "4h", "15m": "4h", "1h": "1D", "2h": "1W", "4h": "1W", "6h": "1W", "12h": "1W", "1d": "1W"}          # тренд ещё на ступень старше
 
 
 def _htf_bars(d: pd.DataFrame, rule: str) -> pd.DataFrame:
@@ -666,7 +667,7 @@ def _htf_bars(d: pd.DataFrame, rule: str) -> pd.DataFrame:
 
 
 def _to_bars(st: pd.Series, d: pd.DataFrame, rule: str, tf: str) -> np.ndarray:
-    st.index = st.index + {"1h": pd.Timedelta(hours=1), "4h": pd.Timedelta(hours=4), "1D": pd.Timedelta(days=1),
+    st.index = st.index + {"15min": pd.Timedelta(minutes=15), "1h": pd.Timedelta(hours=1), "4h": pd.Timedelta(hours=4), "1D": pd.Timedelta(days=1),
                            "1W": pd.Timedelta(days=7)}[rule]
     bar_close = d.index + pd.Timedelta(minutes=BAR_MIN[tf])                  # известно после закрытия свечи ст. ТФ
     return st.reindex(bar_close, method="ffill").to_numpy()

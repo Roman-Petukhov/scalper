@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"prepo dtiers"}
+TASKS=${TASKS:-"preplow lowtf"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -146,6 +146,10 @@ newlist_collect() { python -m research.newlist collect --symbols "$(cat /tmp/sym
 newlist_report() { python -m research.newlist report; }
 pumpfade_collect() { python -m research.pumpfade collect --symbols "$(cat /tmp/syms_1h-all.txt)"; }
 pumpfade_report() { python -m research.pumpfade report; }
+preplow_collect() { RESEARCH_METRICS=0 python -m research.prepare lowtf-core70; }
+preplow_report() { :; }
+lowtf_collect() { python -m research.lowtf collect --symbols "$(cat /tmp/syms_lowtf-core70.txt)"; }
+lowtf_report() { python -m research.lowtf report; }
 range4_collect() { python -m research.range4 collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
 range4_report() { python -m research.range4 report; }
 exhaust_collect() { python -m research.exhaust collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
