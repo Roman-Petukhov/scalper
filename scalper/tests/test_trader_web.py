@@ -110,6 +110,12 @@ def test_params_per_timeframe(env):
     assert s.p(Timeframe.M15).entry_policy.value == "market" and s.p(Timeframe.H4).min_close_loc == 0.7
     assert s.p(Timeframe.M15).sides.value == "short" and s.p(Timeframe.M15).max_slope_atr == 0.05
     assert s.p(Timeframe.H4).sides.value == "both"
+    assert 'name="15m__tf_leverage"' in r and s.p(Timeframe.M15).leverage == 15        # поле не прислано — без изменений
+    c.post("/settings/params", data=_params_form(**{"15m__tf_leverage": "12", "4h__tf_leverage": "3"}), headers=HX)
+    s = SqliteStore(tmp / "trader.db").load()
+    assert s.lev(Timeframe.M15) == 12 and s.lev(Timeframe.H4) == 3
+    assert "плечо таймфрейма" in c.post("/settings/params", data=_params_form(**{"15m__tf_leverage": "20"}),
+                                        headers=HX).text
     bad = _params_form()
     del bad["4h__target_r"]
     assert "не заполнено поле" in c.post("/settings/params", data=bad, headers=HX).text

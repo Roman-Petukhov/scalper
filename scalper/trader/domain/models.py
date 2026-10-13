@@ -6,7 +6,8 @@ from datetime import datetime, timedelta
 from enum import Enum
 
 
-MAX_LEVERAGE = 12                       # верхняя граница плеча в панели
+MAX_LEVERAGE = 12                       # верхняя граница общего плеча в панели
+MAX_TF_LEVERAGE = 15                    # своё плечо таймфрейма: у 15m стоп ~1.5% цены, ликвидация при 15× — ~6.5%
 MAX_HEDGE_LEVERAGE = 50                 # плечо позиции BTC-хеджа (BTCUSDT на Bybit допускает до 100×)
 MARKET_VALID_BARS = 2                   # вход по рынку возможен ещё 2 свечи после свечи пробоя
 
@@ -93,6 +94,7 @@ class TfParams:
     max_positions: int = 0              # не больше стольких позиций этого ТФ сразу (внутри общего лимита); 0 — только общий
     hedge_btc: bool = False             # к сделке — обратная позиция BTC на бету монеты (domain/hedge.py)
     margin_pct: float = 10.0            # размер «как на Bybit»: маржа сделки, % капитала (Settings.sizing = MARGIN)
+    leverage: int = 0                   # своё плечо ТФ; 0 — общее (Settings.leverage). Риск не меняет, только маржу
 
     def __post_init__(self) -> None:
         if not 0.05 <= self.risk_pct <= 6.0:
@@ -121,6 +123,8 @@ class TfParams:
             raise ValueError("позиций таймфрейма — от 0 (только общий лимит) до 50")
         if not 1.0 <= self.margin_pct <= 100.0:
             raise ValueError("маржа на сделку — от 1% до 100% капитала")
+        if not (isinstance(self.leverage, int) and 0 <= self.leverage <= MAX_TF_LEVERAGE):
+            raise ValueError(f"плечо таймфрейма — целое от 1× до {MAX_TF_LEVERAGE}× (0 — общее)")
         if not isinstance(self.hedge_btc, bool):
             raise ValueError("хедж BTC — да или нет")
 
@@ -134,7 +138,7 @@ class TfParams:
 DEFAULT_TF_PARAMS: dict[Timeframe, TfParams] = {
     Timeframe.H4: TfParams(risk_pct=1.0, min_close_loc=0.5, entry_policy=EntryPolicy.HYBRID),
     Timeframe.M15: TfParams(risk_pct=0.25, min_close_loc=0.5, entry_policy=EntryPolicy.MARKET, sides=SideFilter.SHORT,
-                            max_slope_atr=0.025, top_n=150, max_hold_bars=200, max_positions=3),
+                            max_slope_atr=0.025, top_n=150, max_hold_bars=200, max_positions=3, leverage=15),
 }
 HTF_CONFIRM: dict[Timeframe, Timeframe] = {Timeframe.M15: Timeframe.H4}   # чей пробой подтверждает сигнал младшего ТФ
 RETIRED_TIMEFRAMES = ("1h",)            # были в панели раньше: сигналы и настройки этих ТФ при загрузке убираются
@@ -188,6 +192,10 @@ class Settings:
     def p(self, tf: Timeframe) -> TfParams:
         """Правило входа и риск таймфрейма."""
         return self.tf_params[tf]
+
+    def lev(self, tf: Timeframe) -> int:
+        """Плечо сделок таймфрейма: своё или, если не задано, общее."""
+        return self.tf_params[tf].leverage or self.leverage
 
     def with_tf(self, tf: Timeframe, **fields) -> Settings:
         return replace(self, tf_params={**self.tf_params, tf: replace(self.tf_params[tf], **fields)})

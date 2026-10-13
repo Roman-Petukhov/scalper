@@ -35,7 +35,7 @@
       <p class="hint">{% if bym %}Позиция = маржа × плечо. Убыток по стопу зависит от того, как далеко стоп: смотрите расчёт ниже.{% else %}Позиция подбирается так, чтобы убыток по стопу был ровно заданным % капитала — так считался бэктест.{% endif %}</p>
     </div>
     <div class="per-tf per-acct num" style="--cols: {{ tfs | length }}">
-      {{ acct("leverage", "Плечо, ×", 1, 1, 12) }}
+      {{ acct("leverage", "Плечо общее, ×", 1, 1, 12) }}
       {% if s.hedging %}{{ acct("hedge_leverage", "Плечо хеджа BTC, × (0 — как у сделок)", 1, 0, 50) }}{% endif %}
     </div>
     {% if s.hedging %}<p class="hint">У хеджа плечо своё: маржи под него уходит меньше, а результат хеджа тот же. По бэктесту при риске 2%
@@ -51,6 +51,8 @@
       <label>Риск на сделку (убыток по стопу), % капитала</label>
       {% for tf in tfs %}{{ num(tf, "risk_pct", "risk_pct", "Риск на сделку", 0.05, 0.05, 6) }}{% endfor %}
       {% endif %}
+      <label title="Риск в $ не меняется, меньше только маржа. Узкому стопу 15m (~1.5% цены) высокое плечо не опасно: ликвидация дальше стопа">Своё плечо ТФ, × (0 — общее)</label>
+      {% for tf in tfs %}{{ num(tf, "tf_leverage", "leverage", "Своё плечо ТФ", 1, 0, 15) }}{% endfor %}
       <label>Сделок этого ТФ сразу (0 — без своего лимита)</label>
       {% for tf in tfs %}{{ num(tf, "tf_max_positions", "max_positions", "Сделок этого ТФ сразу", 1, 0, 50) }}{% endfor %}
       <label>Хедж BTC против сделки</label>
@@ -73,7 +75,7 @@
       {% for tf in tfs %}{% set r = risk[tf] %}{% set e = r.exp %}{% set p = s.p(tf) %}
       <div class="risk-tf{{ ' has-notes' if r.notes else '' }}">
         <p><b>{{ tf.value }}</b>
-        {% if bym %}маржа {{ '%g' % p.margin_pct }}%{{ usd(p.margin_pct) }} × {{ s.leverage }} = позиция {{ '%.1f' % e.notional_x }}× капитала{{ usd(e.notional_x * 100) }}.
+        {% if bym %}маржа {{ '%g' % p.margin_pct }}%{{ usd(p.margin_pct) }} × {{ s.lev(tf) }} = позиция {{ '%.1f' % e.notional_x }}× капитала{{ usd(e.notional_x * 100) }}.
           Стоп обычно ~{{ '%.1f' % e.stop_pct }}% цены{% if not r.measured %} (оценка){% endif %} → убыток по стопу ~{{ '%.1f' % e.loss_pct }}% капитала{{ usd(e.loss_pct) }}.
         {% else %}убыток по стопу {{ '%g' % p.risk_pct }}%{{ usd(p.risk_pct) }}. Стоп обычно ~{{ '%.1f' % e.stop_pct }}% цены{% if not r.measured %} (оценка){% endif %} →
           позиция {{ '%.1f' % e.notional_x }}× капитала{{ usd(e.notional_x * 100) }}, маржа {{ '%.0f' % e.trade_margin_pct }}%{{ usd(e.trade_margin_pct) }}.

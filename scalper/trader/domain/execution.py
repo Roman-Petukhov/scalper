@@ -160,7 +160,7 @@ def build_order(signal: Signal, settings: Settings, account: Account, instrument
     entry = round_price(entry, instrument.tick)
     stop, target = round_price(plan.stop, instrument.tick), round_price(plan.target, instrument.tick)
     tp = settings.p(signal.timeframe)
-    lev = int(max(1, min(settings.leverage, instrument.max_leverage)))
+    lev = int(max(1, min(settings.lev(signal.timeframe), instrument.max_leverage)))
     if settings.sizing is Sizing.MARGIN:                                 # как на Bybit: маржа × плечо
         want_qty = account.equity * tp.margin_pct / 100 * lev / entry
         lev_capped, size_label = False, f"при марже {tp.margin_pct:g}%"

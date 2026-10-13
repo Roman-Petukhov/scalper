@@ -65,6 +65,19 @@ def test_leverage_caps_notional_and_is_sent_to_exchange():
             Settings(leverage=bad)
 
 
+def test_timeframe_leverage_overrides_the_common_one():
+    s = Settings(leverage=5)
+    assert s.lev(Timeframe.M15) == 15 and s.lev(Timeframe.H4) == 5               # 15m по умолчанию — своё 15×
+    tight = _sig(timeframe=Timeframe.M15, plan=TradePlan(EntryKind.MARKET, 101.0, 100.5, 102.5, 0))
+    o = build_order(tight, s, ACC, INST, 101.0, None, NOW)
+    assert o.leverage == 15 and o.risk_usd == pytest.approx(s.p(Timeframe.M15).risk_pct * 10, abs=0.05)
+    assert build_order(tight, s, ACC, replace(INST, max_leverage=10), 101.0, None, NOW).leverage == 10
+    assert Settings(leverage=7).with_tf(Timeframe.M15, leverage=0).lev(Timeframe.M15) == 7     # 0 — общее
+    for bad in (-1, 16):
+        with pytest.raises(ValueError, match="плечо таймфрейма"):
+            Settings().with_tf(Timeframe.M15, leverage=bad)
+
+
 def test_retest_limit_has_expiry_and_refuses_when_late():
     plan = TradePlan(EntryKind.RETEST, 100.0, 98.0, 106.0, 12)
     sig = _sig(plan=plan)

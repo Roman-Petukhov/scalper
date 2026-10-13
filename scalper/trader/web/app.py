@@ -196,7 +196,7 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
             stop = stops[len(stops) // 2] if len(stops) >= 5 else TYPICAL_STOP_PCT[tf]
             p = s.p(tf)
             by_margin = s.sizing is Sizing.MARGIN
-            exp = exposure(by_margin, p.risk_pct, p.margin_pct, stop, s.leverage, p.hedge_btc, s.hedge_lev)
+            exp = exposure(by_margin, p.risk_pct, p.margin_pct, stop, s.lev(tf), p.hedge_btc, s.hedge_lev)
             out[tf] = {"exp": exp, "measured": len(stops) >= 5,
                        "notes": risk_notes(None if by_margin else p.risk_pct, s.daily_loss_pct, exp,
                                            BACKTEST_DD_R.get(tf))}
@@ -386,7 +386,8 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
                               "top_n": int(f("top_n")), "max_hold_bars": int(f("max_hold_bars")),
                               "max_positions": int(f("tf_max_positions")),
                               "hedge_btc": form.get(f"{tf.value}__hedge_btc", "0") == "1",
-                              "margin_pct": float(form.get(f"{tf.value}__margin_pct", settings_svc.get().p(tf).margin_pct))}
+                              "margin_pct": float(form.get(f"{tf.value}__margin_pct", settings_svc.get().p(tf).margin_pct)),
+                              "leverage": int(form.get(f"{tf.value}__tf_leverage", settings_svc.get().p(tf).leverage))}
             settings_svc.update(g, per_tf)
         except KeyError as e:
             err = f"не заполнено поле {e.args[0]}"
