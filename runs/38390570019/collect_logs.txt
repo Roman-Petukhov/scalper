@@ -1,0 +1,40 @@
+----- prepo collect (часть 0/10) -----
+часть 0/10, набор 1h-qualified: монет 63
+----- pyramid collect (часть 0/10) -----
+  pyramid: сделок 56
+----- prepo collect (часть 1/10) -----
+часть 1/10, набор 1h-qualified: монет 66
+----- pyramid collect (часть 1/10) -----
+  pyramid: сделок 43
+----- prepo collect (часть 2/10) -----
+часть 2/10, набор 1h-qualified: монет 78
+----- pyramid collect (часть 2/10) -----
+  pyramid: сделок 47
+----- prepo collect (часть 3/10) -----
+часть 3/10, набор 1h-qualified: монет 73
+----- pyramid collect (часть 3/10) -----
+  pyramid: сделок 54
+----- prepo collect (часть 4/10) -----
+часть 4/10, набор 1h-qualified: монет 72
+----- pyramid collect (часть 4/10) -----
+  pyramid: сделок 41
+----- prepo collect (часть 5/10) -----
+часть 5/10, набор 1h-qualified: монет 83
+----- pyramid collect (часть 5/10) -----
+  pyramid: сделок 45
+----- prepo collect (часть 6/10) -----
+часть 6/10, набор 1h-qualified: монет 71
+----- pyramid collect (часть 6/10) -----
+  pyramid: сделок 39
+----- prepo collect (часть 7/10) -----
+часть 7/10, набор 1h-qualified: монет 61
+----- pyramid collect (часть 7/10) -----
+  pyramid: сделок 42
+----- prepo collect (часть 8/10) -----
+часть 8/10, набор 1h-qualified: монет 75
+----- pyramid collect (часть 8/10) -----
+  pyramid: сделок 52
+----- prepo collect (часть 9/10) -----
+часть 9/10, набор 1h-qualified: монет 83
+----- pyramid collect (часть 9/10) -----
+  pyramid: сделок 61
