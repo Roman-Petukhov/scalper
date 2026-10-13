@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"prepw pyramid15"}
+TASKS=${TASKS:-"prepo dconf"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -158,6 +158,8 @@ pyramid_collect() { python -m research.pyramid collect --symbols "$(cat /tmp/sym
 pyramid_report() { python -m research.pyramid report; }
 pyramid15_collect() { python -m research.pyramid collect15 --symbols "$(cat /tmp/syms_15m-wide.txt)"; }
 pyramid15_report() { python -m research.pyramid report15; }
+dconf_collect() { python -m research.dconf collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
+dconf_report() { python -m research.dconf report; }
 range4_collect() { python -m research.range4 collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
 range4_report() { python -m research.range4 report; }
 exhaust_collect() { python -m research.exhaust collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
