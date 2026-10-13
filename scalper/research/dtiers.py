@@ -24,11 +24,9 @@ from .oos import PER_ALL
 from .shard import all_parts
 from .tline import _bot_base
 
-TIERS = {"1–20": dict(top=20), "21–50": dict(skip=20, top=50), "51–100": dict(skip=50, top=100),
-         "101–200": dict(skip=100, top=200), "1–100": dict(top=100),
-         "21–50, издержки x2": dict(skip=20, top=50, cost_k=2.0),
-         "51–100, издержки x2": dict(skip=50, top=100, cost_k=2.0),
-         "101–200, издержки x2": dict(skip=100, top=200, cost_k=2.0)}
+TIERS = {"1–20": dict(top=20), "1–10": dict(top=10), "11–20": dict(skip=10, top=20), "11–50": dict(skip=10, top=50),
+         "11–100": dict(skip=10, top=100), "11–100, издержки x2": dict(skip=10, top=100, cost_k=2.0),
+         "21–50": dict(skip=20, top=50), "51–100": dict(skip=50, top=100), "1–100": dict(top=100)}
 
 
 def report() -> None:
@@ -70,6 +68,8 @@ def report() -> None:
         combo = bot_m + k * m
         print(f"    + тренд {nm}: {_mstats(combo)}; корреляция с ботом {bot_m.corr(m):+.2f}; тренд × k с 2022: "
               f"{k * m[idx >= pd.Period('2022-01', 'M')].mean() * 1200:+.0f}% в год")
+        kt = bot_m.std() / m.std() if m.std() > 0 else 0.0
+        print(f"      своя доля k = {kt:.2f} (волатильность как у бота): {_mstats(bot_m + kt * m)}")
 
 
 if __name__ == "__main__":
