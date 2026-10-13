@@ -1,0 +1,40 @@
+----- prepl collect (часть 0/10) -----
+часть 0/10, набор 1h-all: монет 76
+----- pumpfade collect (часть 0/10) -----
+  pumpfade: монет 73
+----- prepl collect (часть 1/10) -----
+часть 1/10, набор 1h-all: монет 84
+----- pumpfade collect (часть 1/10) -----
+  pumpfade: монет 78
+----- prepl collect (часть 2/10) -----
+часть 2/10, набор 1h-all: монет 93
+----- pumpfade collect (часть 2/10) -----
+  pumpfade: монет 90
+----- prepl collect (часть 3/10) -----
+часть 3/10, набор 1h-all: монет 94
+----- pumpfade collect (часть 3/10) -----
+  pumpfade: монет 88
+----- prepl collect (часть 4/10) -----
+часть 4/10, набор 1h-all: монет 86
+----- pumpfade collect (часть 4/10) -----
+  pumpfade: монет 83
+----- prepl collect (часть 5/10) -----
+часть 5/10, набор 1h-all: монет 100
+----- pumpfade collect (часть 5/10) -----
+  pumpfade: монет 98
+----- prepl collect (часть 6/10) -----
+часть 6/10, набор 1h-all: монет 90
+----- pumpfade collect (часть 6/10) -----
+  pumpfade: монет 86
+----- prepl collect (часть 7/10) -----
+часть 7/10, набор 1h-all: монет 80
+----- pumpfade collect (часть 7/10) -----
+  pumpfade: монет 79
+----- prepl collect (часть 8/10) -----
+часть 8/10, набор 1h-all: монет 90
+----- pumpfade collect (часть 8/10) -----
+  pumpfade: монет 89
+----- prepl collect (часть 9/10) -----
+часть 9/10, набор 1h-all: монет 107
+----- pumpfade collect (часть 9/10) -----
+  pumpfade: монет 102
