@@ -1,0 +1,40 @@
+----- prepo collect (часть 0/10) -----
+часть 0/10, набор 1h-qualified: монет 63
+----- hotpull collect (часть 0/10) -----
+  hotpull: сделок 26876
+----- prepo collect (часть 1/10) -----
+часть 1/10, набор 1h-qualified: монет 66
+----- hotpull collect (часть 1/10) -----
+  hotpull: сделок 22028
+----- prepo collect (часть 2/10) -----
+часть 2/10, набор 1h-qualified: монет 78
+----- hotpull collect (часть 2/10) -----
+  hotpull: сделок 29345
+----- prepo collect (часть 3/10) -----
+часть 3/10, набор 1h-qualified: монет 73
+----- hotpull collect (часть 3/10) -----
+  hotpull: сделок 25018
+----- prepo collect (часть 4/10) -----
+часть 4/10, набор 1h-qualified: монет 72
+----- hotpull collect (часть 4/10) -----
+  hotpull: сделок 25261
+----- prepo collect (часть 5/10) -----
+часть 5/10, набор 1h-qualified: монет 83
+----- hotpull collect (часть 5/10) -----
+  hotpull: сделок 29402
+----- prepo collect (часть 6/10) -----
+часть 6/10, набор 1h-qualified: монет 71
+----- hotpull collect (часть 6/10) -----
+  hotpull: сделок 27961
+----- prepo collect (часть 7/10) -----
+часть 7/10, набор 1h-qualified: монет 61
+----- hotpull collect (часть 7/10) -----
+  hotpull: сделок 23776
+----- prepo collect (часть 8/10) -----
+часть 8/10, набор 1h-qualified: монет 75
+----- hotpull collect (часть 8/10) -----
+  hotpull: сделок 28792
+----- prepo collect (часть 9/10) -----
+часть 9/10, набор 1h-qualified: монет 83
+----- hotpull collect (часть 9/10) -----
+  hotpull: сделок 35025
