@@ -1,8 +1,7 @@
 """Вторая стратегия: тренд по каналам Дончиана на дневках, бумажный счёт (research/dtrend.py, research/dboost.py).
 
 Ансамбль 9 моделей N = 5…360 дней: модель в лонге с закрытия не ниже максимума закрытий N прошлых дней, выходит на
-закрытии не выше середины канала (или, с ATR-выходом, ниже максимума с входа на k × ATR). Сигнал монеты — доля моделей
-в лонге. Дальше:
+закрытии не выше середины канала. Сигнал монеты — доля моделей в лонге. Дальше:
     долив         монета в тренде (сигнал ≥ 0.5): вес × (1 + 0.5 × k), k — новые максимумы закрытий за 20 дней с начала
                   тренда (без дня входа), не больше 3
     сильнейшие    из 20 монет с наибольшим средним оборотом за 30 дней и сигналом > 0 — 7 с лучшим моментумом
@@ -29,7 +28,6 @@ class TrendRule:
     key: str
     title: str
     backtest: str                   # что было на бэктесте — для сравнения в панели
-    atr_exit: float = 0.0           # 0 — выход на середине канала
     pyramid: bool = True
     strongest: int = 7
     top: int = 20
@@ -41,14 +39,11 @@ class TrendRule:
     add_step: float = 0.5
     add_max: int = 3
     add_high: int = 20
-    atr_days: int = 14
 
 
 RULES: tuple[TrendRule, ...] = (
     TrendRule("s7_add", "Сильнейшие 7 + долив",
               "бэктест с 2022: +30% в год, Sharpe 0.91, просадка 44%"),
-    TrendRule("s7_add_atr3", "Все три: + выход по 3 ATR",
-              "бэктест с 2022: +27% в год, Sharpe 0.94, просадка 28%", atr_exit=3.0),
 )
 
 
@@ -67,28 +62,9 @@ def _mid_models(close: pd.DataFrame, n: int) -> np.ndarray:
     return st
 
 
-def _atr_models(close: pd.DataFrame, n: int, k: float, atr_days: int) -> np.ndarray:
-    hi = close.rolling(n, min_periods=n).max().shift(1).to_numpy()
-    atr = close.diff().abs().rolling(atr_days, min_periods=atr_days).mean().to_numpy()
-    x = close.to_numpy()
-    cur = np.zeros(x.shape[1])
-    peak = np.full(x.shape[1], np.nan)
-    st = np.zeros_like(x)
-    for i in range(len(x)):
-        peak = np.where(cur > 0, np.fmax(peak, x[i]), peak)
-        cur = np.where((cur > 0) & (x[i] <= peak - k * atr[i]), 0.0, cur)
-        enter = (cur == 0) & (x[i] >= hi[i])
-        cur = np.where(enter, 1.0, cur)
-        peak = np.where(enter, x[i], np.where(cur > 0, peak, np.nan))
-        cur = np.where(np.isnan(x[i]), 0.0, cur)
-        st[i] = cur
-    return st
-
-
 def signal(close: pd.DataFrame, rule: TrendRule) -> pd.DataFrame:
     """Доля моделей ансамбля в лонге (0…1) по каждой монете и дню."""
-    models = [_atr_models(close, n, rule.atr_exit, rule.atr_days) if rule.atr_exit else _mid_models(close, n)
-              for n in LOOKBACKS]
+    models = [_mid_models(close, n) for n in LOOKBACKS]
     return pd.DataFrame(sum(models) / len(LOOKBACKS), index=close.index, columns=close.columns)
 
 

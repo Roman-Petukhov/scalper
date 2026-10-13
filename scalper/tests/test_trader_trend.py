@@ -28,7 +28,7 @@ def test_weights_match_research_backtest(rule):
     c.index = c.index.tz_localize(None)
     adv = qv.rolling(30, min_periods=20).mean().shift(1)
     adv.index = c.index
-    base = ensemble(c, rule.atr_exit)
+    base = ensemble(c)
     sig = strongest(c, adv, base * pyramid(c, base), 7)
     research = portfolio(c, pd.DataFrame(0.0, index=c.index, columns=c.columns), adv, sig=sig)
     w = weights(close, qv, rule)
