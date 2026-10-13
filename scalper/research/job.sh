@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"prepq topcrowd"}
+TASKS=${TASKS:-"prepq case"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -186,6 +186,8 @@ oilong_collect() { python -m research.oilong collect --symbols "$(cat /tmp/syms_
 oilong_report() { python -m research.oilong report; }
 topcrowd_collect() { python -m research.topcrowd collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
 topcrowd_report() { python -m research.topcrowd report; }
+case_collect() { python -m research.case collect; }
+case_report() { python -m research.case report; }
 range4_collect() { python -m research.range4 collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
 range4_report() { python -m research.range4 report; }
 exhaust_collect() { python -m research.exhaust collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
