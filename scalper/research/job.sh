@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"prepo trendfam extreg"}
+TASKS=${TASKS:-"prepq liqmap"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -172,6 +172,8 @@ flatsell_collect() { python -m research.flatsell collect --symbols "$(cat /tmp/s
 flatsell_report() { python -m research.flatsell report; }
 extreg_collect() { python -m research.extreg collect; }
 extreg_report() { python -m research.extreg report; }
+liqmap_collect() { python -m research.liqmap collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
+liqmap_report() { python -m research.liqmap report; }
 range4_collect() { python -m research.range4 collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
 range4_report() { python -m research.range4 report; }
 exhaust_collect() { python -m research.exhaust collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
