@@ -1,0 +1,50 @@
+----- prepspot collect (часть 0/10) -----
+часть 0/10, набор 1h-qualified: монет 63
+часть 0/10, набор 1h-spot: монет 45
+----- spotlong collect (часть 0/10) -----
+  spotlong: лонгов 100, со спотом 92
+----- prepspot collect (часть 1/10) -----
+часть 1/10, набор 1h-qualified: монет 66
+часть 1/10, набор 1h-spot: монет 39
+----- spotlong collect (часть 1/10) -----
+  spotlong: лонгов 77, со спотом 58
+----- prepspot collect (часть 2/10) -----
+часть 2/10, набор 1h-qualified: монет 78
+часть 2/10, набор 1h-spot: монет 45
+----- spotlong collect (часть 2/10) -----
+  spotlong: лонгов 125, со спотом 109
+----- prepspot collect (часть 3/10) -----
+часть 3/10, набор 1h-qualified: монет 73
+часть 3/10, набор 1h-spot: монет 46
+----- spotlong collect (часть 3/10) -----
+  spotlong: лонгов 87, со спотом 73
+----- prepspot collect (часть 4/10) -----
+часть 4/10, набор 1h-qualified: монет 72
+часть 4/10, набор 1h-spot: монет 44
+----- spotlong collect (часть 4/10) -----
+  spotlong: лонгов 74, со спотом 59
+----- prepspot collect (часть 5/10) -----
+часть 5/10, набор 1h-qualified: монет 83
+часть 5/10, набор 1h-spot: монет 46
+----- spotlong collect (часть 5/10) -----
+  spotlong: лонгов 84, со спотом 67
+----- prepspot collect (часть 6/10) -----
+часть 6/10, набор 1h-qualified: монет 71
+часть 6/10, набор 1h-spot: монет 49
+----- spotlong collect (часть 6/10) -----
+  spotlong: лонгов 117, со спотом 105
+----- prepspot collect (часть 7/10) -----
+часть 7/10, набор 1h-qualified: монет 61
+часть 7/10, набор 1h-spot: монет 49
+----- spotlong collect (часть 7/10) -----
+  spotlong: лонгов 91, со спотом 87
+----- prepspot collect (часть 8/10) -----
+часть 8/10, набор 1h-qualified: монет 75
+часть 8/10, набор 1h-spot: монет 45
+----- spotlong collect (часть 8/10) -----
+  spotlong: лонгов 108, со спотом 94
+----- prepspot collect (часть 9/10) -----
+часть 9/10, набор 1h-qualified: монет 83
+часть 9/10, набор 1h-spot: монет 60
+----- spotlong collect (часть 9/10) -----
+  spotlong: лонгов 135, со спотом 121
