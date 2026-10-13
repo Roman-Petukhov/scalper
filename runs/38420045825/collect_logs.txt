@@ -1,0 +1,40 @@
+----- prepo collect (часть 0/10) -----
+часть 0/10, набор 1h-qualified: монет 63
+----- flatsell collect (часть 0/10) -----
+  flatsell: событий 4488
+----- prepo collect (часть 1/10) -----
+часть 1/10, набор 1h-qualified: монет 66
+----- flatsell collect (часть 1/10) -----
+  flatsell: событий 3636
+----- prepo collect (часть 2/10) -----
+часть 2/10, набор 1h-qualified: монет 78
+----- flatsell collect (часть 2/10) -----
+  flatsell: событий 5487
+----- prepo collect (часть 3/10) -----
+часть 3/10, набор 1h-qualified: монет 73
+----- flatsell collect (часть 3/10) -----
+  flatsell: событий 4428
+----- prepo collect (часть 4/10) -----
+часть 4/10, набор 1h-qualified: монет 72
+----- flatsell collect (часть 4/10) -----
+  flatsell: событий 4083
+----- prepo collect (часть 5/10) -----
+часть 5/10, набор 1h-qualified: монет 83
+----- flatsell collect (часть 5/10) -----
+  flatsell: событий 4803
+----- prepo collect (часть 6/10) -----
+часть 6/10, набор 1h-qualified: монет 71
+----- flatsell collect (часть 6/10) -----
+  flatsell: событий 4989
+----- prepo collect (часть 7/10) -----
+часть 7/10, набор 1h-qualified: монет 61
+----- flatsell collect (часть 7/10) -----
+  flatsell: событий 4576
+----- prepo collect (часть 8/10) -----
+часть 8/10, набор 1h-qualified: монет 75
+----- flatsell collect (часть 8/10) -----
+  flatsell: событий 5553
+----- prepo collect (часть 9/10) -----
+часть 9/10, набор 1h-qualified: монет 83
+----- flatsell collect (часть 9/10) -----
+  flatsell: событий 6418
