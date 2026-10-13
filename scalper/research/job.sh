@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"prepo longfilt extreg bullongs"}
+TASKS=${TASKS:-"prepspot spotlong"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -176,6 +176,10 @@ liqmap_collect() { python -m research.liqmap collect --symbols "$(cat /tmp/syms_
 liqmap_report() { python -m research.liqmap report; }
 bullongs_collect() { python -m research.bullongs collect; }
 bullongs_report() { python -m research.bullongs report; }
+prepspot_collect() { RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-qualified 1h-spot; }
+prepspot_report() { :; }
+spotlong_collect() { python -m research.spotlong collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
+spotlong_report() { python -m research.spotlong report; }
 range4_collect() { python -m research.range4 collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
 range4_report() { python -m research.range4 report; }
 exhaust_collect() { python -m research.exhaust collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
