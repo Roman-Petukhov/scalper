@@ -1,0 +1,40 @@
+----- prepq collect (часть 0/10) -----
+часть 0/10, набор 1h-qualified: монет 63
+----- topcrowd collect (часть 0/10) -----
+  topcrowd: сделок 1314
+----- prepq collect (часть 1/10) -----
+часть 1/10, набор 1h-qualified: монет 66
+----- topcrowd collect (часть 1/10) -----
+  topcrowd: сделок 1123
+----- prepq collect (часть 2/10) -----
+часть 2/10, набор 1h-qualified: монет 78
+----- topcrowd collect (часть 2/10) -----
+  topcrowd: сделок 1705
+----- prepq collect (часть 3/10) -----
+часть 3/10, набор 1h-qualified: монет 73
+----- topcrowd collect (часть 3/10) -----
+  topcrowd: сделок 1397
+----- prepq collect (часть 4/10) -----
+часть 4/10, набор 1h-qualified: монет 72
+----- topcrowd collect (часть 4/10) -----
+  topcrowd: сделок 1165
+----- prepq collect (часть 5/10) -----
+часть 5/10, набор 1h-qualified: монет 83
+----- topcrowd collect (часть 5/10) -----
+  topcrowd: сделок 1381
+----- prepq collect (часть 6/10) -----
+часть 6/10, набор 1h-qualified: монет 71
+----- topcrowd collect (часть 6/10) -----
+  topcrowd: сделок 1443
+----- prepq collect (часть 7/10) -----
+часть 7/10, набор 1h-qualified: монет 61
+----- topcrowd collect (часть 7/10) -----
+  topcrowd: сделок 1338
+----- prepq collect (часть 8/10) -----
+часть 8/10, набор 1h-qualified: монет 75
+----- topcrowd collect (часть 8/10) -----
+  topcrowd: сделок 1651
+----- prepq collect (часть 9/10) -----
+часть 9/10, набор 1h-qualified: монет 83
+----- topcrowd collect (часть 9/10) -----
+  topcrowd: сделок 1869
