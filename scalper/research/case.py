@@ -22,7 +22,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .broad import ADV_MIN, adv30
+from .broad import ADV_MIN
 from .dconf import EXITS, simulate
 from .noline import triggers
 from .shard import all_parts, mine, part_path
@@ -79,7 +79,7 @@ def bot_rows(d: pd.DataFrame, liq: np.ndarray, start: pd.Timestamp, end: pd.Time
         if not failed and not market and not np.isfinite(r):
             failed.append("ретест не исполнился")
         rows.append({"t": d.index[t] + pd.Timedelta(hours=4), "side": side, "close": c[t], "line": level,
-                     "aggr": aggr, "trend": bool(trend[t] == side), "loc": cl, "risk_atr": risk,
+                     "aggr": aggr, "trend": bool(trend[t] == side), "close_loc": cl, "risk_atr": risk,
                      "risk_pct": side * (level - stop) / level if np.isfinite(stop) else np.nan,
                      "entry": "рынок" if market else "ретест", "failed": ", ".join(failed), "R": r})
     return rows
@@ -109,16 +109,19 @@ def donchian_trades(close: pd.Series, n: int, m: int) -> list[dict]:
 def collect(root: Path) -> None:
     if not mine([SYMBOL]):
         return
-    d = tf_frame(root, SYMBOL, "4h")
-    if d is None:
+    d = tf_frame(root, SYMBOL, "4h", extend=True)           # месячные архивы — до конца сентября, дальше дневные
+    day_bars = tf_frame(root, SYMBOL, "1d", extend=True)
+    if d is None or day_bars is None:
         print(f"  case: нет данных {SYMBOL}", flush=True)
         return
     start, end = pd.Timestamp(START, tz="UTC"), pd.Timestamp(END, tz="UTC")
-    liq = adv30(root, SYMBOL).reindex(d.index.floor("D")).to_numpy()
+    d["funding"] = d["funding"].fillna(0.0)                 # funding после месячных архивов неизвестен
+    adv = day_bars["quote_volume"].rolling(30, min_periods=20).mean().shift(1)     # как research/broad.py adv30
+    liq = adv.reindex(d.index.floor("D")).to_numpy()
     bot = pd.DataFrame(bot_rows(d, liq, start, end))
     bot["symbol"] = SYMBOL
     bot.to_parquet(part_path("case_bot"), index=False)
-    day = tf_frame(root, SYMBOL, "1d")["close"]
+    day = day_bars["close"]
     don = []
     for nm, n, m in DONCHIAN:
         for x in donchian_trades(day, n, m):
@@ -159,7 +162,7 @@ def report() -> None:
             tag = "ВХОД" if x.failed == "" else f"отсев: {x.failed}"
             r = "нет сделки" if not np.isfinite(x.R) else f"{x.R:+.2f}R"
             print(f"    {_fmt_t(x.t)}  закр {x.close:.4g}  линия {x.line:.4g}  агр {x.aggr:.0%}  "
-                  f"тренд {'да' if x.trend else 'нет'}  закр. в половине {x.loc:.0%}  риск {x.risk_atr:.1f} ATR "
+                  f"тренд {'да' if x.trend else 'нет'}  закр. в половине {x.close_loc:.0%}  риск {x.risk_atr:.1f} ATR "
                   f"({x.risk_pct:.1%})  {x.entry}  → {r}  [{tag}]")
         if len(z):
             cnt = pd.Series([f for s in z.failed if s for f in s.split(", ")]).value_counts()
