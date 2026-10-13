@@ -3,6 +3,8 @@
 Сделки — правило бота 4h (research/pyramid.py: линия зигзага 3 ATR, фильтры, ретест, стоп за свингом). Метка «совпала
 с дневкой»: линия зигзага 3 ATR на дневках (те же правила построения, research/tline.py zz_lines) пробита закрытием дня
 в сторону сделки, и это закрытие известно не раньше чем за 5 (вариант — 10) дней до закрытия свечи сигнала 4h.
+Вторая метка (шире): «монета в дневном тренде» — ансамбль каналов Дончиана research/dtrend.py (9 периодов 5–360 дней,
+лонг и шорт) на последнем закрытом дне: не меньше половины моделей в сторону сделки.
 Выходы, заданные до запуска (R — в риске исходной позиции; стоп проверяется раньше всего в свече):
     бот          цель 3R, долив 0.5 на +1.5R со стопом в точку входа (как в боте), до 60 свечей
     5R           то же, цель 5R, до 180 свечей (30 дней)
@@ -31,6 +33,7 @@ from .broad import ADV_MIN, adv30
 from .noline import triggers
 from .oos import PER_ALL
 from .shard import all_parts, mine, part_path
+from .dtrend import LOOKBACKS, _models
 from .smc import _atr, _cell
 from .tline import (MAKER, PIV, RETEST_BARS, STOP_BUF, TAKER, htf_trend, last_confirmed, pivots, retest_fill,
                     tf_frame, zz_lines)
@@ -117,6 +120,8 @@ def coin_rows(d: pd.DataFrame, d1: pd.DataFrame, liq: np.ndarray, sym: str) -> l
     loc = (c - lo) / np.where(rng > 0, rng, np.nan)
     sw_lo, sw_hi = last_confirmed(pivots(lo, PIV, False), len(c)), last_confirmed(pivots(hi, PIV, True), len(c))
     brk = daily_breaks(d1) if d1 is not None and len(d1) > 100 else []
+    dt = (sum(_models(d1[["close"]], n, True) for n in LOOKBACKS)["close"] / len(LOOKBACKS)
+          if d1 is not None and len(d1) > 30 else pd.Series(dtype=float))
     rows = []
     for _, t, side, level in triggers(d, a, lines_only=True):
         if t >= len(c) - 1 or not (a[t] > 0) or not (liq[t] >= ADV_MIN) or trend[t] != side:
@@ -139,6 +144,8 @@ def coin_rows(d: pd.DataFrame, d1: pd.DataFrame, liq: np.ndarray, sym: str) -> l
         row = {"symbol": sym, "t": d.index[t], "side": side}
         for w in WINDOWS:
             row[f"conf{w}"] = any(sd == side and known - pd.Timedelta(days=w) <= kt <= known for kt, sd in brk)
+        day = known.floor("D") - pd.Timedelta(days=1)                # последний закрытый день
+        row["dtrend"] = bool(day in dt.index and side * dt.loc[day] >= 0.5)
         if (side > 0 and lo[fill] <= stop) or (side < 0 and hi[fill] >= stop):
             loss = (side * (stop - level) - (MAKER + TAKER) * level) / risk
             row |= {nm: loss for nm in EXITS}
@@ -177,10 +184,13 @@ def report() -> None:
     periods = {**PER_ALL, "2026": ("2026-01-01", "2026-10-01")}
     print(f"сделок {len(df)}, шортов {(df.side < 0).mean():.0%}; совпали с дневкой за 5 дней: {df.conf5.sum()} "
           f"({df.conf5.mean():.0%}), за 10 дней: {df.conf10.sum()} ({df.conf10.mean():.0%})")
+    print(f"в дневном тренде (Дончиан, ≥ половины моделей): {df.dtrend.sum()} ({df.dtrend.mean():.0%})")
     base = list(EXITS)[0]
-    for w in WINDOWS:
-        for flag, nm in ((True, f"совпали с дневкой ({w} дней)"), (False, f"не совпали ({w} дней)")):
-            z0 = df[df[f"conf{w}"] == flag]
+    labels = [(f"conf{w}", f"совпали с дневкой ({w} дней)", f"не совпали ({w} дней)") for w in WINDOWS]
+    labels.append(("dtrend", "в дневном тренде (Дончиан)", "не в дневном тренде"))
+    for col, yes, no in labels:
+        for flag, nm in ((True, yes), (False, no)):
+            z0 = df[df[col] == flag]
             print(f"\n  --- {nm}: {len(z0)} сделок, шортов {(z0.side < 0).mean():.0%} ---")
             for ex in EXITS:
                 z = z0.assign(R=z0[ex])
