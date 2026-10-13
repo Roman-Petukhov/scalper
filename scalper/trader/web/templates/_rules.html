@@ -55,6 +55,13 @@
       {% for tf in tfs %}{{ num(tf, "tf_leverage", "leverage", "Своё плечо ТФ", 1, 0, 15) }}{% endfor %}
       <label>Сделок этого ТФ сразу (0 — без своего лимита)</label>
       {% for tf in tfs %}{{ num(tf, "tf_max_positions", "max_positions", "Сделок этого ТФ сразу", 1, 0, 50) }}{% endfor %}
+      <label title="Цена прошла +1.5R — докупить половину позиции и перенести стоп всей позиции в точку входа. Риск после доливки — 0.75R. Бэктест 4h: лучше во всех периодах, +15% R в месяц">Доливка на +1.5R (стоп в точку входа)</label>
+      {% for tf in tfs %}{% set v = s.p(tf).pyramid %}
+      <select name="{{ tf.value }}__pyramid" aria-label="Доливка на +1.5R, {{ tf.value }}"
+              {% if v != DEFAULTS[tf].pyramid %}class="changed" title="Стандартно: {{ 'да' if DEFAULTS[tf].pyramid else 'нет' }}"{% endif %}>
+        <option value="0"{% if not v %} selected{% endif %}>нет</option>
+        <option value="1"{% if v %} selected{% endif %}>да</option>
+      </select>{% endfor %}
       <label>Хедж BTC против сделки</label>
       {% for tf in tfs %}{% set v = s.p(tf).hedge_btc %}
       <select name="{{ tf.value }}__hedge_btc" aria-label="Хедж BTC, {{ tf.value }}"

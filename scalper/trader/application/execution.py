@@ -11,8 +11,8 @@ from datetime import datetime, timezone
 
 from datetime import timedelta
 
-from ..domain.execution import (Account, ExecutionRefused, HedgeLeg, Trade, TradeResult, TradeStatus, build_order,
-                                settle, target_reached)
+from ..domain.execution import (PYRAMID_AT_R, Account, ExecutionRefused, HedgeLeg, Position, Trade, TradeResult,
+                                TradeStatus, build_order, pyramid_due, pyramid_qty, settle, target_reached)
 from ..domain.hedge import HEDGE_SYMBOL, beta, held_qty, hedge_leverage, rebalance, target_qty, without_hedge
 from ..domain.journal import Health, tf_stats
 from ..domain.models import Signal, SignalStatus, Timeframe
@@ -193,6 +193,8 @@ class Executor:
                 continue
             bars = settings.p(sig.timeframe).max_hold_bars
             if now < t.opened_at + timedelta(minutes=sig.timeframe.minutes * bars):
+                if settings.p(sig.timeframe).pyramid and pyramid_due(t, pos.mark):
+                    await self._pyramid(b, t, pos, sig, settings, acc)
                 continue
             try:
                 await b.close_position(t.symbol)
@@ -206,6 +208,41 @@ class Executor:
             await self._rebalance_hedge(b, acc)
         except Exception:
             log.exception("хедж BTC")
+
+    async def _pyramid(self, b: Broker, t: Trade, pos: Position, sig: Signal, settings, acc: Account) -> None:
+        """Цена прошла +1.5R: стоп всей позиции — в точку входа, затем долить 0.5 исходного объёма (стоп и цель
+        биржа держит на весь объём). Стоп переставляется первым: если доливка не пройдёт, риск всё равно ушёл."""
+        tf = sig.timeframe.value
+        try:
+            await b.protect(t.symbol, t.price, t.target)
+        except Exception as e:
+            log.exception("стоп в безубыток %s", t.symbol)
+            key = f"pyramid:error:{t.id}"
+            if self.trades.kv_get(key) != _short(e):
+                self.trades.kv_set(key, _short(e))
+                await self._say(f"⚠️ {t.symbol} {tf}: +{PYRAMID_AT_R:g}R, но стоп в безубыток не переставлен: "
+                                f"{_short(e)}. Повторю через минуту.")
+            return
+        qty, why = 0.0, ""
+        inst = await b.instrument(t.symbol)
+        if inst is None:
+            why = "монета не торгуется"
+        else:
+            lev = int(max(1, min(settings.lev(sig.timeframe), inst.max_leverage)))
+            qty, why = pyramid_qty(t, inst, pos.mark, acc.available, lev)
+            if qty:
+                try:
+                    await b.adjust(t.symbol, int(t.side) * qty, lev)
+                    await b.protect(t.symbol, t.price, t.target)   # на случай, если биржа не растянула их на долив
+                except Exception as e:
+                    log.exception("доливка %s", t.symbol)
+                    qty, why = 0.0, _short(e)
+        self.trades.set_trade_pyramid(t.id, qty, pos.mark)
+        if qty:
+            await self._say(f"{t.symbol} {tf}: +{PYRAMID_AT_R:g}R — долил {qty:g} по ~{pos.mark:g}, стоп всей позиции "
+                            f"в точку входа {t.price:g}, цель {t.target:g}")
+        else:
+            await self._say(f"{t.symbol} {tf}: +{PYRAMID_AT_R:g}R — стоп в точку входа {t.price:g}, без доливки ({why})")
 
     def _hedge_managed(self, settings) -> bool:
         """Позицию BTCUSDT ведёт хедж: он включён в настройках или ещё держится по открытым сделкам."""

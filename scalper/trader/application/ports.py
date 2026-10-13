@@ -83,6 +83,9 @@ class Broker(Protocol):
     async def close_position(self, symbol: str) -> None:
         """Закрыть позицию по монете по рынку (reduce-only); стоп и цель биржа снимает сама."""
 
+    async def protect(self, symbol: str, stop: float, target: float) -> None:
+        """Переставить стоп и цель позиции по монете — на весь её объём."""
+
     async def closed_pnl(self, symbol: str, since: datetime, until: datetime) -> list[ClosedPnl]:
         """Закрытия позиций по монете за окно (не длиннее 7 дней — ограничение биржи)."""
 
@@ -108,6 +111,9 @@ class TradeRepository(Protocol):
         """Вход исполнился: статус «на бирже» и время исполнения."""
 
     def set_trade_hedge(self, trade_id: int, hedge: HedgeLeg) -> None: ...
+
+    def set_trade_pyramid(self, trade_id: int, qty: float, price: float) -> None:
+        """Доливка сделана (qty > 0) или стоп переставлен в безубыток без доливки (qty = 0)."""
 
     def unsettled_trades(self) -> list[Trade]:
         """Исполненные сделки без записанного итога (на бирже или закрытые по сроку), новые первыми."""

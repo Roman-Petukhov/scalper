@@ -107,6 +107,7 @@ class FakeBroker:
         self.pnl = []                                          # (монета, ClosedPnl)
         self.adjusted = []                                     # (монета, объём со знаком) — ордера хеджа
         self.adjust_lev = []                                   # плечо каждого ордера хеджа
+        self.protected = []                                    # (монета, стоп, цель) — перестановки стопа
 
     async def account(self):
         return self.acc
@@ -141,6 +142,9 @@ class FakeBroker:
 
     async def closed_pnl(self, symbol, since, until):
         return [r for sym, r in self.pnl if sym == symbol and since <= r.closed_at < until]
+
+    async def protect(self, symbol, stop, target):
+        self.protected.append((symbol, stop, target))
 
     async def close(self):
         pass
@@ -922,3 +926,77 @@ def test_bybit_switches_symbol_to_one_way_on_position_mode_error():
     fx2.switch_ok = False
     with pytest.raises(ValueError, match="режиме хеджирования"):
         asyncio.run(BybitBroker(CREDS, exchange=fx2).adjust("SOLUSDT", 0.5, 10))
+
+
+# ---------------- доливка на +1.5R ----------------
+def _held(mark, qty=3.33, available=1000.0):
+    return replace(ACC, available=available,
+                   positions=(Position("SOLUSDT", Side.LONG, qty, 101.0, mark, (mark - 101.0) * qty),))
+
+
+def test_pyramid_moves_stop_to_entry_then_adds_half(tmp_path):
+    b = FakeBroker()
+    st, ex = _exec(tmp_path, b)
+    s = st.add(_signal())                                  # рынок 101, стоп 98 (R = 3), цель 110 → +1.5R = 105.5
+    asyncio.run(ex.execute(st.get(s.id)))
+    b.acc = _held(105.0)
+    asyncio.run(ex.housekeep())
+    assert not b.protected and not b.adjusted              # ещё не дошли
+    b.acc = _held(105.6)
+    asyncio.run(ex.housekeep())
+    assert b.protected == [("SOLUSDT", 101.0, 110.0), ("SOLUSDT", 101.0, 110.0)]
+    assert b.adjusted == [("SOLUSDT", 1.66)] and b.adjust_lev == [5]
+    t = st.trades_for([s.id])[s.id]
+    assert t.add_qty == 1.66 and t.add_price == 105.6
+    b.acc = _held(107.0, qty=4.99)
+    asyncio.run(ex.housekeep())
+    assert len(b.adjusted) == 1                            # доливка одна на сделку
+
+
+def test_pyramid_without_margin_only_moves_stop_and_respects_setting(tmp_path):
+    b = FakeBroker()
+    st, ex = _exec(tmp_path, b)
+    s = st.add(_signal())
+    asyncio.run(ex.execute(st.get(s.id)))
+    b.acc = _held(106.0, available=1.0)
+    asyncio.run(ex.housekeep())
+    assert b.protected == [("SOLUSDT", 101.0, 110.0)] and not b.adjusted
+    assert st.trades_for([s.id])[s.id].add_qty == 0.0
+    b2 = FakeBroker()
+    (tmp_path / "off").mkdir()
+    st2, ex2 = _exec(tmp_path / "off", b2)
+    st2.save(Settings().with_tf(Timeframe.H4, pyramid=False))
+    s2 = st2.add(_signal())
+    asyncio.run(ex2.execute(st2.get(s2.id)))
+    b2.acc = _held(106.0)
+    asyncio.run(ex2.housekeep())
+    assert not b2.protected and not b2.adjusted
+
+
+def test_pyramid_trade_reports_first_entry_slippage_and_breakeven_exit():
+    t = Trade(1, "SOLUSDT", Side.LONG, EntryKind.MARKET, 2.0, 100.0, 98.0, 106.0, "o", "demo",
+              TradeStatus.CLOSED, add_qty=1.0, add_price=103.0)
+    from trader.domain.execution import TradeResult
+    done = replace(t, result=TradeResult((100.2 * 2 + 103.0) / 3, 100.0, -3.0, NOW))
+    assert done.slippage_r == pytest.approx(0.1) and done.exit_reason == "безубыток"
+    assert done.r_multiple == pytest.approx(-0.75)          # R — от исходного риска (2 × 2)
+    assert t.pyramid_level == 103.0 and Settings().p(Timeframe.H4).pyramid and not Settings().p(Timeframe.M15).pyramid
+
+
+def test_bybit_protect_sets_full_position_stop_and_ignores_not_modified():
+    fx = FakeCcxt()
+    sent = []
+
+    async def trading_stop(req):
+        sent.append(req)
+        if len(sent) > 1:
+            raise ccxt.BadRequest('bybit {"retCode":34040,"retMsg":"not modified"}')
+        return {"retCode": 0}
+
+    fx.privatePostV5PositionTradingStop = trading_stop
+    fx.price_to_precision = lambda sym, x: f"{x:.3f}"
+    br = BybitBroker(CREDS, exchange=fx)
+    asyncio.run(br.protect("SOLUSDT", 101.0, 110.0))
+    asyncio.run(br.protect("SOLUSDT", 101.0, 110.0))
+    assert sent[0] == {"category": "linear", "symbol": "SOLUSDT", "stopLoss": "101.000", "takeProfit": "110.000",
+                       "tpslMode": "Full", "positionIdx": 0}

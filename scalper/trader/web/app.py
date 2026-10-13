@@ -386,6 +386,8 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
                               "top_n": int(f("top_n")), "max_hold_bars": int(f("max_hold_bars")),
                               "max_positions": int(f("tf_max_positions")),
                               "hedge_btc": form.get(f"{tf.value}__hedge_btc", "0") == "1",
+                              "pyramid": form.get(f"{tf.value}__pyramid",
+                                                  "1" if settings_svc.get().p(tf).pyramid else "0") == "1",
                               "margin_pct": float(form.get(f"{tf.value}__margin_pct", settings_svc.get().p(tf).margin_pct)),
                               "leverage": int(form.get(f"{tf.value}__tf_leverage", settings_svc.get().p(tf).leverage))}
             settings_svc.update(g, per_tf)

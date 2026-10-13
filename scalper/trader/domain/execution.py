@@ -11,6 +11,8 @@ from .models import EntryKind, Settings, Side, Signal, Sizing, TradePlan
 from .sizing import position_size
 
 MIN_RR = 1.5                # рыночный вход: если цена ушла и до цели осталось меньше 1.5 стопа — не входим
+PYRAMID_AT_R = 1.5          # доливка (research/pyramid.py, P2): цена прошла +1.5R от входа —
+PYRAMID_SIZE = 0.5          # докупаем 0.5 исходного объёма, стоп всей позиции — в точку входа
 DEFAULT_MIN_NOTIONAL = 5.0  # $, минимальный ордер Bybit для USDT-перпетуалов
 
 
@@ -261,6 +263,8 @@ class Trade:
     filled_at: datetime | None = None       # когда вход исполнился (рынок — сразу, ретест — когда заметили)
     result: TradeResult | None = None
     hedge: HedgeLeg | None = None
+    add_qty: float | None = None            # доливка: None — ещё не было, 0 — стоп в безубыток без доливки
+    add_price: float | None = None          # цена, по которой доливали (ориентир — mark в момент доливки)
 
     @property
     def hedge_r(self) -> float | None:
@@ -289,11 +293,20 @@ class Trade:
         return self.result.pnl_usd / (self.qty * self.risk_per_unit)
 
     @property
+    def pyramid_level(self) -> float:
+        """Цена, на которой доливаем: +PYRAMID_AT_R R от входа по плану."""
+        return self.price + int(self.side) * PYRAMID_AT_R * self.risk_per_unit
+
+    @property
     def slippage_r(self) -> float | None:
-        """Проскальзывание входа в R: плюс — вошли хуже плана."""
+        """Проскальзывание входа в R: плюс — вошли хуже плана. С доливкой биржа отдаёт среднюю цену двух входов —
+        цена первого входа восстанавливается по объёмам."""
         if self.result is None or self.risk_per_unit <= 0:
             return None
-        return int(self.side) * (self.result.entry_fill - self.price) / self.risk_per_unit
+        fill = self.result.entry_fill
+        if self.add_qty and self.add_price and self.qty > 0:
+            fill = (fill * (self.qty + self.add_qty) - self.add_price * self.add_qty) / self.qty
+        return int(self.side) * (fill - self.price) / self.risk_per_unit
 
     @property
     def exit_reason(self) -> str:
@@ -306,6 +319,8 @@ class Trade:
             return "цель"
         if r > 0 and abs(x - self.stop) <= 0.25 * r:
             return "стоп"
+        if r > 0 and self.add_qty is not None and abs(x - self.price) <= 0.25 * r:
+            return "безубыток"
         return "вручную"
 
     @staticmethod
@@ -314,3 +329,20 @@ class Trade:
         return Trade(req.signal_id, req.symbol, req.side, req.kind, req.qty, req.price, req.stop, req.target,
                      order_id, network, status, req.expires_at, now,
                      filled_at=now if status is TradeStatus.FILLED else None)
+
+
+def pyramid_due(trade: Trade, mark: float) -> bool:
+    """Пора доливать: доливки ещё не было, а цена прошла +PYRAMID_AT_R R от входа."""
+    return trade.add_qty is None and trade.risk_per_unit > 0 and \
+        int(trade.side) * (mark - trade.pyramid_level) >= 0
+
+
+def pyramid_qty(trade: Trade, instrument: Instrument, mark: float, available: float, leverage: int) -> tuple[float, str]:
+    """Объём доливки (0 — не доливаем) и причина, если не доливаем: шаг и минимум монеты, свободная маржа."""
+    want = round_down(PYRAMID_SIZE * trade.qty, instrument.qty_step)
+    if want < instrument.min_qty or want <= 0 or want * mark < instrument.min_notional:
+        return 0.0, "объём доливки меньше минимального ордера"
+    cap = round_down(max(available, 0.0) * 0.95 * leverage / mark, instrument.qty_step)
+    if cap < want:
+        return 0.0, "не хватает свободной маржи"
+    return want, ""

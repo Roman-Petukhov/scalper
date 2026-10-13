@@ -260,6 +260,19 @@ class BybitBroker:
                 await self.ex.create_order(m["symbol"], "market", side, qty, None,
                                            {"reduceOnly": True, "positionIdx": 0})
 
+    async def protect(self, symbol: str, stop: float, target: float) -> None:
+        """/v5/position/trading-stop: стоп и цель на весь объём позиции (Full). Если они уже такие — не ошибка."""
+        m = await self._market(symbol)
+        if m is None:
+            raise ValueError(f"{symbol} не торгуется на Bybit")
+        req = {"category": "linear", "symbol": m["id"], "stopLoss": self.ex.price_to_precision(m["symbol"], stop),
+               "takeProfit": self.ex.price_to_precision(m["symbol"], target), "tpslMode": "Full", "positionIdx": 0}
+        try:
+            await self.ex.privatePostV5PositionTradingStop(req)
+        except ccxt.ExchangeError as e:                        # 34040: not modified — уже стоит так
+            if "34040" not in str(e) and "not modified" not in str(e).lower():
+                raise
+
     async def closed_pnl(self, symbol: str, since: datetime, until: datetime) -> list[ClosedPnl]:
         """/v5/position/closed-pnl по одной монете."""
         m = await self._market(symbol)

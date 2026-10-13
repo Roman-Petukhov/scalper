@@ -111,6 +111,10 @@ def test_params_per_timeframe(env):
     assert s.p(Timeframe.M15).sides.value == "short" and s.p(Timeframe.M15).max_slope_atr == 0.05
     assert s.p(Timeframe.H4).sides.value == "both"
     assert 'name="15m__tf_leverage"' in r and s.p(Timeframe.M15).leverage == 15        # поле не прислано — без изменений
+    assert 'name="4h__pyramid"' in r and s.p(Timeframe.H4).pyramid and not s.p(Timeframe.M15).pyramid
+    c.post("/settings/params", data=_params_form(**{"4h__pyramid": "0", "15m__pyramid": "1"}), headers=HX)
+    s = SqliteStore(tmp / "trader.db").load()
+    assert not s.p(Timeframe.H4).pyramid and s.p(Timeframe.M15).pyramid
     c.post("/settings/params", data=_params_form(**{"15m__tf_leverage": "12", "4h__tf_leverage": "3"}), headers=HX)
     s = SqliteStore(tmp / "trader.db").load()
     assert s.lev(Timeframe.M15) == 12 and s.lev(Timeframe.H4) == 3

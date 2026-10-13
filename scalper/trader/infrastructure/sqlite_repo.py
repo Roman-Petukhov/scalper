@@ -96,7 +96,7 @@ class SqliteStore:
         """Колонки журнала в базе прежней версии: время исполнения, итог, отметка «итог больше не ищем»."""
         have = {r["name"] for r in self.db.execute("PRAGMA table_info(trades)")}
         for col, ddl in (("filled_at", "TEXT"), ("result", "TEXT"), ("settled", "INTEGER NOT NULL DEFAULT 0"),
-                         ("hedge", "TEXT")):
+                         ("hedge", "TEXT"), ("add_qty", "REAL"), ("add_price", "REAL")):
             if col not in have:
                 self.db.execute(f"ALTER TABLE trades ADD COLUMN {col} {ddl}")
 
@@ -310,7 +310,7 @@ class SqliteStore:
                      expires_at=_dt(r["expires_at"]) if r["expires_at"] else None,
                      created_at=_dt(r["created_at"]), id=r["id"],
                      filled_at=_dt(r["filled_at"]) if r["filled_at"] else None, result=_result(r["result"]),
-                     hedge=_hedge(r["hedge"]))
+                     hedge=_hedge(r["hedge"]), add_qty=r["add_qty"], add_price=r["add_price"])
 
     def add_trade(self, trade: Trade) -> Trade:
         created = trade.created_at or datetime.now(timezone.utc)
@@ -329,6 +329,11 @@ class SqliteStore:
     def set_trade_hedge(self, trade_id: int, hedge: HedgeLeg) -> None:
         with self.lock:
             self.db.execute("UPDATE trades SET hedge = ? WHERE id = ?", (_hedge_json(hedge), trade_id))
+            self.db.commit()
+
+    def set_trade_pyramid(self, trade_id: int, qty: float, price: float) -> None:
+        with self.lock:
+            self.db.execute("UPDATE trades SET add_qty = ?, add_price = ? WHERE id = ?", (qty, price, trade_id))
             self.db.commit()
 
     def trades_for(self, signal_ids: list[int]) -> dict[int, Trade]:

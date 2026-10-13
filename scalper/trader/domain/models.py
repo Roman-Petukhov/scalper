@@ -95,6 +95,7 @@ class TfParams:
     hedge_btc: bool = False             # к сделке — обратная позиция BTC на бету монеты (domain/hedge.py)
     margin_pct: float = 10.0            # размер «как на Bybit»: маржа сделки, % капитала (Settings.sizing = MARGIN)
     leverage: int = 0                   # своё плечо ТФ; 0 — общее (Settings.leverage). Риск не меняет, только маржу
+    pyramid: bool = False               # на +1.5R долить 0.5 позиции, стоп всей позиции — в точку входа (research/pyramid.py)
 
     def __post_init__(self) -> None:
         if not 0.05 <= self.risk_pct <= 6.0:
@@ -125,6 +126,8 @@ class TfParams:
             raise ValueError("маржа на сделку — от 1% до 100% капитала")
         if not (isinstance(self.leverage, int) and 0 <= self.leverage <= MAX_TF_LEVERAGE):
             raise ValueError(f"плечо таймфрейма — целое от 1× до {MAX_TF_LEVERAGE}× (0 — общее)")
+        if not isinstance(self.pyramid, bool):
+            raise ValueError("доливка — да или нет")
         if not isinstance(self.hedge_btc, bool):
             raise ValueError("хедж BTC — да или нет")
 
@@ -136,7 +139,7 @@ class TfParams:
 # сигнала (research/wide15.py) топ-150 лучше топ-70 (HO +0.08R против +0.02R на сделку), но сигналов ~100 в месяц и
 # держатся до 2 суток — свой лимит 3 позиции, чтобы 15m не занимал места 4h. Риск 1% / 0.25%.
 DEFAULT_TF_PARAMS: dict[Timeframe, TfParams] = {
-    Timeframe.H4: TfParams(risk_pct=1.0, min_close_loc=0.5, entry_policy=EntryPolicy.HYBRID),
+    Timeframe.H4: TfParams(risk_pct=1.0, min_close_loc=0.5, entry_policy=EntryPolicy.HYBRID, pyramid=True),
     Timeframe.M15: TfParams(risk_pct=0.25, min_close_loc=0.5, entry_policy=EntryPolicy.MARKET, sides=SideFilter.SHORT,
                             max_slope_atr=0.025, top_n=150, max_hold_bars=200, max_positions=3, leverage=15),
 }
