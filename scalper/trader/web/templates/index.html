@@ -55,6 +55,7 @@
       <div id="journal" hx-get="/journal" hx-trigger="every 60s, feed-refresh from:body" hx-swap="innerHTML">
         {% include "_journal.html" %}
       </div>
+      <div id="trend" hx-get="/trend" hx-trigger="load, every 300s" hx-swap="innerHTML"></div>
     </div>
   </section>
   <section class="pane pane-settings" id="settings" data-pane="settings" aria-label="Настройки">

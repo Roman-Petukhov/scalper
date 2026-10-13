@@ -502,3 +502,21 @@ def test_hybrid_default_fits_input_step(env):
     k = (DEFAULT_TF_PARAMS[Timeframe.H4].hybrid_range_atr - lo) / step
     assert abs(k - round(k)) < 1e-9
     assert "Гибрид: по рынку, если свеча пробоя" in html and "Закрытие в своей половине свечи" in html
+
+
+def test_trend_card_empty_and_with_book(env):
+    from datetime import date
+    from trader.domain.trend import TrendDay, TrendPosition
+    from trader.infrastructure.sqlite_repo import SqliteStore
+    c, tmp = env
+    _login(c)
+    r = c.get("/trend")
+    assert r.status_code == 200 and "Счёт откроется на ближайшем закрытии дня" in r.text
+    st = SqliteStore(tmp / "trader.db")
+    st.trend_save(TrendDay("s7_add", date(2026, 10, 11), 1.02, 0.02, 0.0,
+                           {"NEARUSDT": TrendPosition(0.1, 5.0, 0.5, 2, date(2026, 8, 20), 1.77)}))
+    st.trend_save(TrendDay("s7_add", date(2026, 10, 12), 0.99, -0.03, 0.001,
+                           {"NEARUSDT": TrendPosition(0.1, 4.9, 0.49, 2, date(2026, 8, 20), 1.77)}))
+    r = c.get("/trend")
+    assert "NEARUSDT" in r.text and "-1.0%" in r.text and "доливов 2" in r.text and "+176.8%" in r.text
+    assert "Просадка" in r.text and "2.9%" in r.text

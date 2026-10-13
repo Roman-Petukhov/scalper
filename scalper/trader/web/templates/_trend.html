@@ -1,0 +1,43 @@
+<div class="card trend">
+  <div class="journal-head">
+    <h2>Тренд на дневках · бумага</h2>
+    <span class="hint num" style="margin:0">пересчёт раз в сутки после 00:00 UTC</span>
+  </div>
+  {% if error %}<p class="err">Последний пересчёт не удался: {{ error }}. Повторю через 15 минут.</p>{% endif %}
+  <div class="trend-books">
+  {% for b in books %}
+    <div class="trend-book">
+      <div class="row" style="justify-content:space-between;align-items:baseline">
+        <b>{{ b.rule.title }}</b>
+        <span class="hint" style="margin:0">{{ b.rule.backtest }}</span>
+      </div>
+      {% if b.last %}
+      <div class="stats periods num">
+        <div class="stat {{ 'up' if b.total > 0 else ('down' if b.total < 0 else '') }}"><span>С {{ b.since.strftime('%d.%m') }}</span>
+          <b>{{ '%+.1f' | format(b.total * 100) }}%</b><small>{{ b.days }} дн.</small></div>
+        <div class="stat {{ 'up' if b.step > 0 else ('down' if b.step < 0 else '') }}"><span>За {{ b.last.day.strftime('%d.%m') }}</span>
+          <b>{{ '%+.2f' | format(b.step * 100) }}%</b><small>после издержек</small></div>
+        <div class="stat"><span>Просадка</span><b>{{ '%.1f' | format(b.dd * 100) }}%</b>
+          <small>в лонге {{ '%.0f' | format(b.last.gross * 100) }}% капитала</small></div>
+      </div>
+      {% if b.rows %}
+      <div class="jr-rows trend-rows num" role="table" aria-label="Позиции: {{ b.rule.title }}">
+        {% for r in b.rows %}
+        <div class="jr-row" role="row">
+          <span role="cell" class="hint" style="margin:0">с {{ r.entry_day.strftime('%d.%m') }}{% if r.adds %} · доливов {{ r.adds }}{% endif %}</span>
+          <span role="cell">{{ r.symbol }}</span>
+          <span role="cell" class="{{ 'jr-up' if r.change > 0 else 'jr-down' }}">{{ '%+.1f' | format(r.change * 100) }}%</span>
+          <span role="cell" class="hint" style="margin:0">вес {{ '%.0f' | format(r.weight * 100) }}%</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}<p class="hint">Сейчас вне рынка: ни одна из 20 крупнейших монет не в тренде.</p>{% endif %}
+      {% else %}
+      <p class="hint">Счёт откроется на ближайшем закрытии дня (00:00 UTC): первый шаг — вход в текущие тренды.</p>
+      {% endif %}
+    </div>
+  {% endfor %}
+  </div>
+  <p class="hint">Ордеров нет — сделки только на бумаге, капитал каждой стратегии с 100%. % у монеты — изменение цены с
+    входа; вес — доля капитала стратегии (до 200% в сумме). Сравниваем с бэктестом 1–2 месяца, потом решаем про реальные деньги.</p>
+</div>

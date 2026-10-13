@@ -10,6 +10,7 @@ from datetime import datetime
 from ..domain.execution import Account, ClosedPnl, HedgeLeg, Instrument, OrderRequest, Trade, TradeResult, TradeStatus
 from ..domain.journal import JournalEntry
 from ..domain.models import Settings, Signal, SignalStatus, Timeframe
+from ..domain.trend import TrendDay
 
 
 class MarketData(Protocol):
@@ -25,6 +26,12 @@ class MarketData(Protocol):
 
     async def bars_between(self, symbol: str, tf: Timeframe, start: datetime, end: datetime) -> pd.DataFrame:
         """Свечи с открытием в [start, end] (последняя может быть не закрыта), не больше 1500 — для выгрузки."""
+
+    async def daily_bars(self, symbol: str, limit: int) -> pd.DataFrame:
+        """Закрытые дневные свечи, не больше limit; индекс — открытие дня UTC; колонки close, quote_volume."""
+
+    async def funding_sum(self, symbol: str, start: datetime, end: datetime) -> float:
+        """Сумма ставок funding с выплатой в (start, end]."""
 
 
 class SignalRepository(Protocol):
@@ -127,3 +134,13 @@ class TradeRepository(Protocol):
     def kv_get(self, key: str) -> str | None: ...
 
     def kv_set(self, key: str, value: str) -> None: ...
+
+
+class TrendRepository(Protocol):
+    def trend_last(self, rule: str) -> TrendDay | None:
+        """Последний шаг бумажного счёта стратегии."""
+
+    def trend_save(self, day: TrendDay) -> None: ...
+
+    def trend_history(self, rule: str, limit: int = 400) -> list[TrendDay]:
+        """Шаги счёта, старые первыми."""

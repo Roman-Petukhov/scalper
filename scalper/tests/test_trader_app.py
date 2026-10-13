@@ -376,3 +376,25 @@ def test_daily_backup_is_a_readable_copy_and_old_ones_are_pruned(tmp_path):
         out = st.backup(tmp_path / "backups", d, keep=2)
     assert sorted(p.name for p in (tmp_path / "backups").iterdir()) == ["trader-2026-10-02.db", "trader-2026-10-03.db"]
     assert len(SqliteStore(out).recent()) == 1
+
+
+def test_binance_daily_bars_and_funding_sum():
+    now_ms = int(pd.Timestamp.now(tz="UTC").timestamp() * 1000)
+    day = 86_400_000
+    start = now_ms - (now_ms % day) - 2 * day
+    seen = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen.append(dict(req.url.params))
+        if req.url.path.endswith("fundingRate"):
+            return httpx.Response(200, json=[{"fundingRate": "0.0001"}, {"fundingRate": "-0.00005"}])
+        return httpx.Response(200, json=[[start + i * day, "1", "2", "0.5", str(10 + i), "10", start + (i + 1) * day - 1,
+                                          str(1e8 * (i + 1)), 3, "6", "9", "0"] for i in range(3)])
+
+    md = BinanceMarketData(httpx.AsyncClient(base_url="https://x", transport=httpx.MockTransport(handler)))
+    d = asyncio.run(md.daily_bars("NEARUSDT", 1000))
+    assert list(d.columns) == ["close", "quote_volume"] and len(d) == 2 and d["close"].iloc[-1] == 11.0
+    assert seen[0]["interval"] == "1d" and seen[0]["limit"] == "1000"
+    a, b = datetime(2026, 10, 1, tzinfo=timezone.utc), datetime(2026, 10, 2, tzinfo=timezone.utc)
+    assert asyncio.run(md.funding_sum("NEARUSDT", a, b)) == pytest.approx(0.00005)
+    assert seen[1]["startTime"] == str(int(a.timestamp() * 1000) + 1)

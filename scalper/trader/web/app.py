@@ -27,12 +27,14 @@ from ..application.export import collect_bars, journal_export
 from ..application.live_chart import chart_payload
 from ..application.ports import Broker, MarketData, Notifier
 from ..application.services import Scanner, SettingsService, SignalDecisions
+from ..application.trend import TrendPaper
 from ..config import AppConfig
 from ..domain.execution import TradeStatus
 from ..domain.journal import BACKTEST_DD_R, tf_stats
 from ..domain.models import (DEFAULT_TF_PARAMS, HTF_CONFIRM, EntryPolicy, Mode, Settings, SideFilter, SignalStatus,
                              Sizing, Timeframe)
 from ..domain.sizing import exposure, risk_notes
+from ..domain.trend import RULES as TREND_RULES, TrendDay
 from ..infrastructure.binance_data import BinanceMarketData
 from ..infrastructure.bybit import (ALIAS_MAX_GAP, BrokerHolder, BybitBroker, BybitCredentials, load_aliases,
                                     parse_symbol, save_aliases)
@@ -94,6 +96,23 @@ templates.env.globals.update(ARCHIVED=ARCHIVED, DELETABLE=DELETABLE, TRADE_LABEL
                              SignalStatus=SignalStatus, Sizing=Sizing, DEFAULTS=DEFAULT_TF_PARAMS, ACCOUNT_DEFAULTS=Settings())
 
 
+def trend_view(hist: list[TrendDay]) -> dict:
+    """Карточка бумажного счёта: доходность с начала и за последний шаг, просадка, позиции."""
+    if not hist:
+        return {"last": None}
+    eq = [1.0] + [x.equity for x in hist]
+    peak, dd = eq[0], 0.0
+    for v in eq:
+        peak = max(peak, v)
+        dd = max(dd, 1 - v / peak)
+    last = hist[-1]
+    rows = sorted(({"symbol": s, "weight": p.weight, "adds": p.adds, "entry_day": p.entry_day,
+                    "change": p.price / p.entry_price - 1 if p.entry_price > 0 else 0.0}
+                   for s, p in last.positions.items()), key=lambda r: -r["weight"])
+    return {"last": last, "total": last.equity - 1, "step": last.pnl / (last.equity - last.pnl)
+            if last.equity - last.pnl > 0 else 0.0, "dd": dd, "days": len(hist), "since": hist[0].day, "rows": rows}
+
+
 def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notifier | None = None,
                broker: Callable[[], Broker | None] | None = None) -> FastAPI:
     store = SqliteStore(cfg.data_dir / "trader.db")
@@ -109,6 +128,7 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
     scanner = Scanner(market, store, store, charts, notify, cfg.panel_url, executor=executor, heartbeat=heartbeat)
     settings_svc = SettingsService(store)
     decisions = SignalDecisions(store, store, executor)
+    trend = TrendPaper(market, store, notify)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -127,6 +147,7 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
                 await executor.refresh_pnl()
             except Exception:
                 log.exception("PnL за периоды")
+            await trend.maybe_run()
 
         task = None
         if cfg.scheduler:
@@ -473,6 +494,12 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
             w, err = None, f"Bybit не ответил: {str(e)[:140]}"
         return templates.TemplateResponse(request, "_wallet.html", {"w": w, "error": err,
                                                                     "exchange": exchange_label()})
+
+    @app.get("/trend", response_class=HTMLResponse)
+    async def trend_card(request: Request):
+        guard(request)
+        books = [{"rule": r, **trend_view(store.trend_history(r.key))} for r in TREND_RULES]
+        return templates.TemplateResponse(request, "_trend.html", {"books": books, "error": trend.last_error})
 
     @app.post("/exchange/keys", response_class=HTMLResponse)
     async def exchange_keys(request: Request, api_key: str = Form(...), secret: str = Form(...),

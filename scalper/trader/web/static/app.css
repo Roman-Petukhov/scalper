@@ -429,3 +429,10 @@ dl.plan dd .sub { color: var(--muted); font-size: 12px; margin-left: 4px; white-
 @media (max-width: 480px) { .stats.periods .stat b { font-size: 16px; } .stats.periods .stat { padding: 8px 10px; } }
 .jr-health.jr-watch { color: var(--warn); }
 .jr-health.jr-stop { color: var(--short); font-weight: 600; }
+
+/* тренд на дневках, бумажный счёт: на всю ширину под кошельком и журналом */
+.account-grid #trend { grid-column: 1 / -1; }
+.trend-books { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.trend-book { min-width: 0; }
+.trend-book .stats.periods { margin-top: 10px; }
+@media (max-width: 760px) { .trend-books { grid-template-columns: minmax(0, 1fr); } }

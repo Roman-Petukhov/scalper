@@ -5,11 +5,12 @@ import json
 import sqlite3
 import threading
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from ..domain.execution import HedgeLeg, Trade, TradeResult, TradeStatus
 from ..domain.journal import JournalEntry
+from ..domain.trend import TrendDay, TrendPosition
 from ..domain.models import (DEFAULT_TF_PARAMS, RETIRED_TIMEFRAMES, SETTINGS_ONCE, STRATEGY_RESETS, TF_FIELDS, TF_SETTINGS_ONCE, EntryKind, EntryPolicy, Mode, Settings, Sizing,
                              Side, SideFilter, Signal, SignalStatus, TfParams, Timeframe, TradePlan)
 
@@ -33,6 +34,10 @@ CREATE TABLE IF NOT EXISTS trades (
     network TEXT NOT NULL, status TEXT NOT NULL, expires_at TEXT, created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS trend_days (
+    rule TEXT NOT NULL, day TEXT NOT NULL, equity REAL NOT NULL, pnl REAL NOT NULL, cost REAL NOT NULL,
+    positions TEXT NOT NULL, PRIMARY KEY (rule, day)
+);
 """
 
 
@@ -58,8 +63,14 @@ def _result(raw: str | None) -> TradeResult | None:
     return TradeResult(p["entry_fill"], p["exit"], p["pnl_usd"], _dt(p["closed_at"]))
 
 
+def _trend_day(r: sqlite3.Row) -> TrendDay:
+    pos = {s: TrendPosition(p["qty"], p["price"], p["weight"], p["adds"], date.fromisoformat(p["entry_day"]),
+                            p["entry_price"]) for s, p in json.loads(r["positions"]).items()}
+    return TrendDay(r["rule"], date.fromisoformat(r["day"]), r["equity"], r["pnl"], r["cost"], pos)
+
+
 class SqliteStore:
-    """Реализует SignalRepository, SettingsRepository и TradeRepository."""
+    """Реализует SignalRepository, SettingsRepository, TradeRepository и TrendRepository."""
 
     def __init__(self, path: str | Path) -> None:
         Path(path).parent.mkdir(parents=True, exist_ok=True)
@@ -390,6 +401,27 @@ class SqliteStore:
         return [JournalEntry(self._trade(r), Timeframe(r["tf"]),
                              bool(json.loads(r["sig_payload"]).get("extra", {}).get("level")))
                 for r in rows if r["tf"] in tfs]
+
+    # ---------- бумажный счёт тренда ----------
+    def trend_last(self, rule: str) -> TrendDay | None:
+        with self.lock:
+            r = self.db.execute("SELECT * FROM trend_days WHERE rule = ? ORDER BY day DESC LIMIT 1", (rule,)).fetchone()
+        return _trend_day(r) if r else None
+
+    def trend_save(self, day: TrendDay) -> None:
+        pos = {s: {"qty": p.qty, "price": p.price, "weight": p.weight, "adds": p.adds,
+                   "entry_day": p.entry_day.isoformat(), "entry_price": p.entry_price} for s, p in day.positions.items()}
+        with self.lock:
+            self.db.execute("INSERT OR REPLACE INTO trend_days(rule, day, equity, pnl, cost, positions) "
+                            "VALUES (?, ?, ?, ?, ?, ?)",
+                            (day.rule, day.day.isoformat(), day.equity, day.pnl, day.cost, json.dumps(pos)))
+            self.db.commit()
+
+    def trend_history(self, rule: str, limit: int = 400) -> list[TrendDay]:
+        with self.lock:
+            rows = self.db.execute("SELECT * FROM trend_days WHERE rule = ? ORDER BY day DESC LIMIT ?",
+                                   (rule, limit)).fetchall()
+        return [_trend_day(r) for r in reversed(rows)]
 
     # ---------- резервные копии ----------
     def backup(self, folder: Path, day: str, keep: int) -> Path:
