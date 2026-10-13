@@ -16,6 +16,10 @@
 
     python -m research.pyramid collect --symbols <1h-qualified>
     python -m research.pyramid report
+То же на правиле бота 15m (research/exhaust.py collect15: шорт от пологой линии, по рынку, топ-150, 3R, 200 свечей;
+периоды IS / VAL / HO / 2026, данные с 2022):
+    python -m research.pyramid collect15 --symbols <15m-wide>
+    python -m research.pyramid report15
 """
 from __future__ import annotations
 
@@ -33,8 +37,12 @@ from .noline import triggers
 from .oos import PER_ALL
 from .shard import all_parts, mine, part_path
 from .smc import _atr, _cell
-from .tline import (HOLD, MAKER, PIV, RETEST_BARS, STOP_BUF, TAKER, htf_trend, last_confirmed, pivots, retest_fill,
-                    tf_frame)
+from .tline import (HOLD, MAKER, PER, PIV, RETEST_BARS, STOP_BUF, TAKER, _bot_base, htf_trend, last_confirmed,
+                    market_context, pivots, retest_fill, tf_frame)
+from .tline import coin_trades as tline_trades
+from .wide15 import MAX_SLOPE_ATR
+
+TOP15 = 150
 
 TF = "4h"
 TARGET_R = 3.0
@@ -158,6 +166,39 @@ def collect(root: Path, syms: list[str]) -> None:
         pd.DataFrame(rows).to_parquet(part_path("pyramid"), index=False)
 
 
+def collect15(root: Path, syms: list[str]) -> None:
+    ctx = market_context(root)
+    parts, advs = [], []
+    for s in mine(syms):
+        try:
+            a = adv30(root, s).dropna()
+            advs.append(pd.DataFrame({"symbol": s, "day": a.index, "adv": a.to_numpy()}))
+            x = tline_trades(root, s, "15m", ctx)
+            if not len(x):
+                continue
+            x = x[~x.confirm & (x.line == "zz") & (x.side == -1) & (x.entry == "market")].copy()
+            if not len(x):
+                continue
+            d = tf_frame(root, s, "15m")
+            o, hi, lo, c = (d[k].to_numpy(dtype="float64") for k in ("open", "high", "low", "close"))
+            f = d["funding"].to_numpy(dtype="float64")
+            x["fill_i"] = d.index.get_indexer(x["t"])
+            x = x[x.fill_i >= 0]
+            for nm, rule in VARIANTS.items():
+                x[nm] = [simulate(o, hi, lo, c, f, int(i), int(sd), c[int(i)], c[int(i)] * (1 - sd * rp), rule,
+                                  HOLD["15m"], TAKER)
+                         for i, sd, rp in zip(x.fill_i, x.side, x.risk_pct)]
+            parts.append(x[["symbol", "t", "side", "confirm", "aggr", "with_trend", "close_loc", "slope_atr",
+                            *VARIANTS]])
+        except Exception as e:
+            print(f"  pyramid15 {s}: пропуск ({e})", flush=True)
+    print(f"  pyramid15: монет со сделками {len(parts)}", flush=True)
+    if parts:
+        pd.concat(parts, ignore_index=True).to_parquet(part_path("pyramid15"), index=False)
+    if advs:
+        pd.concat(advs, ignore_index=True).to_parquet(part_path("pyramid15_adv"), index=False)
+
+
 def _dd(r: pd.Series) -> float:
     eq = r.cumsum()
     return float((eq.cummax() - eq).max()) if len(eq) else np.nan
@@ -171,8 +212,30 @@ def report() -> None:
         return
     df = pd.concat([pd.read_parquet(p) for p in parts], ignore_index=True)
     df["t"] = pd.to_datetime(df["t"], utc=True)
-    df = df.sort_values("t")
-    per = {p: (df.t >= a) & (df.t < b) for p, (a, b) in {**PER_ALL, "2026": ("2026-01-01", "2026-10-01")}.items()}
+    _tables(df.sort_values("t"), {**PER_ALL, "2026": ("2026-01-01", "2026-10-01")})
+
+
+def report15() -> None:
+    tp, ap = all_parts("pyramid15"), all_parts("pyramid15_adv")
+    print(f"\n===== PYRAMID15: пирамидинг и стоп по времени на правиле бота 15m (пологие шорты, по рынку, топ-{TOP15}, "
+          "3R); R — в риске исходной позиции =====")
+    if not tp or not ap:
+        print("частей нет")
+        return
+    df = pd.concat([pd.read_parquet(p) for p in tp], ignore_index=True)
+    adv = pd.concat([pd.read_parquet(p) for p in ap], ignore_index=True)
+    df["t"] = pd.to_datetime(df["t"], utc=True)
+    adv["day"] = pd.to_datetime(adv["day"], utc=True)
+    adv["rank"] = adv.groupby("day")["adv"].rank(ascending=False, method="first")
+    df["day"] = df.t.dt.floor("D")
+    df = df.merge(adv[["symbol", "day", "adv", "rank"]], on=["symbol", "day"], how="left")
+    g = _bot_base(df)
+    g = g[(g.adv >= ADV_MIN) & (g.slope_atr <= MAX_SLOPE_ATR) & (g["rank"] <= TOP15)]
+    _tables(g.sort_values("t"), {**PER, "2026": ("2026-01-01", "2026-10-01")})
+
+
+def _tables(df: pd.DataFrame, periods: dict[str, tuple[str, str]]) -> None:
+    per = {p: (df.t >= a) & (df.t < b) for p, (a, b) in periods.items()}
     base = {p: df.loc[m, "контроль (бот)"].mean() for p, m in per.items()}
     months = df.t.dt.to_period("M").nunique()
     print(f"сделок {len(df)}, шортов {(df.side < 0).mean():.0%}")
@@ -192,11 +255,10 @@ if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     warnings.filterwarnings("ignore")
     ap = argparse.ArgumentParser()
-    ap.add_argument("mode", choices=["collect", "report"])
+    ap.add_argument("mode", choices=["collect", "report", "collect15", "report15"])
     ap.add_argument("--root", default="~/bn")
     ap.add_argument("--symbols", default="")
     a = ap.parse_args()
-    if a.mode == "collect":
-        collect(Path(a.root).expanduser(), [x for x in a.symbols.split(",") if x])
-    else:
-        report()
+    syms = [x for x in a.symbols.split(",") if x]
+    {"collect": lambda: collect(Path(a.root).expanduser(), syms), "report": report,
+     "collect15": lambda: collect15(Path(a.root).expanduser(), syms), "report15": report15}[a.mode]()
