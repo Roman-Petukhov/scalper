@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"prepo deflate"}
+TASKS=${TASKS:-"prepo fibvp"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -152,6 +152,8 @@ lowtf_collect() { python -m research.lowtf collect --symbols "$(cat /tmp/syms_lo
 lowtf_report() { python -m research.lowtf report; }
 deflate_collect() { python -m research.deflate collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
 deflate_report() { python -m research.deflate report; }
+fibvp_collect() { python -m research.fibvp collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
+fibvp_report() { python -m research.fibvp report; }
 range4_collect() { python -m research.range4 collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
 range4_report() { python -m research.range4 report; }
 exhaust_collect() { python -m research.exhaust collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
