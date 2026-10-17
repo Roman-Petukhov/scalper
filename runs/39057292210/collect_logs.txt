@@ -1,0 +1,40 @@
+----- prepo collect (часть 0/10) -----
+часть 0/10, набор 1h-qualified: монет 63
+----- bybitflow collect (часть 0/10) -----
+  bybitflow: пробоев 177, файлов Bybit 173, нет файла / слишком большой 3
+----- prepo collect (часть 1/10) -----
+часть 1/10, набор 1h-qualified: монет 66
+----- bybitflow collect (часть 1/10) -----
+  bybitflow: пробоев 146, файлов Bybit 130, нет файла / слишком большой 16
+----- prepo collect (часть 2/10) -----
+часть 2/10, набор 1h-qualified: монет 78
+----- bybitflow collect (часть 2/10) -----
+  bybitflow: пробоев 239, файлов Bybit 229, нет файла / слишком большой 9
+----- prepo collect (часть 3/10) -----
+часть 3/10, набор 1h-qualified: монет 73
+----- bybitflow collect (часть 3/10) -----
+  bybitflow: пробоев 175, файлов Bybit 168, нет файла / слишком большой 7
+----- prepo collect (часть 4/10) -----
+часть 4/10, набор 1h-qualified: монет 72
+----- bybitflow collect (часть 4/10) -----
+  bybitflow: пробоев 129, файлов Bybit 126, нет файла / слишком большой 3
+----- prepo collect (часть 5/10) -----
+часть 5/10, набор 1h-qualified: монет 83
+----- bybitflow collect (часть 5/10) -----
+  bybitflow: пробоев 164, файлов Bybit 156, нет файла / слишком большой 8
+----- prepo collect (часть 6/10) -----
+часть 6/10, набор 1h-qualified: монет 71
+----- bybitflow collect (часть 6/10) -----
+  bybitflow: пробоев 182, файлов Bybit 178, нет файла / слишком большой 4
+----- prepo collect (часть 7/10) -----
+часть 7/10, набор 1h-qualified: монет 61
+----- bybitflow collect (часть 7/10) -----
+  bybitflow: пробоев 140, файлов Bybit 128, нет файла / слишком большой 12
+----- prepo collect (часть 8/10) -----
+часть 8/10, набор 1h-qualified: монет 75
+----- bybitflow collect (часть 8/10) -----
+  bybitflow: пробоев 180, файлов Bybit 168, нет файла / слишком большой 12
+----- prepo collect (часть 9/10) -----
+часть 9/10, набор 1h-qualified: монет 83
+----- bybitflow collect (часть 9/10) -----
+  bybitflow: пробоев 234, файлов Bybit 219, нет файла / слишком большой 15
