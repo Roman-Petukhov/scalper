@@ -6,6 +6,13 @@ name: research
 
 on:
   workflow_dispatch:
+    inputs:
+      tasks:
+        description: "TASKS для research/job.sh (пусто — по умолчанию из job.sh; quarterly — квартальная пересдача)"
+        required: false
+        default: ""
+  schedule:
+    - cron: "17 6 3 1,4,7,10 *"     # квартальная пересдача: 3-го числа после квартала, месячные архивы уже выложены
   push:
     branches: [main-t2qdvg, weekly-research]
     paths: ["scalper/research/*.py", "scalper/research/breakout/*.py", "scalper/research/job.sh", ".github/workflows/research.yml"]
@@ -15,6 +22,7 @@ permissions:
 
 env:
   NSHARDS: "10"
+  TASKS: ${{ github.event_name == 'schedule' && 'quarterly' || inputs.tasks || '' }}
 
 jobs:
   smoke:
@@ -143,6 +151,7 @@ jobs:
           bash research/job.sh report 2>&1 | tee ../out/log.txt
           cat ../parts/log-*.txt > ../out/collect_logs.txt 2>/dev/null || true
           echo "частей с результатами: $(ls ../parts/parts | wc -l) файлов; collect: ${{ needs.collect.result }}" | tee -a ../out/log.txt
+          if [ -f ../out/quarterly.md ]; then cat ../out/quarterly.md >> "$GITHUB_STEP_SUMMARY"; fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:

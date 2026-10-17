@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"prepo group"}
+TASKS=${TASKS:-"quarterly"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -236,6 +236,14 @@ retest15_collect() { python -m research.retest15 collect --symbols "$(cat /tmp/s
 retest15_report() { python -m research.retest15 report; }
 group_collect() { python -m research.group collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
 group_report() { python -m research.group report; }
+# Квартальная пересдача (research/quarterly.py): данные по прошлый месяц, итог «держится / стареет» в ../out/quarterly.md
+quarterly_collect() {
+  export RESEARCH_END=${RESEARCH_END:-$(date -u -d "$(date -u +%Y-%m-01) -1 day" +%Y-%m)}
+  RESEARCH_METRICS=0 python -m research.prepare 1h-qualified 15m-wide
+  python -m research.extreg collect
+  python -m research.quarterly collect --symbols "$(cat /tmp/syms_1h-qualified.txt)" --symbols15 "$(cat /tmp/syms_15m-wide.txt)"
+}
+quarterly_report() { python -m research.quarterly report; }
 robust_collect() { python -m research.robust collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
 robust_report() { python -m research.robust report; }
 crowd_collect() { python -m research.crowd collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }

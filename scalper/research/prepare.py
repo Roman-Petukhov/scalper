@@ -25,7 +25,8 @@ from .shard import ALWAYS, mine, shard_id
 from .universe import EXTRA
 
 ROOT = Path.home() / "bn"
-START, END = os.environ.get("RESEARCH_START", "2022-01"), "2026-09"   # RESEARCH_START=2020-01 — проверка на 2020–2021
+START = os.environ.get("RESEARCH_START", "2022-01")   # RESEARCH_START=2020-01 — проверка на 2020–2021
+END = os.environ.get("RESEARCH_END", "2026-09")       # последний месяц; квартальная пересдача ставит прошлый месяц
 START_1M = os.environ.get("RESEARCH_START_1M", "2025-07")      # 1m — только HOLDOUT: ~650 тыс. свечей на монету
 METRICS = os.environ.get("RESEARCH_METRICS", "1") != "0"   # 0 — без OI/LSR: ~1.2 млн дневных архивов, на VPS долго
 
