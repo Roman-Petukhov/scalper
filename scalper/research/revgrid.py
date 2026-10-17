@@ -37,6 +37,7 @@ from .smc import _atr, _cell
 from .tline import TAKER, htf_trend, tf_frame
 
 STEPS, EXITS, UNITS = (1.0, 2.0, 3.0), (1, 2), 4
+MIN_ATR = 1e-4                 # ATR меньше 0.01% цены — битые данные (иначе R делится почти на ноль)
 PER = {**PER_ALL, "2026": ("2026-01-01", "2026-10-01")}
 
 
@@ -57,8 +58,11 @@ def simulate(o: np.ndarray, hi: np.ndarray, lo: np.ndarray, c: np.ndarray, atr: 
     st = {"anchor": None, "step": None, "side": 0, "units": 0, "last": 0.0, "ext": 0.0, "gross": 0.0, "fees": 0.0, "i0": 0,
           "entries": []}
 
+    def valid(i: int, price: float) -> bool:
+        return atr[i] == atr[i] and atr[i] > MIN_ATR * price          # битые свечи с ATR ≈ 0 — шаг не задаём
+
     def reset(i: int, price: float) -> None:
-        st["anchor"], st["step"] = price, (m * atr[i] if atr[i] == atr[i] and atr[i] > 0 else None)
+        st["anchor"], st["step"] = price, (m * atr[i] if valid(i, price) else None)
         st["side"], st["units"], st["entries"] = 0, 0, []
 
     def close(i: int, price: float) -> None:
@@ -76,7 +80,7 @@ def simulate(o: np.ndarray, hi: np.ndarray, lo: np.ndarray, c: np.ndarray, atr: 
 
     for i in range(1, len(c)):
         if st["anchor"] is None or st["step"] is None:
-            if atr[i] == atr[i] and atr[i] > 0:
+            if valid(i, c[i]):
                 st["anchor"], st["step"] = c[i], m * atr[i]
             continue
         ok = (lambda s_: trend[i - 1] == s_) if use_trend else (lambda s_: True)
