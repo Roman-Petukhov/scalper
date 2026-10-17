@@ -1,0 +1,40 @@
+----- prepo collect (часть 0/10) -----
+часть 0/10, набор 1h-qualified: монет 63
+----- revgrid collect (часть 0/10) -----
+  revgrid: кампаний 81478
+----- prepo collect (часть 1/10) -----
+часть 1/10, набор 1h-qualified: монет 66
+----- revgrid collect (часть 1/10) -----
+  revgrid: кампаний 62842
+----- prepo collect (часть 2/10) -----
+часть 2/10, набор 1h-qualified: монет 78
+----- revgrid collect (часть 2/10) -----
+  revgrid: кампаний 102456
+----- prepo collect (часть 3/10) -----
+часть 3/10, набор 1h-qualified: монет 73
+----- revgrid collect (часть 3/10) -----
+  revgrid: кампаний 78900
+----- prepo collect (часть 4/10) -----
+часть 4/10, набор 1h-qualified: монет 72
+----- revgrid collect (часть 4/10) -----
+  revgrid: кампаний 66684
+----- prepo collect (часть 5/10) -----
+часть 5/10, набор 1h-qualified: монет 83
+----- revgrid collect (часть 5/10) -----
+  revgrid: кампаний 82734
+----- prepo collect (часть 6/10) -----
+часть 6/10, набор 1h-qualified: монет 71
+----- revgrid collect (часть 6/10) -----
+  revgrid: кампаний 89606
+----- prepo collect (часть 7/10) -----
+часть 7/10, набор 1h-qualified: монет 61
+----- revgrid collect (часть 7/10) -----
+  revgrid: кампаний 84414
+----- prepo collect (часть 8/10) -----
+часть 8/10, набор 1h-qualified: монет 75
+----- revgrid collect (часть 8/10) -----
+  revgrid: кампаний 102981
+----- prepo collect (часть 9/10) -----
+часть 9/10, набор 1h-qualified: монет 83
+----- revgrid collect (часть 9/10) -----
+  revgrid: кампаний 114590
