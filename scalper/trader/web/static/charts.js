@@ -1,5 +1,6 @@
-// Живые графики сигналов (TradingView Lightweight Charts): свечи с текущей, трендовая линия, вход / стоп / цель.
-// Опрашиваем только графики, которые видно на экране, и только пока вкладка активна.
+// Графики сигналов (TradingView Lightweight Charts): свечи, трендовая линия, вход / стоп / цель.
+// Живые опрашиваем, только пока их видно на экране и вкладка активна. Архивные (сигнал истёк, пропущен, сделка
+// закрыта) — застывшее окно вокруг сигнала с отметками входа и выхода, без опроса.
 (() => {
   "use strict";
   const POLL_MS = { "15m": 5000, "4h": 15000 };
@@ -49,12 +50,13 @@
   function setLevels(st, d) {
     for (const pl of st.priceLines) st.candles.removePriceLine(pl);
     st.priceLines = [];
-    st.levels = d.active ? d.levels : null;
+    const show = d.active || d.show_levels;
+    st.levels = show ? d.levels : null;
     st.levelsKey = JSON.stringify(d.levels) + d.entry_label + d.active + d.level;
     const mk = (price, color, title, style) => st.candles.createPriceLine({
       price, color, title, lineWidth: 1, lineStyle: style, axisLabelVisible: true });
     if (d.level) st.priceLines.push(mk(d.level, css("--muted"), "уровень", LightweightCharts.LineStyle.LargeDashed));
-    if (!d.active) return;                                  // сигнал закрыт, истёк или пропущен — вход и стоп не рисуем
+    if (!show) return;                                      // истёк или пропущен без входа — вход и стоп не рисуем
     const lv = d.levels;
     st.priceLines.push(
       mk(lv.entry, css("--text"), d.entry_label, LightweightCharts.LineStyle.Solid),
@@ -76,10 +78,12 @@
     // линии строятся на логарифмической шкале — и показываем в ней же
     if (d.log) chart.priceScale("right").applyOptions({ mode: LightweightCharts.PriceScaleMode.Logarithmic });
     const st = { chart, tag, priceLines: [], levelsKey: "", levels: d.levels, lastTime: d.candles.at(-1)?.time,
-                 timer: null, visible: false, tf: el.dataset.tf, digits: precision(d.candles).precision };
+                 timer: null, visible: false, tf: el.dataset.tf, digits: precision(d.candles).precision,
+                 frozen: !!d.frozen };
     const candles = chart.addSeries(LightweightCharts.CandlestickSeries, {
       upColor: css("--long"), downColor: css("--short"), wickUpColor: css("--long"), wickDownColor: css("--short"),
       borderVisible: false, priceFormat: precision(d.candles),
+      priceLineVisible: !d.frozen, lastValueVisible: !d.frozen,     // в архиве «текущей цены» нет
       // шкала цены всегда вмещает стоп и цель, даже если цена до них ещё не доходила
       autoscaleInfoProvider: (base) => {
         const r = base();
@@ -95,12 +99,19 @@
     candles.setData(d.candles);
     line.setData(d.line);
     if (LightweightCharts.createSeriesMarkers) {
-      LightweightCharts.createSeriesMarkers(candles, [{
+      const marks = [{
         time: d.breakout, position: d.side > 0 ? "belowBar" : "aboveBar", color: d.side > 0 ? css("--long") : css("--short"),
-        shape: d.side > 0 ? "arrowUp" : "arrowDown" }]);
+        shape: d.side > 0 ? "arrowUp" : "arrowDown" }];
+      for (const m of d.marks || []) {
+        marks.push({ time: m.time, position: "inBar", shape: "circle", text: m.kind === "entry" ? "вход" : "выход",
+                     color: m.kind === "entry" ? css("--text") : css("--accent") });
+      }
+      marks.sort((a, b) => a.time - b.time);                 // библиотека требует маркеры по времени
+      LightweightCharts.createSeriesMarkers(candles, marks);
     }
     const n = d.candles.length;
-    chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, n - 120), to: n + 8 });
+    if (st.frozen) chart.timeScale().fitContent();           // архив: всё окно сделки целиком
+    else chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, n - 120), to: n + 8 });
     st.candles = candles;
     st.line = line;
     setLevels(st, d);
@@ -111,6 +122,10 @@
   function paintTag(st, d) {
     const c = d.candles.at(-1);
     if (!c) return;
+    if (st.frozen) {
+      st.tag.textContent = `архив · ${stamp(d.candles[0].time).slice(0, 5)} – ${stamp(c.time).slice(0, 5)}`;
+      return;
+    }
     const now = new Date();
     st.tag.textContent = `● ${c.close.toFixed(st.digits)} · ${LocalTime.format(now, "hms")} ${LocalTime.zone(now)}`;
     st.tag.classList.toggle("up", c.close >= c.open);
@@ -128,14 +143,14 @@
 
   async function tick(el) {
     const st = live.get(el);
-    if (!st || !st.visible || document.hidden || !el.isConnected) return;
+    if (!st || st.frozen || !st.visible || document.hidden || !el.isConnected) return;
     try { apply(st, await fetchData(el.dataset.signal)); }
     catch { st.tag.classList.add("stale"); }               // нет связи — попробуем на следующем шаге
   }
 
   function schedule(el) {
     const st = live.get(el);
-    if (!st || st.timer) return;
+    if (!st || st.timer || st.frozen) return;
     st.timer = setInterval(() => tick(el), POLL_MS[st.tf] || 10000);
   }
 

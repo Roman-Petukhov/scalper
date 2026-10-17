@@ -524,3 +524,37 @@ def test_trend_card_empty_and_with_book(env):
     r = c.get("/trend")
     assert "Стейблкоины за 30 дней -1.2%" in r.text and "вне рынка, ждём притока" in r.text
     assert "новые деньги в крипту не приходят" in r.text
+
+
+def test_archived_chart_is_a_frozen_window_with_trade_marks(env):
+    from datetime import timedelta
+    from trader.domain.execution import Trade, TradeResult, TradeStatus
+    from trader.domain.models import EntryKind, Side
+    from trader.infrastructure.sqlite_repo import SqliteStore
+    c, tmp = env
+    _login(c)
+    st = SqliteStore(tmp / "trader.db")
+    old = datetime(2026, 9, 30, 8, tzinfo=timezone.utc)                    # давний сигнал: окно целиком в прошлом
+    s = st.add(replace(_signal(), bar_time=old))
+    st.set_status(s.id, SignalStatus.SKIPPED, "")
+    d = c.get(f"/api/chart/{s.id}").json()
+    step = 4 * 3600
+    first = int(pd.Timestamp("2026-09-20", tz="UTC").timestamp()) - 20 * step        # начало линии − 20 свечей
+    assert d["frozen"] is True and d["show_levels"] is False and d["marks"] == []
+    assert d["candles"][0]["time"] == first
+    assert d["candles"][-1]["time"] == int(s.bar_time.timestamp()) + 60 * step         # «что было потом» — 60 свечей
+    assert d["line"][-1]["time"] == d["candles"][-1]["time"]                            # линия не уезжает вперёд
+
+    t = st.add(replace(_signal(symbol="BNBUSDT"), bar_time=old))
+    st.add_trade(Trade(t.id, "BNBUSDT", Side.LONG, EntryKind.MARKET, 1.0, 101.0, 98.0, 110.0, "o1", "demo",
+                       TradeStatus.FILLED, created_at=t.bar_time))
+    tr = st.trades_for([t.id])[t.id]
+    st.set_trade_filled(tr.id, t.bar_time + timedelta(hours=4, minutes=1))
+    st.settle_trade(tr.id, TradeStatus.CLOSED, TradeResult(101.2, 110.0, 8.8, t.bar_time + timedelta(days=3, hours=1)))
+    st.set_status(t.id, SignalStatus.CLOSED, "")
+    d = c.get(f"/api/chart/{t.id}").json()
+    assert d["frozen"] and d["show_levels"] and d["levels"]["entry"] == 101.0
+    kinds = {m["kind"]: m for m in d["marks"]}
+    assert kinds["entry"]["time"] == int(t.bar_time.timestamp()) + step and kinds["entry"]["price"] == 101.2
+    assert kinds["exit"]["time"] == int(t.bar_time.timestamp()) + 18 * step and kinds["exit"]["price"] == 110.0
+    assert d["candles"][-1]["time"] == kinds["exit"]["time"] + 10 * step                # после выхода — 10 свечей

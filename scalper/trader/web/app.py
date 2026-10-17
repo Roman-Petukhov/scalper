@@ -23,7 +23,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .. import scheduler
 from ..application.execution import Executor
-from ..application.export import collect_bars, journal_export
+from ..application.export import bars_window, collect_bars, journal_export
 from ..application.live_chart import chart_payload
 from ..application.ports import Broker, MarketData, Notifier
 from ..application.services import Scanner, SettingsService, SignalDecisions
@@ -474,17 +474,24 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
 
     @app.get("/api/chart/{signal_id}")
     async def live_chart(request: Request, signal_id: int) -> dict:
-        """Живой график сигнала: свечи с текущей, линия, уровни; панель опрашивает раз в несколько секунд."""
+        """График сигнала: живой (свечи с текущей; панель опрашивает раз в несколько секунд) или архивный
+        (застывшее окно от начала линии до выхода из сделки, без опроса)."""
         guard(request)
         sig = store.get(signal_id)
         if sig is None:
             raise HTTPException(404, "сигнал не найден")
+        trade = store.trades_for([signal_id]).get(signal_id)
+        frozen = sig.status in ARCHIVED
         try:
-            bars = await market.live_bars(sig.symbol, sig.timeframe, CHART_BARS)
+            if frozen:                          # архив: окно вокруг сигнала, свечи не уезжают вместе с рынком
+                start, end = bars_window(sig, trade, datetime.now(timezone.utc))
+                bars = await market.bars_between(sig.symbol, sig.timeframe, start, end)
+            else:
+                bars = await market.live_bars(sig.symbol, sig.timeframe, CHART_BARS)
         except Exception as e:
-            log.warning("живой график %s: %s", sig.symbol, e)
+            log.warning("график %s: %s", sig.symbol, e)
             raise HTTPException(502, "биржа не отдала свечи")
-        return chart_payload(sig, bars, store.trades_for([signal_id]).get(signal_id))
+        return chart_payload(sig, bars, trade, frozen=frozen)
 
     @app.get("/wallet", response_class=HTMLResponse)
     async def wallet(request: Request):
