@@ -51,3 +51,13 @@ def test_gap_fills_at_open_and_single_unit_variant():
 def test_single_unit_trails_and_can_win():
     out = _run([100, 100, 101, 103, 105, 107, 105.5], n=1)
     assert out[0]["units"] == 1 and out[0]["r"] > 4.5                         # вход 101, выход 106
+
+
+def test_fine_bars_use_last_closed_4h_values():
+    import pandas as pd
+
+    from research.revgrid import _fine
+    i4 = pd.date_range("2024-01-01", periods=10, freq="4h", tz="UTC")
+    i1 = pd.date_range("2024-01-01", periods=40, freq="1h", tz="UTC")
+    a, t = _fine(pd.DataFrame(index=i4), pd.DataFrame(index=i1), np.arange(10.0), -np.arange(10.0))
+    assert np.isnan(a[:4]).all() and (a[4:8] == 0).all() and a[8] == 1 and t[8] == -1

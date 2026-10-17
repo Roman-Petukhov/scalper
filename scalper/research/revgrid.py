@@ -11,6 +11,9 @@
     издержки      taker 5.5 б.п. на каждое исполнение, funding; отдельно — издержки x2
 Результат кампании (от входа до выхода) в R, где 1R = X × S на одну часть (потеря одной части, сразу выбитой стопом).
 Варианты: m = 1 / 2 / 3 ATR × X = 1 / 2 шага, N = 4, голая и с фильтром; справка — N = 1 (без доливов) при m 2, X 2.
+Перепроверка (после первого прогона): прошедшие на 4h варианты (шаг 1 / 1 / 2 ATR, выход 1 / 2 / 1) — те же правила
+на часовых свечах с ATR и трендом последней закрытой 4h-свечи: на 4h кампании по 2–3 свечи, исход решает допущение о
+пути цены внутри свечи; на 1h неопределённость вчетверо меньше.
 Решение: стратегия работает, если R на кампанию > 0 во всех периодах 2020 / 2021 / IS / VAL / HO / 2026 и знак тот же
 при издержках x2; фильтр помогает, если с ним R в месяц выше голой во всех периодах.
 
@@ -118,6 +121,16 @@ def simulate(o: np.ndarray, hi: np.ndarray, lo: np.ndarray, c: np.ndarray, atr: 
     return out
 
 
+FINE = ((1.0, 1), (1.0, 2), (2.0, 1))          # прошедшие на 4h — перепроверка на 1h-свечах (меньше допущений внутри свечи)
+
+
+def _fine(d4: pd.DataFrame, d1: pd.DataFrame, atr4: np.ndarray, trend4: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """ATR и тренд 4h последней закрытой 4h-свечи — на часовых свечах (без заглядывания вперёд)."""
+    a = pd.Series(atr4, index=d4.index).shift(1).reindex(d1.index.floor("4h")).to_numpy()
+    t = pd.Series(trend4, index=d4.index).shift(1).reindex(d1.index.floor("4h")).to_numpy()
+    return a, t
+
+
 def collect(root: Path, syms: list[str]) -> None:
     rows = []
     for s in mine(syms):
@@ -125,16 +138,23 @@ def collect(root: Path, syms: list[str]) -> None:
             d = tf_frame(root, s, "4h")
             if d is None or len(d) < 500:
                 continue
-            arr = [d[k].to_numpy(dtype="float64") for k in ("open", "high", "low", "close")]
             atr = _atr(d).to_numpy()
-            fund = d["funding"].fillna(0.0).to_numpy(dtype="float64")
             trend = htf_trend(d, "4h")
-            liq = adv30(root, s).reindex(d.index.floor("D")).to_numpy()
-            for m, x, n, f in variants():
-                for r in simulate(*arr, atr, fund, trend, liq, m, x, n, f):
-                    rows.append({"symbol": s, "t": d.index[r["i0"]], "bars": r["i1"] - r["i0"], "side": r["side"],
-                                 "units": r["units"], "R": r["r"], "R2": r["r2"], "m": m, "x": x, "n": n,
-                                 "trend": f})
+            adv = adv30(root, s)
+            frames = [("4h", d, atr, trend, variants())]
+            d1 = tf_frame(root, s, "1h")
+            if d1 is not None and len(d1) > 2000:
+                a1, t1 = _fine(d, d1, atr, trend)
+                frames.append(("1h", d1, a1, t1, [v for v in variants() if (v[0], v[1]) in FINE and v[2] == UNITS]))
+            for tf, fr, a_, t_, vs in frames:
+                arr = [fr[k].to_numpy(dtype="float64") for k in ("open", "high", "low", "close")]
+                fund = fr["funding"].fillna(0.0).to_numpy(dtype="float64")
+                liq = adv.reindex(fr.index.floor("D")).to_numpy()
+                for m, x, n, f in vs:
+                    for r in simulate(*arr, a_, fund, t_, liq, m, x, n, f):
+                        rows.append({"symbol": s, "t": fr.index[r["i0"]], "bars": r["i1"] - r["i0"], "side": r["side"],
+                                     "units": r["units"], "R": r["r"], "R2": r["r2"], "m": m, "x": x, "n": n,
+                                     "trend": f, "tf": tf})
         except Exception as e:
             print(f"  revgrid {s}: пропуск ({e})", flush=True)
     print(f"  revgrid: кампаний {len(rows)}", flush=True)
@@ -156,8 +176,10 @@ def report() -> None:
     df["t"] = pd.to_datetime(df["t"], utc=True)
     print(f"кампаний {len(df)}, монет {df.symbol.nunique()}")
     per_month: dict[tuple, dict[str, float]] = {}
-    for key, g in df.groupby(["m", "x", "n", "trend"], sort=True):
-        m, x, n, f = key
+    if "tf" not in df:
+        df["tf"] = "4h"
+    for key, g in df.groupby(["tf", "m", "x", "n", "trend"], sort=True):
+        tf, m, x, n, f = key
         cells, ok, ok2 = [], [], []
         per_month[key] = {}
         for p, (a, b) in PER.items():
@@ -166,17 +188,18 @@ def report() -> None:
             ok.append(len(z) >= 10 and z.R.mean() > 0)
             ok2.append(len(z) >= 10 and z.R2.mean() > 0)
             cells.append(f"{p}: {_cell(z)}, {per_month[key][p]:+.1f}R/мес")
-        name = f"шаг {m:g} ATR, выход {x} шаг., частей {n}, {'по тренду' if f else 'голая'}"
+        name = f"{tf}: шаг {m:g} ATR(4h), выход {x} шаг., частей {n}, {'по тренду' if f else 'голая'}"
         verdict = "РАБОТАЕТ" if all(ok) and all(ok2) else f"нет ({sum(ok)} из {len(ok)} периодов в плюсе, x2: {sum(ok2)})"
-        print(f"\n  {name}: доля прибыльных {np.mean(g.R > 0):.0%}, средняя длина {g.bars.mean() * 4 / 24:.1f} дн., "
+        print(f"\n  {name}: доля прибыльных {np.mean(g.R > 0):.0%}, средняя длина {g.bars.mean() * (4 if tf == '4h' else 1) / 24:.1f} дн., "
               f"частей в среднем {g.units.mean():.2f} → {verdict}")
         print("    " + "  ".join(cells))
     print("\n  фильтр тренда лучше голой (R в месяц во всех периодах)?")
-    for (m, x, n, f), pm in per_month.items():
-        if f and (m, x, n, False) in per_month:
-            base = per_month[(m, x, n, False)]
+    for (tf, m, x, n, f), pm in per_month.items():
+        if f and (tf, m, x, n, False) in per_month:
+            base = per_month[(tf, m, x, n, False)]
             better = [pm[p] > base[p] for p in PER]
-            print(f"    шаг {m:g}, выход {x}, частей {n}: {'да' if all(better) else f'нет ({sum(better)} из {len(better)})'}")
+            print(f"    {tf} шаг {m:g}, выход {x}, частей {n}: "
+                  f"{'да' if all(better) else f'нет ({sum(better)} из {len(better)})'}")
 
 
 if __name__ == "__main__":
