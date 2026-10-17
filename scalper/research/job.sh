@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"prepw retest15"}
+TASKS=${TASKS:-"prepo group"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -234,6 +234,8 @@ bybitflow_collect() { python -m research.bybitflow collect --symbols "$(cat /tmp
 bybitflow_report() { python -m research.bybitflow report; }
 retest15_collect() { python -m research.retest15 collect --symbols "$(cat /tmp/syms_15m-wide.txt)"; }
 retest15_report() { python -m research.retest15 report; }
+group_collect() { python -m research.group collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
+group_report() { python -m research.group report; }
 robust_collect() { python -m research.robust collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
 robust_report() { python -m research.robust report; }
 crowd_collect() { python -m research.crowd collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
