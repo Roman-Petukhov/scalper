@@ -21,6 +21,9 @@
     чистый риск в сторону   |риск лонгов − риск шортов| открытых к капиталу не больше 12% / 18%; новая сделка урезается
                            до остатка, остаток меньше четверти риска — пропуск (бета не учитывается: основа под хеджем)
     риск по очереди         k-я одновременная сделка в ту же сторону — риск 6% / k (6, 3, 2, 1.5…)
+Прогон 8 (владелец: «при 3–4% какая прибыль в месяц; 6% ставил с учётом хеджа, без хеджа поставил бы 4%»):
+    риск 3 / 4 / 5 / 6% с хеджем и 4 / 6% без хеджа (без ноги BTC и её маржи); по каждому — медианный месяц, доля
+    месяцев в минусе, самый долгий срок без нового максимума капитала.
 Решение: вариант лучше базы, если максимальная просадка и худший месяц меньше, а годовая доходность к просадке выше,
 и на перпетуалах, и на споте.
 """
@@ -44,6 +47,7 @@ class Policy:
     side_max: int | None = None         # одновременно открытых в одну сторону
     net_cap: float | None = None        # |риск лонгов − риск шортов| к капиталу
     decay: bool = False                 # k-я сделка в ту же сторону — риск / k
+    hedge: bool = True                  # нога BTC на основу (её итог и маржа)
 
 
 @dataclass(frozen=True)
@@ -58,6 +62,9 @@ class Result:
     worst_month: float
     max_heat: float
     years: dict[int, float]
+    median_month: float = 0.0
+    neg_months: float = 0.0             # доля месяцев в минусе
+    underwater_days: int = 0            # самый долгий срок без нового максимума капитала
 
 
 def _day(x) -> pd.Timestamp:
@@ -115,7 +122,7 @@ def simulate(trades: pd.DataFrame, pol: Policy, leverage: int = LEVERAGE) -> Res
                     skip_cap += 1
                     continue
                 risk = min(risk, room)
-            b = float(x.acct_beta) if np.isfinite(x.acct_beta) and x.acct_beta > 0 else 0.0
+            b = float(x.acct_beta) if pol.hedge and np.isfinite(x.acct_beta) and x.acct_beta > 0 else 0.0
             used = sum(margin(p, day) for p in live)
             notional = min(risk * equity * x.acct_lr, leverage * equity,
                            max(MARGIN_USE * (equity - used), 0.0) * leverage / (1 + b))
@@ -154,13 +161,18 @@ def simulate(trades: pd.DataFrame, pol: Policy, leverage: int = LEVERAGE) -> Res
     month = full.resample("ME").last().ffill()
     month = pd.concat([pd.Series([1.0], index=[month.index[0] - pd.offsets.MonthEnd()]), month])
     mret = month.pct_change().dropna()
+    mret = mret[mret.index >= start]
     years = (full.index[-1] - full.index[0]).days / 365.25
     final = float(full.iloc[-1])
     cagr = final ** (1 / years) - 1 if years > 0 and final > 0 else -1.0
     yearly = full.resample("YE").last().ffill()
     yearly = pd.concat([pd.Series([1.0], index=[yearly.index[0] - pd.offsets.YearEnd()]), yearly]).pct_change().dropna()
+    top = full.cummax()
+    highs = full.index[full >= top]
+    gaps = np.diff(np.append(highs.values, full.index[-1].to_datetime64())).astype("timedelta64[D]").astype(int)
     return Result(len(pos), skip_cap, skip_margin, refused, final, float(cagr), dd, float(mret.min()), heat_max,
-                  {int(k.year): float(v) for k, v in yearly.items()})
+                  {int(k.year): float(v) for k, v in yearly.items()}, float(mret.median()), float((mret < 0).mean()),
+                  int(gaps.max()) if len(gaps) else 0)
 
 
 def policies(aggr_median: float | None = None) -> list[tuple[Policy, str]]:
@@ -176,6 +188,8 @@ def policies(aggr_median: float | None = None) -> list[tuple[Policy, str]]:
     out += [(Policy(f"не больше {n} в сторону", side_max=n), "all") for n in (2, 3)]
     out += [(Policy(f"чистый риск в сторону ≤ {c:.0%}", net_cap=c), "all") for c in (0.12, 0.18)]
     out += [(Policy("риск по очереди: 6% / k", decay=True), "all")]
+    out += [(Policy(f"риск {r:.0%}, хедж", risk=r), "all") for r in (0.03, 0.04, 0.05, 0.06)]
+    out += [(Policy(f"риск {r:.0%}, без хеджа", risk=r, hedge=False), "all") for r in (0.04, 0.06)]
     return out
 
 
@@ -195,4 +209,6 @@ def report(df: pd.DataFrame, title: str) -> None:
               f"{r.worst_month:+.0%}, доходность/просадка {r.cagr / r.max_dd if r.max_dd > 0 else float('nan'):.2f}, "
               f"тепло до {r.max_heat:.0%}; взято {r.taken}, мимо по лимиту {r.skip_cap}, по марже {r.skip_margin}, "
               f"без доливки {r.add_refused}")
+        print(f"         месяц: в среднем {(1 + r.cagr) ** (1 / 12) - 1:+.1%}, медиана {r.median_month:+.1%}, в минусе "
+              f"{r.neg_months:.0%} месяцев; дольше всего без нового максимума {r.underwater_days} дн.")
         print(f"         по годам: {yrs}")

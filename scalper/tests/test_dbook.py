@@ -63,3 +63,13 @@ def test_side_limits():
     # ≤ 9%: второй лонг урезан до 3%, третий пропущен (остаток 0 < 1.5%)
     r = simulate(_tr(longs), Policy("x", net_cap=0.09))
     assert r.skip_cap == 1 and r.final == pytest.approx(1 - 0.06 - 0.03)
+
+
+def test_unhedged_and_month_stats():
+    hedged = _tr([("2024-01-01", "2024-01-20", 1.0, {"acct_h": 0.5, "acct_beta": 1.2})])
+    assert simulate(hedged, Policy("x", hedge=False)).final == pytest.approx(1.06)
+    t = _tr([("2024-01-01", "2024-01-05", -1.0, {}), ("2024-02-01", "2024-02-05", -1.0, {}),
+             ("2024-03-01", "2024-03-05", 3.0, {}), ("2024-04-01", "2024-04-05", 1.0, {})])
+    r = simulate(t, Policy("x"))
+    assert r.neg_months == pytest.approx(0.5) and r.median_month == pytest.approx(0.0)     # −6, −6, +18, +6%
+    assert r.underwater_days == (pd.Timestamp("2024-03-05") - pd.Timestamp("2023-12-31")).days
