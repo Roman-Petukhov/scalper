@@ -100,4 +100,10 @@ def test_journey():
 def test_journey_sparse_history():
     rows = [("2024-01-01", "2024-01-03", 1.0, {}), ("2026-01-01", "2026-01-03", 1.0, {})]
     j = journey(_tr(rows), Policy("x", usd=100.0), targets=(1000.0,))
-    assert j.starts == 13 and j.reach[1000.0][2] == 0.0                # старты без сделок за год — счёт $100
+    assert j.starts == 13 and j.reach[1000.0][1] == 0.0                # старты без сделок за год — счёт $100
+
+
+def test_journey_horizon_only_counts_paths_with_enough_history():
+    rows = [(f"{y}-{m:02d}-01", f"{y}-{m:02d}-03", 3.0, {}) for y in (2024, 2025, 2026) for m in range(1, 13)]
+    j = journey(_tr(rows), Policy("x", risk=0.06, usd=100.0), targets=(1e9,))
+    assert j.starts == 24 and j.paths_2y == 12 and j.paths_3y == 0 and np.isnan(j.reach[1e9][2])

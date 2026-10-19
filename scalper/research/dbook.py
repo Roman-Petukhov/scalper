@@ -204,9 +204,12 @@ def simulate(trades: pd.DataFrame, pol: Policy, leverage: int = LEVERAGE) -> Res
 @dataclass(frozen=True)
 class Journey:
     starts: int
-    reach: dict[float, tuple[float, float, float, float]]   # цель → доля за 1 / 2 / 3 года, медиана дней дошедших
+    reach: dict[float, tuple[float, float, float, float]]   # цель → доля за 1 / 2 / 3 года (среди путей, у которых
+#                                                             столько истории есть), медиана дней дошедших
     below_floor: float                  # доля путей, где счёт был ниже floor
     median_final_1y: float              # медиана счёта через год, $
+    paths_2y: int = 0
+    paths_3y: int = 0
 
 
 def journey(trades: pd.DataFrame, pol: Policy, targets: tuple[float, ...] = (1000.0, 2000.0),
@@ -216,13 +219,14 @@ def journey(trades: pd.DataFrame, pol: Policy, targets: tuple[float, ...] = (100
     fills = tr.acct_fill.map(_day)
     first, last = fills.min(), tr.acct_exit.map(_day).max()
     hits: dict[float, list[float]] = {t: [] for t in targets}
-    low, final = [], []
+    low, final, room = [], [], []
     for m in pd.date_range(first.to_period("M").to_timestamp(), last - pd.DateOffset(years=1), freq="MS"):
         r = simulate(tr[fills >= m], pol)
         if r.curve is None:
             continue
         usd = r.curve * pol.usd
         low.append(bool(usd.min() < floor))
+        room.append(float((last - m).days))             # доля «за N лет» — только среди путей с N годами истории
         at = usd[usd.index <= m + pd.DateOffset(years=1)]
         final.append(float(at.iloc[-1]) if len(at) else pol.usd)      # за год ни одной закрытой сделки
         for t in targets:
@@ -232,12 +236,14 @@ def journey(trades: pd.DataFrame, pol: Policy, targets: tuple[float, ...] = (100
     if not n:
         return Journey(0, {}, 0.0, float("nan"))
     reach = {}
+    span = np.array(room)
     for t, d in hits.items():
         a = np.array(d)
         done = a[np.isfinite(a)]
-        reach[t] = (float((a <= 365).mean()), float((a <= 730).mean()), float((a <= 1096).mean()),
-                    float(np.median(done)) if len(done) else float("nan"))
-    return Journey(n, reach, float(np.mean(low)), float(np.median(final)))
+        share = [float((a[span >= h] <= h).mean()) if (span >= h).any() else float("nan") for h in (365, 730, 1096)]
+        reach[t] = (*share, float(np.median(done)) if len(done) else float("nan"))
+    return Journey(n, reach, float(np.mean(low)), float(np.median(final)), int((span >= 730).sum()),
+                   int((span >= 1096).sum()))
 
 
 def scenarios(usd: float = 100.0) -> list[Policy]:
@@ -297,6 +303,6 @@ def report_journey(df: pd.DataFrame, title: str, usd: float = 100.0) -> None:
         r = simulate(x, pol)
         parts = "; ".join(f"${t:.0f}: за год {a:.0%}, 2 года {b:.0%}, 3 года {c:.0%}, медиана {m:.0f} дн."
                           for t, (a, b, c, m) in j.reach.items())
-        print(f"       {pol.name}: путей {j.starts}; {parts}; ниже $30 было в {j.below_floor:.0%} путей; через год "
+        print(f"       {pol.name}: путей {j.starts} (с 2 годами истории — {j.paths_2y}, с 3 — {j.paths_3y}); {parts}; ниже $30 было в {j.below_floor:.0%} путей; через год "
               f"медиана ${j.median_final_1y:.0f}; со старта истории — в год {r.cagr:+.0%}, просадка {r.max_dd:.0%}, "
               f"мимо по мин. ордеру {r.skip_min}")
