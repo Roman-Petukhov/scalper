@@ -393,7 +393,8 @@ def test_binance_daily_bars_and_funding_sum():
 
     md = BinanceMarketData(httpx.AsyncClient(base_url="https://x", transport=httpx.MockTransport(handler)))
     d = asyncio.run(md.daily_bars("NEARUSDT", 1000))
-    assert list(d.columns) == ["close", "quote_volume"] and len(d) == 2 and d["close"].iloc[-1] == 11.0
+    assert {"open", "high", "low", "close", "volume", "quote_volume", "taker_buy_volume"} <= set(d.columns)
+    assert "close_time" not in d and len(d) == 2 and d["close"].iloc[-1] == 11.0
     assert seen[0]["interval"] == "1d" and seen[0]["limit"] == "1000"
     a, b = datetime(2026, 10, 1, tzinfo=timezone.utc), datetime(2026, 10, 2, tzinfo=timezone.utc)
     assert asyncio.run(md.funding_sum("NEARUSDT", a, b)) == pytest.approx(0.00005)

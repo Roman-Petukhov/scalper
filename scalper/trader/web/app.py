@@ -27,6 +27,7 @@ from ..application.export import bars_window, collect_bars, journal_export
 from ..application.live_chart import chart_payload
 from ..application.ports import Broker, MarketData, Notifier
 from ..application.services import Scanner, SettingsService, SignalDecisions
+from ..application.daily_break import DailyBreakPaper
 from ..application.trend import TrendPaper
 from ..config import AppConfig
 from ..domain.execution import TradeStatus
@@ -34,6 +35,7 @@ from ..domain.journal import BACKTEST_DD_R, tf_stats
 from ..domain.models import (DEFAULT_TF_PARAMS, HTF_CONFIRM, EntryPolicy, Mode, Settings, SideFilter, SignalStatus,
                              Sizing, Timeframe)
 from ..domain.sizing import exposure, risk_notes
+from ..domain.daily_break import RULES as DBREAK_RULES, book as dbreak_book
 from ..domain.trend import RULES as TREND_RULES, TrendDay
 from ..infrastructure.binance_data import BinanceMarketData
 from ..infrastructure.bybit import (ALIAS_MAX_GAP, BrokerHolder, BybitBroker, BybitCredentials, load_aliases,
@@ -131,6 +133,7 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
     decisions = SignalDecisions(store, store, executor)
     stables = DefiLlamaStablecoins()
     trend = TrendPaper(market, store, notify, stables=stables)
+    dbreak = DailyBreakPaper(market, store, notify)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -150,6 +153,7 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
             except Exception:
                 log.exception("PnL за периоды")
             await trend.maybe_run()
+            await dbreak.maybe_run()
 
         task = None
         if cfg.scheduler:
@@ -510,6 +514,12 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         guard(request)
         books = [{"rule": r, **trend_view(store.trend_history(r.key))} for r in TREND_RULES]
         return templates.TemplateResponse(request, "_trend.html", {"books": books, "error": trend.last_error})
+
+    @app.get("/dbreak", response_class=HTMLResponse)
+    async def dbreak_card(request: Request):
+        guard(request)
+        books = [{"rule": r, "b": dbreak_book(store.dbreak_recent(r.key))} for r in DBREAK_RULES]
+        return templates.TemplateResponse(request, "_dbreak.html", {"books": books, "error": dbreak.last_error})
 
     @app.post("/exchange/keys", response_class=HTMLResponse)
     async def exchange_keys(request: Request, api_key: str = Form(...), secret: str = Form(...),

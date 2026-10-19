@@ -526,6 +526,29 @@ def test_trend_card_empty_and_with_book(env):
     assert "новые деньги в крипту не приходят" in r.text
 
 
+def test_daily_break_card(env):
+    from dataclasses import replace
+    from datetime import date
+    from trader.domain.daily_break import RULES, DailySetup, Status
+    from trader.infrastructure.sqlite_repo import SqliteStore
+    c, tmp = env
+    _login(c)
+    r = c.get("/dbreak")
+    assert r.status_code == 200 and "Сделок пока нет" in r.text
+    st = SqliteStore(tmp / "trader.db")
+    mk = lambda sym, k: DailySetup(RULES[0].key, sym, -1, date(2026, 10, k), 2.5, 2.65, 0.1, 0.56, 0.02)
+    a = st.dbreak_add(mk("NEARUSDT", 1))
+    st.dbreak_update(replace(a, status=Status.CLOSED, fill_day=date(2026, 10, 2), exit_day=date(2026, 10, 9), r=2.95))
+    b = st.dbreak_add(mk("OPUSDT", 5))
+    st.dbreak_update(replace(b, status=Status.OPEN, fill_day=date(2026, 10, 6), r=-0.4))
+    st.dbreak_add(mk("ARBUSDT", 12))
+    r = c.get("/dbreak")
+    assert "NEARUSDT шорт" in r.text and "+2.95R" in r.text and "агрессоры 56%" in r.text
+    assert "OPUSDT шорт" in r.text and "-0.40R" in r.text and "в позиции с 06.10" in r.text
+    assert "ARBUSDT шорт" in r.text and "ждёт ретеста" in r.text and "лимит 2.5" in r.text
+    assert "+3.0%" in r.text and "в плюсе 100%" in r.text
+
+
 def test_archived_chart_is_a_frozen_window_with_trade_marks(env):
     from datetime import timedelta
     from trader.domain.execution import Trade, TradeResult, TradeStatus

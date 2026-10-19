@@ -431,7 +431,7 @@ dl.plan dd .sub { color: var(--muted); font-size: 12px; margin-left: 4px; white-
 .jr-health.jr-stop { color: var(--short); font-weight: 600; }
 
 /* тренд на дневках, бумажный счёт: на всю ширину под кошельком и журналом */
-.account-grid #trend { grid-column: 1 / -1; }
+.account-grid #trend, .account-grid #dbreak { grid-column: 1 / -1; }
 .trend-books { display: grid; gap: 16px; }
 .trend-book { min-width: 0; }
 .trend-book .stats.periods { margin-top: 10px; }

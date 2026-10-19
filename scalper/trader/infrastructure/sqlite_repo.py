@@ -10,6 +10,7 @@ from pathlib import Path
 
 from ..domain.execution import HedgeLeg, Trade, TradeResult, TradeStatus
 from ..domain.journal import JournalEntry
+from ..domain.daily_break import DailySetup, Status as DailyStatus
 from ..domain.trend import TrendDay, TrendPosition
 from ..domain.models import (DEFAULT_TF_PARAMS, RETIRED_TIMEFRAMES, SETTINGS_ONCE, STRATEGY_RESETS, TF_FIELDS, TF_SETTINGS_ONCE, EntryKind, EntryPolicy, Mode, Settings, Sizing,
                              Side, SideFilter, Signal, SignalStatus, TfParams, Timeframe, TradePlan)
@@ -37,6 +38,13 @@ CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS trend_days (
     rule TEXT NOT NULL, day TEXT NOT NULL, equity REAL NOT NULL, pnl REAL NOT NULL, cost REAL NOT NULL,
     positions TEXT NOT NULL, gate INTEGER, inflow REAL, PRIMARY KEY (rule, day)
+);
+CREATE TABLE IF NOT EXISTS dbreak_setups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    rule TEXT NOT NULL, symbol TEXT NOT NULL, side INTEGER NOT NULL, day TEXT NOT NULL,
+    level REAL NOT NULL, stop REAL NOT NULL, atr REAL NOT NULL, aggr REAL NOT NULL, slope_atr REAL NOT NULL,
+    status TEXT NOT NULL, fill_day TEXT, exit_day TEXT, r REAL, funding_r REAL NOT NULL DEFAULT 0,
+    UNIQUE(rule, symbol, day, side)
 );
 """
 
@@ -71,8 +79,18 @@ def _trend_day(r: sqlite3.Row) -> TrendDay:
                     None if gate is None else bool(gate), r["inflow"])
 
 
+def _day_or_none(s: str | None) -> date | None:
+    return date.fromisoformat(s) if s else None
+
+
+def _dbreak(r: sqlite3.Row) -> DailySetup:
+    return DailySetup(r["rule"], r["symbol"], r["side"], date.fromisoformat(r["day"]), r["level"], r["stop"], r["atr"],
+                      r["aggr"], r["slope_atr"], DailyStatus(r["status"]), _day_or_none(r["fill_day"]),
+                      _day_or_none(r["exit_day"]), r["r"], r["funding_r"], r["id"])
+
+
 class SqliteStore:
-    """Реализует SignalRepository, SettingsRepository, TradeRepository и TrendRepository."""
+    """Реализует SignalRepository, SettingsRepository, TradeRepository, TrendRepository и DailyBreakRepository."""
 
     def __init__(self, path: str | Path) -> None:
         Path(path).parent.mkdir(parents=True, exist_ok=True)
@@ -433,6 +451,43 @@ class SqliteStore:
             rows = self.db.execute("SELECT * FROM trend_days WHERE rule = ? ORDER BY day DESC LIMIT ?",
                                    (rule, limit)).fetchall()
         return [_trend_day(r) for r in reversed(rows)]
+
+    # ---------- бумажный счёт пробоя линии на дневках ----------
+    def dbreak_add(self, setup: DailySetup) -> DailySetup | None:
+        x = setup
+        with self.lock:
+            cur = self.db.execute(
+                "INSERT OR IGNORE INTO dbreak_setups(rule, symbol, side, day, level, stop, atr, aggr, slope_atr, status, "
+                "fill_day, exit_day, r, funding_r) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (x.rule, x.symbol, x.side, x.day.isoformat(), x.level, x.stop, x.atr, x.aggr, x.slope_atr,
+                 x.status.value, x.fill_day.isoformat() if x.fill_day else None,
+                 x.exit_day.isoformat() if x.exit_day else None, x.r, x.funding_r))
+            self.db.commit()
+            if cur.rowcount == 0:
+                return None
+            r = self.db.execute("SELECT * FROM dbreak_setups WHERE id = ?", (cur.lastrowid,)).fetchone()
+        return _dbreak(r)
+
+    def dbreak_update(self, setup: DailySetup) -> None:
+        x = setup
+        with self.lock:
+            self.db.execute("UPDATE dbreak_setups SET status = ?, fill_day = ?, exit_day = ?, r = ?, funding_r = ? "
+                            "WHERE id = ?",
+                            (x.status.value, x.fill_day.isoformat() if x.fill_day else None,
+                             x.exit_day.isoformat() if x.exit_day else None, x.r, x.funding_r, x.id))
+            self.db.commit()
+
+    def dbreak_active(self, rule: str) -> list[DailySetup]:
+        with self.lock:
+            rows = self.db.execute("SELECT * FROM dbreak_setups WHERE rule = ? AND status IN (?, ?) ORDER BY id",
+                                   (rule, DailyStatus.PENDING.value, DailyStatus.OPEN.value)).fetchall()
+        return [_dbreak(r) for r in rows]
+
+    def dbreak_recent(self, rule: str, limit: int = 500) -> list[DailySetup]:
+        with self.lock:
+            rows = self.db.execute("SELECT * FROM dbreak_setups WHERE rule = ? ORDER BY day DESC, id DESC LIMIT ?",
+                                   (rule, limit)).fetchall()
+        return [_dbreak(r) for r in rows]
 
     # ---------- резервные копии ----------
     def backup(self, folder: Path, day: str, keep: int) -> Path:

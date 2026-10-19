@@ -1,0 +1,173 @@
+"""Пробой линии на дневках, бумажный счёт: раз в сутки после закрытия дня UTC найти новые пробои и пересчитать
+исход открытых сетапов по свежим свечам.
+
+Ордеров нет — это проверка стратегии перед реальными деньгами. Сетап хранит только линию, стоп и ATR; где он сейчас
+(ждёт ретеста, в позиции, закрыт), каждый раз заново считается по истории свечей (domain.daily_break.advance) — так
+исход совпадает с бэктестом. Пропущенные дни (сервер был выключен) догоняются: пробои ищутся и на них, но не дальше
+окна ретеста — более старый сигнал уже не исполнить."""
+from __future__ import annotations
+
+import asyncio
+import logging
+from collections.abc import Callable
+from dataclasses import replace
+from datetime import date, datetime, time, timedelta, timezone
+
+import pandas as pd
+
+from ..domain.daily_break import HISTORY_DAYS, RULES, DailyBreakRule, DailySetup, Status, advance, find, funding_r
+from .ports import DailyBreakRepository, MarketData, Notifier
+from .trend import RETRY
+
+log = logging.getLogger(__name__)
+AFTER_CLOSE = timedelta(minutes=8)      # тренд на дневках качает те же ~200 дневок в 00:03 — лимит веса Binance
+#                                         (2400 в минуту) на двоих не делим; скан 15m в 00:15 ещё впереди
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _key(rule: DailyBreakRule) -> str:
+    return f"dbreak_done:{rule.key}"
+
+
+def _midnight(d: date) -> datetime:
+    return datetime.combine(d, time(), timezone.utc)
+
+
+class DailyBreakPaper:
+    def __init__(self, market: MarketData, repo: DailyBreakRepository, notifier: Notifier | None = None,
+                 rules: tuple[DailyBreakRule, ...] = RULES, concurrency: int = 4,
+                 clock: Callable[[], datetime] = _utcnow) -> None:
+        self.market, self.repo, self.notifier, self.rules = market, repo, notifier, rules
+        self.sem = asyncio.Semaphore(concurrency)
+        self.clock = clock
+        self._tried: datetime | None = None
+        self.last_error: str | None = None
+
+    def _done(self, rule: DailyBreakRule) -> date | None:
+        raw = self.repo.kv_get(_key(rule))
+        return date.fromisoformat(raw) if raw else None
+
+    def due_day(self, now: datetime) -> date | None:
+        """День, закрытие которого пора обработать; None — всё обработано или день ещё не дописан."""
+        if now - _midnight(now.date()) < AFTER_CLOSE:
+            return None
+        day = now.date() - timedelta(days=1)
+        if all((x := self._done(r)) is not None and x >= day for r in self.rules):
+            return None
+        return day
+
+    async def maybe_run(self) -> list[DailySetup]:
+        """Для фоновой проверки раз в минуту; после сбоя — не чаще раза в 15 минут. Возвращает изменившиеся сетапы."""
+        now = self.clock()
+        if self.due_day(now) is None or (self._tried is not None and now - self._tried < RETRY):
+            return []
+        self._tried = now
+        try:
+            out = await self.run(now)
+            self.last_error = None
+            return out
+        except Exception as e:
+            self.last_error = str(e)[:200]
+            log.exception("пробой на дневках: шаг бумажного счёта")
+            return []
+
+    async def _bars(self, symbol: str) -> pd.DataFrame | None:
+        async with self.sem:
+            try:
+                d = await self.market.daily_bars(symbol, HISTORY_DAYS)
+            except Exception as e:
+                log.warning("пробой на дневках: свечи %s — %s", symbol, e)
+                return None
+        if d is None or not len(d):
+            return None
+        d = d.sort_index()
+        d.index = d.index.tz_convert("UTC") if d.index.tz is not None else d.index.tz_localize("UTC")
+        return d
+
+    async def _funding(self, symbol: str, start: datetime, end: datetime) -> float:
+        async with self.sem:
+            try:
+                return await self.market.funding_sum(symbol, start, end)
+            except Exception as e:
+                log.warning("пробой на дневках: funding %s — %s", symbol, e)
+                return 0.0
+
+    async def _with_funding(self, d: pd.DataFrame, s: DailySetup, rule: DailyBreakRule, now: datetime) -> DailySetup:
+        new = advance(d, s, rule)
+        if new.fill_day is None:
+            return new
+        end = _midnight(new.exit_day + timedelta(days=1)) if new.exit_day is not None else _midnight(now.date())
+        fr = funding_r(new, await self._funding(s.symbol, _midnight(new.fill_day), end))
+        return advance(d, replace(s, funding_r=fr), rule)
+
+    async def run(self, now: datetime) -> list[DailySetup]:
+        day = now.date() - timedelta(days=1)
+        active = {r.key: self.repo.dbreak_active(r.key) for r in self.rules}
+        held = {s.symbol for xs in active.values() for s in xs}
+        floor = min(r.min_adv for r in self.rules) / 2     # список — по обороту за сутки, правило — за 30 дней
+        symbols = list(dict.fromkeys([*await self.market.universe(floor), *sorted(held)]))
+        frames = await asyncio.gather(*(self._bars(s) for s in symbols))
+        bars = {s: f for s, f in zip(symbols, frames) if f is not None}
+        if not bars:
+            raise RuntimeError("нет дневных свечей ни по одной монете")
+        latest = max(f.index[-1].date() for f in bars.values())
+        if latest != day:
+            raise RuntimeError(f"последняя дневная свеча {latest}, ждём {day}")
+        out: list[DailySetup] = []
+        for rule in self.rules:
+            done = self._done(rule)
+            if done is not None and done >= day:
+                continue
+            events: list[tuple[str, DailySetup]] = []
+            first = day if done is None else max(done + timedelta(days=1), day - timedelta(days=rule.retest_bars))
+            scan = [first + timedelta(days=k) for k in range((day - first).days + 1)]
+            for sym, d in bars.items():
+                for x in scan:
+                    part = d[d.index < _midnight(x + timedelta(days=1))]
+                    if not len(part) or part.index[-1].date() != x:
+                        continue
+                    for s in await asyncio.to_thread(find, part, sym, rule):
+                        saved = self.repo.dbreak_add(s)
+                        if saved is not None:
+                            active[rule.key].append(saved)
+                            events.append(("new", saved))
+            for s in active[rule.key]:
+                d = bars.get(s.symbol)
+                if d is None:
+                    continue
+                new = await self._with_funding(d, s, rule, now)
+                if new == s:
+                    continue
+                self.repo.dbreak_update(new)
+                out.append(new)
+                if new.fill_day is not None and s.fill_day is None:
+                    events.append(("fill", new))
+                if new.status is Status.CLOSED:
+                    events.append(("close", new))
+                elif new.status is Status.CANCELLED:
+                    events.append(("cancel", new))
+            self.repo.kv_set(_key(rule), day.isoformat())
+            await self._notify(rule, events)
+        return out
+
+    async def _notify(self, rule: DailyBreakRule, events: list[tuple[str, DailySetup]]) -> None:
+        if self.notifier is None or not any(k != "cancel" for k, _ in events):
+            return
+        side = {1: "лонг", -1: "шорт"}
+        parts = []
+        new = [s for k, s in events if k == "new"]
+        if new:
+            parts.append("пробой, лимитка на линии: " + ", ".join(f"{s.symbol} {side[s.side]}" for s in new))
+        fills = [s for k, s in events if k == "fill"]
+        if fills:
+            parts.append("ретест, вошёл: " + ", ".join(f"{s.symbol} {side[s.side]}" for s in fills))
+        closed = [s for k, s in events if k == "close"]
+        if closed:
+            parts.append("закрыл: " + ", ".join(f"{s.symbol} {s.r:+.2f}R" for s in closed))
+        try:
+            await self.notifier.text(f"Дневки, бумага · {rule.title}: " + "; ".join(parts) + ".")
+        except Exception:
+            log.exception("пробой на дневках: уведомление")

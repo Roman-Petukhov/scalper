@@ -118,11 +118,11 @@ class BinanceMarketData:
         return self._frame(rows).drop(columns="close_time")
 
     async def daily_bars(self, symbol: str, limit: int) -> pd.DataFrame:
-        """Закрытые дневные свечи (индекс — открытие дня UTC): close и quote_volume — для тренда на дневках."""
+        """Закрытые дневные свечи (индекс — открытие дня UTC) — для тренда и пробоя линии на дневках."""
         rows = await self._get("/fapi/v1/klines", {"symbol": symbol, "interval": "1d", "limit": min(limit, HISTORY)})
         df = self._frame(rows)
         df = df[df["close_time"] < int(time.time() * 1000)]
-        return df[["close", "quote_volume"]]
+        return df.drop(columns=["close_time"])
 
     async def funding_sum(self, symbol: str, start: datetime, end: datetime) -> float:
         """Сумма ставок funding с выплатой в (start, end]: доля номинала, которую лонг заплатил (> 0) или получил."""

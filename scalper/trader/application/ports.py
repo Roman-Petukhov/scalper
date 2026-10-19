@@ -10,6 +10,7 @@ from datetime import datetime
 from ..domain.execution import Account, ClosedPnl, HedgeLeg, Instrument, OrderRequest, Trade, TradeResult, TradeStatus
 from ..domain.journal import JournalEntry
 from ..domain.models import Settings, Signal, SignalStatus, Timeframe
+from ..domain.daily_break import DailySetup
 from ..domain.trend import TrendDay
 
 
@@ -28,7 +29,8 @@ class MarketData(Protocol):
         """Свечи с открытием в [start, end] (последняя может быть не закрыта), не больше 1500 — для выгрузки."""
 
     async def daily_bars(self, symbol: str, limit: int) -> pd.DataFrame:
-        """Закрытые дневные свечи, не больше limit; индекс — открытие дня UTC; колонки close, quote_volume."""
+        """Закрытые дневные свечи, не больше limit; индекс — открытие дня UTC; колонки open, high, low, close,
+        volume, quote_volume, taker_buy_volume."""
 
     async def funding_sum(self, symbol: str, start: datetime, end: datetime) -> float:
         """Сумма ставок funding с выплатой в (start, end]."""
@@ -144,6 +146,23 @@ class TrendRepository(Protocol):
 
     def trend_history(self, rule: str, limit: int = 400) -> list[TrendDay]:
         """Шаги счёта, старые первыми."""
+
+
+class DailyBreakRepository(Protocol):
+    def dbreak_add(self, setup: DailySetup) -> DailySetup | None:
+        """Новый сетап; None — такой (правило, монета, день, сторона) уже есть."""
+
+    def dbreak_update(self, setup: DailySetup) -> None: ...
+
+    def dbreak_active(self, rule: str) -> list[DailySetup]:
+        """Ждут ретеста или в позиции."""
+
+    def dbreak_recent(self, rule: str, limit: int = 500) -> list[DailySetup]:
+        """Все сетапы, новые первыми."""
+
+    def kv_get(self, key: str) -> str | None: ...
+
+    def kv_set(self, key: str, value: str) -> None: ...
 
 
 class StablecoinData(Protocol):

@@ -1,0 +1,61 @@
+<div class="card trend">
+  <div class="journal-head">
+    <h2>Пробой линии на дневках · бумага</h2>
+    <span class="hint num" style="margin:0">пересчёт раз в сутки после 00:00 UTC</span>
+  </div>
+  {% if error %}<p class="err">Последний пересчёт не удался: {{ error }}. Повторю через 15 минут.</p>{% endif %}
+  <div class="trend-books">
+  {% for x in books %}
+    {% set b = x.b %}
+    <div class="trend-book">
+      <div class="row" style="justify-content:space-between;align-items:baseline">
+        <b>{{ x.rule.title }}</b>
+        <span class="hint" style="margin:0">{{ x.rule.backtest }}</span>
+      </div>
+      {% if b.since %}
+      <div class="stats periods num">
+        <div class="stat {{ 'up' if b.total_r > 0 else ('down' if b.total_r < 0 else '') }}"><span>С {{ b.since.strftime('%d.%m') }}</span>
+          <b>{{ '%+.1f' | format(b.total_r * x.rule.risk * 100) }}%</b><small>{{ '%+.1f' | format(b.total_r) }}R за {{ b.closed }} сд.</small></div>
+        <div class="stat {{ 'up' if (b.mean_r or 0) > 0 else ('down' if (b.mean_r or 0) < 0 else '') }}"><span>На сделку</span>
+          <b>{% if b.mean_r is not none %}{{ '%+.2f' | format(b.mean_r) }}R{% else %}—{% endif %}</b>
+          <small>{% if b.win is not none %}в плюсе {{ '%.0f' | format(b.win * 100) }}%{% else %}закрытых нет{% endif %}</small></div>
+        <div class="stat"><span>Просадка</span><b>{{ '%.1f' | format(b.dd_r) }}R</b>
+          <small>открыто {{ b.open | length }}, оценка {{ '%+.1f' | format(b.open_r) }}R</small></div>
+      </div>
+      {% if b.open or b.pending or b.recent %}
+      <div class="jr-rows trend-rows num" role="table" aria-label="Сделки: {{ x.rule.title }}">
+        {% for s in b.open %}
+        <div class="jr-row" role="row">
+          <span role="cell" class="hint" style="margin:0">в позиции с {{ s.fill_day.strftime('%d.%m') }}</span>
+          <span role="cell">{{ s.symbol }} {{ 'лонг' if s.side > 0 else 'шорт' }}</span>
+          <span role="cell" class="{{ 'jr-up' if (s.r or 0) > 0 else 'jr-down' }}">{{ '%+.2f' | format(s.r or 0) }}R</span>
+          <span role="cell" class="hint" style="margin:0">стоп {{ '%.6g' | format(s.stop) }}</span>
+        </div>
+        {% endfor %}
+        {% for s in b.pending %}
+        <div class="jr-row" role="row">
+          <span role="cell" class="hint" style="margin:0">пробой {{ s.day.strftime('%d.%m') }}</span>
+          <span role="cell">{{ s.symbol }} {{ 'лонг' if s.side > 0 else 'шорт' }}</span>
+          <span role="cell" class="hint" style="margin:0">ждёт ретеста</span>
+          <span role="cell" class="hint" style="margin:0">лимит {{ '%.6g' | format(s.level) }}</span>
+        </div>
+        {% endfor %}
+        {% for s in b.recent %}
+        <div class="jr-row" role="row">
+          <span role="cell" class="hint" style="margin:0">закрыта {{ s.exit_day.strftime('%d.%m') }}</span>
+          <span role="cell">{{ s.symbol }} {{ 'лонг' if s.side > 0 else 'шорт' }}</span>
+          <span role="cell" class="{{ 'jr-up' if s.r > 0 else 'jr-down' }}">{{ '%+.2f' | format(s.r) }}R</span>
+          <span role="cell" class="hint" style="margin:0">агрессоры {{ '%.0f' | format(s.aggr * 100) }}%</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}<p class="hint">Пробои были, но все лимитки сняты без ретеста.</p>{% endif %}
+      {% else %}
+      <p class="hint">Сделок пока нет: ищу пробои после каждого закрытия дня (00:00 UTC), на бэктесте их около 8 в месяц.</p>
+      {% endif %}
+    </div>
+  {% endfor %}
+  </div>
+  <p class="hint">Ордеров нет — сделки только на бумаге. R — в рисках сделки (стоп 1.5 ATR за линией), % — при риске 1%
+    капитала на сделку; funding учтён. Живьём ждём около половины бэктеста (+0.3R на сделку). Через 6 месяцев решаем про реальные деньги.</p>
+</div>
