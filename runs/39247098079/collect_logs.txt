@@ -1,0 +1,49 @@
+----- macrocal collect (часть 0/10) -----
+часть 0/10, набор 1h-qualified: монет 63
+  macrocal: https://www.bls.gov/bls/news-release/cpi.htm — HTTP Error 403: Forbidden
+  macrocal: https://www.bls.gov/bls/news-release/cpi.htm — HTTP Error 403: Forbidden
+  macrocal: https://www.bls.gov/bls/news-release/cpi.htm — HTTP Error 403: Forbidden
+  macrocal: CPI — дат 0
+  macrocal: https://www.bls.gov/bls/news-release/empsit.htm — HTTP Error 403: Forbidden
+  macrocal: https://www.bls.gov/bls/news-release/empsit.htm — HTTP Error 403: Forbidden
+  macrocal: https://www.bls.gov/bls/news-release/empsit.htm — HTTP Error 403: Forbidden
+  macrocal: NFP — дат 0
+  macrocal: сверка FOMC с ФРС — расхождения: 2021: на странице 16, в списке 8; 2025: на странице 9, в списке 8
+  macrocal: сделок 56
+----- supply collect (часть 0/10) -----
+----- macrocal collect (часть 1/10) -----
+часть 1/10, набор 1h-qualified: монет 66
+  macrocal: сделок 43
+----- supply collect (часть 1/10) -----
+----- macrocal collect (часть 2/10) -----
+часть 2/10, набор 1h-qualified: монет 78
+  macrocal: сделок 47
+----- supply collect (часть 2/10) -----
+----- macrocal collect (часть 3/10) -----
+часть 3/10, набор 1h-qualified: монет 73
+  macrocal: сделок 54
+----- supply collect (часть 3/10) -----
+----- macrocal collect (часть 4/10) -----
+часть 4/10, набор 1h-qualified: монет 72
+  macrocal: сделок 41
+----- supply collect (часть 4/10) -----
+----- macrocal collect (часть 5/10) -----
+часть 5/10, набор 1h-qualified: монет 83
+  macrocal: сделок 45
+----- supply collect (часть 5/10) -----
+----- macrocal collect (часть 6/10) -----
+часть 6/10, набор 1h-qualified: монет 71
+  macrocal: сделок 39
+----- supply collect (часть 6/10) -----
+----- macrocal collect (часть 7/10) -----
+часть 7/10, набор 1h-qualified: монет 61
+  macrocal: сделок 42
+----- supply collect (часть 7/10) -----
+----- macrocal collect (часть 8/10) -----
+часть 8/10, набор 1h-qualified: монет 75
+  macrocal: сделок 52
+----- supply collect (часть 8/10) -----
+----- macrocal collect (часть 9/10) -----
+часть 9/10, набор 1h-qualified: монет 83
+  macrocal: сделок 61
+----- supply collect (часть 9/10) -----

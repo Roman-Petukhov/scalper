@@ -1,0 +1,100 @@
+----- macrocal report (часть 0/10) -----
+===== MACROCAL: FOMC, CPI, NFP и сделки бота 4h (признаки и направление до запуска) =====
+     событий: FOMC 55; сделок 480
+  FOMC + CPI + NFP:
+   M1 сигнал за 24 ч до события или на нём:
+     да: доля 3%  2020: n=0  2021: n=2  is: n=2  val: n=7  ho: n=5  всё время: +1.102R (t 2.1, 56%, 2/мес)
+     нет: доля 97%  2020: +0.327R (t 0.7, 50%, 2/мес)  2021: +0.286R (t 1.1, 43%, 4/мес)  is: +0.397R (t 2.8, 50%, 5/мес)  val: +0.630R (t 3.4, 61%, 7/мес)  ho: +0.446R (t 3.2, 53%, 11/мес)  всё время: +0.443R (t 5.4, 52%, 6/мес)
+     «нет» минус «да»: 2020: n=10/0  2021: n=44/2  is: n=161/2  val: n=80/7  ho: n=169/5  всё время t -1.3  → нет
+   M2 событие в 72 ч после входа:
+     да: доля 12%  2020: n=0  2021: n=3  is: +0.524R (t 1.3, 52%, 2/мес)  val: +1.455R (t 3.1, 71%, 3/мес)  ho: +0.662R (t 1.3, 42%, 2/мес)  всё время: +0.840R (t 3.0, 54%, 2/мес)
+     нет: доля 88%  2020: +0.327R (t 0.7, 50%, 2/мес)  2021: +0.316R (t 1.2, 44%, 4/мес)  is: +0.356R (t 2.4, 49%, 5/мес)  val: +0.619R (t 3.2, 62%, 7/мес)  ho: +0.398R (t 2.9, 53%, 10/мес)  всё время: +0.412R (t 4.9, 52%, 6/мес)
+     «нет» минус «да»: 2020: n=10/0  2021: n=43/3  is: -0.17R  val: n=73/14  ho: n=155/19  всё время t -1.7  → нет
+   M3 событие во время позиции (справочно):
+     да: доля 20%  2020: n=0  2021: n=5  is: +0.589R (t 1.9, 61%, 3/мес)  val: +1.354R (t 3.5, 75%, 4/мес)  ho: +0.621R (t 1.9, 52%, 3/мес)  всё время: +0.828R (t 4.1, 62%, 3/мес)
+     нет: доля 80%  2020: +0.327R (t 0.7, 50%, 2/мес)  2021: +0.283R (t 1.0, 41%, 4/мес)  is: +0.320R (t 2.1, 46%, 4/мес)  val: +0.525R (t 2.6, 59%, 6/мес)  ho: +0.385R (t 2.6, 52%, 10/мес)  всё время: +0.374R (t 4.2, 50%, 5/мес)
+     «нет» минус «да»: 2020: n=10/0  2021: n=41/5  is: -0.27R  val: -0.83R  ho: -0.24R  всё время t -2.5  → нет
+  FOMC:
+   M1 сигнал за 24 ч до события или на нём:
+     да: доля 3%  2020: n=0  2021: n=2  is: n=2  val: n=7  ho: n=5  всё время: +1.102R (t 2.1, 56%, 2/мес)
+     нет: доля 97%  2020: +0.327R (t 0.7, 50%, 2/мес)  2021: +0.286R (t 1.1, 43%, 4/мес)  is: +0.397R (t 2.8, 50%, 5/мес)  val: +0.630R (t 3.4, 61%, 7/мес)  ho: +0.446R (t 3.2, 53%, 11/мес)  всё время: +0.443R (t 5.4, 52%, 6/мес)
+     «нет» минус «да»: 2020: n=10/0  2021: n=44/2  is: n=161/2  val: n=80/7  ho: n=169/5  всё время t -1.3  → нет
+   M2 событие в 72 ч после входа:
+     да: доля 12%  2020: n=0  2021: n=3  is: +0.524R (t 1.3, 52%, 2/мес)  val: +1.455R (t 3.1, 71%, 3/мес)  ho: +0.662R (t 1.3, 42%, 2/мес)  всё время: +0.840R (t 3.0, 54%, 2/мес)
+     нет: доля 88%  2020: +0.327R (t 0.7, 50%, 2/мес)  2021: +0.316R (t 1.2, 44%, 4/мес)  is: +0.356R (t 2.4, 49%, 5/мес)  val: +0.619R (t 3.2, 62%, 7/мес)  ho: +0.398R (t 2.9, 53%, 10/мес)  всё время: +0.412R (t 4.9, 52%, 6/мес)
+     «нет» минус «да»: 2020: n=10/0  2021: n=43/3  is: -0.17R  val: n=73/14  ho: n=155/19  всё время t -1.7  → нет
+   M3 событие во время позиции (справочно):
+     да: доля 20%  2020: n=0  2021: n=5  is: +0.589R (t 1.9, 61%, 3/мес)  val: +1.354R (t 3.5, 75%, 4/мес)  ho: +0.621R (t 1.9, 52%, 3/мес)  всё время: +0.828R (t 4.1, 62%, 3/мес)
+     нет: доля 80%  2020: +0.327R (t 0.7, 50%, 2/мес)  2021: +0.283R (t 1.0, 41%, 4/мес)  is: +0.320R (t 2.1, 46%, 4/мес)  val: +0.525R (t 2.6, 59%, 6/мес)  ho: +0.385R (t 2.6, 52%, 10/мес)  всё время: +0.374R (t 4.2, 50%, 5/мес)
+     «нет» минус «да»: 2020: n=10/0  2021: n=41/5  is: -0.27R  val: -0.83R  ho: -0.24R  всё время t -2.5  → нет
+  CPI: дат нет
+  NFP: дат нет
+----- supply report (часть 0/10) -----
+===== SUPPLY: доля выпущенных токенов (MC / FDV) и сделки бота 4h за последний год (CoinGecko) =====
+  supply: тикеров в снимке CoinGecko 971; сделок за год 138, монет 101
+  supply: https://api.coingecko.com/api/v3/coins/pepe/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/pepe/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/pepe/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/pepe/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/bitcoin-cash/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/bitcoin-cash/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/bitcoin-cash/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/bitcoin-cash/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/cysic/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/cysic/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/cysic/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/cysic/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/fetch-ai/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/fetch-ai/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/fetch-ai/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/fetch-ai/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/hyperliquid/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/hyperliquid/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/hyperliquid/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/hyperliquid/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/kite-2/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/kite-2/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/kite-2/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/kite-2/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/near/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/near/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/near/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/near/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/optimism/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/optimism/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/optimism/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/optimism/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/pump-fun/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/pump-fun/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/pump-fun/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/pump-fun/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/sei-network/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/sei-network/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/sei-network/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/sei-network/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/sui/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/sui/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/sui/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/sui/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/threshold-network-token/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/threshold-network-token/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/threshold-network-token/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/threshold-network-token/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/tether-gold/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/tether-gold/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/tether-gold/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/tether-gold/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/zcash/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/zcash/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/zcash/market_chart — HTTP Error 429: Too Many Requests
+  supply: https://api.coingecko.com/api/v3/coins/zcash/market_chart — HTTP Error 429: Too Many Requests
+     с долей выпущенного: 108 из 138 сделок, монет 78; медиана доли 66%
+  шорты: навес (< 50% выпущено) +0.409R (t 1.6, 49%, 3/мес);  остальные +0.426R (t 1.9, 54%, 5/мес);  разница t -0.1
+     терциль < 40%: +0.483R (t 1.8, 52%, 3/мес)
+     терциль 40%–92%: +0.401R (t 1.5, 48%, 3/мес)
+     терциль ≥ 92%: +0.369R (t 1.4, 57%, 2/мес)
+  лонги: навес (< 50% выпущено) n=4;  остальные n=8;  разница t -4.0
+     терциль < 40%: n=3
+     терциль 40%–92%: n=3
+     терциль ≥ 92%: n=6
+частей с результатами: 11 файлов; collect: success
