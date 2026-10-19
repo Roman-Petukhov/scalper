@@ -4,7 +4,7 @@
 Ордеров нет — это проверка стратегии перед реальными деньгами. Сетап хранит только линию, стоп и ATR; где он сейчас
 (ждёт ретеста, в позиции, закрыт), каждый раз заново считается по истории свечей (domain.daily_break.advance) — так
 исход совпадает с бэктестом. Пропущенные дни (сервер был выключен) догоняются: пробои ищутся и на них, но не дальше
-окна ретеста — более старый сигнал уже не исполнить. Размер сделки задаётся один раз, на дне входа, по капиталу и
+окна ретеста — более старый сигнал уже не исполнить. Хедж — только на основную часть (rule.hedge_add). Размер сделки задаётся один раз, на дне входа, по капиталу и
 свободной марже того дня (сделки обходятся по дням входа); хедж BTC — по закрытиям BTCUSDT."""
 from __future__ import annotations
 
@@ -185,9 +185,9 @@ class DailyBreakPaper:
                 if x.add_day is None or x.add_ok is not None or not x.sized or x.status is Status.SKIPPED:
                     continue
                 others = [y for k, y in book.items() if k != x.id]
-                used = margin_on(others, x.add_day, rule.leverage, rule.add_size) + x.margin(rule.leverage)
+                used = margin_on(others, x.add_day, rule.leverage, rule.add_size, rule.hedge_add) + x.margin(rule.leverage)
                 ok = add_fits(x, equity_on(others, x.add_day), used, rule)
-                x = replace(x, add_ok=ok, btc_add=_close_on(btc, x.add_day) if ok and x.beta else None)
+                x = replace(x, add_ok=ok, btc_add=_close_on(btc, x.add_day) if ok and x.beta and rule.hedge_add else None)
                 if not ok:                                         # без доливки — пересчитать исход и funding
                     x = await self._with_funding(bars[x.symbol], replace(x, status=Status.OPEN), rule, now)
                 done_[x.id] = book[x.id] = self._account(x, book, bars, btc, rule)

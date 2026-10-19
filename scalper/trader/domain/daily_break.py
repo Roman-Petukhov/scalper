@@ -16,10 +16,10 @@
 номинал) — не больше 95% свободной, иначе сделка урезается, а без свободной маржи пропускается. Капитал на день
 входа — старт 1.0 плюс итог сделок, закрытых раньше; свободная маржа — капитал минус маржа открытых. Хедж — обратная
 позиция BTCUSDT на бету монеты к BTC за 180 дней, по закрытиям дня входа и выхода (точного часа ретеста дневки не
-знают), комиссия taker на вход и выход. Доливка (+0.5 на +1.5R) — со своей маржой, хеджем (бета × её номинал с
-закрытия дня доливки) и funding; нет свободной маржи на день доливки — сделка идёт без неё (стоп всё равно
+знают), комиссия taker на вход и выход. Хеджируется только основная часть (по решению владельца: хедж доливки в
+прогоне 5 ухудшил худший месяц, −8.9R против −6.7R). Доливка (+0.5 на +1.5R) — со своей маржой и funding; нет свободной маржи на день доливки — сделка идёт без неё (стоп всё равно
 переносится на вход, как в правиле). Бэктест хеджа на дневках (research/htftrend.py, прогон 4): R на сделку
-+0.57 → +0.55, σ месяца 14.2 → 9.9R, худший месяц −10.8 → −8.9R (с хеджем доливки, прогон 5).
++0.57 → +0.55, σ месяца 14.2 → 10.5R, худший месяц −10.8 → −6.7R (прогон 4, хедж основной части).
 """
 from __future__ import annotations
 
@@ -58,6 +58,7 @@ class DailyBreakRule:
     risk: float = 0.06              # доля капитала под риском на сделку
     leverage: int = 12              # потолок номинала (× капитал) и маржа = номинал / плечо
     hedge: bool = True              # обратная позиция BTC на бету монеты
+    hedge_add: bool = False         # хеджировать и доливку (прогон 5: худший месяц хуже, −8.9R против −6.7R)
     beta_days: int = 180
     margin_use: float = 0.95        # запас на комиссии, как у бота
 
@@ -68,7 +69,7 @@ class DailyBreakRule:
 
 RULES: tuple[DailyBreakRule, ...] = (
     DailyBreakRule("d1_line15", "Пробой линии на дневках, стоп 1.5 ATR, 3R",
-                   "бэктест перпетуалов 2021–2026: +0.58R на сделку, ~8 сделок в месяц, 41% в плюсе; хедж BTC: Sharpe месяцев 1.06 → 1.45"),
+                   "бэктест перпетуалов 2021–2026: +0.58R на сделку, ~8 сделок в месяц, 41% в плюсе; хедж BTC: Sharpe месяцев 1.06 → 1.37"),
 )
 
 
@@ -124,10 +125,11 @@ class DailySetup:
     def add_notional(self, add_size: float) -> float:
         return (self.notional or 0.0) * add_size * (self.add_price or self.level) / self.level
 
-    def margin(self, leverage: int, add_size: float = 0.0) -> float:
-        """Маржа позиции с хеджем; add_size > 0 — вместе с доливкой, если она сделана."""
-        n = (self.notional or 0.0) + (self.add_notional(add_size) if self.add_ok else 0.0)
-        return n * (1 + (self.beta or 0.0)) / leverage
+    def margin(self, leverage: int, add_size: float = 0.0, hedge_add: bool = False) -> float:
+        """Маржа позиции с хеджем; add_size > 0 — вместе с доливкой, если она сделана (с её хеджем при hedge_add)."""
+        b = self.beta or 0.0
+        add = self.add_notional(add_size) * (1 + (b if hedge_add else 0.0)) if self.add_ok else 0.0
+        return ((self.notional or 0.0) * (1 + b) + add) / leverage
 
 
 def _ohlc(d: pd.DataFrame) -> tuple[np.ndarray, ...]:
@@ -221,21 +223,22 @@ def equity_on(setups: list[DailySetup], day: date) -> float:
                      and s.exit_day is not None and s.exit_day < day)
 
 
-def margin_on(setups: list[DailySetup], day: date, leverage: int, add_size: float = 0.0) -> float:
+def margin_on(setups: list[DailySetup], day: date, leverage: int, add_size: float = 0.0,
+              hedge_add: bool = False) -> float:
     """Маржа сделок (с хеджем), открытых на день day; доливка — с её дня."""
     out = 0.0
     for s in setups:
         if not s.sized or s.fill_day is None or s.fill_day > day or (s.exit_day is not None and s.exit_day < day):
             continue
-        out += s.margin(leverage)
-        if s.add_ok and s.add_day is not None and s.add_day <= day:
-            out += s.margin(leverage, add_size) - s.margin(leverage)
+        with_add = s.add_ok and s.add_day is not None and s.add_day <= day
+        out += s.margin(leverage, add_size if with_add else 0.0, hedge_add)
     return out
 
 
 def add_fits(s: DailySetup, equity: float, used: float, rule: DailyBreakRule) -> bool:
-    """Помещается ли доливка (с её хеджем) в свободную маржу дня доливки; used — маржа всех открытых, включая эту."""
-    need = s.add_notional(rule.add_size) * (1 + (s.beta or 0.0)) / rule.leverage
+    """Помещается ли доливка (с её хеджем при rule.hedge_add) в свободную маржу дня доливки; used — маржа всех
+    открытых, включая эту."""
+    need = s.add_notional(rule.add_size) * (1 + ((s.beta or 0.0) if rule.hedge_add else 0.0)) / rule.leverage
     return need <= rule.margin_use * (equity - used)
 
 
@@ -252,8 +255,8 @@ def size(s: DailySetup, equity: float, used: float, rule: DailyBreakRule, beta: 
 
 
 def hedge_pnl(s: DailySetup, btc_now: float | None, add_size: float = 0.0) -> float:
-    """Итог хеджа: обратная позиция BTC на бету × номинал, комиссия taker на вход и выход; доливка — своя нога на
-    бету × её номинал с закрытия дня доливки (research/htftrend.py hedge_r)."""
+    """Итог хеджа: обратная позиция BTC на бету × номинал, комиссия taker на вход и выход; доливка (если у неё есть
+    цена BTC — правило hedge_add) — своя нога на бету × её номинал с закрытия дня доливки (research/htftrend.py hedge_r)."""
     if not s.beta or not s.notional or not s.btc_in or not btc_now:
         return 0.0
     legs = [(s.btc_in, s.beta * s.notional)]

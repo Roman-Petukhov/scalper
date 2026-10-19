@@ -262,8 +262,10 @@ def test_add_margin_hedge_and_funding():
                 fill_day=date(2026, 1, 2), add_day=date(2026, 1, 5), add_price=95.5, add_ok=True, btc_add=104.0)
     assert s.add_notional(0.5) == pytest.approx(0.4775)
     assert margin_on([s], date(2026, 1, 4), 12, 0.5) == pytest.approx(2.5 / 12)
-    assert margin_on([s], date(2026, 1, 5), 12, 0.5) == pytest.approx(1.4775 * 2.5 / 12)
-    assert add_fits(replace(s, add_ok=None), 1.0, 0.2, RULE) and not add_fits(replace(s, add_ok=None), 1.0, 0.95, RULE)
+    assert margin_on([s], date(2026, 1, 5), 12, 0.5) == pytest.approx((2.5 + 0.4775) / 12)        # доливка без хеджа
+    assert margin_on([s], date(2026, 1, 5), 12, 0.5, hedge_add=True) == pytest.approx(1.4775 * 2.5 / 12)
+    assert add_fits(replace(s, add_ok=None), 1.0, 0.2, RULE) and not add_fits(replace(s, add_ok=None), 1.0, 0.99, RULE)
+    assert not add_fits(replace(s, add_ok=None), 1.0, 0.95, replace(RULE, hedge_add=True))
     h = hedge_pnl(s, 110.0, 0.5)
     base, add = 1.5 * 1.0, 1.5 * 0.4775
     assert h == pytest.approx(base * 0.10 - 2 * 0.00055 * base + add * (110 / 104 - 1) - 2 * 0.00055 * add)
