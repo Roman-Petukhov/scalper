@@ -118,7 +118,7 @@ def test_params_per_timeframe(env):
     c.post("/settings/params", data=_params_form(**{"15m__tf_leverage": "12", "4h__tf_leverage": "3"}), headers=HX)
     s = SqliteStore(tmp / "trader.db").load()
     assert s.lev(Timeframe.M15) == 12 and s.lev(Timeframe.H4) == 3
-    assert "плечо таймфрейма" in c.post("/settings/params", data=_params_form(**{"15m__tf_leverage": "20"}),
+    assert "плечо таймфрейма" in c.post("/settings/params", data=_params_form(**{"15m__tf_leverage": "30"}),
                                         headers=HX).text
     bad = _params_form()
     del bad["4h__target_r"]

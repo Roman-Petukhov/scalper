@@ -73,7 +73,7 @@ def test_timeframe_leverage_overrides_the_common_one():
     assert o.leverage == 15 and o.risk_usd == pytest.approx(s.p(Timeframe.M15).risk_pct * 10, abs=0.05)
     assert build_order(tight, s, ACC, replace(INST, max_leverage=10), 101.0, None, NOW).leverage == 10
     assert Settings(leverage=7).with_tf(Timeframe.M15, leverage=0).lev(Timeframe.M15) == 7     # 0 — общее
-    for bad in (-1, 16):
+    for bad in (-1, 26):
         with pytest.raises(ValueError, match="плечо таймфрейма"):
             Settings().with_tf(Timeframe.M15, leverage=bad)
 
