@@ -123,7 +123,8 @@ def simulate(trades: pd.DataFrame, pol: Policy, leverage: int = LEVERAGE) -> Res
                 skip_margin += 1
                 continue
             p = {"side": side, "fd": day, "xd": x.xd, "ad": x.ad,
-                 "addpx": float(x.acct_addpx) if pd.notna(x.acct_addpx) else 1.0, "beta": b, "notional": notional, "risk": notional / x.acct_lr, "r": float(x.acct_r),
+                 "addpx": float(x.acct_addpx) if pd.notna(x.acct_addpx) else 1.0, "beta": b, "notional": notional,
+                 "risk": notional / x.acct_lr, "r": float(x.acct_r),
                  "r0": float(x.acct_r0), "h": float(x.acct_h) if b > 0 else 0.0, "add_ok": False, "booked": False,
                  "pending_add": pd.notna(x.ad)}
             pos.append(p)
