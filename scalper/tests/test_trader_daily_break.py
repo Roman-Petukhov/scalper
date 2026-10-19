@@ -183,12 +183,12 @@ def test_paper_refuses_stale_candles(tmp_path):
 def test_size_risk_leverage_and_margin_caps():
     s = _setup(fill_day=date(2026, 1, 2))                                           # стоп 3% от цены
     a = size(s, 1.0, 0.0, RULE, 1.2)
-    assert a.notional == pytest.approx(2.0) and a.risk_abs == pytest.approx(0.06) and a.beta == 1.2   # 6% / 3%
+    assert a.notional == pytest.approx(4 / 3) and a.risk_abs == pytest.approx(0.04) and a.beta == 1.2   # 4% / 3%
     tight = _setup(stop=99.7, fill_day=date(2026, 1, 2))           # стоп 0.3%: маржа 95% капитала × плечо 12
     assert size(tight, 1.0, 0.0, RULE, None).notional == pytest.approx(0.95 * 12)
     assert size(tight, 1.0, 0.0, RULE, None).risk_abs == pytest.approx(0.95 * 12 * 0.003)
     squeezed = size(s, 1.0, 0.9, RULE, 1.0)                                         # занято 90% капитала маржой
-    assert squeezed.notional == pytest.approx(0.95 * 0.1 * 12 / 2) and squeezed.risk_abs < 0.06
+    assert squeezed.notional == pytest.approx(0.95 * 0.1 * 12 / 2) and squeezed.risk_abs < 0.04
     full = size(s, 1.0, 1.0, RULE, 1.0)
     assert full.status is Status.SKIPPED and full.notional == 0.0 and full.pnl is None
 
@@ -220,7 +220,7 @@ def test_paper_sizes_on_fill_day_and_hedges_with_btc(tmp_path):
     m.frames = {"XUSDT": full.iloc[:t + 40], "BTCUSDT": btc.iloc[:t + 40]}
     asyncio.run(DailyBreakPaper(m, st, clock=lambda: when(m.frames["XUSDT"])).maybe_run())
     x = next(y for y in st.dbreak_recent(RULE.key) if y.day == full.index[t].date() and y.symbol == "XUSDT")
-    assert x.fill_day is not None and x.sized and x.risk_abs == pytest.approx(0.06 * min(1, 12 * x.risk / x.level / 0.06))
+    assert x.fill_day is not None and x.sized and x.risk_abs == pytest.approx(0.04 * min(1, 12 * x.risk / x.level / 0.04))
     assert x.beta == pytest.approx(1.0) and x.btc_in == pytest.approx(float(btc.loc[btc.index.date == x.fill_day, "close"].iloc[0]))
     if x.status is Status.CLOSED:
         out = float(btc.loc[btc.index.date == x.exit_day, "close"].iloc[0])
