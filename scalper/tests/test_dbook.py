@@ -95,3 +95,9 @@ def test_journey():
     j = journey(_tr(rows), Policy("x", risk=0.06, usd=100.0), targets=(150.0,))
     assert j.starts == 12 and j.reach[150.0][0] == 1.0 and j.below_floor == 0.0   # +18% в месяц: $150 за 3 месяца
     assert j.reach[150.0][3] == pytest.approx(64, abs=3)
+
+
+def test_journey_sparse_history():
+    rows = [("2024-01-01", "2024-01-03", 1.0, {}), ("2026-01-01", "2026-01-03", 1.0, {})]
+    j = journey(_tr(rows), Policy("x", usd=100.0), targets=(1000.0,))
+    assert j.starts == 13 and j.reach[1000.0][2] == 0.0                # старты без сделок за год — счёт $100

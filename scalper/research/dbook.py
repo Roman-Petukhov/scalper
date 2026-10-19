@@ -224,7 +224,7 @@ def journey(trades: pd.DataFrame, pol: Policy, targets: tuple[float, ...] = (100
         usd = r.curve * pol.usd
         low.append(bool(usd.min() < floor))
         at = usd[usd.index <= m + pd.DateOffset(years=1)]
-        final.append(float(at.iloc[-1]))
+        final.append(float(at.iloc[-1]) if len(at) else pol.usd)      # за год ни одной закрытой сделки
         for t in targets:
             up = usd.index[usd >= t]
             hits[t].append(float((up[0] - m).days) if len(up) else np.inf)
