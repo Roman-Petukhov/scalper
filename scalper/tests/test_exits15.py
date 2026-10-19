@@ -31,3 +31,18 @@ def test_month_r_counts_unfilled_as_zero_and_double_cost():
     m, m2 = month_r(df, "x", None), month_r(df, "x", "c")
     months = (pd.Timestamp("2024-07-01") - pd.Timestamp("2022-01-01")).days / 30.44
     assert abs(m["is"]) < 1e-12 and abs(m2["is"] - (-0.2 / months)) < 1e-12
+
+
+def test_slots_limit_and_one_position_per_coin():
+    from research.exits15 import slots
+    t0 = pd.Timestamp("2024-01-01", tz="UTC")
+    q = pd.Timedelta(minutes=15)
+    df = pd.DataFrame({
+        "symbol": ["A", "B", "C", "D", "A", "E"],
+        "t": [t0, t0, t0 + q, t0 + 2 * q, t0 + 10 * q, t0 + 20 * q],
+        "rank": [1, 2, 3, 4, 1, 5],
+        "x": [1.0, -1.0, 2.0, 3.0, 1.0, 1.0],
+    })
+    df["x_end"] = [t0 + 30 * q, t0 + 5 * q, t0 + 30 * q, t0 + 30 * q, t0 + 12 * q, t0 + 40 * q]
+    # A, B, C заняли 3 места; D — мест нет; B освободилась, но второй A — та же монета; E — свободное место (A, C)
+    assert slots(df, "x").tolist() == [True, True, True, False, False, True]

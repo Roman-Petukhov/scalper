@@ -62,10 +62,16 @@ EXITS: dict[str, Exit] = {
 
 def simulate(o, h, lo, c, fund, e, side, entry, stop, atr, ex: Exit, entry_fee: float = MAKER) -> float:
     """Позиция открыта на баре e по цене entry. Результат в R исходной позиции (комиссии и funding включены)."""
+    return simulate_bar(o, h, lo, c, fund, e, side, entry, stop, atr, ex, entry_fee)[0]
+
+
+def simulate_bar(o, h, lo, c, fund, e, side, entry, stop, atr, ex: Exit,
+                 entry_fee: float = MAKER) -> tuple[float, int]:
+    """То же, что simulate, плюс бар выхода (−1 — позиция не закрылась или не открылась)."""
     n = len(c)
     risk = side * (entry - stop)
     if not risk > 0:
-        return np.nan
+        return np.nan, -1
     units = [(entry, 1.0, entry_fee)]                    # (цена, объём, комиссия входа)
     sp, step, best, paid = stop, 0, c[e], 0.0
     tp = entry + side * ex.target_r * risk if ex.target_r else None
@@ -77,7 +83,7 @@ def simulate(o, h, lo, c, fund, e, side, entry, stop, atr, ex: Exit, entry_fee: 
     for j in range(e + 1, n):
         paid += fund[j] * sum(q for _, q, _ in units)
         if (side > 0 and lo[j] <= sp) or (side < 0 and h[j] >= sp):
-            return close_all(min(sp, o[j]) if side > 0 else max(sp, o[j]), TAKER)
+            return close_all(min(sp, o[j]) if side > 0 else max(sp, o[j]), TAKER), j
         new_sp = sp
         while step < len(ex.adds):
             lvl = entry + side * ex.adds[step] * risk
@@ -89,16 +95,16 @@ def simulate(o, h, lo, c, fund, e, side, entry, stop, atr, ex: Exit, entry_fee: 
                 new_sp = entry + side * (ex.adds[step - 1] if step > 0 else 0.0) * risk
             step += 1
         if tp is not None and ((side > 0 and h[j] >= tp) or (side < 0 and lo[j] <= tp)):
-            return close_all(tp, MAKER)
+            return close_all(tp, MAKER), j
         if side * (c[j] - best) > 0:
             best = c[j]
         if ex.trail_atr and step == len(ex.adds):
             new_sp = max(new_sp, best - ex.trail_atr * atr) if side > 0 else min(new_sp, best + ex.trail_atr * atr)
         if j - e >= ex.max_hold or j == n - 1:
-            return close_all(c[j], TAKER)
+            return close_all(c[j], TAKER), j
         if side * (new_sp - sp) > 0:
             sp = new_sp
-    return np.nan
+    return np.nan, -1
 
 
 def daily_breaks(d1: pd.DataFrame) -> list[tuple[pd.Timestamp, int]]:
