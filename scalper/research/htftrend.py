@@ -19,6 +19,9 @@ t 3.7, плюс во всех периодах на 3R); 8R лучше 3R в с�
              отмена; закрытие обратно за снятым свингом (не на баре снятия) — вход по рынку, стоп за экстремумом
              снятия ± 0.1 ATR; считаются сам перезаход и «сигнал + перезаход» на один сигнал
     оборот   $5M / $10M / $20M; издержки x2 — ещё один круг комиссий входа и выхода
+Прогон 4 (по просьбе владельца, до запуска): хедж BTC как в бумажной книге — обратная позиция BTCUSDT на бету монеты
+к BTC за 180 дней до дня входа, по закрытиям дней входа и выхода, taker на вход и выход; только вход на ретесте.
+Хедж годится, если R на сделку с ним не хуже в большинстве периодов, а σ месяца и худший месяц меньше.
 Решение: вариант лучше бота (PIV5, 3R), если R за всё время выше и в плюсе во всех периодах с ≥ 10 сделками, на
 споте и на перпетуалах, и при издержках x2 знак тот же; перезаход полезен, если «сигнал + перезаход» выше «сигнала»
 в большинстве периодов.
@@ -42,7 +45,7 @@ import pandas as pd
 from . import data as D
 from .broad import ADV_MIN, adv30
 from .dboost2 import inflow_gate
-from .dconf import Exit, simulate
+from .dconf import Exit, simulate, simulate_bar
 from .shard import all_parts, mine, part_path
 from .smc import _atr, _cell
 from .tline import MAKER, STOP_BUF, TAKER, htf_trend, last_confirmed, pivots, retest_fill, tf_frame, zz_lines
@@ -153,9 +156,39 @@ def reentry(hi, lo, c, fill: int, side: int, stop: float, level: float, slope: f
     return -1, np.nan
 
 
-def coin_rows(d: pd.DataFrame, liq: np.ndarray, sym: str, src: str, funnel: dict | None = None) -> list[dict]:
+BETA_DAYS, BETA_MIN, BETA_RANGE = 180, 120, (0.0, 3.0)      # как trader/domain/hedge.beta на дневках бумажной книги
+HEDGE_FEE = TAKER
+
+
+def beta_at(coin: np.ndarray, btc: np.ndarray, e: int) -> float:
+    """Бета логдоходностей монеты к BTC по дневкам до бара e (не включая), окно BETA_DAYS; nan — данных мало."""
+    x, y = coin[max(0, e - BETA_DAYS - 1): e], btc[max(0, e - BETA_DAYS - 1): e]
+    ok = (x > 0) & (y > 0) & np.isfinite(x) & np.isfinite(y)
+    x, y = x[ok], y[ok]
+    if len(x) < BETA_MIN + 1:
+        return np.nan
+    rx, ry = np.diff(np.log(x)), np.diff(np.log(y))
+    var = ry.var(ddof=1)
+    if not var > 0:
+        return np.nan
+    b = np.cov(rx, ry, ddof=1)[0, 1] / var
+    return float(min(max(b, BETA_RANGE[0]), BETA_RANGE[1])) if np.isfinite(b) else np.nan
+
+
+def hedge_r(btc: np.ndarray, side: int, b: float, level: float, rr: float, e: int, j: int) -> float:
+    """Нога BTC в R сделки: обратная позиция на бету × номинал (номинал / риск = level / rr) по закрытиям дня
+    входа e и выхода j, комиссия taker на вход и выход — как бумажная книга trader/domain/daily_break."""
+    if not (b > 0) or not (btc[e] > 0) or not (btc[j] > 0):
+        return 0.0
+    h = b * level / rr
+    return -side * h * (btc[j] / btc[e] - 1) - 2 * HEDGE_FEE * h
+
+
+def coin_rows(d: pd.DataFrame, liq: np.ndarray, sym: str, src: str, funnel: dict | None = None,
+              btc: np.ndarray | None = None) -> list[dict]:
     """Пробои по правилу бота на дневках с оборотом от LIQ[0]. Колонки «вход|стоп|выход» — R; «c2|вход|стоп» —
-    добавка к издержкам в R при издержках x2 (ещё один круг комиссий входа и выхода); «mfe|стоп» — на ретесте.
+    добавка к издержкам в R при издержках x2 (ещё один круг комиссий входа и выхода); «mfe|стоп» — на ретесте;
+    «h|стоп|выход» — нога хеджа BTC в R для входа на ретесте (btc — закрытия BTC на тех же днях), «beta|стоп».
     funnel — сколько пробоев дошло до каждого шага правила (стоп PIV5, вход на ретесте)."""
     o, hi, lo, c = (d[k].to_numpy(dtype="float64") for k in ("open", "high", "low", "close"))
     f = d["funding"].fillna(0.0).to_numpy(dtype="float64") if "funding" in d else np.zeros(len(c))
@@ -213,9 +246,15 @@ def coin_rows(d: pd.DataFrame, liq: np.ndarray, sym: str, src: str, funnel: dict
             for k, ex in exs.items():
                 row[f"market|{sn}|{k}"] = simulate(o, hi, lo, c, f, t, side, c[t], stop, a[t], ex, TAKER) \
                     if m_ok else np.nan
-                row[f"retest|{sn}|{k}"] = np.nan if fill < 0 else \
-                    (side * (stop - level) - (MAKER + TAKER) * level) / rr if stopped else \
-                    simulate(o, hi, lo, c, f, fill, side, level, stop, a[t], ex, MAKER)
+                if fill < 0:
+                    row[f"retest|{sn}|{k}"], j = np.nan, -1
+                elif stopped:
+                    row[f"retest|{sn}|{k}"], j = (side * (stop - level) - (MAKER + TAKER) * level) / rr, fill
+                else:
+                    row[f"retest|{sn}|{k}"], j = simulate_bar(o, hi, lo, c, f, fill, side, level, stop, a[t], ex, MAKER)
+                if btc is not None and fill >= 0 and j >= 0:
+                    b = row.setdefault(f"beta|{sn}", beta_at(c, btc, fill))
+                    row[f"h|{sn}|{k}"] = hedge_r(btc, side, b, level, rr, fill, j)
             if kind[0] and fill >= 0:
                 e2, st2 = reentry(hi, lo, c, fill, side, stop, level, float(r["slope"]), t, a[t], level + side * 1.5 * rr)
                 risk2 = side * (c[e2] - st2) if e2 >= 0 else np.nan
@@ -271,6 +310,14 @@ def collect(root: Path, end: str, perp: list[str]) -> None:
     rows, funnel = [], {"spot": {}, "perp": {}}
     with ThreadPoolExecutor(16) as pool:
         frames = dict(zip(syms, pool.map(lambda s: load_daily(s, cache, end), syms)))
+    btc_spot = load_daily("BTCUSDT", cache, end)
+    btc_perp = tf_frame(root, "BTCUSDT", "1d") if perp else None
+
+    def on(btc: pd.DataFrame | None, d: pd.DataFrame) -> np.ndarray | None:
+        return btc["close"].reindex(d.index).to_numpy(dtype="float64") if btc is not None else None
+
+    print(f"  htftrend: BTC для хеджа — спот {'есть' if btc_spot is not None else 'НЕТ'}, "
+          f"перпетуал {'есть' if btc_perp is not None else 'НЕТ'}", flush=True)
     n_spot = n_perp = 0
     for s, d in frames.items():
         try:
@@ -278,7 +325,7 @@ def collect(root: Path, end: str, perp: list[str]) -> None:
                 continue
             n_spot += 1
             liq = d["quote_volume"].rolling(30, min_periods=20).mean().shift(1)
-            rows += coin_rows(d, liq.to_numpy(), s, "spot", funnel["spot"])
+            rows += coin_rows(d, liq.to_numpy(), s, "spot", funnel["spot"], on(btc_spot, d) if s != "BTCUSDT" else None)
         except Exception as e:
             print(f"  htftrend {s}: пропуск ({e})", flush=True)
     for s in mine(perp):
@@ -288,7 +335,7 @@ def collect(root: Path, end: str, perp: list[str]) -> None:
                 continue
             n_perp += 1
             liq = adv30(root, s).reindex(d.index.floor("D")).to_numpy()
-            rows += coin_rows(d, liq, s, "perp", funnel["perp"])
+            rows += coin_rows(d, liq, s, "perp", funnel["perp"], on(btc_perp, d) if s != "BTCUSDT" else None)
         except Exception as e:
             print(f"  htftrend perp {s}: пропуск ({e})", flush=True)
     print(f"  htftrend: спот {n_spot} из {len(syms)} монет, перпетуалы {n_perp}, пробоев {len(rows)}", flush=True)
@@ -403,6 +450,29 @@ def report() -> None:
             m = x[f"mfe|{sn}"].dropna()
             if len(m):
                 print(f"     {sn} (n={len(m)}): " + "  ".join(f"≥{r}R {np.mean(m >= r):.0%}" for r in MFE_R))
+        print("  6) хедж BTC (ретест; нога BTC на бету за 180 дней, по закрытиям дней входа и выхода, taker x2):")
+        for sn in ("1.5 ATR", "PIV5"):
+            for k in ("3R", "5R", "8R"):
+                col, hc = f"retest|{sn}|{k}", f"h|{sn}|{k}"
+                if hc not in x:
+                    continue
+                z = x[x[col].notna() & x[hc].notna()].copy()
+                z["hedged"] = z[col] + z[hc]
+                for c_, nm in ((col, "без хеджа"), ("hedged", "с хеджем"), (hc, "сама нога BTC")):
+                    line, ok = _stats(z, c_)
+                    print(f"     {sn}, {k}, {nm}: {line}" + (f"  → {_verdict(ok)}" if c_ != hc else ""))
+                for c_, nm in ((col, "без хеджа"), ("hedged", "с хеджем")):
+                    mon = z.groupby(z.t.dt.tz_localize(None).dt.to_period("M"))[c_].sum()
+                    if len(mon) >= 6:
+                        print(f"       {nm}: R в месяц {mon.mean():+.2f}, σ месяца {mon.std():.2f}, худший месяц "
+                              f"{mon.min():+.1f}R, Sharpe месяцев {mon.mean() / mon.std() * np.sqrt(12):.2f}")
+                if sn == "1.5 ATR" and k == "3R":
+                    b = z[f"beta|{sn}"].dropna()
+                    print(f"       бета: медиана {b.median():.2f}, доля шортов {(z.side < 0).mean():.0%}")
+                    for side, nm in ((1, "лонги"), (-1, "шорты")):
+                        for c_, hn in ((col, "без хеджа"), ("hedged", "с хеджем")):
+                            line, _ = _stats(z[z.side == side], c_)
+                            print(f"       {nm}, {hn}: {line}")
         print("  4) перезаход после снятия стопа за свингом, пока линия держится:")
         for sn in (k for k, v in STOPS.items() if v[0]):
             for k in ("3R", "8R"):

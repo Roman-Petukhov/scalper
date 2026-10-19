@@ -63,3 +63,32 @@ def test_reentry_when_line_holds_and_cancel_when_it_breaks():
     c2[2] = 99.5                                                               # закрытие под линией — отмена
     assert reentry(hi, lo, c2, 1, 1, 99.0, 100.0, 0.0, 0, 1.0, 111.5)[0] == -1
     assert reentry(hi, lo, c, 1, 1, 99.0, 100.0, 0.0, 0, 1.0, 101.2)[0] == -1  # до снятия цена дошла до +1.5R
+
+
+def test_beta_matches_trader_and_hedge_leg():
+    from trader.domain.hedge import beta
+    from research.htftrend import beta_at, hedge_r
+    rng = np.random.default_rng(3)
+    idx = pd.date_range("2024-01-01", periods=400, freq="1D", tz="UTC")
+    btc = 100 * np.exp(np.cumsum(rng.normal(0, 0.03, 400)))
+    coin = 5 * np.exp(1.4 * np.log(btc / 100) + np.cumsum(rng.normal(0, 0.02, 400)))
+    b = beta_at(coin, btc, 300)
+    assert abs(b - beta(pd.Series(coin[:300], idx[:300]), pd.Series(btc[:300], idx[:300]), 180)) < 1e-9
+    assert np.isnan(beta_at(coin, btc, 100))                                      # меньше 120 доходностей
+    btc2 = np.array([100.0, 110.0])
+    assert abs(hedge_r(btc2, -1, 1.5, 50.0, 2.0, 0, 1) - (1.5 * 25 * 0.10 - 2 * 5.5e-4 * 1.5 * 25)) < 1e-12
+    assert hedge_r(btc2, 1, np.nan, 50.0, 2.0, 0, 1) == 0.0
+
+
+def test_coin_rows_hedge_columns():
+    rng = np.random.default_rng(6)
+    n = 1500
+    idx = pd.date_range("2018-01-01", periods=n, freq="1D", tz="UTC")
+    c = 100 * np.exp(np.cumsum(rng.normal(0, 0.04, n)))
+    o = np.r_[c[0], c[:-1]]
+    d = pd.DataFrame({"open": o, "high": np.maximum(o, c) * 1.01, "low": np.minimum(o, c) * 0.99, "close": c,
+                      "volume": 1.0, "quote_volume": 1e9, "taker_buy_volume": 0.6}, index=idx)
+    rows = coin_rows(d, np.full(n, 1e9), "XUSDT", "perp", btc=c * 300)
+    filled = [r for r in rows if np.isfinite(r["retest|1.5 ATR|3R"])]
+    assert filled and all(abs(r["beta|1.5 ATR"] - 1.0) < 1e-9 for r in filled if np.isfinite(r["beta|1.5 ATR"]))
+    assert all("h|1.5 ATR|8R" in r for r in filled)
