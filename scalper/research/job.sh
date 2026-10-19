@@ -248,10 +248,12 @@ revgrid_collect() { python -m research.revgrid collect --symbols "$(cat /tmp/sym
 revgrid_report() { python -m research.revgrid report; }
 exits15_collect() { python -m research.exits15 collect --symbols "$(cat /tmp/syms_15m-wide.txt)"; }
 exits15_report() { python -m research.exits15 report; }
-# Правило бота на 1d / 1w по споту Binance с 2017 (свечи качает сам), включатели «приток» и COT
+# Правило бота на дневках: спот Binance с 2017 (свечи качает сам) и перпетуалы с 2020, стопы, цели, перезаход
 htftrend_collect() {
   python -m research.extreg collect
-  python -m research.htftrend collect --end "${RESEARCH_END:-$(date -u -d "$(date -u +%Y-%m-01) -1 day" +%Y-%m)}"
+  RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-qualified
+  python -m research.htftrend collect --perp "$(cat /tmp/syms_1h-qualified.txt)" \
+    --end "${RESEARCH_END:-$(date -u -d "$(date -u +%Y-%m-01) -1 day" +%Y-%m)}"
 }
 htftrend_report() { python -m research.htftrend report; }
 robust_collect() { python -m research.robust collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }

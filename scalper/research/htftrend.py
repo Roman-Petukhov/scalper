@@ -1,29 +1,30 @@
-"""Правило бота 4h на дневках и неделях + включатель «приток стейблкоинов», история со спота Binance с 2017 года.
+"""Правило бота 4h на дневках: спот Binance с 2017 (с делистнутыми) и перпетуалы с 2020, приток и COT.
 
-Правило бота (как research/topcrowd.py coin_rows): пробой линии зигзага 3 ATR на закрытии свечи, тренд старшего ТФ
-по направлению (1d — неделя против EMA50, как в боте; 1w — сама неделя против EMA50 своих закрытий ≈ год), закрытие
-в своей половине свечи, стоп за подтверждённым свингом PIV5 ± 0.1 ATR (0.3–4 ATR), вход на ретесте линии (1d — 12
-свечей, 1w — 4), цель 3R, долив +0.5 на +1.5R, срок 1d — 60 свечей, 1w — 26; оборот от $20M в день. Издержки как у
-бота (maker / taker Bybit); funding — 0 (спот; на перпетуалах он был бы).
-Почему спот: архив перпетуалов — с 2020 года, а спот Binance — с 2017-08, вместе с делистнутыми парами (без ошибки
-выжившего): добавляются пузырь 2017, зима 2018 и боковик 2019 — проверка медвежьего цикла, которого нет в данных бота.
-Разрезы (заданы до запуска): агрессоры ≥ 55% (как бот) и все пробои; включатель «по притоку» — лонг, если предложение
-стейблкоинов за 30 дней выросло на последний закрытый день, шорт — если снизилось (DefiLlama, research/extreg.py); наклон линии в ATR за свечу — трети по IS
-(пологие / средние / крутые), как фильтр не обязателен — для справки.
-Включатель COT (добавлен по просьбе владельца до запуска): отчёт CFTC «Traders in Financial Futures» по биткоину
-на CME — лонг, если управляющие активами (asset managers) нарастили чистый лонг за 4 отчёта, шорт — если сократили; данные за вторник выходят в пятницу,
-поэтому действуют с субботы. Оговорка: с 2024 позиции фондов с плечом искажены базисной сделкой (шорт CME против
-спотовых ETF), поэтому берём управляющих, а не фонды с плечом.
-Решение: годится как вторая нога, если R на сделку > 0 во всех периодах, где ≥ 10 сделок, и приток не хуже без него
-в каждом периоде (отсекаемые не лучше оставшихся); при < 10 сделок в периоде — вывода нет.
-Второй прогон (после первого: 264 пробоя за 9 лет, агрессоры ≥ 55% на дневках почти не встречаются — дневная доля
-тейкеров усредняется к 50%): основа — все пробои с оборотом от $20M (агрессоры — разрез «выше медианы IS»); выходы
-3R / 5R / 8R / лестница без цели (по просьбе владельца: 3R мало для дневок и недель), сроки 5R / 8R / лестницы втрое
-длиннее; воронка правила (сколько пробоев отсекает каждый шаг); справка — оборот от $5M и итог за всё время.
-Длинная цель лучше 3R, если R на сделку выше в большинстве периодов с ≥ 10 сделками и за всё время.
+Правило бота (как research/topcrowd.py coin_rows): пробой линии зигзага 3 ATR на закрытии дневки, неделя по
+направлению (закрытие против EMA50 последней закрытой недели), закрытие в своей половине свечи, вход на ретесте линии
+(12 свечей) или по рынку, долив +0.5 на +1.5R. Издержки — maker / taker Bybit; funding — на перпетуалах, на споте 0.
+Почему спот: архив перпетуалов — с 2020 года, спот — с 2017-08 вместе с делистнутыми парами (без ошибки выжившего).
 
-    python -m research.htftrend collect          (сам скачивает дневки спота своей части монет)
-    python -m research.htftrend report           (+ python -m research.extreg collect)
+История: прогон 1 — 264 пробоя (1d + 1w), агрессоры ≥ 55% на дневках почти не встречаются (дневная доля тейкеров
+~50%); прогон 2 — оборот на споте в разы меньше, чем на перпетуалах: от $20M — 226 пробоев, от $5M — 606 (+0.46R,
+t 3.7, плюс во всех периодах на 3R); 8R лучше 3R в среднем, но не во всех периодах; приток на дневках работает
+наоборот, COT — ноль; недели — 38 пробоев за 9 лет, сняты.
+
+Прогон 3 (задан до запуска, по вопросам владельца: «стоп за свингом на дневках не слишком широкий?», «цели и больше
+8R», «стоп снимают, но цена держит пробитую линию и уходит»):
+    стоп     PIV5 ± 0.1 ATR (бот, риск 0.3–4 ATR) / PIV3 / PIV5 без потолка / 1.5 и 2.5 ATR от линии
+    цель     3R (срок 60) / 5R / 8R (180) / 12R / 20R (360)
+    MFE      какая доля сделок на ретесте дошла до 1 / 3 / 5 / 8 / 12 / 20R раньше стопа
+    перезаход стоп за свингом выбит раньше +1.5R; дальше 12 свечей: закрытие за линией (продолжена по наклону) —
+             отмена; закрытие обратно за снятым свингом (не на баре снятия) — вход по рынку, стоп за экстремумом
+             снятия ± 0.1 ATR; считаются сам перезаход и «сигнал + перезаход» на один сигнал
+    оборот   $5M / $10M / $20M; издержки x2 — ещё один круг комиссий входа и выхода
+Решение: вариант лучше бота (PIV5, 3R), если R за всё время выше и в плюсе во всех периодах с ≥ 10 сделками, на
+споте и на перпетуалах, и при издержках x2 знак тот же; перезаход полезен, если «сигнал + перезаход» выше «сигнала»
+в большинстве периодов.
+
+    python -m research.htftrend collect --perp <1h-qualified>   (спот качает сам; COT — часть 0)
+    python -m research.htftrend report                          (+ python -m research.extreg collect)
 """
 from __future__ import annotations
 
@@ -39,12 +40,12 @@ import numpy as np
 import pandas as pd
 
 from . import data as D
-from .broad import ADV_MIN
+from .broad import ADV_MIN, adv30
 from .dboost2 import inflow_gate
 from .dconf import Exit, simulate
 from .shard import all_parts, mine, part_path
 from .smc import _atr, _cell
-from .tline import MAKER, PIV, STOP_BUF, TAKER, htf_trend, last_confirmed, pivots, retest_fill, zz_lines
+from .tline import MAKER, STOP_BUF, TAKER, htf_trend, last_confirmed, pivots, retest_fill, tf_frame, zz_lines
 
 START = "2017-08"
 COT_URL = ("https://publicreporting.cftc.gov/resource/gpe5-46if.json?cftc_contract_market_code=133741"
@@ -55,20 +56,23 @@ STABLE = ("USDC", "BUSD", "TUSD", "FDUSD", "DAI", "USDP", "PAX", "USDS", "SUSD",
           "TRY", "BRL", "RUB", "BIDR", "IDRT", "NGN", "UAH", "ZAR", "PLN", "RON", "ARS", "JPY", "BKRW", "EURI", "AEUR",
           "USD1", "XUSD", "BFUSD", "PAXG")
 LEVERAGED = re.compile(r"(UP|DOWN|BULL|BEAR)USDT$")
-HOLD = {"1d": 60, "1w": 26}
-RETEST = {"1d": 12, "1w": 4}
-LIQ_WIDE = 5e6                 # широкая выборка для справки (основное правило — ADV_MIN, как у бота)
+HOLD, RETEST = 60, 12            # дневки: срок цели 3R и окно ретеста, свечей
+LIQ = (5e6, 10e6, ADV_MIN)       # пороги оборота: на споте он в разы меньше, чем на перпетуалах
+PERP_START = "2020-01"
 
 
-def exits(tf: str) -> dict[str, Exit]:
-    """Выходы (заданы до второго прогона): 3R — бот; 5R и 8R; «лестница» — без цели, доливы на +1.5 / 3 / 4.5R,
-    после последней — стоп в 3 ATR за лучшим закрытием (как dconf). Длинным целям — срок втрое больше."""
-    h = HOLD[tf]
-    return {"3R": Exit(3.0, (1.5,), 0.5, h), "5R": Exit(5.0, (1.5,), 0.5, 3 * h),
-            "8R": Exit(8.0, (1.5,), 0.5, 3 * h), "лестница": Exit(None, (1.5, 3.0, 4.5), 0.5, 3 * h, 3.0)}
+def exits() -> dict[str, Exit]:
+    """Выходы (заданы до третьего прогона): 3R — бот; 5R / 8R со сроком втрое длиннее; 12R / 20R — вшестеро."""
+    return {"3R": Exit(3.0, (1.5,), 0.5, HOLD), "5R": Exit(5.0, (1.5,), 0.5, 3 * HOLD),
+            "8R": Exit(8.0, (1.5,), 0.5, 3 * HOLD), "12R": Exit(12.0, (1.5,), 0.5, 6 * HOLD),
+            "20R": Exit(20.0, (1.5,), 0.5, 6 * HOLD)}
 
 
-FUNNEL = ("линий", "оборот", "тренд", "закрытие", "свинг", "в отчёте")
+# стоп: (фрактал свинга или 0 — фиксированный от линии, ATR от линии / отступ за свингом, потолок риска в ATR)
+STOPS = {"PIV5": (5, STOP_BUF, 4.0), "PIV3": (3, STOP_BUF, 4.0), "PIV5 без потолка": (5, STOP_BUF, np.inf),
+         "1.5 ATR": (0, 1.5, np.inf), "2.5 ATR": (0, 2.5, np.inf)}
+MFE_R = (1, 3, 5, 8, 12, 20)
+FUNNEL = ("линий", "оборот", "тренд", "закрытие", "свинг", "риск в окне", "ретест исполнен")
 PER = {"2017–18": ("2017-08-01", "2019-01-01"), "2019": ("2019-01-01", "2020-01-01"),
        "2020": ("2020-01-01", "2021-01-01"), "2021": ("2021-01-01", "2022-01-01"),
        "is": ("2022-01-01", "2024-07-01"), "val": ("2024-07-01", "2025-07-01"), "ho": ("2025-07-01", "2026-10-01")}
@@ -100,70 +104,129 @@ def load_daily(sym: str, cache: Path, end: str) -> pd.DataFrame | None:
     return k.drop(columns=["open_time"])
 
 
-def weekly(d: pd.DataFrame) -> pd.DataFrame:
-    w = d.resample("W-MON", label="left", closed="left").agg(
-        {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum", "quote_volume": "sum",
-         "taker_buy_volume": "sum"}).dropna(subset=["close"])
-    return w
+def mfe(hi: np.ndarray, lo: np.ndarray, e: int, side: int, entry: float, stop: float, hold: int) -> float:
+    """Максимальный ход в пользу позиции, R, от входа на баре e до стопа или конца срока (бар со стопом не в зачёт)."""
+    risk = side * (entry - stop)
+    if not risk > 0 or (side > 0 and lo[e] <= stop) or (side < 0 and hi[e] >= stop):
+        return 0.0
+    best = 0.0
+    for j in range(e + 1, min(e + hold, len(hi) - 1) + 1):
+        if (side > 0 and lo[j] <= stop) or (side < 0 and hi[j] >= stop):
+            break
+        best = max(best, side * ((hi[j] if side > 0 else lo[j]) - entry) / risk)
+    return best
 
 
-def trend_of(d: pd.DataFrame, tf: str) -> np.ndarray:
-    if tf == "1d":
-        return htf_trend(d, "1d")                                 # неделя против EMA50 (последняя закрытая неделя)
-    c = d["close"]
-    return np.sign(c - c.ewm(span=50, adjust=False).mean()).to_numpy()
+def _stop(kind: tuple, side: int, level: float, sw_lo: dict, sw_hi: dict, hi, lo, t: int, atr: float) -> float:
+    piv, k, _ = kind
+    if piv == 0:
+        return level - side * k * atr
+    sw = (sw_lo if side > 0 else sw_hi)[piv][t]
+    if sw < 0:
+        return np.nan
+    return lo[sw] - k * atr if side > 0 else hi[sw] + k * atr
 
 
-def coin_rows(d: pd.DataFrame, liq: np.ndarray, sym: str, tf: str, funnel: dict | None = None) -> list[dict]:
-    """Пробои по правилу бота с оборотом от LIQ_WIDE; колонки m_<выход> / r_<выход> — R по рынку / на ретесте.
-    funnel — счётчик, сколько пробоев дошло до каждого шага правила."""
+def reentry(hi, lo, c, fill: int, side: int, stop: float, level: float, slope: float, t: int, atr: float,
+            target: float) -> tuple[int, float]:
+    """Перезаход после снятия стопа за свингом, если пробитая линия устояла (правило владельца, задано до прогона):
+    стоп выбит на баре s (раньше, чем цена дошла до target — ступени, после которой стоп переносится); дальше
+    RETEST свечей: закрытие за линией (продолжена по наклону) — отмена; закрытие обратно за снятым свингом — вход
+    по закрытию, стоп — за экстремумом снятия ± STOP_BUF ATR. Возвращает (бар входа, стоп) или (−1, nan)."""
+    n, s_ = len(c), -1
+    for j in range(fill, n):
+        if (side > 0 and lo[j] <= stop) or (side < 0 and hi[j] >= stop):
+            s_ = j
+            break
+        if (side > 0 and hi[j] >= target) or (side < 0 and lo[j] <= target):
+            return -1, np.nan
+    if s_ < 0:
+        return -1, np.nan
+    ext = lo[s_] if side > 0 else hi[s_]
+    for j in range(s_, min(s_ + RETEST, n - 2) + 1):
+        ext = min(ext, lo[j]) if side > 0 else max(ext, hi[j])
+        line_j = level + slope * (j - t)
+        if side * (c[j] - line_j) < 0:
+            return -1, np.nan
+        if j > s_ and side * (c[j] - stop) > 0:
+            return j, ext - side * STOP_BUF * atr
+    return -1, np.nan
+
+
+def coin_rows(d: pd.DataFrame, liq: np.ndarray, sym: str, src: str, funnel: dict | None = None) -> list[dict]:
+    """Пробои по правилу бота на дневках с оборотом от LIQ[0]. Колонки «вход|стоп|выход» — R; «c2|вход|стоп» —
+    добавка к издержкам в R при издержках x2 (ещё один круг комиссий входа и выхода); «mfe|стоп» — на ретесте.
+    funnel — сколько пробоев дошло до каждого шага правила (стоп PIV5, вход на ретесте)."""
     o, hi, lo, c = (d[k].to_numpy(dtype="float64") for k in ("open", "high", "low", "close"))
-    f = np.zeros(len(c))
+    f = d["funding"].fillna(0.0).to_numpy(dtype="float64") if "funding" in d else np.zeros(len(c))
     a = _atr(d).to_numpy()
-    trend = trend_of(d, tf)
+    trend = htf_trend(d, "1d")                                     # неделя против EMA50 (последняя закрытая неделя)
     buy = (d["taker_buy_volume"] / d["volume"].replace(0, np.nan)).to_numpy()
     rng = hi - lo
     loc = (c - lo) / np.where(rng > 0, rng, np.nan)
-    sw_lo, sw_hi = last_confirmed(pivots(lo, PIV, False), len(c)), last_confirmed(pivots(hi, PIV, True), len(c))
-    exs = exits(tf)
+    pivs = {k[0] for k in STOPS.values() if k[0]}
+    sw_lo = {p: last_confirmed(pivots(lo, p, False), len(c)) for p in pivs}
+    sw_hi = {p: last_confirmed(pivots(hi, p, True), len(c)) for p in pivs}
+    exs = exits()
     fn = funnel if funnel is not None else {}
+
+    def bump(k: str) -> None:
+        fn[k] = fn.get(k, 0) + 1
+
     rows = []
     for r in zz_lines(d):
         t, side = int(r["t"]), int(r["side"])
         if t <= 0 or t >= len(c) - 1 or not (a[t] > 0):
             continue
-        fn["линий"] = fn.get("линий", 0) + 1
-        if not (liq[t] >= LIQ_WIDE):
+        bump("линий")
+        if not (liq[t] >= LIQ[0]):
             continue
-        fn["оборот"] = fn.get("оборот", 0) + 1
+        bump("оборот")
         if trend[t] != side:
             continue
-        fn["тренд"] = fn.get("тренд", 0) + 1
+        bump("тренд")
         cl = loc[t] if side > 0 else 1 - loc[t]
-        sw = sw_lo[t] if side > 0 else sw_hi[t]
         if not (cl >= 0.5):
             continue
-        fn["закрытие"] = fn.get("закрытие", 0) + 1
-        if sw < 0:
-            continue
-        fn["свинг"] = fn.get("свинг", 0) + 1
+        bump("закрытие")
         level = float(r["line_t"])
-        stop = (lo[sw] - STOP_BUF * a[t]) if side > 0 else (hi[sw] + STOP_BUF * a[t])
-        row = {"symbol": sym, "tf": tf, "t": d.index[t], "side": side, "liq": float(liq[t]),
+        row = {"symbol": sym, "src": src, "t": d.index[t], "side": side, "liq": float(liq[t]),
                "aggr": float(buy[t] if side > 0 else 1 - buy[t]), "slope_atr": abs(float(r["slope"])) / a[t]}
-        risk = side * (c[t] - stop)
-        rr = side * (level - stop)
-        fill = retest_fill(hi, lo, t, side, level, 3.0 * rr, RETEST[tf]) if 0.3 * a[t] <= rr <= 4 * a[t] else -1
-        stopped = fill >= 0 and ((side > 0 and lo[fill] <= stop) or (side < 0 and hi[fill] >= stop))
-        for k, ex in exs.items():
-            row[f"m_{k}"] = simulate(o, hi, lo, c, f, t, side, c[t], stop, a[t], ex, TAKER) \
-                if 0.3 * a[t] <= risk <= 4 * a[t] else np.nan
-            row[f"r_{k}"] = np.nan if fill < 0 else \
-                (side * (stop - level) - (MAKER + TAKER) * level) / rr if stopped else \
-                simulate(o, hi, lo, c, f, fill, side, level, stop, a[t], ex, MAKER)
-        if np.isfinite(row["m_3R"]) or np.isfinite(row["r_3R"]):
-            fn["в отчёте"] = fn.get("в отчёте", 0) + 1
-        rows.append(row)
+        any_ok = False
+        for sn, kind in STOPS.items():
+            stop = _stop(kind, side, level, sw_lo, sw_hi, hi, lo, t, a[t])
+            if sn == "PIV5" and np.isfinite(stop):
+                bump("свинг")
+            cap = kind[2]
+            risk, rr = side * (c[t] - stop), side * (level - stop)
+            m_ok = np.isfinite(stop) and 0.3 * a[t] <= risk <= cap * a[t]
+            r_ok = np.isfinite(stop) and 0.3 * a[t] <= rr <= cap * a[t]
+            if sn == "PIV5" and r_ok:
+                bump("риск в окне")
+            fill = retest_fill(hi, lo, t, side, level, 3.0 * rr, RETEST) if r_ok else -1
+            if sn == "PIV5" and fill >= 0:
+                bump("ретест исполнен")
+            stopped = fill >= 0 and ((side > 0 and lo[fill] <= stop) or (side < 0 and hi[fill] >= stop))
+            row[f"c2|market|{sn}"] = (TAKER + TAKER) * c[t] / risk if m_ok else np.nan
+            row[f"c2|retest|{sn}"] = (MAKER + TAKER) * level / rr if fill >= 0 else np.nan
+            row[f"mfe|{sn}"] = mfe(hi, lo, fill, side, level, stop, 6 * HOLD) if fill >= 0 else np.nan
+            for k, ex in exs.items():
+                row[f"market|{sn}|{k}"] = simulate(o, hi, lo, c, f, t, side, c[t], stop, a[t], ex, TAKER) \
+                    if m_ok else np.nan
+                row[f"retest|{sn}|{k}"] = np.nan if fill < 0 else \
+                    (side * (stop - level) - (MAKER + TAKER) * level) / rr if stopped else \
+                    simulate(o, hi, lo, c, f, fill, side, level, stop, a[t], ex, MAKER)
+            if kind[0] and fill >= 0:
+                e2, st2 = reentry(hi, lo, c, fill, side, stop, level, float(r["slope"]), t, a[t], level + side * 1.5 * rr)
+                risk2 = side * (c[e2] - st2) if e2 >= 0 else np.nan
+                ok2 = e2 >= 0 and 0.3 * a[t] <= risk2 <= kind[2] * a[t]
+                row[f"c2|reentry|{sn}"] = 2 * TAKER * c[e2] / risk2 if ok2 else np.nan
+                for k, ex in exs.items():
+                    row[f"reentry|{sn}|{k}"] = simulate(o, hi, lo, c, f, e2, side, c[e2], st2, a[t], ex, TAKER) \
+                        if ok2 else np.nan
+            any_ok |= bool(m_ok or fill >= 0)
+        if any_ok:
+            rows.append(row)
     return rows
 
 
@@ -198,33 +261,40 @@ def collect_cot() -> None:
     pd.DataFrame({"day": cot.index, "net": cot.to_numpy()}).to_parquet(part_path("htftrend_cot"), index=False)
 
 
-def collect(root: Path, end: str) -> None:
+def collect(root: Path, end: str, perp: list[str]) -> None:
     from .shard import shard_id
     if shard_id()[0] == 0:
         collect_cot()
     syms = mine(list_spot())
     cache = root / "cache"
     cache.mkdir(parents=True, exist_ok=True)
-    rows, n, funnel = [], 0, {"1d": {}, "1w": {}}
+    rows, funnel = [], {"spot": {}, "perp": {}}
     with ThreadPoolExecutor(16) as pool:
         frames = dict(zip(syms, pool.map(lambda s: load_daily(s, cache, end), syms)))
+    n_spot = n_perp = 0
     for s, d in frames.items():
         try:
             if d is None or len(d) < 120:
                 continue
-            n += 1
-            liq_d = d["quote_volume"].rolling(30, min_periods=20).mean().shift(1)
-            rows += coin_rows(d, liq_d.to_numpy(), s, "1d", funnel["1d"])
-            w = weekly(d)
-            if len(w) >= 60:
-                liq_w = liq_d.reindex(w.index).to_numpy()            # оборот на начало недели — известен
-                rows += coin_rows(w, liq_w, s, "1w", funnel["1w"])
+            n_spot += 1
+            liq = d["quote_volume"].rolling(30, min_periods=20).mean().shift(1)
+            rows += coin_rows(d, liq.to_numpy(), s, "spot", funnel["spot"])
         except Exception as e:
             print(f"  htftrend {s}: пропуск ({e})", flush=True)
-    print(f"  htftrend: монет со свечами {n} из {len(syms)}, пробоев {len(rows)}", flush=True)
+    for s in mine(perp):
+        try:
+            d = tf_frame(root, s, "1d")
+            if d is None or len(d) < 120:
+                continue
+            n_perp += 1
+            liq = adv30(root, s).reindex(d.index.floor("D")).to_numpy()
+            rows += coin_rows(d, liq, s, "perp", funnel["perp"])
+        except Exception as e:
+            print(f"  htftrend perp {s}: пропуск ({e})", flush=True)
+    print(f"  htftrend: спот {n_spot} из {len(syms)} монет, перпетуалы {n_perp}, пробоев {len(rows)}", flush=True)
     if rows:
         pd.DataFrame(rows).to_parquet(part_path("htftrend"), index=False)
-    pd.DataFrame([{"tf": tf, "step": k, "n": v} for tf, fn in funnel.items() for k, v in fn.items()]) \
+    pd.DataFrame([{"src": k, "step": st, "n": v} for k, fn in funnel.items() for st, v in fn.items()]) \
         .to_parquet(part_path("htftrend_funnel"), index=False)
 
 
@@ -249,37 +319,47 @@ def cot_gate(cot: pd.Series, known: pd.Series) -> pd.Series:
 
 
 def _known(df: pd.DataFrame) -> pd.Series:
-    bar = df.tf.map({"1d": pd.Timedelta(days=1), "1w": pd.Timedelta(days=7)})
-    return (df.t + bar).dt.tz_localize(None).dt.normalize() - pd.Timedelta(days=1)   # последний закрытый день
+    return df.t.dt.tz_localize(None).dt.normalize()                 # дневка закрыта — её день уже известен
 
 
 ALL = ("всё время", (PER["2017–18"][0], PER["ho"][1]))
+SRC = {"spot": "спот Binance с 2017", "perp": "перпетуалы Binance с 2020 (с funding)"}
 
 
-def _line(z: pd.DataFrame, col: str) -> tuple[str, list[bool]]:
+def _stats(z: pd.DataFrame, col: str, c2: str | None = None) -> tuple[str, list[bool]]:
     cells, ok = [], []
     for p, (a, b) in (*PER.items(), ALL):
         m = z[(z.t >= a) & (z.t < b) & z[col].notna()]
+        if p in ("2017–18", "2019") and not len(m):
+            continue
         cells.append(f"{p}: {_cell(m.rename(columns={col: 'R'}))}")
         if p != ALL[0] and len(m) >= 10:
             ok.append(m[col].mean() > 0)
+    if c2 is not None:
+        m = z[z[col].notna()]
+        if len(m) >= 10:
+            cells.append(f"x2: {(m[col] - m[c2].fillna(0)).mean():+.3f}R")
     return "  ".join(cells), ok
+
+
+def _verdict(ok: list[bool]) -> str:
+    return f"плюс в {sum(ok)} из {len(ok)}" if ok else "мало сделок"
 
 
 def _funnel() -> None:
     parts = all_parts("htftrend_funnel")
     if not parts:
         return
-    f = pd.concat([pd.read_parquet(p) for p in parts], ignore_index=True).groupby(["tf", "step"]).n.sum()
-    for tf in ("1d", "1w"):
-        if tf in f.index.get_level_values(0):
-            steps = "  →  ".join(f"{k} {int(f.get((tf, k), 0))}" for k in FUNNEL)
-            print(f"  воронка {tf} (оборот от ${LIQ_WIDE / 1e6:.0f}M): {steps}")
+    f = pd.concat([pd.read_parquet(p) for p in parts], ignore_index=True).groupby(["src", "step"]).n.sum()
+    for src in SRC:
+        if src in f.index.get_level_values(0):
+            steps = "  →  ".join(f"{k} {int(f.get((src, k), 0))}" for k in FUNNEL)
+            print(f"  воронка {src} (оборот от ${LIQ[0] / 1e6:.0f}M, стоп PIV5, ретест): {steps}")
 
 
 def report() -> None:
     parts = all_parts("htftrend")
-    print("\n===== HTFTREND: правило бота 4h на 1d и 1w, спот Binance с 2017 (с делистнутыми), приток, COT, длинные цели =====")
+    print("\n===== HTFTREND: правило бота 4h на дневках — стопы, цели до 20R, MFE, перезаход, спот с 2017 и перпетуалы =====")
     if not parts:
         print("частей нет")
         return
@@ -295,49 +375,62 @@ def report() -> None:
         df["cot_known"] = _known(df) >= cot.index.min() + pd.Timedelta(weeks=COT_WEEKS)
     else:
         df["cot"], df["cot_known"] = False, False
-    print(f"пробоев {len(df)}, монет {df.symbol.nunique()}; данных притока {'есть' if g is not None else 'НЕТ'}, "
-          f"COT {'есть' if cp else 'НЕТ'} (включатель COT — только на днях, когда отчёты уже есть)")
+    print(f"пробоев {len(df)} (спот {int((df.src == 'spot').sum())}, перпетуалы {int((df.src == 'perp').sum())}), "
+          f"монет {df.symbol.nunique()}; приток {'есть' if g is not None else 'НЕТ'}, COT {'есть' if cp else 'НЕТ'}")
     _funnel()
-    names = list(exits("1d"))
-    for tf in ("1d", "1w"):
-        wide = df[df.tf == tf]
-        x = wide[wide.liq >= ADV_MIN]
-        if not len(x):
+    ex = list(exits())
+    for src, title in SRC.items():
+        x0 = df[df.src == src]
+        if not len(x0):
             continue
+        print(f"\n  ===== {title} =====")
+        print("  1) порог оборота (стоп PIV5, вход на ретесте):")
+        for lq in LIQ:
+            x = x0[x0.liq >= lq]
+            for k in ("3R", "8R", "20R"):
+                line, ok = _stats(x, f"retest|PIV5|{k}", "c2|retest|PIV5")
+                print(f"     от ${lq / 1e6:.0f}M, {k}: {line}  → {_verdict(ok)}")
+        base = LIQ[0] if src == "spot" else ADV_MIN
+        x = x0[x0.liq >= base]
+        print(f"  2) стоп × цель (оборот от ${base / 1e6:.0f}M; итог за всё время, x2 — издержки вдвое):")
+        for entry, nm in (("retest", "ретест"), ("market", "по рынку")):
+            for sn in STOPS:
+                for k in ex:
+                    line, ok = _stats(x, f"{entry}|{sn}|{k}", f"c2|{entry}|{sn}")
+                    print(f"     {nm}, {sn}, {k}: {line}  → {_verdict(ok)}")
+        print("  3) максимальный ход сделки на ретесте (доля сделок, дошедших до N R до стопа, срок 360 дней):")
+        for sn in STOPS:
+            m = x[f"mfe|{sn}"].dropna()
+            if len(m):
+                print(f"     {sn} (n={len(m)}): " + "  ".join(f"≥{r}R {np.mean(m >= r):.0%}" for r in MFE_R))
+        print("  4) перезаход после снятия стопа за свингом, пока линия держится:")
+        for sn in (k for k, v in STOPS.items() if v[0]):
+            for k in ("3R", "8R"):
+                col = f"reentry|{sn}|{k}"
+                if col not in x:
+                    continue
+                line, ok = _stats(x, col, f"c2|reentry|{sn}")
+                print(f"     {sn}, {k}, сам перезаход: {line}  → {_verdict(ok)}")
+                both = x[x[f"retest|{sn}|{k}"].notna()].copy()
+                both["sum"] = both[f"retest|{sn}|{k}"] + both[col].fillna(0)
+                line2, ok2 = _stats(both, "sum")
+                line1, _ = _stats(both, f"retest|{sn}|{k}")
+                print(f"     {sn}, {k}, сигнал без перезахода: {line1}")
+                print(f"     {sn}, {k}, сигнал + перезаход: {line2}  → {_verdict(ok2)}")
+        print("  5) разрезы (стоп PIV5, ретест, 3R / 8R):")
+        flow = ((x.side > 0) & x.inflow) | ((x.side < 0) & ~x.inflow)      # лонг — при притоке, шорт — при оттоке
+        cotd = x.cot_known & (((x.side > 0) & x.cot) | ((x.side < 0) & ~x.cot))
         is_ = x[(x.t >= PER["is"][0]) & (x.t < PER["is"][1])]
         ref = is_ if len(is_) >= 30 else x
         q1, q2 = ref.slope_atr.quantile([1 / 3, 2 / 3])
-        am = ref.aggr.median()
-        print(f"\n  {tf}: пробоев с оборотом от ${ADV_MIN / 1e6:.0f}M — {len(x)} (лонг {int((x.side > 0).sum())}, "
-              f"шорт {int((x.side < 0).sum())}), от ${LIQ_WIDE / 1e6:.0f}M — {len(wide)}; агрессоры: медиана "
-              f"{am:.3f}, ≥ 55% — {int((x.aggr >= 0.55).sum())}; наклон: пологие ≤ {q1:.3f}, крутые > {q2:.3f} ATR/свечу")
-        flow = ((x.side > 0) & x.inflow) | ((x.side < 0) & ~x.inflow)      # лонг — при притоке, шорт — при оттоке
-        cotd = x.cot_known & (((x.side > 0) & x.cot) | ((x.side < 0) & ~x.cot))
-        groups = {
-            "все пробои": x,
-            "по притоку": x[flow],
-            "против притока (отсекаемые)": x[~flow],
-            "по COT": x[cotd],
-            "против COT (отсекаемые)": x[x.cot_known & ~cotd],
-            "по притоку и COT": x[flow & cotd],
-            "агрессоры выше медианы IS": x[x.aggr > am],
-            "пологие": x[x.slope_atr <= q1],
-            "средние": x[(x.slope_atr > q1) & (x.slope_atr <= q2)],
-            "крутые": x[x.slope_atr > q2],
-            "лонги": x[x.side > 0],
-            "шорты": x[x.side < 0],
-            f"широкая выборка (от ${LIQ_WIDE / 1e6:.0f}M)": wide,
-        }
-        for k in names:
-            print(f"    выход {k}, вход на ретесте:")
-            for nm, z in groups.items():
-                line, ok = _line(z, f"r_{k}")
-                verdict = (f"плюс в {sum(ok)} из {len(ok)} периодов с ≥ 10 сделками" if ok else "мало сделок")
-                print(f"      {nm}: {line}  → {verdict}")
-            for nm in ("все пробои", "по притоку"):
-                line, ok = _line(groups[nm], f"m_{k}")
-                print(f"      по рынку, {nm}: {line}  → "
-                      f"{f'плюс в {sum(ok)} из {len(ok)}' if ok else 'мало сделок'}")
+        groups = {"лонги": x[x.side > 0], "шорты": x[x.side < 0], "по притоку": x[flow],
+                  "против притока": x[~flow], "по COT": x[cotd], "против COT": x[x.cot_known & ~cotd],
+                  f"агрессоры выше медианы IS ({ref.aggr.median():.3f})": x[x.aggr > ref.aggr.median()],
+                  f"пологие (≤ {q1:.3f} ATR/свечу)": x[x.slope_atr <= q1], f"крутые (> {q2:.3f})": x[x.slope_atr > q2]}
+        for nm, z in groups.items():
+            for k in ("3R", "8R"):
+                line, ok = _stats(z, f"retest|PIV5|{k}")
+                print(f"     {nm}, {k}: {line}  → {_verdict(ok)}")
 
 
 if __name__ == "__main__":
@@ -347,8 +440,9 @@ if __name__ == "__main__":
     ap.add_argument("mode", choices=["collect", "report"])
     ap.add_argument("--root", default="~/bn")
     ap.add_argument("--end", default=__import__("os").environ.get("RESEARCH_END", "2026-09"))
+    ap.add_argument("--perp", default="")
     a = ap.parse_args()
     if a.mode == "collect":
-        collect(Path(a.root).expanduser(), a.end)
+        collect(Path(a.root).expanduser(), a.end, [x for x in a.perp.split(",") if x])
     else:
         report()
