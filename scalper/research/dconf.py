@@ -66,8 +66,9 @@ def simulate(o, h, lo, c, fund, e, side, entry, stop, atr, ex: Exit, entry_fee: 
 
 
 def simulate_bar(o, h, lo, c, fund, e, side, entry, stop, atr, ex: Exit,
-                 entry_fee: float = MAKER) -> tuple[float, int]:
-    """То же, что simulate, плюс бар выхода (−1 — позиция не закрылась или не открылась)."""
+                 entry_fee: float = MAKER, adds_out: list | None = None) -> tuple[float, int]:
+    """То же, что simulate, плюс бар выхода (−1 — позиция не закрылась или не открылась).
+    adds_out — сюда пишутся ступени доливки (бар, цена исполнения), даже при add_size = 0 (ступень пройдена)."""
     n = len(c)
     risk = side * (entry - stop)
     if not risk > 0:
@@ -89,8 +90,11 @@ def simulate_bar(o, h, lo, c, fund, e, side, entry, stop, atr, ex: Exit,
             lvl = entry + side * ex.adds[step] * risk
             if not ((side > 0 and h[j] >= lvl) or (side < 0 and lo[j] <= lvl)):
                 break
+            px = max(lvl, o[j]) if side > 0 else min(lvl, o[j])
+            if adds_out is not None:
+                adds_out.append((j, px))
             if ex.add_size > 0:
-                units.append((max(lvl, o[j]) if side > 0 else min(lvl, o[j]), ex.add_size, TAKER))
+                units.append((px, ex.add_size, TAKER))
             if ex.ladder_stops:
                 new_sp = entry + side * (ex.adds[step - 1] if step > 0 else 0.0) * risk
             step += 1

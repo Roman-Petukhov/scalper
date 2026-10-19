@@ -16,8 +16,8 @@ from datetime import date, datetime, time, timedelta, timezone
 
 import pandas as pd
 
-from ..domain.daily_break import (HISTORY_DAYS, RULES, DailyBreakRule, DailySetup, Status, advance, beta_before,
-                                  equity_on, find, funding_r, hedge_pnl, margin_on, size)
+from ..domain.daily_break import (HISTORY_DAYS, RULES, DailyBreakRule, DailySetup, Status, add_fits, advance,
+                                  beta_before, equity_on, find, funding_r, hedge_pnl, margin_on, size)
 from ..domain.hedge import HEDGE_SYMBOL
 from .ports import DailyBreakRepository, MarketData, Notifier
 from .trend import RETRY
@@ -111,7 +111,10 @@ class DailyBreakPaper:
         if new.fill_day is None:
             return new
         end = _midnight(new.exit_day + timedelta(days=1)) if new.exit_day is not None else _midnight(now.date())
-        fr = funding_r(new, await self._funding(s.symbol, _midnight(new.fill_day), end))
+        base = await self._funding(s.symbol, _midnight(new.fill_day), end)
+        extra = await self._funding(s.symbol, _midnight(new.add_day), end) \
+            if new.add_day is not None and new.add_ok is not False else 0.0
+        fr = funding_r(new, base, extra, rule.add_size)
         return advance(d, replace(s, funding_r=fr), rule)
 
     @staticmethod
@@ -133,8 +136,8 @@ class DailyBreakPaper:
             return s
         if s.status is Status.CLOSED:
             out = _close_on(btc, s.exit_day)
-            return replace(s, btc_out=out, hedge_pnl=hedge_pnl(s, out))
-        return replace(s, hedge_pnl=hedge_pnl(s, float(btc.iloc[-1])))
+            return replace(s, btc_out=out, hedge_pnl=hedge_pnl(s, out, rule.add_size))
+        return replace(s, hedge_pnl=hedge_pnl(s, float(btc.iloc[-1]), rule.add_size))
 
     async def run(self, now: datetime) -> list[DailySetup]:
         day = now.date() - timedelta(days=1)
@@ -174,9 +177,22 @@ class DailyBreakPaper:
                     moved.append((s, await self._with_funding(d, s, rule, now)))
             btc = bars[HEDGE_SYMBOL]["close"] if HEDGE_SYMBOL in bars else None
             book = {x.id: x for x in self.repo.dbreak_recent(rule.key, 100_000)}
+            done_: dict[int | None, DailySetup] = {}
             for s, new in sorted(moved, key=lambda p: (p[1].fill_day or date.max, p[1].day)):
-                new = self._account(new, book, bars, btc, rule)
-                book[new.id] = new
+                done_[new.id] = book[new.id] = self._account(new, book, bars, btc, rule)
+            for s, _ in sorted(moved, key=lambda p: (done_[p[1].id].add_day or date.max, p[1].day)):
+                x = done_[s.id]
+                if x.add_day is None or x.add_ok is not None or not x.sized or x.status is Status.SKIPPED:
+                    continue
+                others = [y for k, y in book.items() if k != x.id]
+                used = margin_on(others, x.add_day, rule.leverage, rule.add_size) + x.margin(rule.leverage)
+                ok = add_fits(x, equity_on(others, x.add_day), used, rule)
+                x = replace(x, add_ok=ok, btc_add=_close_on(btc, x.add_day) if ok and x.beta else None)
+                if not ok:                                         # без доливки — пересчитать исход и funding
+                    x = await self._with_funding(bars[x.symbol], replace(x, status=Status.OPEN), rule, now)
+                done_[x.id] = book[x.id] = self._account(x, book, bars, btc, rule)
+            for s, _ in moved:
+                new = done_[s.id]
                 if new == s:
                     continue
                 self.repo.dbreak_update(new)
@@ -186,6 +202,8 @@ class DailyBreakPaper:
                     continue
                 if new.fill_day is not None and s.fill_day is None:
                     events.append(("fill", new))
+                if new.add_ok is not None and s.add_ok is None:
+                    events.append(("add", new))
                 if new.status is Status.CLOSED:
                     events.append(("close", new))
                 elif new.status is Status.CANCELLED:
@@ -205,6 +223,10 @@ class DailyBreakPaper:
         fills = [s for k, s in events if k == "fill"]
         if fills:
             parts.append("ретест, вошёл: " + ", ".join(f"{s.symbol} {side[s.side]}" for s in fills))
+        added = [s for k, s in events if k == "add"]
+        if added:
+            parts.append("долив: " + ", ".join(s.symbol + ("" if s.add_ok else " — пропущен, нет свободной маржи")
+                                              for s in added))
         closed = [s for k, s in events if k == "close"]
         if closed:
             parts.append("закрыл: " + ", ".join(f"{s.symbol} {s.r:+.2f}R ({(s.pnl or 0) * 100:+.1f}% счёта)"

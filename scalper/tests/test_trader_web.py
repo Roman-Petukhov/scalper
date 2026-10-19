@@ -539,16 +539,18 @@ def test_daily_break_card(env):
     mk = lambda sym, k: DailySetup(RULES[0].key, sym, -1, date(2026, 10, k), 2.5, 2.65, 0.1, 0.56, 0.02)
     a = st.dbreak_add(mk("NEARUSDT", 1))
     st.dbreak_update(replace(a, status=Status.CLOSED, fill_day=date(2026, 10, 2), exit_day=date(2026, 10, 9), r=2.95,
-                             risk_abs=0.06, notional=1.0, beta=1.2, btc_in=60000.0, btc_out=63000.0, hedge_pnl=0.059))
+                             risk_abs=0.06, notional=1.0, beta=1.2, btc_in=60000.0, btc_out=63000.0, hedge_pnl=0.059,
+                             add_day=date(2026, 10, 5), add_price=2.3, add_ok=True))
     b = st.dbreak_add(mk("OPUSDT", 5))
     st.dbreak_update(replace(b, status=Status.OPEN, fill_day=date(2026, 10, 6), r=-0.4, risk_abs=0.06, notional=0.8,
-                             beta=1.5))
+                             beta=1.5, add_day=date(2026, 10, 8), add_ok=False))
     st.dbreak_add(mk("ARBUSDT", 12))
     r = c.get("/dbreak")
     assert "NEARUSDT шорт" in r.text and "+2.95R" in r.text and "агрессоры 56%" in r.text
-    assert "OPUSDT шорт" in r.text and "-0.40R" in r.text and "в позиции с 06.10" in r.text
+    assert "OPUSDT шорт" in r.text and "-0.40R" in r.text
     assert "ARBUSDT шорт" in r.text and "ждёт ретеста" in r.text and "лимит 2.5" in r.text
     assert "+23.6%" in r.text and "хедж +5.9%" in r.text and "в плюсе 100%" in r.text      # 2.95 × 6% + 5.9%
+    assert "закрыта 09.10 · с доливом" in r.text and "в позиции с 06.10 · долив пропущен" in r.text
     assert "номинал 80% · хедж β 1.50" in r.text and "-2.4%" in r.text and "плечо 12" in r.text
 
 

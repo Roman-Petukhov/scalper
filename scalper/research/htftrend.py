@@ -21,6 +21,7 @@ t 3.7, плюс во всех периодах на 3R); 8R лучше 3R в с�
     оборот   $5M / $10M / $20M; издержки x2 — ещё один круг комиссий входа и выхода
 Прогон 4 (по просьбе владельца, до запуска): хедж BTC как в бумажной книге — обратная позиция BTCUSDT на бету монеты
 к BTC за 180 дней до дня входа, по закрытиям дней входа и выхода, taker на вход и выход; только вход на ретесте.
+Прогон 5: хеджируется и доливка (+0.5 на +1.5R) — своя нога BTC с закрытия дня доливки.
 Хедж годится, если R на сделку с ним не хуже в большинстве периодов, а σ месяца и худший месяц меньше.
 Решение: вариант лучше бота (PIV5, 3R), если R за всё время выше и в плюсе во всех периодах с ≥ 10 сделками, на
 споте и на перпетуалах, и при издержках x2 знак тот же; перезаход полезен, если «сигнал + перезаход» выше «сигнала»
@@ -175,13 +176,15 @@ def beta_at(coin: np.ndarray, btc: np.ndarray, e: int) -> float:
     return float(min(max(b, BETA_RANGE[0]), BETA_RANGE[1])) if np.isfinite(b) else np.nan
 
 
-def hedge_r(btc: np.ndarray, side: int, b: float, level: float, rr: float, e: int, j: int) -> float:
+def hedge_r(btc: np.ndarray, side: int, b: float, level: float, rr: float, e: int, j: int,
+            adds: list[tuple[int, float]] = (), add_size: float = 0.0) -> float:
     """Нога BTC в R сделки: обратная позиция на бету × номинал (номинал / риск = level / rr) по закрытиям дня
-    входа e и выхода j, комиссия taker на вход и выход — как бумажная книга trader/domain/daily_break."""
+    входа e и выхода j; доливка (бар, цена) — своя нога на бету × add_size × номинал по цене доливки, с закрытия её
+    дня; комиссия taker на вход и выход — как бумажная книга trader/domain/daily_break."""
     if not (b > 0) or not (btc[e] > 0) or not (btc[j] > 0):
         return 0.0
-    h = b * level / rr
-    return -side * h * (btc[j] / btc[e] - 1) - 2 * HEDGE_FEE * h
+    legs = [(e, b * level / rr)] + [(k, b * add_size * px / rr) for k, px in adds if add_size > 0 and btc[k] > 0]
+    return sum(-side * h * (btc[j] / btc[k] - 1) - 2 * HEDGE_FEE * h for k, h in legs)
 
 
 def coin_rows(d: pd.DataFrame, liq: np.ndarray, sym: str, src: str, funnel: dict | None = None,
@@ -246,15 +249,17 @@ def coin_rows(d: pd.DataFrame, liq: np.ndarray, sym: str, src: str, funnel: dict
             for k, ex in exs.items():
                 row[f"market|{sn}|{k}"] = simulate(o, hi, lo, c, f, t, side, c[t], stop, a[t], ex, TAKER) \
                     if m_ok else np.nan
+                adds: list[tuple[int, float]] = []
                 if fill < 0:
                     row[f"retest|{sn}|{k}"], j = np.nan, -1
                 elif stopped:
                     row[f"retest|{sn}|{k}"], j = (side * (stop - level) - (MAKER + TAKER) * level) / rr, fill
                 else:
-                    row[f"retest|{sn}|{k}"], j = simulate_bar(o, hi, lo, c, f, fill, side, level, stop, a[t], ex, MAKER)
+                    row[f"retest|{sn}|{k}"], j = simulate_bar(o, hi, lo, c, f, fill, side, level, stop, a[t], ex, MAKER,
+                                                              adds)
                 if btc is not None and fill >= 0 and j >= 0:
                     b = row.setdefault(f"beta|{sn}", beta_at(c, btc, fill))
-                    row[f"h|{sn}|{k}"] = hedge_r(btc, side, b, level, rr, fill, j)
+                    row[f"h|{sn}|{k}"] = hedge_r(btc, side, b, level, rr, fill, j, adds, ex.add_size)
             if kind[0] and fill >= 0:
                 e2, st2 = reentry(hi, lo, c, fill, side, stop, level, float(r["slope"]), t, a[t], level + side * 1.5 * rr)
                 risk2 = side * (c[e2] - st2) if e2 >= 0 else np.nan

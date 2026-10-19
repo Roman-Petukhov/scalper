@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS dbreak_setups (
     level REAL NOT NULL, stop REAL NOT NULL, atr REAL NOT NULL, aggr REAL NOT NULL, slope_atr REAL NOT NULL,
     status TEXT NOT NULL, fill_day TEXT, exit_day TEXT, r REAL, funding_r REAL NOT NULL DEFAULT 0,
     risk_abs REAL, notional REAL, beta REAL, btc_in REAL, btc_out REAL, hedge_pnl REAL NOT NULL DEFAULT 0,
+    add_day TEXT, add_price REAL, add_ok INTEGER, btc_add REAL,
     UNIQUE(rule, symbol, day, side)
 );
 """
@@ -84,11 +85,17 @@ def _day_or_none(s: str | None) -> date | None:
     return date.fromisoformat(s) if s else None
 
 
+def _add_cols(x: DailySetup) -> tuple:
+    return (x.add_day.isoformat() if x.add_day else None, x.add_price,
+            None if x.add_ok is None else int(x.add_ok), x.btc_add)
+
+
 def _dbreak(r: sqlite3.Row) -> DailySetup:
     return DailySetup(r["rule"], r["symbol"], r["side"], date.fromisoformat(r["day"]), r["level"], r["stop"], r["atr"],
                       r["aggr"], r["slope_atr"], DailyStatus(r["status"]), _day_or_none(r["fill_day"]),
                       _day_or_none(r["exit_day"]), r["r"], r["funding_r"], r["id"], r["risk_abs"], r["notional"],
-                      r["beta"], r["btc_in"], r["btc_out"], r["hedge_pnl"])
+                      r["beta"], r["btc_in"], r["btc_out"], r["hedge_pnl"], _day_or_none(r["add_day"]), r["add_price"],
+                      None if r["add_ok"] is None else bool(r["add_ok"]), r["btc_add"])
 
 
 class SqliteStore:
@@ -143,9 +150,10 @@ class SqliteStore:
                 self.db.execute(f"ALTER TABLE trend_days ADD COLUMN {col} {kind}")
 
     def _migrate_dbreak(self) -> None:
-        """Счёт в деньгах (риск, плечо, хедж BTC) появился после таблицы сетапов."""
+        """Счёт в деньгах (риск, плечо, хедж BTC) и доливка появились после таблицы сетапов."""
         cols = {r["name"] for r in self.db.execute("PRAGMA table_info(dbreak_setups)")}
-        for col, kind in (("risk_abs", "REAL"), ("notional", "REAL"), ("beta", "REAL"), ("btc_in", "REAL"), ("btc_out", "REAL"), ("hedge_pnl", "REAL NOT NULL DEFAULT 0")):
+        for col, kind in (("risk_abs", "REAL"), ("notional", "REAL"), ("beta", "REAL"), ("btc_in", "REAL"), ("btc_out", "REAL"), ("hedge_pnl", "REAL NOT NULL DEFAULT 0"),
+                          ("add_day", "TEXT"), ("add_price", "REAL"), ("add_ok", "INTEGER"), ("btc_add", "REAL")):
             if col not in cols:
                 self.db.execute(f"ALTER TABLE dbreak_setups ADD COLUMN {col} {kind}")
 
@@ -468,12 +476,12 @@ class SqliteStore:
         with self.lock:
             cur = self.db.execute(
                 "INSERT OR IGNORE INTO dbreak_setups(rule, symbol, side, day, level, stop, atr, aggr, slope_atr, status, "
-                "fill_day, exit_day, r, funding_r, risk_abs, notional, beta, btc_in, btc_out, hedge_pnl) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "fill_day, exit_day, r, funding_r, risk_abs, notional, beta, btc_in, btc_out, hedge_pnl, add_day, "
+                "add_price, add_ok, btc_add) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (x.rule, x.symbol, x.side, x.day.isoformat(), x.level, x.stop, x.atr, x.aggr, x.slope_atr,
                  x.status.value, x.fill_day.isoformat() if x.fill_day else None,
                  x.exit_day.isoformat() if x.exit_day else None, x.r, x.funding_r, x.risk_abs, x.notional, x.beta,
-                 x.btc_in, x.btc_out, x.hedge_pnl))
+                 x.btc_in, x.btc_out, x.hedge_pnl, *_add_cols(x)))
             self.db.commit()
             if cur.rowcount == 0:
                 return None
@@ -484,10 +492,11 @@ class SqliteStore:
         x = setup
         with self.lock:
             self.db.execute("UPDATE dbreak_setups SET status = ?, fill_day = ?, exit_day = ?, r = ?, funding_r = ?, "
-                            "risk_abs = ?, notional = ?, beta = ?, btc_in = ?, btc_out = ?, hedge_pnl = ? WHERE id = ?",
+                            "risk_abs = ?, notional = ?, beta = ?, btc_in = ?, btc_out = ?, hedge_pnl = ?, add_day = ?, "
+                            "add_price = ?, add_ok = ?, btc_add = ? WHERE id = ?",
                             (x.status.value, x.fill_day.isoformat() if x.fill_day else None,
                              x.exit_day.isoformat() if x.exit_day else None, x.r, x.funding_r, x.risk_abs, x.notional,
-                             x.beta, x.btc_in, x.btc_out, x.hedge_pnl, x.id))
+                             x.beta, x.btc_in, x.btc_out, x.hedge_pnl, *_add_cols(x), x.id))
             self.db.commit()
 
     def dbreak_active(self, rule: str) -> list[DailySetup]:

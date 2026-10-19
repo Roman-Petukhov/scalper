@@ -26,7 +26,7 @@
       <div class="jr-rows trend-rows num" role="table" aria-label="Сделки: {{ x.rule.title }}">
         {% for s in b.open %}
         <div class="jr-row" role="row">
-          <span role="cell" class="hint" style="margin:0">в позиции с {{ s.fill_day.strftime('%d.%m') }}</span>
+          <span role="cell" class="hint" style="margin:0">в позиции с {{ s.fill_day.strftime('%d.%m') }}{% if s.add_ok %} · долив {{ s.add_day.strftime('%d.%m') }}{% elif s.add_ok is sameas false %} · долив пропущен{% endif %}</span>
           <span role="cell">{{ s.symbol }} {{ 'лонг' if s.side > 0 else 'шорт' }}</span>
           <span role="cell" class="{{ 'jr-up' if (s.r or 0) > 0 else 'jr-down' }}">{{ '%+.2f' | format(s.r or 0) }}R</span>
           <span role="cell" class="hint" style="margin:0">{% if s.notional %}номинал {{ '%.0f' | format(s.notional * 100) }}%{% if s.beta %} · хедж β {{ '%.2f' | format(s.beta) }}{% endif %}{% else %}стоп {{ '%.6g' | format(s.stop) }}{% endif %}</span>
@@ -42,7 +42,7 @@
         {% endfor %}
         {% for s in b.recent %}
         <div class="jr-row" role="row">
-          <span role="cell" class="hint" style="margin:0">закрыта {{ s.exit_day.strftime('%d.%m') }}</span>
+          <span role="cell" class="hint" style="margin:0">закрыта {{ s.exit_day.strftime('%d.%m') }}{% if s.add_ok %} · с доливом{% elif s.add_ok is sameas false %} · без долива: маржа{% endif %}</span>
           <span role="cell">{{ s.symbol }} {{ 'лонг' if s.side > 0 else 'шорт' }}</span>
           <span role="cell" class="{{ 'jr-up' if s.r > 0 else 'jr-down' }}">{{ '%+.2f' | format(s.r) }}R</span>
           <span role="cell" class="hint" style="margin:0">{% if s.pnl is not none %}{{ '%+.1f' | format(s.pnl * 100) }}% счёта · {% endif %}агрессоры {{ '%.0f' | format(s.aggr * 100) }}%</span>

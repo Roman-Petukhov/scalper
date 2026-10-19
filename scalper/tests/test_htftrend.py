@@ -78,6 +78,10 @@ def test_beta_matches_trader_and_hedge_leg():
     btc2 = np.array([100.0, 110.0])
     assert abs(hedge_r(btc2, -1, 1.5, 50.0, 2.0, 0, 1) - (1.5 * 25 * 0.10 - 2 * 5.5e-4 * 1.5 * 25)) < 1e-12
     assert hedge_r(btc2, 1, np.nan, 50.0, 2.0, 0, 1) == 0.0
+    btc3 = np.array([100.0, 105.0, 110.0])                                       # доливка на баре 1 по 53
+    base = -1 * 25 * (110 / 100 - 1) - 2 * 5.5e-4 * 25
+    add = -1 * 0.5 * 53 / 2.0 * (110 / 105 - 1) - 2 * 5.5e-4 * 0.5 * 53 / 2.0
+    assert abs(hedge_r(btc3, 1, 1.0, 50.0, 2.0, 0, 2, [(1, 53.0)], 0.5) - (base + add)) < 1e-12
 
 
 def test_coin_rows_hedge_columns():

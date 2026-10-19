@@ -8,7 +8,8 @@ import pytest
 
 from research import htftrend
 from trader.application.daily_break import DailyBreakPaper
-from trader.domain.daily_break import (RULES, DailySetup, Status, advance, book, equity_on, find, funding_r, hedge_pnl,
+from trader.domain.daily_break import (RULES, DailySetup, Status, add_fits, advance, book, equity_on, find, funding_r,
+                                       hedge_pnl,
                                        margin_on, size)
 from trader.infrastructure.sqlite_repo import SqliteStore
 
@@ -240,3 +241,61 @@ def test_store_migrates_table_without_money_columns(tmp_path):
     db.close()
     [x] = SqliteStore(tmp_path / "t.db").dbreak_active(RULE.key)
     assert x.fill_day == date(2026, 10, 2) and not x.sized and x.hedge_pnl == 0.0      # размер задастся на следующем шаге
+
+
+def test_advance_records_add_and_runs_without_it_when_refused():
+    s = _setup()
+    win = [(101.0, 102.0, 100.5, 101.5), (101.0, 101.5, 99.5, 100.8), (100.8, 102.0, 100.0, 101.6),
+           (101.6, 105.0, 101.0, 104.8), (104.8, 110.0, 104.0, 109.5)]
+    a = advance(_bars(win), s, RULE)
+    assert a.status is Status.CLOSED and a.add_day == date(2026, 1, 4) and a.add_price == pytest.approx(104.5)
+    b = advance(_bars(win), replace(s, add_ok=False), RULE)
+    # долитая часть: 4.5 пути до цели минус комиссии входа и выхода с цены доливки (как dconf.close_all)
+    assert b.add_day == date(2026, 1, 4) and a.r - b.r == pytest.approx(0.5 * (4.5 - 0.00075 * 104.5) / 3.0, abs=1e-9)
+    still = advance(_bars(win[:4]), s, RULE)                                         # долито, ещё в позиции
+    assert still.status is Status.OPEN and still.add_day == date(2026, 1, 4)
+    assert still.r == pytest.approx((4.8 - 0.00075 * 100 + 0.5 * (104.8 - 104.5 - 0.0011 * 104.5)) / 3.0)
+
+
+def test_add_margin_hedge_and_funding():
+    s = replace(_setup(side=-1, stop=103.0), notional=1.0, risk_abs=0.03, beta=1.5, btc_in=100.0,
+                fill_day=date(2026, 1, 2), add_day=date(2026, 1, 5), add_price=95.5, add_ok=True, btc_add=104.0)
+    assert s.add_notional(0.5) == pytest.approx(0.4775)
+    assert margin_on([s], date(2026, 1, 4), 12, 0.5) == pytest.approx(2.5 / 12)
+    assert margin_on([s], date(2026, 1, 5), 12, 0.5) == pytest.approx(1.4775 * 2.5 / 12)
+    assert add_fits(replace(s, add_ok=None), 1.0, 0.2, RULE) and not add_fits(replace(s, add_ok=None), 1.0, 0.95, RULE)
+    h = hedge_pnl(s, 110.0, 0.5)
+    base, add = 1.5 * 1.0, 1.5 * 0.4775
+    assert h == pytest.approx(base * 0.10 - 2 * 0.00055 * base + add * (110 / 104 - 1) - 2 * 0.00055 * add)
+    assert hedge_pnl(replace(s, add_ok=False), 110.0, 0.5) == pytest.approx(base * 0.10 - 2 * 0.00055 * base)
+    # шорт получает при ставке > 0: база с 100 по номиналу и доливка 0.5 × 95.5
+    assert funding_r(s, 0.001, 0.0005, 0.5) == pytest.approx((0.001 * 100 + 0.0005 * 0.5 * 95.5) / 3.0)
+    assert funding_r(replace(s, add_ok=False), 0.001, 0.0005, 0.5) == pytest.approx(0.001 * 100 / 3.0)
+
+
+def test_hedge_matches_research_leg():
+    from research.htftrend import hedge_r
+    btc = np.array([100.0, 104.0, 98.0, 110.0])
+    s = replace(_setup(side=-1, stop=103.0), notional=2.0, risk_abs=2.0 * 3.0 / 100, beta=1.2, btc_in=100.0,
+                add_ok=True, add_price=95.5, btc_add=98.0)
+    want = hedge_r(btc, -1, 1.2, 100.0, 3.0, 0, 3, [(2, 95.5)], 0.5)
+    assert hedge_pnl(s, 110.0, 0.5) / s.risk_abs == pytest.approx(want, abs=1e-12)
+
+
+def test_paper_skips_add_without_free_margin(tmp_path):
+    greedy = replace(RULE, risk=5.0)                                  # первая часть съедает всю свободную маржу
+    full = _frame(6)
+    rows = [r for r in _research(full) if (r["retest|1.5 ATR|3R"] or 0) > 3.0]
+    t = int(full.index.get_loc(rows[0]["t"]))
+    st = SqliteStore(tmp_path / "t.db")
+    m = _Market({"XUSDT": full.iloc[:t + 1], "BTCUSDT": (full * 300).iloc[:t + 1]})
+    when = lambda: datetime.combine(m.frames["XUSDT"].index[-1].date() + timedelta(days=1), datetime.min.time(),
+                                    timezone.utc) + timedelta(minutes=10)
+    asyncio.run(DailyBreakPaper(m, st, rules=(greedy,), clock=when).maybe_run())
+    m.frames = {"XUSDT": full.iloc[:t + 60], "BTCUSDT": (full * 300).iloc[:t + 60]}
+    asyncio.run(DailyBreakPaper(m, st, rules=(greedy,), clock=when).maybe_run())
+    x = next(y for y in st.dbreak_recent(greedy.key) if y.symbol == "XUSDT" and y.day == full.index[t].date())
+    assert x.status is Status.CLOSED and x.add_day is not None and x.add_ok is False and x.btc_add is None
+    no_add = advance(full, replace(x, status=Status.OPEN, add_ok=False, funding_r=0.0), greedy)
+    assert x.r - x.funding_r == pytest.approx(no_add.r, abs=1e-12)
+    assert x.r - x.funding_r < rows[0]["retest|1.5 ATR|3R"]                           # бэктест — с доливкой
