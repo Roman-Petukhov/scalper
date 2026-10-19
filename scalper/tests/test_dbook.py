@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from research.dbook import Policy, simulate
+from research.dbook import Policy, journey, simulate
 
 
 def _tr(rows):
@@ -73,3 +73,25 @@ def test_unhedged_and_month_stats():
     r = simulate(t, Policy("x"))
     assert r.neg_months == pytest.approx(0.5) and r.median_month == pytest.approx(0.0)     # −6, −6, +18, +6%
     assert r.underwater_days == (pd.Timestamp("2024-03-05") - pd.Timestamp("2023-12-31")).days
+
+
+def test_usd_min_orders_and_switch():
+    # $100, риск 4%, стоп 10% (lr 10): номинал $40, бета 1 → хедж $40 при BTC $50k = 0.0008 → округляется до 0.001
+    h = {"acct_h": 0.5, "acct_beta": 1.0, "acct_btc": 50_000.0}
+    r = simulate(_tr([("2024-01-01", "2024-01-05", 1.0, h)]), Policy("x", risk=0.04, usd=100.0))
+    assert r.final == pytest.approx(1 + 0.04 * (1 + 0.5 * 50 / 40))
+    small = {"acct_h": 0.5, "acct_beta": 1.0, "acct_btc": 200_000.0}       # 0.0002 BTC — меньше шага: без хеджа
+    assert simulate(_tr([("2024-01-01", "2024-01-05", 1.0, small)]), Policy("x", risk=0.04, usd=100.0)).final == \
+        pytest.approx(1.04)
+    tiny = _tr([("2024-01-01", "2024-01-05", 1.0, {})])                     # номинал $4 < $5
+    assert simulate(tiny, Policy("x", risk=0.04, usd=10.0)).skip_min == 1
+    sw = Policy("x", risk=0.04, usd=100.0, switch_usd=500.0, low_risk=0.03)
+    assert simulate(_tr([("2024-01-01", "2024-01-05", 1.0, h)]), sw).final == pytest.approx(1.03)  # 3%, без хеджа
+
+
+def test_journey():
+    rows = [(f"2024-{m:02d}-01", f"2024-{m:02d}-03", 3.0, {}) for m in range(1, 13)]
+    rows += [(f"2025-{m:02d}-01", f"2025-{m:02d}-03", 3.0, {}) for m in range(1, 13)]
+    j = journey(_tr(rows), Policy("x", risk=0.06, usd=100.0), targets=(150.0,))
+    assert j.starts == 12 and j.reach[150.0][0] == 1.0 and j.below_floor == 0.0   # +18% в месяц: $150 за 3 месяца
+    assert j.reach[150.0][3] == pytest.approx(64, abs=3)

@@ -25,6 +25,7 @@ t 3.7, плюс во всех периодах на 3R); 8R лучше 3R в с�
 Прогон 6: счёт в деньгах как у бумажной книги (research/dbook.py) — как уменьшить просадку при риске 6%.
 Прогон 7: лимиты по стороне рынка — не больше N в сторону, чистый риск в сторону, риск по очереди (research/dbook.py).
 Прогон 8: риск 3–6% с хеджем и 4 / 6% без хеджа, помесячно (research/dbook.py).
+Прогон 9: путь счёта $100 → $1000 / $2000 с минимальными ордерами Bybit, старт с каждого месяца (research/dbook.py).
 Хедж годится, если R на сделку с ним не хуже в большинстве периодов, а σ месяца и худший месяц меньше.
 Решение: вариант лучше бота (PIV5, 3R), если R за всё время выше и в плюсе во всех периодах с ≥ 10 сделками, на
 споте и на перпетуалах, и при издержках x2 знак тот же; перезаход полезен, если «сигнал + перезаход» выше «сигнала»
@@ -275,7 +276,7 @@ def coin_rows(d: pd.DataFrame, liq: np.ndarray, sym: str, src: str, funnel: dict
                                 "acct_r0": r0, "acct_h": hedge_r(btc, side, b, level, rr, fill, j) if btc is not None
                                 else 0.0, "acct_add": d.index[adds[0][0]] if adds else pd.NaT,
                                 "acct_addpx": adds[0][1] / level if adds else np.nan, "acct_beta": b,
-                                "acct_lr": level / rr})
+                                "acct_lr": level / rr, "acct_btc": btc[fill] if btc is not None else np.nan})
             if kind[0] and fill >= 0:
                 e2, st2 = reentry(hi, lo, c, fill, side, stop, level, float(r["slope"]), t, a[t], level + side * 1.5 * rr)
                 risk2 = side * (c[e2] - st2) if e2 >= 0 else np.nan
@@ -496,6 +497,7 @@ def report() -> None:
                             print(f"       {nm}, {hn}: {line}")
         print("  7) счёт бумажной книги в деньгах (ретест, 1.5 ATR, 3R, хедж основной части; research/dbook.py):")
         dbook.report(x, f"оборот от ${base / 1e6:.0f}M")
+        dbook.report_journey(x, f"оборот от ${base / 1e6:.0f}M")
         print("  4) перезаход после снятия стопа за свингом, пока линия держится:")
         for sn in (k for k, v in STOPS.items() if v[0]):
             for k in ("3R", "8R"):
