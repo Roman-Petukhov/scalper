@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"quarterly"}
+TASKS=${TASKS:-"shape"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -230,6 +230,12 @@ latebe_collect() {
   python -m research.latebe collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
 }
 latebe_report() { python -m research.latebe report; }
+# Форма фигуры до пробоя: ширина, кучность, длина свечей (4h и 15m)
+shape_collect() {
+  RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-qualified 15m-wide
+  python -m research.shape collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
+}
+shape_report() { python -m research.shape report; }
 supply_collect() { :; }
 supply_report() { python -m research.supply; }
 candles_collect() { python -m research.candles collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
