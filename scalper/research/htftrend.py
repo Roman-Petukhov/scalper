@@ -22,6 +22,7 @@ t 3.7, плюс во всех периодах на 3R); 8R лучше 3R в с�
 Прогон 4 (по просьбе владельца, до запуска): хедж BTC как в бумажной книге — обратная позиция BTCUSDT на бету монеты
 к BTC за 180 дней до дня входа, по закрытиям дней входа и выхода, taker на вход и выход; только вход на ретесте.
 Прогон 5: хеджируется и доливка (+0.5 на +1.5R) — своя нога BTC с закрытия дня доливки.
+Прогон 6: счёт в деньгах как у бумажной книги (research/dbook.py) — как уменьшить просадку при риске 6%.
 Хедж годится, если R на сделку с ним не хуже в большинстве периодов, а σ месяца и худший месяц меньше.
 Решение: вариант лучше бота (PIV5, 3R), если R за всё время выше и в плюсе во всех периодах с ≥ 10 сделками, на
 споте и на перпетуалах, и при издержках x2 знак тот же; перезаход полезен, если «сигнал + перезаход» выше «сигнала»
@@ -33,6 +34,7 @@ t 3.7, плюс во всех периодах на 3R); 8R лучше 3R в с�
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 import re
 import sys
 import urllib.request
@@ -44,6 +46,7 @@ import numpy as np
 import pandas as pd
 
 from . import data as D
+from . import dbook
 from .broad import ADV_MIN, adv30
 from .dboost2 import inflow_gate
 from .dconf import Exit, simulate, simulate_bar
@@ -76,6 +79,7 @@ def exits() -> dict[str, Exit]:
 STOPS = {"PIV5": (5, STOP_BUF, 4.0), "PIV3": (3, STOP_BUF, 4.0), "PIV5 без потолка": (5, STOP_BUF, np.inf),
          "1.5 ATR": (0, 1.5, np.inf), "2.5 ATR": (0, 2.5, np.inf)}
 MFE_R = (1, 3, 5, 8, 12, 20)
+ACCT = ("1.5 ATR", "3R")         # конфигурация бумажной книги — для счёта в деньгах
 FUNNEL = ("линий", "оборот", "тренд", "закрытие", "свинг", "риск в окне", "ретест исполнен")
 PER = {"2017–18": ("2017-08-01", "2019-01-01"), "2019": ("2019-01-01", "2020-01-01"),
        "2020": ("2020-01-01", "2021-01-01"), "2021": ("2021-01-01", "2022-01-01"),
@@ -260,6 +264,16 @@ def coin_rows(d: pd.DataFrame, liq: np.ndarray, sym: str, src: str, funnel: dict
                 if btc is not None and fill >= 0 and j >= 0:
                     b = row.setdefault(f"beta|{sn}", beta_at(c, btc, fill))
                     row[f"h|{sn}|{k}"] = hedge_r(btc, side, b, level, rr, fill, j, adds, ex.add_size)
+                if (sn, k) == ACCT and fill >= 0 and j >= 0:
+                    # хронология сделки бумажной книги для счёта в деньгах (research/dbook.py)
+                    r0 = row[f"retest|{sn}|{k}"] if not adds else \
+                        simulate(o, hi, lo, c, f, fill, side, level, stop, a[t], replace(ex, add_size=0.0), MAKER)
+                    b = row.get(f"beta|{sn}", np.nan)
+                    row.update({"acct_fill": d.index[fill], "acct_exit": d.index[j], "acct_r": row[f"retest|{sn}|{k}"],
+                                "acct_r0": r0, "acct_h": hedge_r(btc, side, b, level, rr, fill, j) if btc is not None
+                                else 0.0, "acct_add": d.index[adds[0][0]] if adds else pd.NaT,
+                                "acct_addpx": adds[0][1] / level if adds else np.nan, "acct_beta": b,
+                                "acct_lr": level / rr})
             if kind[0] and fill >= 0:
                 e2, st2 = reentry(hi, lo, c, fill, side, stop, level, float(r["slope"]), t, a[t], level + side * 1.5 * rr)
                 risk2 = side * (c[e2] - st2) if e2 >= 0 else np.nan
@@ -478,6 +492,8 @@ def report() -> None:
                         for c_, hn in ((col, "без хеджа"), ("hedged", "с хеджем")):
                             line, _ = _stats(z[z.side == side], c_)
                             print(f"       {nm}, {hn}: {line}")
+        print("  7) счёт бумажной книги в деньгах (ретест, 1.5 ATR, 3R, хедж основной части; research/dbook.py):")
+        dbook.report(x, f"оборот от ${base / 1e6:.0f}M")
         print("  4) перезаход после снятия стопа за свингом, пока линия держится:")
         for sn in (k for k, v in STOPS.items() if v[0]):
             for k in ("3R", "8R"):
