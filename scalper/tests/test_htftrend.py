@@ -43,9 +43,13 @@ def test_coin_rows_daily_and_weekly():
     lo = np.minimum(o, c) * (1 - np.abs(rng.normal(0, 0.01, n)))
     d = pd.DataFrame({"open": o, "high": hi, "low": lo, "close": c, "volume": 1.0, "quote_volume": 1e9,
                       "taker_buy_volume": 0.6}, index=idx)
-    rows = coin_rows(d, np.full(n, 1e9), "XUSDT", "1d")
+    fn: dict = {}
+    rows = coin_rows(d, np.full(n, 1e9), "XUSDT", "1d", fn)
     assert rows and all(r["tf"] == "1d" and r["aggr"] in (0.6, 0.4) and r["slope_atr"] >= 0 for r in rows)
-    assert sum(np.isfinite(r["retest"]) for r in rows) >= 1
+    assert sum(np.isfinite(r["r_3R"]) for r in rows) >= 1
+    assert all(k in rows[0] for k in ("m_5R", "r_8R", "r_лестница"))
+    assert fn["линий"] >= fn["оборот"] >= fn["тренд"] >= fn["закрытие"] >= fn["свинг"] == len(rows)
+    assert coin_rows(d, np.full(n, 1e6), "XUSDT", "1d") == []                  # оборот ниже $5M
     assert all(coin_rows(d.iloc[:0], np.zeros(0), "XUSDT", "1d") == [] for _ in [0])
     w = weekly(d)
     assert all(r["tf"] == "1w" for r in coin_rows(w, np.full(len(w), 1e9), "XUSDT", "1w"))

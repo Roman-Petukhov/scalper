@@ -16,6 +16,11 @@
 спотовых ETF), поэтому берём управляющих, а не фонды с плечом.
 Решение: годится как вторая нога, если R на сделку > 0 во всех периодах, где ≥ 10 сделок, и приток не хуже без него
 в каждом периоде (отсекаемые не лучше оставшихся); при < 10 сделок в периоде — вывода нет.
+Второй прогон (после первого: 264 пробоя за 9 лет, агрессоры ≥ 55% на дневках почти не встречаются — дневная доля
+тейкеров усредняется к 50%): основа — все пробои с оборотом от $20M (агрессоры — разрез «выше медианы IS»); выходы
+3R / 5R / 8R / лестница без цели (по просьбе владельца: 3R мало для дневок и недель), сроки 5R / 8R / лестницы втрое
+длиннее; воронка правила (сколько пробоев отсекает каждый шаг); справка — оборот от $5M и итог за всё время.
+Длинная цель лучше 3R, если R на сделку выше в большинстве периодов с ≥ 10 сделками и за всё время.
 
     python -m research.htftrend collect          (сам скачивает дневки спота своей части монет)
     python -m research.htftrend report           (+ python -m research.extreg collect)
@@ -52,6 +57,18 @@ STABLE = ("USDC", "BUSD", "TUSD", "FDUSD", "DAI", "USDP", "PAX", "USDS", "SUSD",
 LEVERAGED = re.compile(r"(UP|DOWN|BULL|BEAR)USDT$")
 HOLD = {"1d": 60, "1w": 26}
 RETEST = {"1d": 12, "1w": 4}
+LIQ_WIDE = 5e6                 # широкая выборка для справки (основное правило — ADV_MIN, как у бота)
+
+
+def exits(tf: str) -> dict[str, Exit]:
+    """Выходы (заданы до второго прогона): 3R — бот; 5R и 8R; «лестница» — без цели, доливы на +1.5 / 3 / 4.5R,
+    после последней — стоп в 3 ATR за лучшим закрытием (как dconf). Длинным целям — срок втрое больше."""
+    h = HOLD[tf]
+    return {"3R": Exit(3.0, (1.5,), 0.5, h), "5R": Exit(5.0, (1.5,), 0.5, 3 * h),
+            "8R": Exit(8.0, (1.5,), 0.5, 3 * h), "лестница": Exit(None, (1.5, 3.0, 4.5), 0.5, 3 * h, 3.0)}
+
+
+FUNNEL = ("линий", "оборот", "тренд", "закрытие", "свинг", "в отчёте")
 PER = {"2017–18": ("2017-08-01", "2019-01-01"), "2019": ("2019-01-01", "2020-01-01"),
        "2020": ("2020-01-01", "2021-01-01"), "2021": ("2021-01-01", "2022-01-01"),
        "is": ("2022-01-01", "2024-07-01"), "val": ("2024-07-01", "2025-07-01"), "ho": ("2025-07-01", "2026-10-01")}
@@ -97,7 +114,9 @@ def trend_of(d: pd.DataFrame, tf: str) -> np.ndarray:
     return np.sign(c - c.ewm(span=50, adjust=False).mean()).to_numpy()
 
 
-def coin_rows(d: pd.DataFrame, liq: np.ndarray, sym: str, tf: str) -> list[dict]:
+def coin_rows(d: pd.DataFrame, liq: np.ndarray, sym: str, tf: str, funnel: dict | None = None) -> list[dict]:
+    """Пробои по правилу бота с оборотом от LIQ_WIDE; колонки m_<выход> / r_<выход> — R по рынку / на ретесте.
+    funnel — счётчик, сколько пробоев дошло до каждого шага правила."""
     o, hi, lo, c = (d[k].to_numpy(dtype="float64") for k in ("open", "high", "low", "close"))
     f = np.zeros(len(c))
     a = _atr(d).to_numpy()
@@ -106,32 +125,44 @@ def coin_rows(d: pd.DataFrame, liq: np.ndarray, sym: str, tf: str) -> list[dict]
     rng = hi - lo
     loc = (c - lo) / np.where(rng > 0, rng, np.nan)
     sw_lo, sw_hi = last_confirmed(pivots(lo, PIV, False), len(c)), last_confirmed(pivots(hi, PIV, True), len(c))
-    ex = Exit(3.0, (1.5,), 0.5, HOLD[tf])
+    exs = exits(tf)
+    fn = funnel if funnel is not None else {}
     rows = []
     for r in zz_lines(d):
         t, side = int(r["t"]), int(r["side"])
-        if t <= 0 or t >= len(c) - 1 or not (a[t] > 0) or not (liq[t] >= ADV_MIN) or trend[t] != side:
+        if t <= 0 or t >= len(c) - 1 or not (a[t] > 0):
             continue
+        fn["линий"] = fn.get("линий", 0) + 1
+        if not (liq[t] >= LIQ_WIDE):
+            continue
+        fn["оборот"] = fn.get("оборот", 0) + 1
+        if trend[t] != side:
+            continue
+        fn["тренд"] = fn.get("тренд", 0) + 1
         cl = loc[t] if side > 0 else 1 - loc[t]
         sw = sw_lo[t] if side > 0 else sw_hi[t]
-        if not (cl >= 0.5) or sw < 0:
+        if not (cl >= 0.5):
             continue
+        fn["закрытие"] = fn.get("закрытие", 0) + 1
+        if sw < 0:
+            continue
+        fn["свинг"] = fn.get("свинг", 0) + 1
         level = float(r["line_t"])
         stop = (lo[sw] - STOP_BUF * a[t]) if side > 0 else (hi[sw] + STOP_BUF * a[t])
-        row = {"symbol": sym, "tf": tf, "t": d.index[t], "side": side,
+        row = {"symbol": sym, "tf": tf, "t": d.index[t], "side": side, "liq": float(liq[t]),
                "aggr": float(buy[t] if side > 0 else 1 - buy[t]), "slope_atr": abs(float(r["slope"])) / a[t]}
         risk = side * (c[t] - stop)
-        row["market"] = simulate(o, hi, lo, c, f, t, side, c[t], stop, a[t], ex, TAKER) \
-            if 0.3 * a[t] <= risk <= 4 * a[t] else np.nan
         rr = side * (level - stop)
-        row["retest"] = np.nan
-        if 0.3 * a[t] <= rr <= 4 * a[t]:
-            fill = retest_fill(hi, lo, t, side, level, 3.0 * rr, RETEST[tf])
-            if fill >= 0:
-                if (side > 0 and lo[fill] <= stop) or (side < 0 and hi[fill] >= stop):
-                    row["retest"] = (side * (stop - level) - (MAKER + TAKER) * level) / rr
-                else:
-                    row["retest"] = simulate(o, hi, lo, c, f, fill, side, level, stop, a[t], ex, MAKER)
+        fill = retest_fill(hi, lo, t, side, level, 3.0 * rr, RETEST[tf]) if 0.3 * a[t] <= rr <= 4 * a[t] else -1
+        stopped = fill >= 0 and ((side > 0 and lo[fill] <= stop) or (side < 0 and hi[fill] >= stop))
+        for k, ex in exs.items():
+            row[f"m_{k}"] = simulate(o, hi, lo, c, f, t, side, c[t], stop, a[t], ex, TAKER) \
+                if 0.3 * a[t] <= risk <= 4 * a[t] else np.nan
+            row[f"r_{k}"] = np.nan if fill < 0 else \
+                (side * (stop - level) - (MAKER + TAKER) * level) / rr if stopped else \
+                simulate(o, hi, lo, c, f, fill, side, level, stop, a[t], ex, MAKER)
+        if np.isfinite(row["m_3R"]) or np.isfinite(row["r_3R"]):
+            fn["в отчёте"] = fn.get("в отчёте", 0) + 1
         rows.append(row)
     return rows
 
@@ -174,7 +205,7 @@ def collect(root: Path, end: str) -> None:
     syms = mine(list_spot())
     cache = root / "cache"
     cache.mkdir(parents=True, exist_ok=True)
-    rows, n = [], 0
+    rows, n, funnel = [], 0, {"1d": {}, "1w": {}}
     with ThreadPoolExecutor(16) as pool:
         frames = dict(zip(syms, pool.map(lambda s: load_daily(s, cache, end), syms)))
     for s, d in frames.items():
@@ -183,16 +214,18 @@ def collect(root: Path, end: str) -> None:
                 continue
             n += 1
             liq_d = d["quote_volume"].rolling(30, min_periods=20).mean().shift(1)
-            rows += coin_rows(d, liq_d.to_numpy(), s, "1d")
+            rows += coin_rows(d, liq_d.to_numpy(), s, "1d", funnel["1d"])
             w = weekly(d)
             if len(w) >= 60:
                 liq_w = liq_d.reindex(w.index).to_numpy()            # оборот на начало недели — известен
-                rows += coin_rows(w, liq_w, s, "1w")
+                rows += coin_rows(w, liq_w, s, "1w", funnel["1w"])
         except Exception as e:
             print(f"  htftrend {s}: пропуск ({e})", flush=True)
     print(f"  htftrend: монет со свечами {n} из {len(syms)}, пробоев {len(rows)}", flush=True)
     if rows:
         pd.DataFrame(rows).to_parquet(part_path("htftrend"), index=False)
+    pd.DataFrame([{"tf": tf, "step": k, "n": v} for tf, fn in funnel.items() for k, v in fn.items()]) \
+        .to_parquet(part_path("htftrend_funnel"), index=False)
 
 
 def _gate(df: pd.DataFrame) -> pd.Series | None:
@@ -220,19 +253,33 @@ def _known(df: pd.DataFrame) -> pd.Series:
     return (df.t + bar).dt.tz_localize(None).dt.normalize() - pd.Timedelta(days=1)   # последний закрытый день
 
 
+ALL = ("всё время", (PER["2017–18"][0], PER["ho"][1]))
+
+
 def _line(z: pd.DataFrame, col: str) -> tuple[str, list[bool]]:
     cells, ok = [], []
-    for p, (a, b) in PER.items():
+    for p, (a, b) in (*PER.items(), ALL):
         m = z[(z.t >= a) & (z.t < b) & z[col].notna()]
         cells.append(f"{p}: {_cell(m.rename(columns={col: 'R'}))}")
-        if len(m) >= 10:
+        if p != ALL[0] and len(m) >= 10:
             ok.append(m[col].mean() > 0)
     return "  ".join(cells), ok
 
 
+def _funnel() -> None:
+    parts = all_parts("htftrend_funnel")
+    if not parts:
+        return
+    f = pd.concat([pd.read_parquet(p) for p in parts], ignore_index=True).groupby(["tf", "step"]).n.sum()
+    for tf in ("1d", "1w"):
+        if tf in f.index.get_level_values(0):
+            steps = "  →  ".join(f"{k} {int(f.get((tf, k), 0))}" for k in FUNNEL)
+            print(f"  воронка {tf} (оборот от ${LIQ_WIDE / 1e6:.0f}M): {steps}")
+
+
 def report() -> None:
     parts = all_parts("htftrend")
-    print("\n===== HTFTREND: правило бота 4h на 1d и 1w, спот Binance с 2017 (с делистнутыми), включатель «приток» =====")
+    print("\n===== HTFTREND: правило бота 4h на 1d и 1w, спот Binance с 2017 (с делистнутыми), приток, COT, длинные цели =====")
     if not parts:
         print("частей нет")
         return
@@ -250,41 +297,47 @@ def report() -> None:
         df["cot"], df["cot_known"] = False, False
     print(f"пробоев {len(df)}, монет {df.symbol.nunique()}; данных притока {'есть' if g is not None else 'НЕТ'}, "
           f"COT {'есть' if cp else 'НЕТ'} (включатель COT — только на днях, когда отчёты уже есть)")
+    _funnel()
+    names = list(exits("1d"))
     for tf in ("1d", "1w"):
-        x = df[df.tf == tf]
+        wide = df[df.tf == tf]
+        x = wide[wide.liq >= ADV_MIN]
         if not len(x):
             continue
         is_ = x[(x.t >= PER["is"][0]) & (x.t < PER["is"][1])]
-        q1, q2 = is_.slope_atr.quantile([1 / 3, 2 / 3]) if len(is_) >= 30 else x.slope_atr.quantile([1 / 3, 2 / 3])
-        print(f"\n  {tf}: пробоев {len(x)} (лонг {int((x.side > 0).sum())}, шорт {int((x.side < 0).sum())}); "
-              f"наклон: пологие ≤ {q1:.3f}, крутые > {q2:.3f} ATR/свечу (трети по IS)")
-        bot = x.aggr >= 0.55
+        ref = is_ if len(is_) >= 30 else x
+        q1, q2 = ref.slope_atr.quantile([1 / 3, 2 / 3])
+        am = ref.aggr.median()
+        print(f"\n  {tf}: пробоев с оборотом от ${ADV_MIN / 1e6:.0f}M — {len(x)} (лонг {int((x.side > 0).sum())}, "
+              f"шорт {int((x.side < 0).sum())}), от ${LIQ_WIDE / 1e6:.0f}M — {len(wide)}; агрессоры: медиана "
+              f"{am:.3f}, ≥ 55% — {int((x.aggr >= 0.55).sum())}; наклон: пологие ≤ {q1:.3f}, крутые > {q2:.3f} ATR/свечу")
         flow = ((x.side > 0) & x.inflow) | ((x.side < 0) & ~x.inflow)      # лонг — при притоке, шорт — при оттоке
         cotd = x.cot_known & (((x.side > 0) & x.cot) | ((x.side < 0) & ~x.cot))
         groups = {
-            "бот (агрессоры ≥ 55%)": x[bot],
-            "бот по притоку": x[bot & flow],
-            "бот против притока (отсекаемые)": x[bot & ~flow],
-            "бот, дни с COT": x[bot & x.cot_known],
-            "бот по COT": x[bot & cotd],
-            "бот против COT (отсекаемые)": x[bot & x.cot_known & ~cotd],
-            "бот по притоку и COT": x[bot & flow & cotd],
             "все пробои": x,
-            "все по притоку": x[flow],
-            "все, пологие": x[x.slope_atr <= q1],
-            "все, средние": x[(x.slope_atr > q1) & (x.slope_atr <= q2)],
-            "все, крутые": x[x.slope_atr > q2],
-            "все по притоку, пологие": x[flow & (x.slope_atr <= q1)],
+            "по притоку": x[flow],
+            "против притока (отсекаемые)": x[~flow],
+            "по COT": x[cotd],
+            "против COT (отсекаемые)": x[x.cot_known & ~cotd],
+            "по притоку и COT": x[flow & cotd],
+            "агрессоры выше медианы IS": x[x.aggr > am],
+            "пологие": x[x.slope_atr <= q1],
+            "средние": x[(x.slope_atr > q1) & (x.slope_atr <= q2)],
+            "крутые": x[x.slope_atr > q2],
+            "лонги": x[x.side > 0],
+            "шорты": x[x.side < 0],
+            f"широкая выборка (от ${LIQ_WIDE / 1e6:.0f}M)": wide,
         }
-        for entry in ("retest", "market"):
-            print(f"    вход {'на ретесте' if entry == 'retest' else 'по рынку'}:")
+        for k in names:
+            print(f"    выход {k}, вход на ретесте:")
             for nm, z in groups.items():
-                line, ok = _line(z, entry)
+                line, ok = _line(z, f"r_{k}")
                 verdict = (f"плюс в {sum(ok)} из {len(ok)} периодов с ≥ 10 сделками" if ok else "мало сделок")
                 print(f"      {nm}: {line}  → {verdict}")
-        for side, nm in ((1, "лонги"), (-1, "шорты")):
-            z = x[(x.side == side) & (x.aggr >= 0.55)]
-            print(f"    бот, {nm}: " + _line(z, "retest")[0])
+            for nm in ("все пробои", "по притоку"):
+                line, ok = _line(groups[nm], f"m_{k}")
+                print(f"      по рынку, {nm}: {line}  → "
+                      f"{f'плюс в {sum(ok)} из {len(ok)}' if ok else 'мало сделок'}")
 
 
 if __name__ == "__main__":
