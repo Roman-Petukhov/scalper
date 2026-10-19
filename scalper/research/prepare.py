@@ -62,6 +62,13 @@ def build(name: str) -> list[str]:
         D.build(syms, "5m", START, END, ROOT, 64)
         D.build(syms, "1m", START_1M, END, ROOT, 64)
         part = [s for s in part if (ROOT / f"{s}-5m.parquet").exists()]
+    elif name == "hot-wide":                                                     # research/hotcoins.py
+        part = mine(json.loads(Path(__file__).with_name("symbols_qualified.json").read_text()))
+        syms = sorted(set(part) | ALWAYS)
+        D.build(syms, "1h", START, END, ROOT, 64)
+        D.build(syms, "15m", START, END, ROOT, 64)
+        D.build(syms, "5m", START, END, ROOT, 64)
+        part = [s for s in part if (ROOT / f"{s}-1h.parquet").exists()]
     elif name == "1h-all":
         part = mine(list_symbols())
         D.build(sorted(set(part) | ALWAYS), "1h", START, END, ROOT, 64)
