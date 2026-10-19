@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"quarterly"}
+TASKS=${TASKS:-"masters"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -256,6 +256,13 @@ htftrend_collect() {
     --end "${RESEARCH_END:-$(date -u -d "$(date -u +%Y-%m-01) -1 day" +%Y-%m)}"
 }
 htftrend_report() { python -m research.htftrend report; }
+# Системы известных трейдеров на дневках: Qullamaggie, Connors RSI(2), Raschke Holy Grail, Turtle Soup, Crabel NR7
+masters_collect() {
+  RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-qualified
+  python -m research.masters collect --perp "$(cat /tmp/syms_1h-qualified.txt)" \
+    --end "${RESEARCH_END:-$(date -u -d "$(date -u +%Y-%m-01) -1 day" +%Y-%m)}"
+}
+masters_report() { python -m research.masters report; }
 robust_collect() { python -m research.robust collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
 robust_report() { python -m research.robust report; }
 crowd_collect() { python -m research.crowd collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
