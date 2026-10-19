@@ -46,7 +46,7 @@
       <span></span>{% for tf in tfs %}<b class="tf-head">{{ tf.value }}</b>{% endfor %}
       {% if bym %}
       <label>Маржа на сделку, % капитала</label>
-      {% for tf in tfs %}{{ num(tf, "margin_pct", "margin_pct", "Маржа на сделку", 1, 1, 100) }}{% endfor %}
+      {% for tf in tfs %}{{ num(tf, "margin_pct", "margin_pct", "Маржа на сделку", 0.1, 0.1, 100) }}{% endfor %}
       {% else %}
       <label>Риск на сделку (убыток по стопу), % капитала</label>
       {% for tf in tfs %}{{ num(tf, "risk_pct", "risk_pct", "Риск на сделку", 0.05, 0.05, 6) }}{% endfor %}

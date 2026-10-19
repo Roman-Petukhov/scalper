@@ -125,8 +125,8 @@ class TfParams:
             raise ValueError("срок сделки — от 1 до 1000 свечей")
         if not (isinstance(self.max_positions, int) and 0 <= self.max_positions <= 50):
             raise ValueError("позиций таймфрейма — от 0 (только общий лимит) до 50")
-        if not 1.0 <= self.margin_pct <= 100.0:
-            raise ValueError("маржа на сделку — от 1% до 100% капитала")
+        if not 0.1 <= self.margin_pct <= 100.0:
+            raise ValueError("маржа на сделку — от 0.1% до 100% капитала")
         if not (isinstance(self.leverage, int) and 0 <= self.leverage <= MAX_TF_LEVERAGE):
             raise ValueError(f"плечо таймфрейма — целое от 1× до {MAX_TF_LEVERAGE}× (0 — общее)")
         if not isinstance(self.pyramid, bool):
@@ -149,7 +149,8 @@ DEFAULT_TF_PARAMS: dict[Timeframe, TfParams] = {
     # IS / VAL / HO −0.08 / −0.06 / −0.16R, каждый год в минусе, издержки ≈ 0.09R при стопе ~0.8% цены. Правило — как
     # у 15m (пологие шорты по рынку), риск минимальный, своих позиций не больше 2, автоторговля выключена.
     Timeframe.M5: TfParams(risk_pct=0.1, min_close_loc=0.5, entry_policy=EntryPolicy.MARKET, sides=SideFilter.SHORT,
-                           max_slope_atr=0.025, top_n=100, max_hold_bars=200, max_positions=2, leverage=25),
+                           max_slope_atr=0.025, top_n=100, max_hold_bars=200, max_positions=2, leverage=25,
+                           margin_pct=0.5),    # «как на Bybit»: 0.5% × 25 = 12.5% номинала — стоп ~0.8% ≈ 0.1% капитала
 }
 HTF_CONFIRM: dict[Timeframe, Timeframe] = {Timeframe.M15: Timeframe.H4, Timeframe.M5: Timeframe.H4}   # чей пробой подтверждает сигнал младшего ТФ
 RETIRED_TIMEFRAMES = ("1h",)            # были в панели раньше: сигналы и настройки этих ТФ при загрузке убираются
@@ -161,7 +162,8 @@ SETTINGS_ONCE: dict[str, dict[str, object]] = {"max_positions_12_2026_10": {"max
 # один раз при запуске поменять поля правила таймфрейма в сохранённых настройках
 TF_SETTINGS_ONCE: dict[str, tuple[Timeframe, dict[str, object]]] = {
     "m15_top150_pos3_2026_10": (Timeframe.M15, {"top_n": 150, "max_positions": 3}),
-    "m5_leverage25_2026_10": (Timeframe.M5, {"leverage": 25})}
+    "m5_leverage25_2026_10": (Timeframe.M5, {"leverage": 25}),
+    "m5_margin05_2026_10": (Timeframe.M5, {"margin_pct": 0.5})}
 TF_FIELDS = tuple(TfParams.__dataclass_fields__)
 
 
