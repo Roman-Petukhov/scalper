@@ -208,3 +208,13 @@ def test_level_break_needs_two_turns_crossed_by_the_breakout_close():
     assert not level_break(c, a, 50, 1, piv[:1], empty)     # один разворот — не уровень
     c[50] = 11.8
     assert not level_break(c, a, 50, 1, piv, empty)         # закрытие не дошло до уровня
+
+
+def test_5m_timeframe_defaults_are_cautious():
+    from trader.domain.models import DEFAULT_TF_PARAMS, HTF_CONFIRM, EntryPolicy, Settings, SideFilter
+    p = DEFAULT_TF_PARAMS[Timeframe.M5]
+    assert Timeframe("5m").minutes == 5 and HTF_CONFIRM[Timeframe.M5] is Timeframe.H4
+    assert (p.risk_pct, p.sides, p.entry_policy, p.top_n, p.max_positions) == \
+        (0.1, SideFilter.SHORT, EntryPolicy.MARKET, 100, 2)
+    s = Settings()
+    assert Timeframe.M5 not in s.timeframes and Timeframe.M5 not in s.auto_timeframes      # включает только трейдер

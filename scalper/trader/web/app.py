@@ -54,8 +54,9 @@ REMEMBER_S = 365 * 24 * 3600          # «запомнить на этом ус�
 SHORT_LOGIN_S = 12 * 3600
 CHART_BARS = 300                      # свечей на живом графике
 JOURNAL_ROWS = 15                     # последних закрытых сделок в журнале
-TYPICAL_STOP_PCT = {Timeframe.H4: 8.6, Timeframe.M15: 1.5}   # стоп, % цены, пока своих сигналов мало: 4h — медиана
-#                                                                  бэктеста 2020–2026 (research/margsim.py), 15m — прикидка
+TYPICAL_STOP_PCT = {Timeframe.H4: 8.6, Timeframe.M15: 1.5, Timeframe.M5: 0.8}   # стоп, % цены, пока своих сигналов мало: 4h — медиана
+#                                                                  бэктеста 2020–2026 (research/margsim.py), 15m — прикидка,
+#                                                                  5m — медиана research/lowtf.py
 ARCHIVED = {SignalStatus.EXPIRED, SignalStatus.SKIPPED, SignalStatus.CLOSED}
 DELETABLE = {SignalStatus.EXPIRED, SignalStatus.SKIPPED}   # закрытые сделки — история журнала, не удаляем
 VIEWS = {"all", "archive"} | {t.value for t in Timeframe}
@@ -190,7 +191,7 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
             raise HTTPException(403, "запрос не из панели")      # защита от подделки межсайтовых форм
 
     def feed_view(request: Request) -> str:
-        """Вкладка ленты: all / 15m / 4h — актуальные сигналы, archive — истёкшие и пропущенные;
+        """Вкладка ленты: all / 5m / 15m / 4h — актуальные сигналы, archive — истёкшие и пропущенные;
         запоминается в сессии."""
         v = request.session.get("view")
         return v if v in VIEWS else "all"

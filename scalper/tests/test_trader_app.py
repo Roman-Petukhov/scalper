@@ -79,12 +79,13 @@ def test_15m_moves_to_gentle_shorts_once_and_keeps_trader_edits(tmp_path):
     from trader.domain.models import DEFAULT_TF_PARAMS, SideFilter
     st = SqliteStore(tmp_path / "t.db")
     st.db.execute("DELETE FROM kv")                                     # база из версии до новой стратегии 15m
-    old = Settings(timeframes=frozenset({Timeframe.H4}), auto_timeframes=frozenset(Timeframe), max_positions=5).with_tf(
+    old = Settings(timeframes=frozenset({Timeframe.H4}), auto_timeframes=frozenset({Timeframe.H4, Timeframe.M15}),
+                   max_positions=5).with_tf(
         Timeframe.M15, htf_confirm_h=12, entry_policy=EntryPolicy.RETEST, risk_pct=0.4)
     st.save(old)
     st.db.commit()
     s = SqliteStore(tmp_path / "t.db").load()
-    assert s.timeframes == set(Timeframe) and s.auto_timeframes == {Timeframe.H4}
+    assert s.timeframes == {Timeframe.H4, Timeframe.M15} and s.auto_timeframes == {Timeframe.H4}
     assert s.max_positions == 12                                        # было 5 — поднято один раз
     assert s.p(Timeframe.M15) == DEFAULT_TF_PARAMS[Timeframe.M15] and s.p(Timeframe.M15).sides is SideFilter.SHORT
     assert s.p(Timeframe.H4) == old.p(Timeframe.H4)

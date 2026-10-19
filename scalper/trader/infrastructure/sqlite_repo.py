@@ -317,7 +317,7 @@ class SqliteStore:
             # поля, которых не было в сохранённой версии, — из значений по умолчанию этого ТФ
             d = {**{k: getattr(DEFAULT_TF_PARAMS[tf], k) for k in TF_FIELDS}, **p["tf_params"][tf.value]}
         else:
-            sfx = {Timeframe.H4: "", Timeframe.M15: "_15m"}[tf]
+            sfx = {Timeframe.H4: "", Timeframe.M15: "_15m", Timeframe.M5: "_5m"}[tf]
             d = {k: p[k] for k in ("min_aggr", "target_r", "min_break_atr", "hybrid_range_atr", "retest_bars",
                                    "entry_policy") if k in p}
             for k in ("risk_pct", "min_close_loc"):

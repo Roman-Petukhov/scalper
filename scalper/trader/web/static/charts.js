@@ -3,7 +3,7 @@
 // закрыта) — застывшее окно вокруг сигнала с отметками входа и выхода, без опроса.
 (() => {
   "use strict";
-  const POLL_MS = { "15m": 5000, "4h": 15000 };
+  const POLL_MS = { "5m": 3000, "15m": 5000, "4h": 15000 };
   const live = new Map();                       // элемент → состояние графика
   const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 

@@ -13,13 +13,15 @@ MARKET_VALID_BARS = 2                   # вход по рынку возмож�
 
 
 class Timeframe(str, Enum):
-    """Таймфреймы панели. 1h убран по решению трейдера (на бэктесте — лишь тонкий плюс)."""
+    """Таймфреймы панели. 1h убран по решению трейдера (на бэктесте — лишь тонкий плюс); 5m добавлен по решению
+    трейдера для живой проверки, хотя на бэктесте в минусе (docs/knowledge.md, research/lowtf.py)."""
+    M5 = "5m"
     M15 = "15m"
     H4 = "4h"
 
     @property
     def minutes(self) -> int:
-        return {"15m": 15, "4h": 240}[self.value]
+        return {"5m": 5, "15m": 15, "4h": 240}[self.value]
 
 
 class Mode(str, Enum):
@@ -142,8 +144,13 @@ DEFAULT_TF_PARAMS: dict[Timeframe, TfParams] = {
     Timeframe.H4: TfParams(risk_pct=1.0, min_close_loc=0.5, entry_policy=EntryPolicy.HYBRID, pyramid=True),
     Timeframe.M15: TfParams(risk_pct=0.25, min_close_loc=0.5, entry_policy=EntryPolicy.MARKET, sides=SideFilter.SHORT,
                             max_slope_atr=0.025, top_n=150, max_hold_bars=200, max_positions=3, leverage=15),
+    # 5m — на проверку вживую по решению трейдера. Бэктест правила бота на 5m (research/lowtf.py, core70, ретест):
+    # IS / VAL / HO −0.08 / −0.06 / −0.16R, каждый год в минусе, издержки ≈ 0.09R при стопе ~0.8% цены. Правило — как
+    # у 15m (пологие шорты по рынку), риск минимальный, своих позиций не больше 2, автоторговля выключена.
+    Timeframe.M5: TfParams(risk_pct=0.1, min_close_loc=0.5, entry_policy=EntryPolicy.MARKET, sides=SideFilter.SHORT,
+                           max_slope_atr=0.025, top_n=100, max_hold_bars=200, max_positions=2, leverage=15),
 }
-HTF_CONFIRM: dict[Timeframe, Timeframe] = {Timeframe.M15: Timeframe.H4}   # чей пробой подтверждает сигнал младшего ТФ
+HTF_CONFIRM: dict[Timeframe, Timeframe] = {Timeframe.M15: Timeframe.H4, Timeframe.M5: Timeframe.H4}   # чей пробой подтверждает сигнал младшего ТФ
 RETIRED_TIMEFRAMES = ("1h",)            # были в панели раньше: сигналы и настройки этих ТФ при загрузке убираются
 # один раз при запуске перевести таймфрейм на новую стратегию в сохранённых настройках: правило — из DEFAULT_TF_PARAMS,
 # сигналы ищутся, автоторговля по нему выключена до проверки на демо; дальше трейдер меняет всё сам
