@@ -14,13 +14,13 @@
       </div>
       {% if b.since %}
       <div class="stats periods num">
-        <div class="stat {{ 'up' if b.total_r > 0 else ('down' if b.total_r < 0 else '') }}"><span>С {{ b.since.strftime('%d.%m') }}</span>
-          <b>{{ '%+.1f' | format(b.total_r * x.rule.risk * 100) }}%</b><small>{{ '%+.1f' | format(b.total_r) }}R за {{ b.closed }} сд.</small></div>
+        <div class="stat {{ 'up' if b.total > 0 else ('down' if b.total < 0 else '') }}"><span>С {{ b.since.strftime('%d.%m') }}</span>
+          <b>{{ '%+.1f' | format(b.total * 100) }}%</b><small>{{ '%+.1f' | format(b.total_r) }}R за {{ b.closed }} сд., хедж {{ '%+.1f' | format(b.hedge * 100) }}%</small></div>
         <div class="stat {{ 'up' if (b.mean_r or 0) > 0 else ('down' if (b.mean_r or 0) < 0 else '') }}"><span>На сделку</span>
           <b>{% if b.mean_r is not none %}{{ '%+.2f' | format(b.mean_r) }}R{% else %}—{% endif %}</b>
           <small>{% if b.win is not none %}в плюсе {{ '%.0f' | format(b.win * 100) }}%{% else %}закрытых нет{% endif %}</small></div>
-        <div class="stat"><span>Просадка</span><b>{{ '%.1f' | format(b.dd_r) }}R</b>
-          <small>открыто {{ b.open | length }}, оценка {{ '%+.1f' | format(b.open_r) }}R</small></div>
+        <div class="stat"><span>Просадка счёта</span><b>{{ '%.1f' | format(b.dd * 100) }}%</b>
+          <small>открыто {{ b.open | length }}, оценка {{ '%+.1f' | format(b.open_pnl * 100) }}%</small></div>
       </div>
       {% if b.open or b.pending or b.recent %}
       <div class="jr-rows trend-rows num" role="table" aria-label="Сделки: {{ x.rule.title }}">
@@ -29,7 +29,7 @@
           <span role="cell" class="hint" style="margin:0">в позиции с {{ s.fill_day.strftime('%d.%m') }}</span>
           <span role="cell">{{ s.symbol }} {{ 'лонг' if s.side > 0 else 'шорт' }}</span>
           <span role="cell" class="{{ 'jr-up' if (s.r or 0) > 0 else 'jr-down' }}">{{ '%+.2f' | format(s.r or 0) }}R</span>
-          <span role="cell" class="hint" style="margin:0">стоп {{ '%.6g' | format(s.stop) }}</span>
+          <span role="cell" class="hint" style="margin:0">{% if s.notional %}номинал {{ '%.0f' | format(s.notional * 100) }}%{% if s.beta %} · хедж β {{ '%.2f' | format(s.beta) }}{% endif %}{% else %}стоп {{ '%.6g' | format(s.stop) }}{% endif %}</span>
         </div>
         {% endfor %}
         {% for s in b.pending %}
@@ -45,17 +45,20 @@
           <span role="cell" class="hint" style="margin:0">закрыта {{ s.exit_day.strftime('%d.%m') }}</span>
           <span role="cell">{{ s.symbol }} {{ 'лонг' if s.side > 0 else 'шорт' }}</span>
           <span role="cell" class="{{ 'jr-up' if s.r > 0 else 'jr-down' }}">{{ '%+.2f' | format(s.r) }}R</span>
-          <span role="cell" class="hint" style="margin:0">агрессоры {{ '%.0f' | format(s.aggr * 100) }}%</span>
+          <span role="cell" class="hint" style="margin:0">{% if s.pnl is not none %}{{ '%+.1f' | format(s.pnl * 100) }}% счёта · {% endif %}агрессоры {{ '%.0f' | format(s.aggr * 100) }}%</span>
         </div>
         {% endfor %}
       </div>
       {% else %}<p class="hint">Пробои были, но все лимитки сняты без ретеста.</p>{% endif %}
+      {% if b.skipped %}<p class="hint">Пропущено из-за свободной маржи: {{ b.skipped }}.</p>{% endif %}
       {% else %}
       <p class="hint">Сделок пока нет: ищу пробои после каждого закрытия дня (00:00 UTC), на бэктесте их около 8 в месяц.</p>
       {% endif %}
     </div>
   {% endfor %}
   </div>
-  <p class="hint">Ордеров нет — сделки только на бумаге. R — в рисках сделки (стоп 1.5 ATR за линией), % — при риске 1%
-    капитала на сделку; funding учтён. Живьём ждём около половины бэктеста (+0.3R на сделку). Через 6 месяцев решаем про реальные деньги.</p>
+  <p class="hint">Ордеров нет — сделки только на бумаге, капитал с 100%. Риск {{ '%.0f' | format(books[0].rule.risk * 100) }}% капитала
+    на сделку, плечо {{ books[0].rule.leverage }}, хедж BTC на бету монеты; funding учтён. R — в рисках сделки (стоп 1.5 ATR
+    за линией). Живьём ждём около половины бэктеста (+0.3R на сделку); при 6% на сделку серия из 10 стопов — это −46%
+    счёта. Через 6 месяцев решаем про реальные деньги.</p>
 </div>

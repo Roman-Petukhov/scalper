@@ -4,7 +4,8 @@
 Ордеров нет — это проверка стратегии перед реальными деньгами. Сетап хранит только линию, стоп и ATR; где он сейчас
 (ждёт ретеста, в позиции, закрыт), каждый раз заново считается по истории свечей (domain.daily_break.advance) — так
 исход совпадает с бэктестом. Пропущенные дни (сервер был выключен) догоняются: пробои ищутся и на них, но не дальше
-окна ретеста — более старый сигнал уже не исполнить."""
+окна ретеста — более старый сигнал уже не исполнить. Размер сделки задаётся один раз, на дне входа, по капиталу и
+свободной марже того дня (сделки обходятся по дням входа); хедж BTC — по закрытиям BTCUSDT."""
 from __future__ import annotations
 
 import asyncio
@@ -15,7 +16,9 @@ from datetime import date, datetime, time, timedelta, timezone
 
 import pandas as pd
 
-from ..domain.daily_break import HISTORY_DAYS, RULES, DailyBreakRule, DailySetup, Status, advance, find, funding_r
+from ..domain.daily_break import (HISTORY_DAYS, RULES, DailyBreakRule, DailySetup, Status, advance, beta_before,
+                                  equity_on, find, funding_r, hedge_pnl, margin_on, size)
+from ..domain.hedge import HEDGE_SYMBOL
 from .ports import DailyBreakRepository, MarketData, Notifier
 from .trend import RETRY
 
@@ -34,6 +37,14 @@ def _key(rule: DailyBreakRule) -> str:
 
 def _midnight(d: date) -> datetime:
     return datetime.combine(d, time(), timezone.utc)
+
+
+def _close_on(close: pd.Series | None, d: date | None) -> float | None:
+    """Закрытие дня d (последнее известное до него включительно)."""
+    if close is None or d is None:
+        return None
+    x = close[close.index < _midnight(d + timedelta(days=1))]
+    return float(x.iloc[-1]) if len(x) else None
 
 
 class DailyBreakPaper:
@@ -103,12 +114,34 @@ class DailyBreakPaper:
         fr = funding_r(new, await self._funding(s.symbol, _midnight(new.fill_day), end))
         return advance(d, replace(s, funding_r=fr), rule)
 
+    @staticmethod
+    def _account(s: DailySetup, book: dict[int | None, DailySetup], bars: dict[str, pd.DataFrame],
+                 btc: pd.Series | None, rule: DailyBreakRule) -> DailySetup:
+        """Деньги сделки: размер на дне входа (один раз), хедж — по закрытию BTC дня входа и выхода (или последнему)."""
+        if s.fill_day is None or s.status is Status.SKIPPED:
+            return s
+        if not s.sized:
+            others = [x for k, x in book.items() if k != s.id]
+            b = None
+            if rule.hedge and btc is not None and s.symbol != HEDGE_SYMBOL:
+                b = beta_before(bars[s.symbol]["close"], btc, s.fill_day, rule)
+            s = size(s, equity_on(others, s.fill_day), margin_on(others, s.fill_day, rule.leverage), rule, b)
+            if s.status is Status.SKIPPED:
+                return s
+            s = replace(s, btc_in=_close_on(btc, s.fill_day) if s.beta else None)
+        if not s.beta or btc is None:
+            return s
+        if s.status is Status.CLOSED:
+            out = _close_on(btc, s.exit_day)
+            return replace(s, btc_out=out, hedge_pnl=hedge_pnl(s, out))
+        return replace(s, hedge_pnl=hedge_pnl(s, float(btc.iloc[-1])))
+
     async def run(self, now: datetime) -> list[DailySetup]:
         day = now.date() - timedelta(days=1)
         active = {r.key: self.repo.dbreak_active(r.key) for r in self.rules}
         held = {s.symbol for xs in active.values() for s in xs}
         floor = min(r.min_adv for r in self.rules) / 2     # список — по обороту за сутки, правило — за 30 дней
-        symbols = list(dict.fromkeys([*await self.market.universe(floor), *sorted(held)]))
+        symbols = list(dict.fromkeys([*await self.market.universe(floor), *sorted(held), HEDGE_SYMBOL]))
         frames = await asyncio.gather(*(self._bars(s) for s in symbols))
         bars = {s: f for s, f in zip(symbols, frames) if f is not None}
         if not bars:
@@ -134,15 +167,23 @@ class DailyBreakPaper:
                         if saved is not None:
                             active[rule.key].append(saved)
                             events.append(("new", saved))
+            moved: list[tuple[DailySetup, DailySetup]] = []
             for s in active[rule.key]:
                 d = bars.get(s.symbol)
-                if d is None:
-                    continue
-                new = await self._with_funding(d, s, rule, now)
+                if d is not None:
+                    moved.append((s, await self._with_funding(d, s, rule, now)))
+            btc = bars[HEDGE_SYMBOL]["close"] if HEDGE_SYMBOL in bars else None
+            book = {x.id: x for x in self.repo.dbreak_recent(rule.key, 100_000)}
+            for s, new in sorted(moved, key=lambda p: (p[1].fill_day or date.max, p[1].day)):
+                new = self._account(new, book, bars, btc, rule)
+                book[new.id] = new
                 if new == s:
                     continue
                 self.repo.dbreak_update(new)
                 out.append(new)
+                if new.status is Status.SKIPPED:
+                    events.append(("skip", new))
+                    continue
                 if new.fill_day is not None and s.fill_day is None:
                     events.append(("fill", new))
                 if new.status is Status.CLOSED:
@@ -166,7 +207,11 @@ class DailyBreakPaper:
             parts.append("ретест, вошёл: " + ", ".join(f"{s.symbol} {side[s.side]}" for s in fills))
         closed = [s for k, s in events if k == "close"]
         if closed:
-            parts.append("закрыл: " + ", ".join(f"{s.symbol} {s.r:+.2f}R" for s in closed))
+            parts.append("закрыл: " + ", ".join(f"{s.symbol} {s.r:+.2f}R ({(s.pnl or 0) * 100:+.1f}% счёта)"
+                                                for s in closed))
+        skipped = [s for k, s in events if k == "skip"]
+        if skipped:
+            parts.append("пропустил, нет свободной маржи: " + ", ".join(s.symbol for s in skipped))
         try:
             await self.notifier.text(f"Дневки, бумага · {rule.title}: " + "; ".join(parts) + ".")
         except Exception:

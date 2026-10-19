@@ -8,7 +8,8 @@ import pytest
 
 from research import htftrend
 from trader.application.daily_break import DailyBreakPaper
-from trader.domain.daily_break import RULES, DailySetup, Status, advance, book, find, funding_r
+from trader.domain.daily_break import (RULES, DailySetup, Status, advance, book, equity_on, find, funding_r, hedge_pnl,
+                                       margin_on, size)
 from trader.infrastructure.sqlite_repo import SqliteStore
 
 RULE = RULES[0]
@@ -176,3 +177,66 @@ def test_paper_refuses_stale_candles(tmp_path):
     tp = DailyBreakPaper(_Market({"XUSDT": d}), st, clock=lambda: datetime(2026, 10, 13, 1, 0, tzinfo=timezone.utc))
     assert asyncio.run(tp.maybe_run()) == [] and "ждём 2026-10-12" in tp.last_error
     assert st.kv_get(f"dbreak_done:{RULE.key}") is None
+
+
+def test_size_risk_leverage_and_margin_caps():
+    s = _setup(fill_day=date(2026, 1, 2))                                           # стоп 3% от цены
+    a = size(s, 1.0, 0.0, RULE, 1.2)
+    assert a.notional == pytest.approx(2.0) and a.risk_abs == pytest.approx(0.06) and a.beta == 1.2   # 6% / 3%
+    tight = _setup(stop=99.7, fill_day=date(2026, 1, 2))           # стоп 0.3%: маржа 95% капитала × плечо 12
+    assert size(tight, 1.0, 0.0, RULE, None).notional == pytest.approx(0.95 * 12)
+    assert size(tight, 1.0, 0.0, RULE, None).risk_abs == pytest.approx(0.95 * 12 * 0.003)
+    squeezed = size(s, 1.0, 0.9, RULE, 1.0)                                         # занято 90% капитала маржой
+    assert squeezed.notional == pytest.approx(0.95 * 0.1 * 12 / 2) and squeezed.risk_abs < 0.06
+    full = size(s, 1.0, 1.0, RULE, 1.0)
+    assert full.status is Status.SKIPPED and full.notional == 0.0 and full.pnl is None
+
+
+def test_hedge_pnl_and_account_curve():
+    s = replace(_setup(side=-1, stop=103.0), notional=1.0, risk_abs=0.03, beta=1.5, btc_in=100.0)
+    assert hedge_pnl(s, 110.0) == pytest.approx(1.5 * 0.10 - 2 * 0.00055 * 1.5)        # шорт монеты — лонг BTC
+    assert hedge_pnl(replace(s, beta=None), 110.0) == 0.0
+    won = replace(s, status=Status.CLOSED, fill_day=date(2026, 1, 2), exit_day=date(2026, 1, 9), r=3.0, hedge_pnl=0.01)
+    assert won.pnl == pytest.approx(0.1) and won.margin(12) == pytest.approx(2.5 / 12)
+    still = replace(s, status=Status.OPEN, fill_day=date(2026, 1, 5), r=0.2)
+    assert equity_on([won, still], date(2026, 1, 9)) == 1.0                         # закрыта в этот день — ещё не в счёте
+    assert equity_on([won, still], date(2026, 1, 10)) == pytest.approx(1.1)
+    assert margin_on([won, still], date(2026, 1, 6), 12) == pytest.approx(2 * 2.5 / 12)
+    assert margin_on([won, still], date(2026, 1, 10), 12) == pytest.approx(2.5 / 12)
+    b = book([won, still])
+    assert b.total == pytest.approx(0.1) and b.hedge == pytest.approx(0.01) and b.open_pnl == pytest.approx(0.006)
+
+
+def test_paper_sizes_on_fill_day_and_hedges_with_btc(tmp_path):
+    full = _frame(0)
+    t = _breakout_day(full)
+    btc = full * 300.0                                                              # бета монеты к BTC = 1
+    st = SqliteStore(tmp_path / "t.db")
+    m = _Market({"XUSDT": full.iloc[:t + 1], "BTCUSDT": btc.iloc[:t + 1]})
+    when = lambda d: datetime.combine(d.index[-1].date() + timedelta(days=1), datetime.min.time(), timezone.utc) \
+        + timedelta(minutes=10)
+    asyncio.run(DailyBreakPaper(m, st, clock=lambda: when(m.frames["XUSDT"])).maybe_run())
+    m.frames = {"XUSDT": full.iloc[:t + 40], "BTCUSDT": btc.iloc[:t + 40]}
+    asyncio.run(DailyBreakPaper(m, st, clock=lambda: when(m.frames["XUSDT"])).maybe_run())
+    x = next(y for y in st.dbreak_recent(RULE.key) if y.day == full.index[t].date() and y.symbol == "XUSDT")
+    assert x.fill_day is not None and x.sized and x.risk_abs == pytest.approx(0.06 * min(1, 12 * x.risk / x.level / 0.06))
+    assert x.beta == pytest.approx(1.0) and x.btc_in == pytest.approx(float(btc.loc[btc.index.date == x.fill_day, "close"].iloc[0]))
+    if x.status is Status.CLOSED:
+        out = float(btc.loc[btc.index.date == x.exit_day, "close"].iloc[0])
+        assert x.btc_out == pytest.approx(out) and x.hedge_pnl == pytest.approx(hedge_pnl(x, out))
+        assert x.pnl == pytest.approx(x.r * x.risk_abs + x.hedge_pnl)
+
+
+def test_store_migrates_table_without_money_columns(tmp_path):
+    import sqlite3
+    db = sqlite3.connect(tmp_path / "t.db")
+    db.execute("CREATE TABLE dbreak_setups (id INTEGER PRIMARY KEY AUTOINCREMENT, rule TEXT NOT NULL, symbol TEXT NOT NULL, "
+               "side INTEGER NOT NULL, day TEXT NOT NULL, level REAL NOT NULL, stop REAL NOT NULL, atr REAL NOT NULL, "
+               "aggr REAL NOT NULL, slope_atr REAL NOT NULL, status TEXT NOT NULL, fill_day TEXT, exit_day TEXT, r REAL, "
+               "funding_r REAL NOT NULL DEFAULT 0, UNIQUE(rule, symbol, day, side))")
+    db.execute("INSERT INTO dbreak_setups(rule, symbol, side, day, level, stop, atr, aggr, slope_atr, status, fill_day, r) "
+               "VALUES ('d1_line15', 'X', 1, '2026-10-01', 100, 97, 2, 0.5, 0.02, 'open', '2026-10-02', 0.3)")
+    db.commit()
+    db.close()
+    [x] = SqliteStore(tmp_path / "t.db").dbreak_active(RULE.key)
+    assert x.fill_day == date(2026, 10, 2) and not x.sized and x.hedge_pnl == 0.0      # размер задастся на следующем шаге
