@@ -7,7 +7,8 @@ from enum import Enum
 
 
 MAX_LEVERAGE = 12                       # верхняя граница общего плеча в панели
-MAX_TF_LEVERAGE = 15                    # своё плечо таймфрейма: у 15m стоп ~1.5% цены, ликвидация при 15× — ~6.5%
+MAX_TF_LEVERAGE = 25                    # своё плечо таймфрейма: у 15m стоп ~1.5% цены, ликвидация при 15× — ~6.5%;
+#                                         у 5m стоп ~0.8%, при 25× ликвидация ~3.5% — стоп раньше неё
 MAX_HEDGE_LEVERAGE = 50                 # плечо позиции BTC-хеджа (BTCUSDT на Bybit допускает до 100×)
 MARKET_VALID_BARS = 2                   # вход по рынку возможен ещё 2 свечи после свечи пробоя
 
@@ -148,7 +149,7 @@ DEFAULT_TF_PARAMS: dict[Timeframe, TfParams] = {
     # IS / VAL / HO −0.08 / −0.06 / −0.16R, каждый год в минусе, издержки ≈ 0.09R при стопе ~0.8% цены. Правило — как
     # у 15m (пологие шорты по рынку), риск минимальный, своих позиций не больше 2, автоторговля выключена.
     Timeframe.M5: TfParams(risk_pct=0.1, min_close_loc=0.5, entry_policy=EntryPolicy.MARKET, sides=SideFilter.SHORT,
-                           max_slope_atr=0.025, top_n=100, max_hold_bars=200, max_positions=2, leverage=15),
+                           max_slope_atr=0.025, top_n=100, max_hold_bars=200, max_positions=2, leverage=25),
 }
 HTF_CONFIRM: dict[Timeframe, Timeframe] = {Timeframe.M15: Timeframe.H4, Timeframe.M5: Timeframe.H4}   # чей пробой подтверждает сигнал младшего ТФ
 RETIRED_TIMEFRAMES = ("1h",)            # были в панели раньше: сигналы и настройки этих ТФ при загрузке убираются
@@ -159,7 +160,8 @@ STRATEGY_RESETS: dict[str, Timeframe] = {"m15_gentle_shorts_2026_10": Timeframe.
 SETTINGS_ONCE: dict[str, dict[str, object]] = {"max_positions_12_2026_10": {"max_positions": 12}}
 # один раз при запуске поменять поля правила таймфрейма в сохранённых настройках
 TF_SETTINGS_ONCE: dict[str, tuple[Timeframe, dict[str, object]]] = {
-    "m15_top150_pos3_2026_10": (Timeframe.M15, {"top_n": 150, "max_positions": 3})}
+    "m15_top150_pos3_2026_10": (Timeframe.M15, {"top_n": 150, "max_positions": 3}),
+    "m5_leverage25_2026_10": (Timeframe.M5, {"leverage": 25})}
 TF_FIELDS = tuple(TfParams.__dataclass_fields__)
 
 
