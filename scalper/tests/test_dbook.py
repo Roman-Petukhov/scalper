@@ -47,3 +47,19 @@ def test_dd_risk_cut():
     r6 = simulate(_tr(losses + after), Policy("x"))
     r3 = simulate(_tr(losses + after), Policy("x", dd_cut=0.15, dd_risk=0.03))
     assert r6.final == pytest.approx(0.94 ** 5) and r3.final == pytest.approx(0.94 ** 3 * 0.97 ** 2)
+
+
+def test_side_limits():
+    longs = [("2024-01-01", "2024-01-20", -1.0, {"side": 1}) for _ in range(3)]
+    shorts = [("2024-01-01", "2024-01-20", -1.0, {}) for _ in range(2)]
+    t = _tr(longs + shorts)
+    assert simulate(t, Policy("x", side_max=2)).skip_cap == 1                 # третий лонг; шорты не мешают
+    assert simulate(t, Policy("x", max_open=2)).skip_cap == 3
+    # риск по очереди: лонги 6, 3, 2%, шорты 6, 3%
+    assert simulate(t, Policy("x", decay=True)).final == pytest.approx(1 - 0.06 - 0.03 - 0.02 - 0.06 - 0.03)
+    # чистый риск ≤ 12%: лонги 6, 6, третий пропущен (остаток 0); шорты 6, 6 — чистый риск падает
+    r = simulate(t, Policy("x", net_cap=0.12))
+    assert r.skip_cap == 1 and r.final == pytest.approx(1 - 4 * 0.06)
+    # ≤ 9%: второй лонг урезан до 3%, третий пропущен (остаток 0 < 1.5%)
+    r = simulate(_tr(longs), Policy("x", net_cap=0.09))
+    assert r.skip_cap == 1 and r.final == pytest.approx(1 - 0.06 - 0.03)

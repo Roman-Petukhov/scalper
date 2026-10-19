@@ -16,6 +16,11 @@
     риск вдвое меньше в просадке  3% при просадке больше 15% от максимума капитала, 6% — после нового максимума
     шорты, не больше 4 позиций
     справка                риск 2% и 3%, все сделки
+Прогон 7 (по вопросу владельца «просадка — от многих убыточных позиций в одну сторону?», заданы до запуска):
+    не больше N в сторону   одновременно открытых лонгов и шортов отдельно — 2 / 3; встречная сделка не мешает
+    чистый риск в сторону   |риск лонгов − риск шортов| открытых к капиталу не больше 12% / 18%; новая сделка урезается
+                           до остатка, остаток меньше четверти риска — пропуск (бета не учитывается: основа под хеджем)
+    риск по очереди         k-я одновременная сделка в ту же сторону — риск 6% / k (6, 3, 2, 1.5…)
 Решение: вариант лучше базы, если максимальная просадка и худший месяц меньше, а годовая доходность к просадке выше,
 и на перпетуалах, и на споте.
 """
@@ -36,6 +41,9 @@ class Policy:
     max_open: int | None = None
     dd_cut: float | None = None         # просадка, после которой риск — dd_risk
     dd_risk: float | None = None
+    side_max: int | None = None         # одновременно открытых в одну сторону
+    net_cap: float | None = None        # |риск лонгов − риск шортов| к капиталу
+    decay: bool = False                 # k-я сделка в ту же сторону — риск / k
 
 
 @dataclass(frozen=True)
@@ -93,7 +101,20 @@ def simulate(trades: pd.DataFrame, pol: Policy, leverage: int = LEVERAGE) -> Res
             if pol.max_open is not None and len(live) >= pol.max_open:
                 skip_cap += 1
                 continue
+            side = 1 if x.side > 0 else -1
+            same = sum(p["side"] == side for p in live)
+            if pol.side_max is not None and same >= pol.side_max:
+                skip_cap += 1
+                continue
             risk = pol.dd_risk if pol.dd_cut is not None and 1 - equity / peak > pol.dd_cut else pol.risk
+            if pol.decay:
+                risk /= 1 + same
+            if pol.net_cap is not None:
+                room = pol.net_cap - side * sum(p["side"] * p["risk"] for p in live) / equity
+                if room < risk / 4:
+                    skip_cap += 1
+                    continue
+                risk = min(risk, room)
             b = float(x.acct_beta) if np.isfinite(x.acct_beta) and x.acct_beta > 0 else 0.0
             used = sum(margin(p, day) for p in live)
             notional = min(risk * equity * x.acct_lr, leverage * equity,
@@ -101,8 +122,8 @@ def simulate(trades: pd.DataFrame, pol: Policy, leverage: int = LEVERAGE) -> Res
             if not notional > 0:
                 skip_margin += 1
                 continue
-            p = {"fd": day, "xd": x.xd, "ad": x.ad, "addpx": float(x.acct_addpx) if pd.notna(x.acct_addpx) else 1.0,
-                 "beta": b, "notional": notional, "risk": notional / x.acct_lr, "r": float(x.acct_r),
+            p = {"side": side, "fd": day, "xd": x.xd, "ad": x.ad,
+                 "addpx": float(x.acct_addpx) if pd.notna(x.acct_addpx) else 1.0, "beta": b, "notional": notional, "risk": notional / x.acct_lr, "r": float(x.acct_r),
                  "r0": float(x.acct_r0), "h": float(x.acct_h) if b > 0 else 0.0, "add_ok": False, "booked": False,
                  "pending_add": pd.notna(x.ad)}
             pos.append(p)
@@ -151,6 +172,9 @@ def policies(aggr_median: float | None = None) -> list[tuple[Policy, str]]:
     out += [(Policy("риск 3% в просадке > 15%", dd_cut=0.15, dd_risk=0.03), "all"),
             (Policy("шорты, не больше 4 позиций", max_open=4), "short"),
             (Policy("справка: риск 3%", risk=0.03), "all"), (Policy("справка: риск 2%", risk=0.02), "all")]
+    out += [(Policy(f"не больше {n} в сторону", side_max=n), "all") for n in (2, 3)]
+    out += [(Policy(f"чистый риск в сторону ≤ {c:.0%}", net_cap=c), "all") for c in (0.12, 0.18)]
+    out += [(Policy("риск по очереди: 6% / k", decay=True), "all")]
     return out
 
 
