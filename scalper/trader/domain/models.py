@@ -159,9 +159,10 @@ DEFAULT_TF_PARAMS: dict[Timeframe, TfParams] = {
                             tag_risk_x=1.25),        # надбавка за метки — по решению трейдера, на 15m в бэктесте ≈ 0
     # 5m — на проверку вживую по решению трейдера. Бэктест правила бота на 5m (research/lowtf.py, core70, ретест):
     # IS / VAL / HO −0.08 / −0.06 / −0.16R, каждый год в минусе, издержки ≈ 0.09R при стопе ~0.8% цены. Правило — как
-    # у 15m (пологие шорты по рынку), риск минимальный, своих позиций не больше 2, автоторговля выключена.
+    # у 15m (пологие шорты по рынку), риск минимальный, своих позиций не больше 2, автоторговля выключена. Срок сделки
+    # 800 свечей (research/holdlen.py: лучше 200 в IS / VAL / HO, t 2.9, но прибавка всего +0.015R на сделку).
     Timeframe.M5: TfParams(risk_pct=0.1, min_close_loc=0.5, entry_policy=EntryPolicy.MARKET, sides=SideFilter.SHORT,
-                           max_slope_atr=0.025, top_n=100, max_hold_bars=200, max_positions=2, leverage=25,
+                           max_slope_atr=0.025, top_n=100, max_hold_bars=800, max_positions=2, leverage=25,
                            margin_pct=0.5,     # «как на Bybit»: 0.5% × 25 = 12.5% номинала — стоп ~0.8% ≈ 0.1% капитала
                            tag_risk_x=1.25),   # надбавка за метки — по решению трейдера, на 5m не проверялась
 }
@@ -179,7 +180,8 @@ TF_SETTINGS_ONCE: dict[str, tuple[Timeframe, dict[str, object]]] = {
     "m5_margin05_2026_10": (Timeframe.M5, {"margin_pct": 0.5}),
     "h4_tag_risk_2026_10": (Timeframe.H4, {"tag_risk_x": 1.25}),
     "m15_tag_risk_2026_10": (Timeframe.M15, {"tag_risk_x": 1.25}),
-    "m5_tag_risk_2026_10": (Timeframe.M5, {"tag_risk_x": 1.25})}
+    "m5_tag_risk_2026_10": (Timeframe.M5, {"tag_risk_x": 1.25}),
+    "m5_hold800_2026_10": (Timeframe.M5, {"max_hold_bars": 800})}
 TF_FIELDS = tuple(TfParams.__dataclass_fields__)
 
 
