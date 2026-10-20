@@ -426,6 +426,35 @@ def test_order_uses_timeframe_risk():
     assert o4.risk_usd == pytest.approx(9.99, abs=0.02) and o1.risk_usd == pytest.approx(2.49, abs=0.02)
 
 
+def test_tag_risk_boost_per_canon_tag_capped():
+    o0 = build_order(_sig(), Settings(), ACC, INST, 101.0, None, NOW)
+    o1 = build_order(_sig(extra={"touch3": True}), Settings(), ACC, INST, 101.0, None, NOW)
+    o2 = build_order(_sig(extra={"touch3": True, "long_line": True}), Settings(), ACC, INST, 101.0, None, NOW)
+    assert o0.risk_usd == pytest.approx(9.99, abs=0.02)                        # 1% без меток
+    assert o1.risk_usd == pytest.approx(12.5, abs=0.04) and "1.25%" not in (o1.cut or "")   # ×1.25 за метку
+    assert o2.risk_usd == pytest.approx(15.6, abs=0.04)                        # обе — ×1.5625
+    hi = Settings().with_tf(Timeframe.H4, risk_pct=5.0, tag_risk_x=2.0)
+    assert hi.p(Timeframe.H4).sized_for(True, True) == (6.0, 40.0)             # риск не выше 6%
+    off = Settings().with_tf(Timeframe.H4, tag_risk_x=1.0)
+    assert build_order(_sig(extra={"touch3": True, "long_line": True}), off, ACC, INST, 101.0, None,
+                       NOW).risk_usd == pytest.approx(9.99, abs=0.02)
+    with pytest.raises(ValueError, match="надбавка"):
+        Settings().with_tf(Timeframe.H4, tag_risk_x=2.5)
+
+
+def test_journal_splits_canon_tags():
+    from trader.domain.journal import JournalEntry, tf_stats
+    from trader.domain.execution import TradeResult
+    def entry(r, touch3, long_line):
+        t = Trade(1, "SOLUSDT", Side.LONG, EntryKind.MARKET, 1.0, 100.0, 99.0, 103.0, "o", "demo", TradeStatus.CLOSED,
+                  result=TradeResult(100.0, 100.0 + r, r, NOW))
+        return JournalEntry(t, Timeframe.H4, False, touch3, long_line)
+    es = [entry(3.0, True, True), entry(-1.0, True, False), entry(-1.0, False, False)]
+    h4 = next(x for x in tf_stats(es) if x.timeframe is Timeframe.H4)
+    assert h4.touch_closed == 2 and h4.touch_avg_r == pytest.approx(1.0) and h4.touch_rest_r == pytest.approx(-1.0)
+    assert h4.long_closed == 1 and h4.long_avg_r == pytest.approx(3.0) and h4.long_rest_r == pytest.approx(-1.0)
+
+
 def _fresh_15m():
     """Последняя закрытая свеча 15m по реальным часам: ручной вход проверяет срок сигнала по текущему времени."""
     from datetime import datetime, timezone
@@ -575,7 +604,7 @@ def test_journal_records_result_in_r_slippage_and_reason(tmp_path):
     b = FakeBroker()
     clock = Clock(NOW)
     st, ex = _exec(tmp_path, b, clock)
-    s = st.add(replace(_signal(), extra={"level": True, "touch3": True}))  # лонг по рынку: вход 101, стоп 98, цель 110
+    s = st.add(replace(_signal(), extra={"level": True}))  # лонг по рынку: план вход 101, стоп 98, цель 110
     asyncio.run(ex.execute(st.get(s.id)))
     b.acc = replace(ACC, positions=(Position("SOLUSDT", Side.LONG, 3.33, 101.3, 105, 10),))
     clock.t = NOW + timedelta(hours=1)
@@ -595,9 +624,6 @@ def test_journal_records_result_in_r_slippage_and_reason(tmp_path):
     assert h4.closed == 1 and h4.avg_r == pytest.approx(t.r_multiple) and h4.need == 29 and h4.win_share == 1.0
     assert st.journal()[0].at_level and h4.level_closed == 1 and h4.level_avg_r == pytest.approx(t.r_multiple)
     assert h4.plain_avg_r is None
-    assert st.journal()[0].touch3 and not st.journal()[0].long_line
-    assert h4.touch_closed == 1 and h4.touch_avg_r == pytest.approx(t.r_multiple) and h4.touch_rest_r is None
-    assert h4.long_closed == 0 and h4.long_avg_r is None and h4.long_rest_r == pytest.approx(t.r_multiple)
     assert st.get(s.id).status is SignalStatus.CLOSED and "Bybit" in st.get(s.id).note   # из ленты — в архив
 
 

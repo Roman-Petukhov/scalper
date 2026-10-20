@@ -162,15 +162,16 @@ def build_order(signal: Signal, settings: Settings, account: Account, instrument
     entry = round_price(entry, instrument.tick)
     stop, target = round_price(plan.stop, instrument.tick), round_price(plan.target, instrument.tick)
     tp = settings.p(signal.timeframe)
+    risk_pct, margin_pct = tp.sized_for(signal.touch3, signal.long_line)     # надбавка за метки канона линии
     lev = int(max(1, min(settings.lev(signal.timeframe), instrument.max_leverage)))
     if settings.sizing is Sizing.MARGIN:                                 # как на Bybit: маржа × плечо
-        want_qty = account.equity * tp.margin_pct / 100 * lev / entry
-        lev_capped, size_label = False, f"при марже {tp.margin_pct:g}%"
+        want_qty = account.equity * margin_pct / 100 * lev / entry
+        lev_capped, size_label = False, f"при марже {margin_pct:g}%"
     else:                                                                # убыток по стопу = risk_pct% капитала
-        sized = position_size(account.equity, tp.risk_pct,
+        sized = position_size(account.equity, risk_pct,
                               TradePlan(plan.entry_kind, entry, stop, target, plan.valid_bars), lev)
         want_qty = sized.qty
-        lev_capped, size_label = sized.risk_usd < account.equity * tp.risk_pct / 100 * 0.999, f"при риске {tp.risk_pct:g}%"
+        lev_capped, size_label = sized.risk_usd < account.equity * risk_pct / 100 * 0.999, f"при риске {risk_pct:g}%"
     # запас 5% на комиссию и проскальзывание; хедж BTC займёт ещё hedge_beta × номинал / плечо хеджа
     hl = hedge_lev or lev
     margin_cap = max(account.available, 0.0) * 0.95 / (entry * (1 / lev + max(hedge_beta, 0.0) / hl))
@@ -186,9 +187,9 @@ def build_order(signal: Signal, settings: Settings, account: Account, instrument
         if settings.sizing is Sizing.MARGIN:
             cut = f"маржа ${qty * entry / lev:.2f} вместо ${want_qty * entry / lev:.2f}: не хватило свободной маржи"
         elif lev_capped and want_qty <= margin_cap:
-            cut = f"вместо ${account.equity * tp.risk_pct / 100:.2f}: номинал упёрся в плечо {lev}×"
+            cut = f"вместо ${account.equity * risk_pct / 100:.2f}: номинал упёрся в плечо {lev}×"
         else:
-            cut = f"вместо ${account.equity * tp.risk_pct / 100:.2f}: не хватило свободной маржи"
+            cut = f"вместо ${account.equity * risk_pct / 100:.2f}: не хватило свободной маржи"
         if hedge_beta > 0 and qty < 0.9 * want_qty:
             cut += " с учётом хеджа BTC"
     return OrderRequest(signal.id, sym, side, plan.entry_kind, qty, entry, stop, target, lev, expires,

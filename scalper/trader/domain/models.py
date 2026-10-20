@@ -99,6 +99,13 @@ class TfParams:
     margin_pct: float = 10.0            # размер «как на Bybit»: маржа сделки, % капитала (Settings.sizing = MARGIN)
     leverage: int = 0                   # своё плечо ТФ; 0 — общее (Settings.leverage). Риск не меняет, только маржу
     pyramid: bool = False               # на +1.5R долить 0.5 позиции, стоп всей позиции — в точку входа (research/pyramid.py)
+    tag_risk_x: float = 1.0             # за каждую метку канона (3+ касания, длинная линия) риск / маржа ×; обе — ×²;
+                                        # итог не выше 6% риска (100% маржи). 1 — без надбавки (research/tlcanon.py)
+
+    def sized_for(self, touch3: bool, long_line: bool) -> tuple[float, float]:
+        """(риск %, маржа %) сделки с учётом надбавки за метки канона."""
+        k = self.tag_risk_x ** (int(touch3) + int(long_line))
+        return min(self.risk_pct * k, 6.0), min(self.margin_pct * k, 100.0)
 
     def __post_init__(self) -> None:
         if not 0.05 <= self.risk_pct <= 6.0:
@@ -133,6 +140,8 @@ class TfParams:
             raise ValueError("доливка — да или нет")
         if not isinstance(self.hedge_btc, bool):
             raise ValueError("хедж BTC — да или нет")
+        if not 1.0 <= self.tag_risk_x <= 2.0:
+            raise ValueError("надбавка за метку линии — от ×1 до ×2")
 
 
 # Лучшее по бэктесту (docs/research_report.md, docs/knowledge.md): 4h — основная стратегия (гибрид: ретест, а после
@@ -142,7 +151,9 @@ class TfParams:
 # сигнала (research/wide15.py) топ-150 лучше топ-70 (HO +0.08R против +0.02R на сделку), но сигналов ~100 в месяц и
 # держатся до 2 суток — свой лимит 3 позиции, чтобы 15m не занимал места 4h. Риск 1% / 0.25%.
 DEFAULT_TF_PARAMS: dict[Timeframe, TfParams] = {
-    Timeframe.H4: TfParams(risk_pct=1.0, min_close_loc=0.5, entry_policy=EntryPolicy.HYBRID, pyramid=True),
+    # надбавка ×1.25 за каждую метку канона (обе — ×1.56) — по решению трейдера; в бэктесте метки не приняты (t 1.7–1.8)
+    Timeframe.H4: TfParams(risk_pct=1.0, min_close_loc=0.5, entry_policy=EntryPolicy.HYBRID, pyramid=True,
+                           tag_risk_x=1.25),
     Timeframe.M15: TfParams(risk_pct=0.25, min_close_loc=0.5, entry_policy=EntryPolicy.MARKET, sides=SideFilter.SHORT,
                             max_slope_atr=0.025, top_n=150, max_hold_bars=200, max_positions=3, leverage=15),
     # 5m — на проверку вживую по решению трейдера. Бэктест правила бота на 5m (research/lowtf.py, core70, ретест):
@@ -163,7 +174,8 @@ SETTINGS_ONCE: dict[str, dict[str, object]] = {"max_positions_12_2026_10": {"max
 TF_SETTINGS_ONCE: dict[str, tuple[Timeframe, dict[str, object]]] = {
     "m15_top150_pos3_2026_10": (Timeframe.M15, {"top_n": 150, "max_positions": 3}),
     "m5_leverage25_2026_10": (Timeframe.M5, {"leverage": 25}),
-    "m5_margin05_2026_10": (Timeframe.M5, {"margin_pct": 0.5})}
+    "m5_margin05_2026_10": (Timeframe.M5, {"margin_pct": 0.5}),
+    "h4_tag_risk_2026_10": (Timeframe.H4, {"tag_risk_x": 1.25})}
 TF_FIELDS = tuple(TfParams.__dataclass_fields__)
 
 

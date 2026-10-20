@@ -418,7 +418,8 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
                               "pyramid": form.get(f"{tf.value}__pyramid",
                                                   "1" if settings_svc.get().p(tf).pyramid else "0") == "1",
                               "margin_pct": float(form.get(f"{tf.value}__margin_pct", settings_svc.get().p(tf).margin_pct)),
-                              "leverage": int(form.get(f"{tf.value}__tf_leverage", settings_svc.get().p(tf).leverage))}
+                              "leverage": int(form.get(f"{tf.value}__tf_leverage", settings_svc.get().p(tf).leverage)),
+                              "tag_risk_x": float(form.get(f"{tf.value}__tag_risk_x", settings_svc.get().p(tf).tag_risk_x))}
             settings_svc.update(g, per_tf)
         except KeyError as e:
             err = f"не заполнено поле {e.args[0]}"
