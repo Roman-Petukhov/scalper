@@ -56,7 +56,9 @@ def _btc(root: Path, tf: str) -> pd.DataFrame | None:
     if tf not in _BTC:
         b = tf_frame(root, "BTCUSDT", tf)
         if b is not None:
-            b = pd.DataFrame({"close": b["close"], "ema": b["close"].ewm(span=50, adjust=False).mean()})
+            lr = np.log(b["close"]).diff()
+            b = pd.DataFrame({"close": b["close"], "ema": b["close"].ewm(span=50, adjust=False).mean(),
+                              "vol": lr.rolling(30).std() / lr.rolling(500, min_periods=100).std()})
         _BTC[tf] = b
     return _BTC[tf]
 
@@ -73,9 +75,9 @@ def coin_rows(d: pd.DataFrame, liq: np.ndarray, sym: str, tf: str, btc: pd.DataF
     sw_lo, sw_hi = last_confirmed(pivots(lo, PIV, False), len(c)), last_confirmed(pivots(hi, PIV, True), len(c))
     if btc is not None:
         bb = btc.reindex(d.index)
-        bc, be = bb["close"].to_numpy(), bb["ema"].to_numpy()
+        bc, be, bv = bb["close"].to_numpy(), bb["ema"].to_numpy(), bb["vol"].to_numpy()
     else:
-        bc = be = np.full(len(c), np.nan)
+        bc = be = bv = np.full(len(c), np.nan)
     hours, dows = d.index.hour.to_numpy(), d.index.dayofweek.to_numpy()
     day = BARS_DAY.get(tf, 6)
     entry = ENTRY[tf]
@@ -122,7 +124,7 @@ def coin_rows(d: pd.DataFrame, liq: np.ndarray, sym: str, tf: str, btc: pd.DataF
             "atr_ratio": a[t] / np.nanmean(a[t - 100:t]), "range10": (hi[t - 9:t + 1].max() - lo[t - 9:t + 1].min()) / a[t],
             "ret30": side * (c[t] - c[t - 30]) / a[t], "fund_day": side * f[max(0, t - day + 1):t + 1].sum(),
             "btc_ret30": side * (bc[t] / bc[t - 30] - 1) if bc[t - 30] > 0 else np.nan,
-            "btc_trend": side * np.sign(bc[t] - be[t]) if np.isfinite(bc[t]) else np.nan,
+            "btc_trend": side * np.sign(bc[t] - be[t]) if np.isfinite(bc[t]) else np.nan, "btc_vol": bv[t],
             "round": float(c[t - 1] > 0 and crossed_round(c[t - 1], c[t])), "hour": int(hours[t]), "dow": int(dows[t])})
     return rows
 

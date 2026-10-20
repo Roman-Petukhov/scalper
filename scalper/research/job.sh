@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"kelly"}
+TASKS=${TASKS:-"metaroll"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -294,6 +294,12 @@ kelly_collect() {
   python -m research.margsim collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
 }
 kelly_report() { python -m research.kelly report; }
+# Мета-разметка со скользящим переобучением каждый квартал (окна 6 / 12 / 24 мес., признаки режима)
+metaroll_collect() { metalabel_collect; }
+metaroll_report() {
+  pip install -q lightgbm
+  python -m research.metaroll report
+}
 # Круглые числа (Osler): пробой через круглый уровень, уровень впереди, стоп «за толпой» (4h и 15m)
 roundnum_collect() {
   RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-qualified 15m-wide
