@@ -438,6 +438,7 @@ def test_tag_risk_boost_per_canon_tag_capped():
     off = Settings().with_tf(Timeframe.H4, tag_risk_x=1.0)
     assert build_order(_sig(extra={"touch3": True, "long_line": True}), off, ACC, INST, 101.0, None,
                        NOW).risk_usd == pytest.approx(9.99, abs=0.02)
+    assert all(Settings().p(tf).tag_risk_x == 1.25 for tf in Timeframe)       # на всех ТФ по решению трейдера
     with pytest.raises(ValueError, match="надбавка"):
         Settings().with_tf(Timeframe.H4, tag_risk_x=2.5)
 
