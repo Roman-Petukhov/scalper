@@ -10,14 +10,16 @@ hybrid_range_atr ATR — по рынку: после длинной свечи �
 не фильтр, а признак для сравнения по журналу (research/oos.py, docs/knowledge.md).
 Пометки extra["touch3"] / extra["long_line"] — канон Murphy / Bulkowski (research/tlcanon.py): 3+ касания линии и линия
 длиннее медианы бэктеста. В бэктесте 4h лучше остальных в IS / VAL / HO (t 1.7 / 1.8), но не приняты — метки для
-журнала, не фильтры."""
+журнала, не фильтры. extra["round"] — закрытие пробоя прошло крупный круглый уровень (Osler; research/roundnum.py:
+4h лучше в IS / VAL / HO, t 1.6) — метка без надбавки к риску."""
 from __future__ import annotations
 
 import numpy as np
 import pandas as pd
 
 from research.smc import _atr
-from research.tline import LEVEL_PIV, PIV, htf_trend, last_confirmed, level_hit, line_touches, pivots, zz_lines
+from research.tline import (LEVEL_PIV, PIV, crossed_round, htf_trend, last_confirmed, level_hit, line_touches, pivots,
+                            zz_lines)
 
 from datetime import datetime, timedelta
 
@@ -110,6 +112,7 @@ def detect(d: pd.DataFrame, tf: Timeframe, symbol: str, settings: Settings) -> l
                                  "level": lv is not None,
                                  "touches": touches, "line_bars": int(line_bars), "touch3": touches >= 3,
                                  "long_line": line_bars > LONG_LINE_BARS.get(tf, LONG_LINE_DEFAULT),
+                                 "round": bool(c[last - 1] > 0 and crossed_round(float(c[last - 1]), float(c[last]))),
                                  **({"level_px": lv[0], "level_n": lv[1]} if lv is not None else {})}))
         seen.add(side)
     return out

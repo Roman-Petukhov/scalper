@@ -302,10 +302,15 @@ class Signal:
         return bool(self.extra.get("long_line"))
 
     @property
+    def round_level(self) -> bool:
+        """Закрытие пробоя прошло крупный круглый уровень (research/roundnum.py: метка, без надбавки к риску)."""
+        return bool(self.extra.get("round"))
+
+    @property
     def tags(self) -> tuple[str, ...]:
         """Пометки сигнала для уведомлений и панели."""
         return tuple(name for name, on in (("+ уровень", self.at_level), ("3+ касания", self.touch3),
-                                           ("длинная линия", self.long_line)) if on)
+                                           ("длинная линия", self.long_line), ("+ круглый", self.round_level)) if on)
 
     @property
     def key(self) -> tuple[str, str, str, int]:

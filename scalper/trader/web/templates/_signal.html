@@ -11,7 +11,7 @@
     {% if t and t.r_multiple is not none %}<span class="badge num {{ 'win' if t.r_multiple > 0 else 'loss' }}">{{ '%+.2f' | format(t.r_multiple) }}R</span>{% endif %}
     {% if sig.at_level %}<span class="badge level" title="Пробой линии совпал с пробоем горизонтального уровня">+ уровень</span>{% endif %}
     {% if sig.touch3 %}<span class="badge level" title="Линия с 3+ касаниями (Murphy, Bulkowski). В бэктесте 4h лучше остальных, но не доказано — смотрим по журналу">3+ касания</span>{% endif %}
-    {% if sig.long_line %}<span class="badge level" title="Линия длиннее медианы бэктеста (Bulkowski: длинные линии надёжнее). Пока метка, не фильтр">длинная линия</span>{% endif %}
+    {% if sig.long_line %}<span class="badge level" title="Линия длиннее медианы бэктеста (Bulkowski: длинные линии надёжнее). Пока метка, не фильтр">длинная линия</span>{% endif %}{% if sig.round_level %}<span class="badge level" title="Закрытие пробоя прошло крупный круглый уровень (Osler: за ним стопы толпы). В бэктесте 4h лучше, но не доказано — только метка">+ круглый</span>{% endif %}
     <span class="hint num row-time">{{ sig.bar_time | lt }}</span>
     <span class="row-open" aria-hidden="true">график ▾</span>
     {% if sig.status in DELETABLE %}<button type="button" class="row-del" title="Удалить сигнал" aria-label="Удалить сигнал {{ sig.symbol }}"
@@ -36,7 +36,7 @@
       <span class="badge status-{{ sig.status.value }}">{{ STATUS_LABEL[sig.status] }}</span>
       {% if sig.at_level %}<span class="badge level" title="Пробой линии совпал с пробоем горизонтального уровня">+ уровень</span>{% endif %}
       {% if sig.touch3 %}<span class="badge level" title="Линия с 3+ касаниями (Murphy, Bulkowski). В бэктесте 4h лучше остальных, но не доказано — смотрим по журналу">3+ касания</span>{% endif %}
-      {% if sig.long_line %}<span class="badge level" title="Линия длиннее медианы бэктеста (Bulkowski: длинные линии надёжнее). Пока метка, не фильтр">длинная линия</span>{% endif %}
+      {% if sig.long_line %}<span class="badge level" title="Линия длиннее медианы бэктеста (Bulkowski: длинные линии надёжнее). Пока метка, не фильтр">длинная линия</span>{% endif %}{% if sig.round_level %}<span class="badge level" title="Закрытие пробоя прошло крупный круглый уровень (Osler: за ним стопы толпы). В бэктесте 4h лучше, но не доказано — только метка">+ круглый</span>{% endif %}
     </div>
     <span class="hint" style="margin:0">Свеча пробоя {{ sig.bar_time | lt }}</span>
     <dl class="plan num">

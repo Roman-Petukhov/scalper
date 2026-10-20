@@ -100,6 +100,7 @@ class JournalEntry:
     at_level: bool = False      # сигнал с пометкой «+ уровень» (Signal.at_level)
     touch3: bool = False        # линия с 3+ касаниями (Signal.touch3)
     long_line: bool = False     # линия длиннее медианы бэктеста (Signal.long_line)
+    round_level: bool = False   # пробой прошёл крупный круглый уровень (Signal.round_level)
 
 
 @dataclass(frozen=True)
@@ -126,6 +127,9 @@ class TfStats:
     long_closed: int = 0        # из них с длинной линией
     long_avg_r: float | None = None
     long_rest_r: float | None = None
+    round_closed: int = 0       # из них с пробоем крупного круглого уровня
+    round_avg_r: float | None = None
+    round_rest_r: float | None = None
 
     @property
     def enough(self) -> bool:
@@ -159,6 +163,7 @@ def tf_stats(entries: list[JournalEntry], target_r: dict[Timeframe, float] | Non
         lv = [e.trade.r_multiple for e in done if e.at_level]
         tc = [e.trade.r_multiple for e in done if e.touch3]
         lg = [e.trade.r_multiple for e in done if e.long_line]
+        rd = [e.trade.r_multiple for e in done if e.round_level]
         slips = [s for s in (t.slippage_r for t in own) if s is not None]
         retest = [t for t in own if t.kind is EntryKind.RETEST and t.status is not TradeStatus.PLACED]
         filled = [t for t in retest if t.filled_at is not None or t.status in
@@ -171,5 +176,6 @@ def tf_stats(entries: list[JournalEntry], target_r: dict[Timeframe, float] | Non
                            len(lv), _mean(lv), _mean([e.trade.r_multiple for e in done if not e.at_level]),
                            len(hd), _mean([t.r_multiple for t in hd]), _mean([t.r_multiple + t.hedge_r for t in hd]),
                            len(tc), _mean(tc), _mean([e.trade.r_multiple for e in done if not e.touch3]),
-                           len(lg), _mean(lg), _mean([e.trade.r_multiple for e in done if not e.long_line])))
+                           len(lg), _mean(lg), _mean([e.trade.r_multiple for e in done if not e.long_line]),
+                           len(rd), _mean(rd), _mean([e.trade.r_multiple for e in done if not e.round_level])))
     return out

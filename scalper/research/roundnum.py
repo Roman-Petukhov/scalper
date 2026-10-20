@@ -37,23 +37,14 @@ from .footprint import verdict
 from .oos import PER_ALL
 from .shard import all_parts, mine, part_path
 from .smc import _atr, _cell
-from .tline import HOLD, MAKER, STOP_BUF, TAKER, tf_frame, two_targets
+from .tline import HOLD, MAKER, STOP_BUF, TAKER, crossed_round, round_grid, tf_frame, two_targets
 
 TFS = tuple(os.environ.get("ROUNDNUM_TFS", "4h,15m").split(","))
 BOT_ENTRY = {"4h": "retest", "15m": "market"}
 CLUSTER_ATR, S1_BUF = 0.5, 0.25
 
 
-def step(price: float, major: bool) -> float:
-    k = math.floor(math.log10(price))
-    return 10.0 ** k / 2 if major else 10.0 ** (k - 1)
-
-
-def crossed(prev: float, cur: float, major: bool) -> bool:
-    """Между прошлым и текущим закрытием есть круглый уровень (включая сам текущий уровень со стороны движения)."""
-    lo, hi = min(prev, cur), max(prev, cur)
-    s = step(cur, major)
-    return math.floor(hi / s) * s > lo
+step, crossed = round_grid, crossed_round
 
 
 def level_ahead(px: float, side: int, dist: float, major: bool) -> bool:

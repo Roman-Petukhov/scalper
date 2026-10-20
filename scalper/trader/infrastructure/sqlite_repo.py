@@ -450,7 +450,7 @@ class SqliteStore:
                 continue
             ex = json.loads(r["sig_payload"]).get("extra", {})
             out.append(JournalEntry(self._trade(r), Timeframe(r["tf"]), bool(ex.get("level")), bool(ex.get("touch3")),
-                                    bool(ex.get("long_line"))))
+                                    bool(ex.get("long_line")), bool(ex.get("round"))))
         return out
 
     # ---------- бумажный счёт тренда ----------

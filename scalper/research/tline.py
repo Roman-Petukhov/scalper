@@ -27,6 +27,8 @@
 """
 from __future__ import annotations
 
+import math
+
 import argparse
 import itertools
 import json
@@ -470,6 +472,19 @@ LEVEL_LIFE = 300      # уровень живёт 300 свечей после п
 
 
 LEVEL_LOOKBACK = 300  # пробой уровня в сигнале: развороты за 300 свечей до пробоя
+
+
+def round_grid(price: float, major: bool = True) -> float:
+    """Шаг круглых уровней от порядка цены: крупные — 10^k / 2 (2.0 / 2.5 / 3.0 для 2.3), мелкие — 10^(k−1)."""
+    k = math.floor(math.log10(price))
+    return 10.0 ** k / 2 if major else 10.0 ** (k - 1)
+
+
+def crossed_round(prev: float, cur: float, major: bool = True) -> bool:
+    """Между прошлым и текущим закрытием есть круглый уровень (research/roundnum.py, метка «+ круглый»)."""
+    lo, hi = min(prev, cur), max(prev, cur)
+    s = round_grid(cur, major)
+    return math.floor(hi / s) * s > lo
 
 
 TOUCH_ATR, TOUCH_GAP = 0.25, 3     # касание линии: в пределах 0.25 ATR, отдельные подходы — через 3+ свечи

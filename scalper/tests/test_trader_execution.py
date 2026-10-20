@@ -430,6 +430,8 @@ def test_tag_risk_boost_per_canon_tag_capped():
     o0 = build_order(_sig(), Settings(), ACC, INST, 101.0, None, NOW)
     o1 = build_order(_sig(extra={"touch3": True}), Settings(), ACC, INST, 101.0, None, NOW)
     o2 = build_order(_sig(extra={"touch3": True, "long_line": True}), Settings(), ACC, INST, 101.0, None, NOW)
+    o3 = build_order(_sig(extra={"round": True}), Settings(), ACC, INST, 101.0, None, NOW)
+    assert o3.risk_usd == pytest.approx(o0.risk_usd)                           # «+ круглый» — без надбавки
     assert o0.risk_usd == pytest.approx(9.99, abs=0.02)                        # 1% без меток
     assert o1.risk_usd == pytest.approx(12.5, abs=0.04) and "1.25%" not in (o1.cut or "")   # ×1.25 за метку
     assert o2.risk_usd == pytest.approx(15.6, abs=0.04)                        # обе — ×1.5625
@@ -451,7 +453,9 @@ def test_journal_splits_canon_tags():
                   result=TradeResult(100.0, 100.0 + r, r, NOW))
         return JournalEntry(t, Timeframe.H4, False, touch3, long_line)
     es = [entry(3.0, True, True), entry(-1.0, True, False), entry(-1.0, False, False)]
+    es[2] = replace(es[2], round_level=True)
     h4 = next(x for x in tf_stats(es) if x.timeframe is Timeframe.H4)
+    assert h4.round_closed == 1 and h4.round_avg_r == pytest.approx(-1.0) and h4.round_rest_r == pytest.approx(1.0)
     assert h4.touch_closed == 2 and h4.touch_avg_r == pytest.approx(1.0) and h4.touch_rest_r == pytest.approx(-1.0)
     assert h4.long_closed == 1 and h4.long_avg_r == pytest.approx(3.0) and h4.long_rest_r == pytest.approx(-1.0)
 
