@@ -1,0 +1,30 @@
+----- holdlen collect (часть 0/10) -----
+часть 0/10, набор hot-wide: монет 63
+  holdlen: сделок 21546
+----- holdlen collect (часть 1/10) -----
+часть 1/10, набор hot-wide: монет 66
+  holdlen: сделок 18209
+----- holdlen collect (часть 2/10) -----
+часть 2/10, набор hot-wide: монет 78
+  holdlen: сделок 26709
+----- holdlen collect (часть 3/10) -----
+часть 3/10, набор hot-wide: монет 73
+  holdlen: сделок 22306
+----- holdlen collect (часть 4/10) -----
+часть 4/10, набор hot-wide: монет 72
+  holdlen: сделок 19424
+----- holdlen collect (часть 5/10) -----
+часть 5/10, набор hot-wide: монет 83
+  holdlen: сделок 22550
+----- holdlen collect (часть 6/10) -----
+часть 6/10, набор hot-wide: монет 71
+  holdlen: сделок 23757
+----- holdlen collect (часть 7/10) -----
+часть 7/10, набор hot-wide: монет 61
+  holdlen: сделок 23062
+----- holdlen collect (часть 8/10) -----
+часть 8/10, набор hot-wide: монет 75
+  holdlen: сделок 26947
+----- holdlen collect (часть 9/10) -----
+часть 9/10, набор hot-wide: монет 83
+  holdlen: сделок 31196
