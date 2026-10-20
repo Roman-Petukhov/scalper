@@ -283,28 +283,36 @@ def zigzag(c: np.ndarray, atr: np.ndarray, k: float) -> tuple[np.ndarray, np.nda
     return (np.array(highs, np.int64).reshape(-1, 2), np.array(lows, np.int64).reshape(-1, 2))
 
 
-def zz_lines(d: pd.DataFrame, log: bool = False, k: float = ZZ_K) -> list[dict]:
+def zz_lines(d: pd.DataFrame, log: bool = False, k: float = ZZ_K, wicks: bool = False) -> list[dict]:
     """Линии по значимым точкам: обе точки — вершины зигзага по закрытиям (разворот >= ZZ_K ATR), первая — самое
     высокое закрытие за ZZ_ANCHOR свечей до неё, между точками >= ZZ_SPAN свечей; из таких вторых точек берётся та,
     что даёт самую пологую касательную (ни одна вершина зигзага после первой не выше линии). Линия живёт до пробоя,
     но не дольше ZZ_LIFE свечей от первой точки; пробой, совпавший по бару с пробоем линии от более ранней опоры,
     не дублируется. Для восходящей линии — зеркально по впадинам. Формат — как у major_lines.
     log=True — линия прямая на логарифмической шкале (наклон в долях цены за свечу, как трейдер ведёт её на
-    лог-графике): вершины те же, геометрия касания и пробоя — по log(close); line_t / line_n — в цене, slope — в log."""
+    лог-графике): вершины те же, геометрия касания и пробоя — по log(close); line_t / line_n — в цене, slope — в log.
+    wicks=True — линия по теням (как рисует Bulkowski): вершины зигзага, опора и касательная — по high (для пробоя
+    вверх) / low (вниз), пробой — по-прежнему закрытием за линией (research/tlcanon.py)."""
     price = d["close"].to_numpy(dtype="float64")
     atr = _atr(d).to_numpy() if {"high", "low"} <= set(d.columns) else np.full(len(price), np.inf)
     m = len(price)
     hs, ls = zigzag(price, atr, k)
     c = np.log(price) if log else price
     back = np.exp if log else (lambda v: v)
+    src = {1: c, -1: c}
+    if wicks:
+        hi, lo = (d[x].to_numpy(dtype="float64") for x in ("high", "low"))
+        src = {1: np.log(hi) if log else hi, -1: np.log(lo) if log else lo}
+        hs, ls = zigzag(hi, atr, k)[0], zigzag(lo, atr, k)[1]
     out = []
     for side, piv in ((1, hs), (-1, ls)):
+        y, c = src[side], (np.log(price) if log else price)        # y — по чему строится линия, c — пробой
         seen = set()
         for a, conf_a in piv:
-            w = c[max(0, a - ZZ_ANCHOR): a]
-            if len(w) < ZZ_ANCHOR or side * (c[a] - (w.max() if side > 0 else w.min())) <= 0:
+            w = y[max(0, a - ZZ_ANCHOR): a]
+            if len(w) < ZZ_ANCHOR or side * (y[a] - (w.max() if side > 0 else w.min())) <= 0:
                 continue
-            cand = piv[(piv[:, 0] >= a + ZZ_SPAN) & (side * (c[a] - c[piv[:, 0]]) > 0)]
+            cand = piv[(piv[:, 0] >= a + ZZ_SPAN) & (side * (y[a] - y[piv[:, 0]]) > 0)]
             later = piv[piv[:, 0] > a]
             best, b_best, rec, ci, li = None, -1, None, 0, 0
             for t in range(conf_a + 1, min(a + ZZ_LIFE, m - 1)):
@@ -319,15 +327,15 @@ def zz_lines(d: pd.DataFrame, log: bool = False, k: float = ZZ_K) -> list[dict]:
                     best, b_best = None, -1                 # самая пологая из известных точек, без вершин над линией
                     pts = later[:li, 0]
                     for b in cand[:ci, 0]:
-                        sl = (c[b] - c[a]) / (b - a)
-                        if np.all(side * (c[pts] - (c[a] + sl * (pts - a))) <= 1e-12):
+                        sl = (y[b] - y[a]) / (b - a)
+                        if np.all(side * (y[pts] - (y[a] + sl * (pts - a))) <= 1e-12):
                             if best is None or side * sl > side * best:
                                 best, b_best = sl, int(b)
                 if best is None or not (side * best < 0):
                     continue
-                lt, lp = c[a] + best * (t - a), c[a] + best * (t - 1 - a)
+                lt, lp = y[a] + best * (t - a), y[a] + best * (t - 1 - a)
                 if side * (c[t] - lt) > 0 and side * (c[t - 1] - lp) <= 0:
-                    ln = c[a] + best * (t + 1 - a)
+                    ln = y[a] + best * (t + 1 - a)
                     rec = {"side": side, "a": int(a), "b": b_best, "slope": best, "t": t,
                            "tc": t + 1 if side * (c[t + 1] - ln) > 0 else -1, "line_t": float(back(lt)),
                            "line_n": float(back(ln)), "log": log}
