@@ -274,5 +274,21 @@ class Signal:
         return bool(self.extra.get("level"))
 
     @property
+    def touch3(self) -> bool:
+        """Линия с 3+ касаниями (research/tlcanon.py: метка для журнала, не фильтр)."""
+        return bool(self.extra.get("touch3"))
+
+    @property
+    def long_line(self) -> bool:
+        """Линия длиннее медианы бэктеста (research/tlcanon.py: метка для журнала, не фильтр)."""
+        return bool(self.extra.get("long_line"))
+
+    @property
+    def tags(self) -> tuple[str, ...]:
+        """Пометки сигнала для уведомлений и панели."""
+        return tuple(name for name, on in (("+ уровень", self.at_level), ("3+ касания", self.touch3),
+                                           ("длинная линия", self.long_line)) if on)
+
+    @property
     def key(self) -> tuple[str, str, str, int]:
         return self.symbol, self.timeframe.value, self.bar_time.isoformat(), int(self.side)

@@ -7,14 +7,17 @@ hybrid_range_atr ATR — по рынку: после длинной свечи �
 
 Построение линий берётся из research.tline (один источник правды с бэктестом); линии — в обычной шкале (лог-вариант — LOG_LINES).
 Пометка extra["level"]: закрытие пробоя прошло и горизонтальный уровень (2+ разворота закрытий в 0.5 ATR за 300 свечей) —
-не фильтр, а признак для сравнения по журналу (research/oos.py, docs/knowledge.md)."""
+не фильтр, а признак для сравнения по журналу (research/oos.py, docs/knowledge.md).
+Пометки extra["touch3"] / extra["long_line"] — канон Murphy / Bulkowski (research/tlcanon.py): 3+ касания линии и линия
+длиннее медианы бэктеста. В бэктесте 4h лучше остальных в IS / VAL / HO (t 1.7 / 1.8), но не приняты — метки для
+журнала, не фильтры."""
 from __future__ import annotations
 
 import numpy as np
 import pandas as pd
 
 from research.smc import _atr
-from research.tline import LEVEL_PIV, PIV, htf_trend, last_confirmed, level_hit, pivots, zz_lines
+from research.tline import LEVEL_PIV, PIV, htf_trend, last_confirmed, level_hit, line_touches, pivots, zz_lines
 
 from datetime import datetime, timedelta
 
@@ -23,6 +26,8 @@ from .models import EntryKind, EntryPolicy, Settings, Side, Signal, Timeframe, T
 REQUIRED = ("open", "high", "low", "close", "volume", "taker_buy_volume")
 STOP_ATR = (0.3, 4.0)
 LOG_LINES = False           # обычные линии: по бэктесту 4h сильнее лог-шкалы (HOLDOUT +0.40R против +0.32R)
+LONG_LINE_BARS = {Timeframe.H4: 126}    # медиана длины линии сделок бота в IS (research/tlcanon.py); 15m — 110 свечей
+LONG_LINE_DEFAULT = 110
 
 
 def _with_probe_bar(d: pd.DataFrame) -> pd.DataFrame:
@@ -93,6 +98,9 @@ def detect(d: pd.DataFrame, tf: Timeframe, symbol: str, settings: Settings) -> l
                          tp.retest_bars if kind is EntryKind.RETEST else 0)
         a, b = r["a"], r["b"]
         lv = level_hit(c, atr, last, int(side), lv_hi, lv_lo)
+        y = np.log(c) if LOG_LINES else c
+        touches = line_touches(y, atr, a, last, int(side), float(y[a]), float(r["slope"]))
+        line_bars = last - a
         out.append(Signal(symbol=symbol, timeframe=tf, side=side, bar_time=d.index[last].to_pydatetime(),
                           close=float(c[last]), line_value=float(r["line_t"]),
                           line_points=((d.index[a].to_pydatetime(), float(c[a])), (d.index[b].to_pydatetime(), float(c[b]))),
@@ -100,6 +108,8 @@ def detect(d: pd.DataFrame, tf: Timeframe, symbol: str, settings: Settings) -> l
                           extra={"log_line": LOG_LINES, "break_atr": round(float(brk), 3), "close_loc": round(float(loc), 3),
                                  "slope_atr": round(float(slope_atr), 4),
                                  "level": lv is not None,
+                                 "touches": touches, "line_bars": int(line_bars), "touch3": touches >= 3,
+                                 "long_line": line_bars > LONG_LINE_BARS.get(tf, LONG_LINE_DEFAULT),
                                  **({"level_px": lv[0], "level_n": lv[1]} if lv is not None else {})}))
         seen.add(side)
     return out

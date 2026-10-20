@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 
 from research.smc import _atr
-from research.tline import LEVEL_PIV, htf_trend, level_break, level_hit, pivots, zz_lines
+from research.tline import LEVEL_PIV, htf_trend, level_break, level_hit, line_touches, pivots, zz_lines
 from trader.domain.models import EntryKind, EntryPolicy, Settings, Side, TfParams, Timeframe, TradePlan
 from trader.domain.sizing import position_size
 from trader.domain import strategy
@@ -67,6 +67,15 @@ def test_detect_matches_research_rule_on_the_last_closed_bar(seed, stop_atr, mon
             assert x.at_level is level_break(c, a, t, int(x.side), lh, ll)
             hit = level_hit(c, a, t, int(x.side), lh, ll)
             assert x.extra.get("level_px") == (hit[0] if hit else None)
+    for t in candidates[:40]:                               # метки канона — та же функция, что в research/tlcanon
+        lines = {int(r["side"]): r for r in zz_lines(d.iloc[: t + 2], log=strategy.LOG_LINES) if r["t"] == t}
+        for x in detect(d.iloc[: t + 1], Timeframe.H4, "X", s):
+            r = lines[int(x.side)]
+            n = line_touches(c, a, r["a"], t, int(x.side), float(c[r["a"]]), float(r["slope"]))
+            assert x.extra["touches"] == n >= 2 and x.touch3 is (n >= 3)
+            assert x.extra["line_bars"] == t - r["a"] and x.long_line is (t - r["a"] > strategy.LONG_LINE_BARS[Timeframe.H4])
+            assert x.tags == tuple(k for k, on in (("+ уровень", x.at_level), ("3+ касания", x.touch3),
+                                                   ("длинная линия", x.long_line)) if on)
     if stop_atr[1] > 100:
         assert len(found) >= 2                              # сверка идёт на настоящих сигналах
 

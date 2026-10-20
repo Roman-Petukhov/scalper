@@ -98,6 +98,8 @@ class JournalEntry:
     trade: Trade
     timeframe: Timeframe
     at_level: bool = False      # сигнал с пометкой «+ уровень» (Signal.at_level)
+    touch3: bool = False        # линия с 3+ касаниями (Signal.touch3)
+    long_line: bool = False     # линия длиннее медианы бэктеста (Signal.long_line)
 
 
 @dataclass(frozen=True)
@@ -118,6 +120,12 @@ class TfStats:
     hedged_closed: int = 0      # из них с хеджем BTC (оценка итога хеджа известна)
     hedged_trade_r: float | None = None     # сами сделки
     hedged_total_r: float | None = None     # сделка + хедж
+    touch_closed: int = 0       # из них с 3+ касаниями линии
+    touch_avg_r: float | None = None
+    touch_rest_r: float | None = None
+    long_closed: int = 0        # из них с длинной линией
+    long_avg_r: float | None = None
+    long_rest_r: float | None = None
 
     @property
     def enough(self) -> bool:
@@ -149,6 +157,8 @@ def tf_stats(entries: list[JournalEntry], target_r: dict[Timeframe, float] | Non
         done = _closed(entries, tf)
         rs = [e.trade.r_multiple for e in done]
         lv = [e.trade.r_multiple for e in done if e.at_level]
+        tc = [e.trade.r_multiple for e in done if e.touch3]
+        lg = [e.trade.r_multiple for e in done if e.long_line]
         slips = [s for s in (t.slippage_r for t in own) if s is not None]
         retest = [t for t in own if t.kind is EntryKind.RETEST and t.status is not TradeStatus.PLACED]
         filled = [t for t in retest if t.filled_at is not None or t.status in
@@ -159,5 +169,7 @@ def tf_stats(entries: list[JournalEntry], target_r: dict[Timeframe, float] | Non
         out.append(TfStats(tf, len(rs), _mean(rs), sum(rs), _mean([float(r > 0) for r in rs]), _mean(slips),
                            len(retest), len(filled) / len(retest) if retest else None, bt, hc,
                            len(lv), _mean(lv), _mean([e.trade.r_multiple for e in done if not e.at_level]),
-                           len(hd), _mean([t.r_multiple for t in hd]), _mean([t.r_multiple + t.hedge_r for t in hd])))
+                           len(hd), _mean([t.r_multiple for t in hd]), _mean([t.r_multiple + t.hedge_r for t in hd]),
+                           len(tc), _mean(tc), _mean([e.trade.r_multiple for e in done if not e.touch3]),
+                           len(lg), _mean(lg), _mean([e.trade.r_multiple for e in done if not e.long_line])))
     return out

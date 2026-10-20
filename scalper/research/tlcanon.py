@@ -36,26 +36,12 @@ from .oos import PER_ALL
 from .shard import all_parts, mine, part_path
 from .smc import _atr, _cell
 from .tline import PER, tf_frame, zz_lines
+from .tline import line_touches as touches
 
 TFS = tuple(os.environ.get("TLCANON_TFS", "4h,15m").split(","))
-TOUCH_ATR, TOUCH_GAP = 0.25, 3
 SPLITS = {"K1": "≥ 3 касаний (Murphy, Bulkowski)", "K1b": "≥ 4 касаний (справочно)",
           "K2": "длиннее медианы IS (Bulkowski)", "K3": "пробой ≥ 0.5 ATR за линией",
           "K3b": "пробой ≥ 1% цены (справочно)", "K3c": "пробой ≥ 3% цены (Edwards & Magee, справочно)"}
-
-
-def touches(y: np.ndarray, atr: np.ndarray, a: int, t: int, side: int, base: float, slope: float) -> int:
-    """Отдельные подходы y к линии base + slope·(j − a) на свечах a … t−1 (в пределах TOUCH_ATR ATR с внутренней
-    стороны или за линией не дальше того же допуска); подходы разделены ≥ TOUCH_GAP свечами."""
-    j = np.arange(a, t)
-    dist = side * (base + slope * (j - a) - y[a:t])
-    near = np.abs(dist) <= TOUCH_ATR * np.where(atr[a:t] > 0, atr[a:t], np.inf)
-    n, last = 0, -10 ** 9
-    for k in np.flatnonzero(near):
-        if k - last >= TOUCH_GAP:
-            n += 1
-        last = k
-    return n
 
 
 def coin_rows(d: pd.DataFrame, liq: np.ndarray, sym: str, tf: str, wicks: bool) -> list[dict]:

@@ -444,9 +444,14 @@ class SqliteStore:
                                    "JOIN signals s ON s.id = t.signal_id "
                                    "ORDER BY t.id DESC LIMIT ?", (limit,)).fetchall()
         tfs = {t.value for t in Timeframe}
-        return [JournalEntry(self._trade(r), Timeframe(r["tf"]),
-                             bool(json.loads(r["sig_payload"]).get("extra", {}).get("level")))
-                for r in rows if r["tf"] in tfs]
+        out = []
+        for r in rows:
+            if r["tf"] not in tfs:
+                continue
+            ex = json.loads(r["sig_payload"]).get("extra", {})
+            out.append(JournalEntry(self._trade(r), Timeframe(r["tf"]), bool(ex.get("level")), bool(ex.get("touch3")),
+                                    bool(ex.get("long_line"))))
+        return out
 
     # ---------- бумажный счёт тренда ----------
     def trend_last(self, rule: str) -> TrendDay | None:

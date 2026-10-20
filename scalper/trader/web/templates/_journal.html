@@ -19,6 +19,12 @@
       {% if st.level_closed %}
       <p class="hint num">«+ уровень»: {{ st.level_closed }} сделок, {{ '%+.2f' % st.level_avg_r }}R{% if st.plain_avg_r is not none %} · остальные {{ '%+.2f' % st.plain_avg_r }}R{% endif %}</p>
       {% endif %}
+      {% if st.touch_closed %}
+      <p class="hint num">«3+ касания»: {{ st.touch_closed }} сделок, {{ '%+.2f' % st.touch_avg_r }}R{% if st.touch_rest_r is not none %} · остальные {{ '%+.2f' % st.touch_rest_r }}R{% endif %}</p>
+      {% endif %}
+      {% if st.long_closed %}
+      <p class="hint num">«Длинная линия»: {{ st.long_closed }} сделок, {{ '%+.2f' % st.long_avg_r }}R{% if st.long_rest_r is not none %} · остальные {{ '%+.2f' % st.long_rest_r }}R{% endif %}</p>
+      {% endif %}
       {% if st.hedged_closed %}
       <p class="hint num">С хеджем BTC: {{ st.hedged_closed }} сделок, сама сделка {{ '%+.2f' % st.hedged_trade_r }}R · с хеджем {{ '%+.2f' % st.hedged_total_r }}R</p>
       {% endif %}
@@ -31,7 +37,7 @@
     {% for e in journal_rows %}{% set t = e.trade %}
     <div class="jr-row" role="row">
       <span role="cell" class="hint" style="margin:0">{{ t.result.closed_at | lt if t.result else t.created_at | lt('dm') }}</span>
-      <span role="cell">{{ t.symbol }} {{ e.timeframe.value }} <span class="{{ 'jr-up' if t.side.value == 1 else 'jr-down' }}">{{ t.side.label }}</span>{% if e.at_level %} · ур.{% endif %}</span>
+      <span role="cell">{{ t.symbol }} {{ e.timeframe.value }} <span class="{{ 'jr-up' if t.side.value == 1 else 'jr-down' }}">{{ t.side.label }}</span>{% if e.at_level %} · ур.{% endif %}{% if e.touch3 %} · 3к{% endif %}{% if e.long_line %} · дл.{% endif %}</span>
       <span role="cell" class="{{ 'jr-up' if (t.r_multiple or 0) > 0 else 'jr-down' }}">{{ '%+.2f' % t.r_multiple ~ 'R' if t.r_multiple is not none else '—' }}</span>
       <span role="cell" class="hint" style="margin:0">{{ t.exit_reason }}{% if t.slippage_r is not none and t.slippage_r|abs >= 0.05 %} · проск. {{ '%+.2f' % t.slippage_r }}R{% endif %}{% if t.hedge_r is not none %} · хедж {{ '%+.2f' % t.hedge_r }}R{% endif %}</span>
     </div>

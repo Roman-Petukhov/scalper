@@ -472,6 +472,23 @@ LEVEL_LIFE = 300      # уровень живёт 300 свечей после п
 LEVEL_LOOKBACK = 300  # пробой уровня в сигнале: развороты за 300 свечей до пробоя
 
 
+TOUCH_ATR, TOUCH_GAP = 0.25, 3     # касание линии: в пределах 0.25 ATR, отдельные подходы — через 3+ свечи
+
+
+def line_touches(y: np.ndarray, atr: np.ndarray, a: int, t: int, side: int, base: float, slope: float) -> int:
+    """Отдельные подходы y к линии base + slope·(j − a) на свечах a … t−1 (в пределах TOUCH_ATR ATR с любой стороны),
+    разделённые ≥ TOUCH_GAP свечами; опорные точки линии — тоже касания (research/tlcanon.py, метка сигнала бота)."""
+    j = np.arange(a, t)
+    dist = side * (base + slope * (j - a) - y[a:t])
+    near = np.abs(dist) <= TOUCH_ATR * np.where(atr[a:t] > 0, atr[a:t], np.inf)
+    n, last = 0, -10 ** 9
+    for k in np.flatnonzero(near):
+        if k - last >= TOUCH_GAP:
+            n += 1
+        last = k
+    return n
+
+
 def level_hit(c: np.ndarray, a: np.ndarray, e: int, side: int, piv_hi: np.ndarray,
               piv_lo: np.ndarray) -> tuple[float, int] | None:
     """В свече e закрытие прошло горизонтальный уровень: 2+ разворота закрытий (подтверждены до e, за LEVEL_LOOKBACK

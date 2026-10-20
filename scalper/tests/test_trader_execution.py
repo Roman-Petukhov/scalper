@@ -575,7 +575,7 @@ def test_journal_records_result_in_r_slippage_and_reason(tmp_path):
     b = FakeBroker()
     clock = Clock(NOW)
     st, ex = _exec(tmp_path, b, clock)
-    s = st.add(replace(_signal(), extra={"level": True}))  # лонг по рынку: план вход 101, стоп 98, цель 110
+    s = st.add(replace(_signal(), extra={"level": True, "touch3": True}))  # лонг по рынку: вход 101, стоп 98, цель 110
     asyncio.run(ex.execute(st.get(s.id)))
     b.acc = replace(ACC, positions=(Position("SOLUSDT", Side.LONG, 3.33, 101.3, 105, 10),))
     clock.t = NOW + timedelta(hours=1)
@@ -595,6 +595,9 @@ def test_journal_records_result_in_r_slippage_and_reason(tmp_path):
     assert h4.closed == 1 and h4.avg_r == pytest.approx(t.r_multiple) and h4.need == 29 and h4.win_share == 1.0
     assert st.journal()[0].at_level and h4.level_closed == 1 and h4.level_avg_r == pytest.approx(t.r_multiple)
     assert h4.plain_avg_r is None
+    assert st.journal()[0].touch3 and not st.journal()[0].long_line
+    assert h4.touch_closed == 1 and h4.touch_avg_r == pytest.approx(t.r_multiple) and h4.touch_rest_r is None
+    assert h4.long_closed == 0 and h4.long_avg_r is None and h4.long_rest_r == pytest.approx(t.r_multiple)
     assert st.get(s.id).status is SignalStatus.CLOSED and "Bybit" in st.get(s.id).note   # из ленты — в архив
 
 

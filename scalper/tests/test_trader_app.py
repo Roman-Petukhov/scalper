@@ -308,7 +308,9 @@ def test_chart_and_caption(tmp_path):
     path = MatplotlibCharts(tmp_path).render(sig, bars)
     assert path.endswith(".png") and (tmp_path / path.split("/")[-1]).stat().st_size > 10_000
     text = caption(sig, "https://panel.example")
-    assert "SOLUSDT" in text and "#signal-7" in text and "лонг" in text
+    assert "SOLUSDT" in text and "#signal-7" in text and "лонг" in text and "касания" not in text
+    tagged = caption(replace(sig, extra={"touch3": True, "long_line": True}), "https://panel.example")
+    assert "· 3+ касания · длинная линия\n" in tagged
 
 
 def test_entry_policy_persists(tmp_path):
