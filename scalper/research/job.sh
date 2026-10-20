@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"quarterly"}
+TASKS=${TASKS:-"trademl"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -270,6 +270,15 @@ at2r_collect() {
   python -m research.at2r collect --symbols "$(cat /tmp/syms_hot-wide.txt)"
 }
 at2r_report() { python -m research.at2r report; }
+# Модель сопровождения (LightGBM по картине открытой сделки): обучение на IS, проверка на VAL / HO (5m, 15m, 4h)
+trademl_collect() {
+  RESEARCH_METRICS=0 python -m research.prepare hot-wide
+  python -m research.trademl collect --symbols "$(cat /tmp/syms_hot-wide.txt)"
+}
+trademl_report() {
+  pip install -q lightgbm
+  python -m research.trademl report
+}
 # Круглые числа (Osler): пробой через круглый уровень, уровень впереди, стоп «за толпой» (4h и 15m)
 roundnum_collect() {
   RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-qualified 15m-wide
