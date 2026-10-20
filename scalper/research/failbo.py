@@ -7,6 +7,9 @@
 Периоды: 2020, 2021 (данные с RESEARCH_START=2020-01), IS, VAL, HO — идея новая, ни на одном не подбиралась.
 Срезы: все пробои / пробои, прошедшие фильтр бота (агрессоры >= 55%, тренд старшего ТФ, закрытие в верхней половине
 свечи) — их провал бьёт по позициям бота / сторона разворота / K = 3, 6, 12.
+Добавка (по просьбе владельца — «обратный фильтр агрессоров на ложный пробой», задано до запуска): доля агрессоров
+в сторону разворота на свече возврата ≥ 55% — ждём, что такие развороты лучше остальных (K = 6, 3R; принятие — как
+research/footprint.py: лучше в каждом периоде с ≥ 20 сделками в обеих группах и t ≥ 2).
 """
 from __future__ import annotations
 
@@ -20,6 +23,7 @@ import pandas as pd
 
 from .broad import ADV_MIN, adv30
 from .shard import all_parts, mine, part_path
+from .footprint import verdict
 from .smc import _atr, _cell
 from .oos import PER_ALL
 from .tline import HOLD, TAKER, _years, htf_trend, tf_frame, two_targets, zz_lines
@@ -64,7 +68,8 @@ def coin_fails(root: Path, sym: str) -> pd.DataFrame:
             if not (0.3 <= risk_atr <= 4.0):
                 continue
             out = {"symbol": sym, "t": d.index[j], "k": k, "brk_side": side, "side": rev, "bot": bot,
-                   "rev_with_trend": trend[j] == rev, "risk_atr": risk_atr, "risk_pct": rev * (c[j] - stop) / c[j]}
+                   "rev_with_trend": trend[j] == rev, "risk_atr": risk_atr,
+                   "rev_aggr": float(buy[j] if rev > 0 else 1 - buy[j]), "risk_pct": rev * (c[j] - stop) / c[j]}
             for tgt in (2.0, 3.0):
                 out[f"R{tgt:g}"] = two_targets(o, hi, lo, c, f, j, rev, c[j], stop, tgt, tgt, False, HOLD["4h"], TAKER)[0]
             rows.append(out)
@@ -116,6 +121,17 @@ def report() -> None:
         print(f"\n  --- цель {tgt[1:]}R ---")
         print(pd.DataFrame(rows).to_string(index=False))
     g = df[(df.k == 6)]
+    if "rev_aggr" in g:
+        print("\n  --- агрессоры разворота на свече возврата (K = 6, 3R; ждём: ≥ 55% лучше) ---")
+        z = g.assign(R=g.R3, t=g.t.dt.tz_localize(None),
+                     AG=np.where(g.rev_aggr.isna(), None, np.where(g.rev_aggr >= 0.55, "да", "нет")))
+        for nm, zz in (("все провалы", z), ("разворот по тренду", z[z.rev_with_trend]),
+                       ("провал сигнала бота", z[z.bot])):
+            for grp in ("да", "нет"):
+                m = zz[zz.AG == grp]
+                print(f"    {nm}, ≥ 55% {grp}: " + "  ".join(f"{p}: {_cell(m[m.per == p])}" for p in PER_ALL)
+                      + f"  всё время: {_cell(m)}")
+            print(f"    {nm}, «да» минус «нет»: {verdict(zz, 'AG', 'да')[0]}")
     print(f"\n  по годам (K = 6, все, 3R): {_years(g, 'R3')}")
     print(f"  при издержках x2 (K = 6, все, 3R): " + ", ".join(
         f"{p}: {(z.R3 - 2 * TAKER / z.risk_pct).mean():+.3f}" for p, z in g.groupby("per") if p))
