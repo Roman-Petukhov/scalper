@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"quarterly"}
+TASKS=${TASKS:-"holdlen"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -252,6 +252,12 @@ tlcanon_collect() {
   python -m research.tlcanon collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
 }
 tlcanon_report() { python -m research.tlcanon report; }
+# Срок сделки 50–800 свечей на 15m и 5m (все монеты, как hotcoins)
+holdlen_collect() {
+  RESEARCH_METRICS=0 python -m research.prepare hot-wide
+  python -m research.holdlen collect --symbols "$(cat /tmp/syms_hot-wide.txt)"
+}
+holdlen_report() { python -m research.holdlen report; }
 supply_collect() { :; }
 supply_report() { python -m research.supply; }
 candles_collect() { python -m research.candles collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
