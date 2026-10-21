@@ -13,10 +13,12 @@ import pandas as pd
 from ..domain.models import HTF_CONFIRM, Settings, Signal, Timeframe
 from ..domain.strategy import htf_breakouts, htf_confirmation, replay
 from ..domain.weather import Mood, Weather, alts_vs_btc, replay_stats, ret, share_below_ema
-from .ports import MarketData, SentimentData, SettingsRepository, TradeRepository
+from .ports import MarketData, SentimentData, SettingsRepository, StablecoinData, TradeRepository
 
 log = logging.getLogger(__name__)
 KEY = "weather"
+DOM_KEY = "weather:dominance"   # своя история доминации BTC (у CoinGecko бесплатно — только текущая)
+DOM_KEEP = 30
 BTC = "BTCUSDT"
 COINS = 100                     # режим — по самым ликвидным монетам
 DAYS = 70                       # дневных свечей: EMA50 + неделя назад + запас
@@ -32,6 +34,10 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+async def _none() -> None:
+    return None
+
+
 def replay_since(tf: Timeframe, now: datetime) -> datetime:
     """Начало окна: 30 дней или сколько позволяют 1500 свечей после разгона правила (15m — около 11 дней)."""
     return now - min(timedelta(days=REPLAY_DAYS), timedelta(minutes=tf.minutes * (BARS - WARMUP)))
@@ -39,8 +45,10 @@ def replay_since(tf: Timeframe, now: datetime) -> datetime:
 
 class WeatherService:
     def __init__(self, market: MarketData, mood: SentimentData | None, trades: TradeRepository,
-                 settings: SettingsRepository, clock: Callable[[], datetime] = _utcnow, concurrency: int = 4) -> None:
+                 settings: SettingsRepository, clock: Callable[[], datetime] = _utcnow, concurrency: int = 4,
+                 stables: StablecoinData | None = None) -> None:
         self.market, self.mood, self.trades, self.settings = market, mood, trades, settings
+        self.stables = stables
         self.clock = clock
         self.sem = asyncio.Semaphore(concurrency)
         self._tried: datetime | None = None
@@ -103,7 +111,7 @@ class WeatherService:
         closes = [c for c in closes if c is not None and len(c)]
         if btc is None or not closes:
             raise RuntimeError("нет дневных свечей BTC или альтов")
-        mood = await self._mood(universe[:COINS])
+        mood = await self._mood(universe[:COINS], now)
         reps = []
         for tf in REPLAY_TFS:
             if tf in s.timeframes:
@@ -113,27 +121,57 @@ class WeatherService:
                        alts_vs_btc_30d=alts_vs_btc(closes, btc), btc_7d=ret(btc, 7), btc_30d=ret(btc, 30),
                        mood=mood, replay=tuple(reps))
 
-    async def _mood(self, symbols: list[str]) -> Mood:
+    async def _mood(self, symbols: list[str], now: datetime) -> Mood:
         if self.mood is None:
             return Mood()
-        fg, fund, ls = await asyncio.gather(self.mood.fear_greed(), self.mood.funding_now(), self.mood.btc_long_short(),
-                                            return_exceptions=True)
+        m = self.mood
+        names = ("страх и жадность", "funding и базис", "лонги/шорты BTC", "крупные трейдеры BTC", "открытый интерес BTC",
+                 "доминация BTC", "DVOL", "стейблкоины")
+        calls = (m.fear_greed(), m.premium_now(), m.btc_long_short(), m.btc_top_long_short(), m.btc_open_interest(),
+                 m.btc_dominance(), m.btc_dvol(), self.stables.supply() if self.stables is not None else _none())
+        fg, prem, ls, top, oi, dom, dvol, stab = await asyncio.gather(*calls, return_exceptions=True)
+        for nm, x in zip(names, (fg, prem, ls, top, oi, dom, dvol, stab)):
+            if isinstance(x, Exception):
+                log.warning("погода: %s — %s", nm, x)
         out: dict = {}
         if isinstance(fg, list) and fg:
             out |= {"fear_greed": fg[0][0], "fear_greed_label": fg[0][1],
                     "fear_greed_week": fg[7][0] if len(fg) > 7 else None}
-        if isinstance(fund, dict):
-            rates = [fund[x] for x in symbols if x in fund]
-            if rates:
-                rates.sort()
-                out |= {"funding_median": rates[len(rates) // 2],
-                        "funding_pos_share": sum(r > 0 for r in rates) / len(rates)}
-        if isinstance(ls, list) and ls:
-            out |= {"btc_long_short": ls[-1], "btc_long_short_week": ls[0] if len(ls) > 7 else None}
-        for nm, x in (("страх и жадность", fg), ("funding", fund), ("лонги/шорты BTC", ls)):
-            if isinstance(x, Exception):
-                log.warning("погода: %s — %s", nm, x)
+        if isinstance(prem, dict):
+            fund = sorted(prem[x][0] for x in symbols if x in prem)
+            basis = sorted(prem[x][1] for x in symbols if x in prem)
+            if fund:
+                out |= {"funding_median": fund[len(fund) // 2], "funding_pos_share": sum(r > 0 for r in fund) / len(fund),
+                        "basis_median": basis[len(basis) // 2]}
+            if BTC in prem:
+                out["basis_btc"] = prem[BTC][1]
+        for key, x in (("btc_long_short", ls), ("top_long_short", top)):
+            if isinstance(x, list) and x:
+                out |= {key: x[-1], f"{key}_week": x[0] if len(x) > 7 else None}
+        if isinstance(oi, list) and len(oi) > 7 and oi[0] > 0:
+            out["oi_btc_7d"] = oi[-1] / oi[0] - 1
+        if isinstance(dvol, list) and dvol:
+            out |= {"dvol": dvol[-1], "dvol_week": dvol[0] if len(dvol) > 7 else None}
+        if isinstance(dom, float):
+            out |= {"dominance": dom, "dominance_week": self._dominance_week(now, dom)}
+        if isinstance(stab, pd.Series) and len(stab) > 30 and stab.iloc[-31] > 0:
+            out["stables_30d"] = float(stab.iloc[-1] / stab.iloc[-31] - 1)
         return Mood(**out)
+
+    def _dominance_week(self, now: datetime, value: float) -> float | None:
+        """Запомнить сегодняшнюю доминацию и вернуть значение неделю назад (±1 день), если оно было записано."""
+        try:
+            hist = json.loads(self.trades.kv_get(DOM_KEY) or "{}")
+        except ValueError:
+            hist = {}
+        hist[now.date().isoformat()] = value
+        hist = dict(sorted(hist.items())[-DOM_KEEP:])
+        self.trades.kv_set(DOM_KEY, json.dumps(hist))
+        week = now.date() - timedelta(days=7)
+        for d in (week, week - timedelta(days=1), week + timedelta(days=1)):
+            if d.isoformat() in hist:
+                return float(hist[d.isoformat()])
+        return None
 
     async def _replay(self, tf: Timeframe, universe: list[str], s: Settings, now: datetime):
         since = replay_since(tf, now)

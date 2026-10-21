@@ -148,11 +148,23 @@ class SentimentData(Protocol):
     async def fear_greed(self, days: int = 8) -> list[tuple[int, str]]:
         """Индекс страха и жадности: (значение 0…100, подпись), новые первыми."""
 
-    async def funding_now(self) -> dict[str, float]:
-        """Последняя ставка funding по монетам (доля за 8 ч)."""
+    async def premium_now(self) -> dict[str, tuple[float, float]]:
+        """По монетам: (последняя ставка funding за 8 ч, базис фьючерса к споту), доли."""
 
     async def btc_long_short(self, days: int = 8) -> list[float]:
         """Лонги / шорты по счетам на BTC за последние дни, старые первыми."""
+
+    async def btc_top_long_short(self, days: int = 8) -> list[float]:
+        """Лонги / шорты по позициям крупных трейдеров на BTC, старые первыми."""
+
+    async def btc_open_interest(self, days: int = 8) -> list[float]:
+        """Открытый интерес BTC, $, по дням, старые первыми."""
+
+    async def btc_dominance(self) -> float | None:
+        """Доля BTC в капитализации рынка, %."""
+
+    async def btc_dvol(self, days: int = 8) -> list[float]:
+        """Индекс волатильности опционов BTC (DVOL) по дням, старые первыми."""
 
 
 class TrendRepository(Protocol):

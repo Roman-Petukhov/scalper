@@ -28,6 +28,28 @@
       <b>{{ '%.2f' | format(m.btc_long_short) if m.btc_long_short is not none else '—' }}</b>
       <small>{% if m.btc_long_short_week is not none %}неделю назад {{ '%.2f' | format(m.btc_long_short_week) }}{% else %}по счетам{% endif %}</small></div>
   </div>
+  <div class="stats periods num">
+    <div class="stat"><span>Доминация BTC</span>
+      <b>{{ '%.1f%%' | format(m.dominance) if m.dominance is not none else '—' }}</b>
+      <small>{% if m.dominance_week is not none %}неделю назад {{ '%.1f%%' | format(m.dominance_week) }}{% else %}история копится{% endif %}</small></div>
+    <div class="stat {{ 'up' if m.stables_30d and m.stables_30d > 0 else ('down' if m.stables_30d and m.stables_30d < 0 else '') }}"><span>Стейблкоины, 30 дн.</span>
+      <b>{{ '%+.1f%%' | format(m.stables_30d * 100) if m.stables_30d is not none else '—' }}</b>
+      <small>приток новых денег</small></div>
+    <div class="stat"><span>DVOL BTC</span>
+      <b>{{ '%.0f' | format(m.dvol) if m.dvol is not none else '—' }}</b>
+      <small>{% if m.dvol_week is not none %}неделю назад {{ '%.0f' | format(m.dvol_week) }}{% else %}волатильность опционов{% endif %}</small></div>
+  </div>
+  <div class="stats periods num">
+    <div class="stat"><span>Открытый интерес BTC</span>
+      <b>{{ '%+.1f%%' | format(m.oi_btc_7d * 100) if m.oi_btc_7d is not none else '—' }}</b>
+      <small>за неделю</small></div>
+    <div class="stat"><span>Крупные трейдеры BTC</span>
+      <b>{{ '%.2f' | format(m.top_long_short) if m.top_long_short is not none else '—' }}</b>
+      <small>{% if m.top_long_short_week is not none %}неделю назад {{ '%.2f' | format(m.top_long_short_week) }}{% else %}лонги / шорты{% endif %}</small></div>
+    <div class="stat"><span>Базис к споту</span>
+      <b>{{ '%+.3f%%' | format(m.basis_btc * 100) if m.basis_btc is not none else '—' }}</b>
+      <small>{% if m.basis_median is not none %}медиана монет {{ '%+.3f%%' | format(m.basis_median * 100) }}{% else %}BTC{% endif %}</small></div>
+  </div>
   {% set notes = w.notes() %}
   {% if notes %}<ul class="hint weather-notes">{% for n in notes %}<li>{{ n }}</li>{% endfor %}</ul>{% endif %}
   {% if w.replay %}

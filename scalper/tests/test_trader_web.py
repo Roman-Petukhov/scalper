@@ -600,10 +600,14 @@ def test_weather_card_empty_and_with_snapshot(env):
     now = datetime(2026, 10, 21, 0, 15, tzinfo=timezone.utc)
     w = Weather(date(2026, 10, 21), now, 98, 0.64, 0.55, -0.071, 0.012, -0.04,
                 Mood(fear_greed=22, fear_greed_label="сильный страх", fear_greed_week=35, funding_median=0.00012,
-                     funding_pos_share=0.7, btc_long_short=1.8, btc_long_short_week=1.6),
+                     funding_pos_share=0.7, btc_long_short=1.8, btc_long_short_week=1.6, top_long_short=0.85,
+                     basis_btc=0.0003, oi_btc_7d=0.12, dominance=58.4, dominance_week=57.0, dvol=63.0,
+                     stables_30d=0.015),
                 (ReplayStats("15m", now - timedelta(days=11), 140, 0.21, 0.31, 12, 1.26),))
     SqliteStore(tmp / "trader.db").kv_set("weather", json.dumps(w.to_json()))
     r = c.get("/weather")
     t = r.text
     assert "+1.2%" in t and "-7.1%" in t and "64%" in t and "сильный страх" in t and "1.80" in t
     assert "+0.21R · 140 сд." in t and "+1.26R · 12 сд." in t and "слабее BTC" in t
+    assert "58.4%" in t and "+1.5%" in t and "+12.0%" in t and "0.85" in t and "+0.030%" in t and "63" in t
+    assert "толпа в лонгах BTC, крупные трейдеры — в шортах" in t

@@ -4,8 +4,10 @@
 рядом с живым журналом показывает, был ли рынок удачным для правила или бот отработал лучше / хуже него.
 
 Режим: доля ликвидных монет ниже дневной EMA50 (сейчас и неделю назад), медианный ход альтов к BTC за 30 дней,
-BTC за 7 и 30 дней. Настроение толпы: индекс страха и жадности (alternative.me), медианный funding ликвидных монет,
-соотношение лонгов и шортов по счетам на BTC (Binance)."""
+BTC за 7 и 30 дней, доминация BTC, приток стейблкоинов за 30 дней. Настроение толпы: индекс страха и жадности
+(alternative.me), медианный funding и базис к споту ликвидных монет, лонги / шорты всех счетов и крупных трейдеров
+на BTC, открытый интерес BTC за неделю (Binance), волатильность опционов BTC DVOL (Deribit). Показатели толпы как
+фильтр входа проверялись — устойчивого эффекта нет (docs/research_report.md)."""
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
@@ -20,6 +22,9 @@ ALTS_GAP = 0.05         # альты к BTC за 30 дней: заметно с�
 BREADTH_DOWN, BREADTH_UP = 0.6, 0.4
 FUNDING_HOT = 0.0001    # 0.01% за 8 ч — базовая ставка Binance; заметно выше — толпа в лонгах
 FG_FEAR, FG_GREED = 25, 75
+DOM_SHIFT = 1.0         # доминация BTC за неделю, п. п.
+OI_SHIFT = 0.10         # открытый интерес BTC за неделю
+DVOL_CALM, DVOL_HOT = 40.0, 60.0
 
 
 @dataclass(frozen=True)
@@ -31,6 +36,16 @@ class Mood:
     funding_pos_share: float | None = None  # доля монет, где лонги платят шортам
     btc_long_short: float | None = None     # лонги / шорты по счетам на BTC, последние сутки
     btc_long_short_week: float | None = None
+    top_long_short: float | None = None     # то же по позициям крупных трейдеров
+    top_long_short_week: float | None = None
+    basis_btc: float | None = None          # фьючерс BTC к споту (mark / index − 1)
+    basis_median: float | None = None
+    oi_btc_7d: float | None = None          # открытый интерес BTC за неделю
+    dominance: float | None = None          # доля BTC в капитализации, %
+    dominance_week: float | None = None
+    dvol: float | None = None               # волатильность опционов BTC, % годовых
+    dvol_week: float | None = None
+    stables_30d: float | None = None        # предложение стейблкоинов за 30 дней
 
 
 @dataclass(frozen=True)
@@ -83,6 +98,26 @@ class Weather:
                 out.append("толпа в сильном страхе")
             elif m.fear_greed >= FG_GREED:
                 out.append("толпа в жадности")
+        if m.dominance is not None and m.dominance_week is not None:
+            if m.dominance - m.dominance_week >= DOM_SHIFT:
+                out.append("доминация BTC за неделю растёт — деньги уходят из альтов")
+            elif m.dominance_week - m.dominance >= DOM_SHIFT:
+                out.append("доминация BTC за неделю падает — деньги идут в альты")
+        if m.stables_30d is not None and m.stables_30d < 0:
+            out.append("стейблкоинов за месяц стало меньше — новые деньги в крипту не приходят")
+        if m.oi_btc_7d is not None and abs(m.oi_btc_7d) >= OI_SHIFT:
+            out.append("открытый интерес BTC за неделю " + ("вырос — плеча в рынке больше, резкие выносы вероятнее"
+                                                             if m.oi_btc_7d > 0 else "упал — плечо из рынка вышло"))
+        if m.dvol is not None:
+            if m.dvol >= DVOL_HOT:
+                out.append("опционы закладывают сильные движения BTC (DVOL от 60)")
+            elif m.dvol <= DVOL_CALM:
+                out.append("опционы ждут спокойного рынка (DVOL до 40)")
+        if m.top_long_short is not None and m.btc_long_short is not None:
+            if m.btc_long_short > 1 > m.top_long_short:
+                out.append("толпа в лонгах BTC, крупные трейдеры — в шортах")
+            elif m.btc_long_short < 1 < m.top_long_short:
+                out.append("толпа в шортах BTC, крупные трейдеры — в лонгах")
         if m.funding_median is not None:
             if m.funding_median > FUNDING_HOT:
                 out.append("funding выше обычного — толпа в лонгах, шорты получают плату")

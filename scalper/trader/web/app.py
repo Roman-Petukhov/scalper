@@ -138,7 +138,7 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
     trend = TrendPaper(market, store, notify, stables=stables)
     dbreak = DailyBreakPaper(market, store, notify)
     mood = MarketMood()
-    weather = WeatherService(market, mood, store, store)
+    weather = WeatherService(market, mood, store, store, stables=stables)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):

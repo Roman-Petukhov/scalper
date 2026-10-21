@@ -11,7 +11,8 @@ from trader.domain import strategy
 from trader.domain.models import EntryPolicy, Settings, Timeframe
 from trader.domain.strategy import detect, replay
 from trader.domain.weather import Mood, ReplayStats, Weather, alts_vs_btc, ret, share_below_ema
-from trader.infrastructure.sentiment import parse_fng, parse_funding, parse_long_short
+from trader.infrastructure.sentiment import (parse_dominance, parse_dvol, parse_fng, parse_long_short, parse_premium,
+                                             parse_series)
 from trader.infrastructure.sqlite_repo import SqliteStore
 from research.tline import zz_lines
 
@@ -66,8 +67,14 @@ def test_weather_measures_and_notes():
 def test_sentiment_parsers():
     assert parse_fng({"data": [{"value": "21", "value_classification": "Extreme Fear"}, {"value": "x"}]}) == \
         [(21, "сильный страх")]
-    assert parse_funding([{"symbol": "ETHUSDT", "lastFundingRate": "0.0001"}, {"symbol": "ETHBTC",
-                          "lastFundingRate": "0.1"}, {"bad": 1}]) == {"ETHUSDT": 0.0001}
+    prem = parse_premium([{"symbol": "ETHUSDT", "lastFundingRate": "0.0001", "markPrice": "2002", "indexPrice": "2000"},
+                          {"symbol": "ETHBTC", "lastFundingRate": "0.1", "markPrice": "1", "indexPrice": "1"},
+                          {"bad": 1}])
+    assert list(prem) == ["ETHUSDT"] and prem["ETHUSDT"][0] == 0.0001 and prem["ETHUSDT"][1] == pytest.approx(0.001)
+    assert parse_series([{"sumOpenInterestValue": "5", "timestamp": 2}, {"sumOpenInterestValue": "4", "timestamp": 1}],
+                        "sumOpenInterestValue") == [4.0, 5.0]
+    assert parse_dominance({"data": {"market_cap_percentage": {"btc": 58.3}}}) == 58.3 and parse_dominance({}) is None
+    assert parse_dvol({"result": {"data": [[2, 0, 0, 0, 51.0], [1, 0, 0, 0, 49.0], [3]]}}) == [49.0, 51.0]
     assert parse_long_short([{"longShortRatio": "2.0", "timestamp": 2}, {"longShortRatio": "1.5", "timestamp": 1}]) \
         == [1.5, 2.0]
 
@@ -92,11 +99,28 @@ class _Mood:
     async def fear_greed(self, days=8):
         return [(30, "страх")] * 8
 
-    async def funding_now(self):
-        return {"BTCUSDT": 0.0001, "AAAUSDT": 0.0002, "BBBUSDT": -0.0001}
+    async def premium_now(self):
+        return {"BTCUSDT": (0.0001, 0.0002), "AAAUSDT": (0.0002, 0.001), "BBBUSDT": (-0.0001, -0.001)}
 
     async def btc_long_short(self, days=8):
         raise RuntimeError("Binance не ответил")
+
+    async def btc_top_long_short(self, days=8):
+        return [0.9] * 7 + [0.8]
+
+    async def btc_open_interest(self, days=8):
+        return [100.0] * 7 + [115.0]
+
+    async def btc_dominance(self):
+        return 58.0
+
+    async def btc_dvol(self, days=8):
+        return [45.0] * 7 + [62.0]
+
+
+class _Stables:
+    async def supply(self):
+        return pd.Series(np.r_[np.full(30, 100.0), 98.0])
 
 
 class _Settings:
@@ -107,12 +131,19 @@ class _Settings:
 def test_service_builds_snapshot_once_a_day(tmp_path):
     st = SqliteStore(tmp_path / "t.db")
     clock = {"t": NOW}
-    svc = WeatherService(_Market(), _Mood(), st, _Settings(), clock=lambda: clock["t"])
+    st.kv_set("weather:dominance", json.dumps({"2026-10-14": 56.5}))
+    svc = WeatherService(_Market(), _Mood(), st, _Settings(), clock=lambda: clock["t"], stables=_Stables())
     assert svc.due(NOW)
     w = asyncio.run(svc.run())
     st.kv_set(KEY, json.dumps(w.to_json()))
     assert w.coins == 2 and w.below_ema == 1.0 and w.btc_7d > 0 and w.alts_vs_btc_30d < 0
-    assert w.mood.fear_greed == 30 and w.mood.funding_median == 0.0001 and w.mood.btc_long_short is None
+    m = w.mood
+    assert m.fear_greed == 30 and m.funding_median == 0.0001 and m.btc_long_short is None and m.basis_btc == 0.0002
+    assert m.oi_btc_7d == pytest.approx(0.15) and m.top_long_short == 0.8 and m.dvol == 62.0 and m.dvol_week == 45.0
+    assert m.dominance == 58.0 and m.dominance_week == 56.5 and m.stables_30d == pytest.approx(-0.02)
+    notes = " ".join(w.notes())
+    assert "деньги уходят из альтов" in notes and "новые деньги" in notes and "плеча в рынке больше" in notes
+    assert "сильные движения" in notes
     assert [r.tf for r in w.replay] == ["4h"] and w.replay[0].since == replay_since(Timeframe.H4, NOW)
     assert svc.current() == w and not svc.due(NOW + timedelta(hours=5))
     assert svc.due(NOW + timedelta(days=1))
