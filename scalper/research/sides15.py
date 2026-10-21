@@ -2,6 +2,9 @@
 всегда?»). Правило бота на 15m без отбора по стороне: пологие линии (наклон ≤ 0.025 ATR на свечу), вход по рынку, обе
 стороны; для сравнения 4h — ретест. Сигналы и вход те же, что в research/noline.py.
 
+5m (SIDES15_TFS=5m, по просьбе владельца: «и для 5 минут тоже») — те же пологие линии и вход по рынку, срок сделки
+200 свечей (как в research/tline.py; в боте 800 — разница на знак по сторонам не влияет).
+
 Что смотрим (всё в R сделки, по периодам 2020 / 2021 / IS / VAL / HO):
   R бота по сторонам и разница шорты − лонги (Welch t по сделкам);
   R без funding (тот же прогон с funding = 0) и вклад funding = R − R без funding;
@@ -33,9 +36,9 @@ from .smc import _atr, _cell
 from .tline import tf_frame, zz_lines
 
 TFS = tuple(os.environ.get("SIDES15_TFS", "15m,4h").split(","))
-ENTRY = {"4h": "retest", "15m": "market"}
+ENTRY = {"4h": "retest", "15m": "market", "5m": "market"}
 MAX_SLOPE_15 = 0.025
-BARS_PER_YEAR = {"15m": 365 * 96, "4h": 365 * 6}
+BARS_PER_YEAR = {"5m": 365 * 288, "15m": 365 * 96, "4h": 365 * 6}
 
 
 def coin_rows(d: pd.DataFrame, liq: np.ndarray, sym: str, tf: str) -> list[dict]:
@@ -52,7 +55,7 @@ def coin_rows(d: pd.DataFrame, liq: np.ndarray, sym: str, tf: str) -> list[dict]
     rows = []
     for r in x.itertuples(index=False):
         t, side = d.index.get_loc(r.t), int(r.side)
-        if tf == "15m" and not (atr[t] > 0 and slope.get((t, side), np.inf) / atr[t] <= MAX_SLOPE_15):
+        if tf in ("15m", "5m") and not (atr[t] > 0 and slope.get((t, side), np.inf) / atr[t] <= MAX_SLOPE_15):
             continue
         r_nf = nf.get((r.t, side), np.nan)
         rows.append({"symbol": sym, "tf": tf, "t": r.t, "side": side, "R": float(r.R3), "R_nofund": float(r_nf),
@@ -75,7 +78,7 @@ def collect(root: Path, syms: list[str]) -> None:
     for s in mine(syms):
         for tf in TFS:
             try:
-                if tf == "15m" and not (root / f"{s}-15m.parquet").exists():
+                if tf in ("15m", "5m") and not (root / f"{s}-{tf}.parquet").exists():
                     continue
                 d = tf_frame(root, s, tf)
                 if d is None or len(d) < 500:
