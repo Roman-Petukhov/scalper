@@ -57,6 +57,14 @@ class ReplayStats:
     win_share: float | None
     live_n: int = 0                         # сделок бота с итогом за те же дни
     live_avg_r: float | None = None
+    long_n: int = 0                         # правило задним числом по сторонам
+    long_avg_r: float | None = None
+    short_n: int = 0
+    short_avg_r: float | None = None
+    live_long_n: int = 0                    # бот по сторонам
+    live_long_avg_r: float | None = None
+    live_short_n: int = 0
+    live_short_avg_r: float | None = None
 
 
 @dataclass(frozen=True)
@@ -169,11 +177,18 @@ def alts_vs_btc(closes: list[pd.Series], btc: pd.Series, days: int = 30) -> floa
     return float(median(alts) - b)
 
 
-def replay_stats(tf: str, since: datetime, trades: list[float], live: list[float]) -> ReplayStats:
-    n = len(trades)
-    return ReplayStats(tf=tf, since=since, n=n, avg_r=sum(trades) / n if n else None,
-                       win_share=sum(r > 0 for r in trades) / n if n else None, live_n=len(live),
-                       live_avg_r=sum(live) / len(live) if live else None)
+def replay_stats(tf: str, since: datetime, trades: list[tuple[int, float]], live: list[tuple[int, float]]) -> ReplayStats:
+    """trades / live — (сторона +1 / −1, R)."""
+    def avg(xs: list[float]) -> float | None:
+        return sum(xs) / len(xs) if xs else None
+
+    rr, lr = [r for _, r in trades], [r for _, r in live]
+    side = lambda xs, sd: [r for s_, r in xs if s_ == sd]
+    tl, ts, ll, ls = side(trades, 1), side(trades, -1), side(live, 1), side(live, -1)
+    return ReplayStats(tf=tf, since=since, n=len(rr), avg_r=avg(rr),
+                       win_share=sum(r > 0 for r in rr) / len(rr) if rr else None, live_n=len(lr), live_avg_r=avg(lr),
+                       long_n=len(tl), long_avg_r=avg(tl), short_n=len(ts), short_avg_r=avg(ts),
+                       live_long_n=len(ll), live_long_avg_r=avg(ll), live_short_n=len(ls), live_short_avg_r=avg(ls))
 
 
 R_SD = 1.9                                              # разброс одной сделки −1R / +3R, R
@@ -252,4 +267,13 @@ def assess(w: Weather) -> Assessment:
             bump("watch")
         else:
             lines.append(f"{head} — бот в пределах правила")
+    for r in w.replay:
+        if r.long_n and r.short_n:
+            part = (f"{r.tf} по сторонам за окно: правило — лонги {r.long_avg_r:+.2f}R на {r.long_n}, "
+                    f"шорты {r.short_avg_r:+.2f}R на {r.short_n}")
+            if r.live_long_n or r.live_short_n:
+                part += "; бот — " + ", ".join(
+                    f"{nm} {v:+.2f}R на {n}" for nm, v, n in (("лонги", r.live_long_avg_r, r.live_long_n),
+                                                            ("шорты", r.live_short_avg_r, r.live_short_n)) if n)
+            lines.append(part)
     return Assessment(level, market_line(w), tuple(w.notes()), tuple(lines))

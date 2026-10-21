@@ -210,3 +210,14 @@ def test_assessment_separates_luck_from_a_broken_bot():
 def replace_rep(w, r):
     from dataclasses import replace as rp
     return rp(w, replay=(r,))
+
+
+def test_assessment_reports_rule_and_bot_by_side():
+    from trader.domain.weather import assess, replay_stats
+    r = replay_stats("4h", NOW, [(1, 3.0), (1, -1.0), (-1, -1.0), (-1, -1.0), (-1, 3.0)], [(-1, 2.9), (-1, -1.0)])
+    assert (r.long_n, r.short_n, r.live_short_n, r.live_long_n) == (2, 3, 2, 0)
+    assert r.long_avg_r == 1.0 and r.short_avg_r == pytest.approx(1 / 3) and r.avg_r == pytest.approx(0.6)
+    w = Weather(date(2026, 10, 21), NOW, 90, 0.3, 0.4, 0.08, 0.05, 0.1, replay=(r,))
+    a = assess(w)
+    assert "встречный для шортов, попутный для лонгов" in a.market
+    assert any("лонги +1.00R на 2, шорты +0.33R на 3; бот — шорты +0.95R на 2" in x for x in a.lines)

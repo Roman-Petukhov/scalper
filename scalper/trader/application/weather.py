@@ -197,7 +197,7 @@ class WeatherService:
         symbols = universe[: tp.top_n] if tp.top_n else universe
         htf = HTF_CONFIRM.get(tf) if tp.htf_confirm_h else None
 
-        async def one(symbol: str) -> list[float]:
+        async def one(symbol: str) -> list[tuple[int, float]]:
             async with self.sem:
                 try:
                     bars = await self.market.closed_bars(symbol, tf)
@@ -213,11 +213,11 @@ class WeatherService:
                     at = sig.bar_time + timedelta(minutes=tf.minutes)
                     return htf_confirmation(brk, sig.side, at, tp.htf_confirm_h) is not None
             res = await asyncio.to_thread(replay, bars, tf, symbol, s, since, keep)
-            return [r for _, _, r in res]
+            return [(int(sd), r) for _, sd, r in res]
 
         parts = await asyncio.gather(*(one(x) for x in symbols))
         trades = [r for p in parts for r in p]
-        live = [e.trade.r_multiple for e in self.trades.journal()
+        live = [(int(e.trade.side), e.trade.r_multiple) for e in self.trades.journal()
                 if e.timeframe is tf and e.trade.r_multiple is not None and e.trade.opened_at is not None
                 and e.trade.opened_at >= since]
         return replay_stats(tf.value, since, trades, live)
