@@ -152,3 +152,35 @@ def test_service_builds_snapshot_once_a_day(tmp_path):
 def test_15m_replay_window_fits_available_bars():
     assert NOW - replay_since(Timeframe.H4, NOW) == timedelta(days=30)
     assert NOW - replay_since(Timeframe.M15, NOW) == timedelta(minutes=15 * 1100)
+
+
+def test_liquidation_book_by_hour_and_parser():
+    from trader.domain.liquidations import LiqBook, parse_force_order
+    from trader.domain.models import Side
+    ev = parse_force_order({"e": "forceOrder", "E": 1, "o": {"s": "ETHUSDT", "S": "SELL", "q": "2", "p": "1990",
+                                                              "ap": "2000", "z": "2", "T": 1792540800000}})
+    assert ev[1] is Side.LONG and ev[2] == 4000.0 and ev[0].tzinfo is not None
+    assert parse_force_order({"o": {"S": "BUY"}}) is None
+    book = LiqBook(started=NOW - timedelta(hours=30))
+    book.add(NOW - timedelta(hours=26), Side.LONG, 1e6)            # вне суток
+    book.add(NOW - timedelta(hours=2), Side.LONG, 3000.0)
+    book.add(NOW - timedelta(minutes=5), Side.SHORT, 1000.0)
+    t = book.totals(NOW)
+    assert (t.long_usd, t.short_usd) == (3000.0, 1000.0) and t.long_share == 0.75 and not t.partial
+    book.trim(NOW)
+    again = LiqBook.from_json(json.loads(json.dumps(book.to_json())))
+    assert again.totals(NOW) == t and len(again.buckets) == 2
+
+
+def test_liquidation_watcher_persists_and_counts_from_start(tmp_path):
+    from trader.application.liquidations import LiquidationWatcher
+    st = SqliteStore(tmp_path / "t.db")
+    clock = {"t": NOW}
+    w = LiquidationWatcher(st, clock=lambda: clock["t"])
+    assert w.totals().partial and w.totals().long_share is None
+    w.on_message({"o": {"S": "BUY", "z": "10", "ap": "5", "T": int(NOW.timestamp() * 1000)}})
+    w.on_message({"garbage": 1})
+    w.save()
+    clock["t"] = NOW + timedelta(minutes=30)
+    w2 = LiquidationWatcher(st, clock=lambda: clock["t"])
+    assert w2.totals().short_usd == 50.0 and w2.book.started == NOW

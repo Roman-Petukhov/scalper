@@ -29,6 +29,7 @@ from ..application.ports import Broker, MarketData, Notifier
 from ..application.services import Scanner, SettingsService, SignalDecisions
 from ..application.daily_break import DailyBreakPaper
 from ..application.trend import TrendPaper
+from ..application.liquidations import LiquidationWatcher
 from ..application.weather import WeatherService
 from ..config import AppConfig
 from ..domain.execution import TradeStatus
@@ -44,6 +45,7 @@ from ..infrastructure.bybit import (ALIAS_MAX_GAP, BrokerHolder, BybitBroker, By
 from ..infrastructure.charts import MatplotlibCharts
 from ..infrastructure.defillama import DefiLlamaStablecoins
 from ..infrastructure.heartbeat import HttpHeartbeat
+from ..infrastructure.liquidations import stream as liquidation_stream
 from ..infrastructure.sentiment import MarketMood
 from ..infrastructure.sqlite_repo import SqliteStore
 from ..infrastructure.telegram import TelegramNotifier
@@ -139,6 +141,7 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
     dbreak = DailyBreakPaper(market, store, notify)
     mood = MarketMood()
     weather = WeatherService(market, mood, store, store, stables=stables)
+    liqs = LiquidationWatcher(store)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -160,10 +163,12 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
             await trend.maybe_run()
             await dbreak.maybe_run()
             await weather.maybe_run()
+            liqs.save()
 
-        task = None
+        task = liq_task = None
         if cfg.scheduler:
             task = asyncio.create_task(scheduler.run(scanner, cfg.scan_delay_s, stop, tick=tick, state=store))
+            liq_task = asyncio.create_task(liquidation_stream(liqs.on_message, stop))
             try:
                 await notify.text("Бот запущен: пропущенные за перерыв свечи проверит сразу.")
             except Exception:
@@ -172,6 +177,13 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         stop.set()
         if task is not None:
             await task
+        if liq_task is not None:
+            liq_task.cancel()
+            try:
+                await liq_task
+            except asyncio.CancelledError:
+                pass
+            liqs.save()
         await holder.close()
         await stables.aclose()
         await mood.aclose()
@@ -527,7 +539,7 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
     async def weather_card(request: Request):
         guard(request)
         return templates.TemplateResponse(request, "_weather.html", {"w": weather.current(), "error": weather.last_error,
-                                                                     "running": weather.running})
+                                                                     "running": weather.running, "liq": liqs.totals()})
 
     @app.get("/dbreak", response_class=HTMLResponse)
     async def dbreak_card(request: Request):

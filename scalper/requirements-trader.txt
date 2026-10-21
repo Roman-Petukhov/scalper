@@ -12,3 +12,4 @@ itsdangerous>=2.2
 httpx>=0.27
 pywebpush>=2.0
 ccxt>=4.5.80
+websockets>=13

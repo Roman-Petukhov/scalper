@@ -50,6 +50,17 @@
       <b>{{ '%+.3f%%' | format(m.basis_btc * 100) if m.basis_btc is not none else '—' }}</b>
       <small>{% if m.basis_median is not none %}медиана монет {{ '%+.3f%%' | format(m.basis_median * 100) }}{% else %}BTC{% endif %}</small></div>
   </div>
+  {% if liq %}
+  <div class="stats periods num">
+    <div class="stat"><span>Ликвидации лонгов</span><b>${{ '{:,.0f}'.format(liq.long_usd).replace(',', ' ') }}</b>
+      <small>за сутки{% if liq.partial %}, с {{ liq.since.strftime('%d.%m %H:%M') }}{% endif %}</small></div>
+    <div class="stat"><span>Ликвидации шортов</span><b>${{ '{:,.0f}'.format(liq.short_usd).replace(',', ' ') }}</b>
+      <small>Binance, все монеты</small></div>
+    <div class="stat {{ 'down' if liq.long_share is not none and liq.long_share >= 0.65 else ('up' if liq.long_share is not none and liq.long_share <= 0.35 else '') }}"><span>Доля лонгов</span>
+      <b>{{ '%.0f%%' | format(liq.long_share * 100) if liq.long_share is not none else '—' }}</b>
+      <small>{% if liq.long_share is none %}ликвидаций ещё не было{% elif liq.long_share >= 0.65 %}выносят лонги{% elif liq.long_share <= 0.35 %}выносят шорты{% else %}поровну{% endif %}</small></div>
+  </div>
+  {% endif %}
   {% set notes = w.notes() %}
   {% if notes %}<ul class="hint weather-notes">{% for n in notes %}<li>{{ n }}</li>{% endfor %}</ul>{% endif %}
   {% if w.replay %}
@@ -70,7 +81,9 @@
   {% endif %}
   <p class="hint">Описание, не прогноз: заранее угадать удачный для правила рынок не удалось ни одним проверенным
     способом. «Правило задним числом» — сигналы с текущими настройками на свечах Binance за те же дни, без funding
-    и доливки. Если бот близок к нему — рынок был таким, а не бот угадал; заметно лучше или хуже — повод разобраться.</p>
+    и доливки. Если бот близок к нему — рынок был таким, а не бот угадал; заметно лучше или хуже — повод разобраться.
+    Ликвидации — живой поток Binance с запуска бота; он отдаёт не больше одной ликвидации на монету в секунду, поэтому
+    суммы занижены — смотреть на соотношение.</p>
   {% elif running %}
   <p class="hint">Считаю: свечи сотни монет и правило задним числом — несколько минут.</p>
   {% else %}
