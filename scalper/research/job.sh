@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"quarterly"}
+TASKS=${TASKS:-"breakatr"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -332,6 +332,15 @@ slope_collect() {
   SLOPE_TFS=5m python -m research.slope collect --symbols "$(cat /tmp/syms_hot-wide.txt)"
 }
 slope_report() { python -m research.slope report; }
+# Закрытие свечи пробоя за линией в ATR (min_break_atr): 4h ретест, 15m и 5m по рынку, пологие линии
+breakatr_collect() {
+  RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-qualified 15m-wide
+  BRK_TFS=4h python -m research.breakatr collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
+  BRK_TFS=15m python -m research.breakatr collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
+  RESEARCH_METRICS=0 python -m research.prepare hot-wide
+  BRK_TFS=5m python -m research.breakatr collect --symbols "$(cat /tmp/syms_hot-wide.txt)"
+}
+breakatr_report() { python -m research.breakatr report; }
 # Круглые числа (Osler): пробой через круглый уровень, уровень впереди, стоп «за толпой» (4h и 15m)
 roundnum_collect() {
   RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-qualified 15m-wide
