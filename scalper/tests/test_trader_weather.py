@@ -1,5 +1,6 @@
 import asyncio
 import json
+from dataclasses import replace
 from datetime import date, datetime, timedelta, timezone
 
 import numpy as np
@@ -186,3 +187,32 @@ def test_liquidation_watcher_persists_and_counts_from_start(tmp_path):
     clock["t"] = NOW + timedelta(minutes=30)
     w2 = LiquidationWatcher(st, clock=lambda: clock["t"])
     assert w2.totals().short_usd == 50.0 and w2.book.started == NOW
+
+
+def test_assessment_separates_luck_from_a_broken_bot():
+    from trader.domain.models import SideFilter
+    from trader.domain.weather import assess
+    s = Settings()
+    base = Weather(date(2026, 10, 21), NOW, 90, 0.7, 0.6, -0.08, 0.01, -0.05)
+    rep = lambda live, rule, n=40: replace_rep(base, ReplayStats("4h", NOW, 120, rule, 0.4, n, live))
+    a = assess(rep(1.2, 1.1), s)
+    assert a.level == "ok" and "рынок удачный" in a.lines[0] and "попутный" in a.market
+    a = assess(rep(-0.5, -0.4), s)
+    assert a.level == "watch" and "не выключать" in a.lines[0]
+    a = assess(rep(-0.6, 0.6), s)
+    assert a.level == "warn" and "проверить исполнение" in a.lines[0]
+    a = assess(rep(1.5, 0.3), s)
+    assert "скорее везение" in a.lines[0]
+    a = assess(rep(1.5, 0.3, n=4), s)
+    assert "для вывода мало" in a.lines[0]
+    risky = s.with_tf(Timeframe.M15, risk_pct=4.0, sides=SideFilter.BOTH)
+    risky = replace(risky, timeframes=frozenset({Timeframe.H4, Timeframe.M15}), daily_loss_pct=12.0)
+    a = assess(base, risky)
+    txt = a.text()
+    assert a.level == "warn" and "15m: риск 4% выше проверенного 1%" in txt and "включены лонги" in txt
+    assert "дневной стоп 12%" in txt and txt.startswith("🔴")
+
+
+def replace_rep(w, r):
+    from dataclasses import replace as rp
+    return rp(w, replay=(r,))

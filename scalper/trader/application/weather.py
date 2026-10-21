@@ -13,8 +13,8 @@ import pandas as pd
 from ..domain.liquidations import LiqTotals
 from ..domain.models import HTF_CONFIRM, Settings, Signal, Timeframe
 from ..domain.strategy import htf_breakouts, htf_confirmation, replay
-from ..domain.weather import Mood, Weather, alts_vs_btc, replay_stats, ret, share_below_ema
-from .ports import MarketData, SentimentData, SettingsRepository, StablecoinData, TradeRepository
+from ..domain.weather import Assessment, Mood, Weather, alts_vs_btc, assess, replay_stats, ret, share_below_ema
+from .ports import MarketData, Notifier, SentimentData, SettingsRepository, StablecoinData, TradeRepository
 
 log = logging.getLogger(__name__)
 KEY = "weather"
@@ -48,9 +48,10 @@ class WeatherService:
     def __init__(self, market: MarketData, mood: SentimentData | None, trades: TradeRepository,
                  settings: SettingsRepository, clock: Callable[[], datetime] = _utcnow, concurrency: int = 4,
                  stables: StablecoinData | None = None,
-                 liquidations: Callable[[], LiqTotals | None] | None = None) -> None:
+                 liquidations: Callable[[], LiqTotals | None] | None = None,
+                 notifier: Notifier | None = None) -> None:
         self.market, self.mood, self.trades, self.settings = market, mood, trades, settings
-        self.stables, self.liquidations = stables, liquidations
+        self.stables, self.liquidations, self.notifier = stables, liquidations, notifier
         self.clock = clock
         self.sem = asyncio.Semaphore(concurrency)
         self._tried: datetime | None = None
@@ -66,6 +67,10 @@ class WeatherService:
         except (ValueError, KeyError, TypeError):
             log.exception("погода: снимок не читается")
             return None
+
+    def assessment(self) -> Assessment | None:
+        w = self.current()
+        return assess(w, self.settings.load()) if w is not None else None
 
     @property
     def running(self) -> bool:
@@ -97,6 +102,11 @@ class WeatherService:
             if liq is not None:
                 self.trades.kv_set(f"{KEY}:liq:{w.day.isoformat()}", json.dumps(
                     {"long_usd": liq.long_usd, "short_usd": liq.short_usd, "since": liq.since.isoformat()}))
+            if self.notifier is not None:
+                try:
+                    await self.notifier.text(assess(w, self.settings.load()).text())
+                except Exception:
+                    log.exception("погода: уведомление")
             self.last_error = None
         except Exception as e:
             self.last_error = str(e)[:200]

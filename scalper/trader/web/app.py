@@ -141,7 +141,7 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
     dbreak = DailyBreakPaper(market, store, notify)
     mood = MarketMood()
     liqs = LiquidationWatcher(store)
-    weather = WeatherService(market, mood, store, store, stables=stables, liquidations=liqs.totals)
+    weather = WeatherService(market, mood, store, store, stables=stables, liquidations=liqs.totals, notifier=notify)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -539,7 +539,8 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
     async def weather_card(request: Request):
         guard(request)
         return templates.TemplateResponse(request, "_weather.html", {"w": weather.current(), "error": weather.last_error,
-                                                                     "running": weather.running, "liq": liqs.totals()})
+                                                                     "running": weather.running, "liq": liqs.totals(),
+                                                                     "a": weather.assessment()})
 
     @app.get("/dbreak", response_class=HTMLResponse)
     async def dbreak_card(request: Request):

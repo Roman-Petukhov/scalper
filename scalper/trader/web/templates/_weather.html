@@ -5,6 +5,13 @@
   </div>
   {% if error %}<p class="err">Последний расчёт не удался: {{ error }}. Повторю через 30 минут.</p>{% endif %}
   {% if w %}
+  {% if a %}
+  <div class="wx-verdict wx-{{ a.level }}">
+    <b>Вывод: {{ a.title }}</b>
+    <p>{{ a.market }}</p>
+    {% if a.lines %}<ul>{% for x in a.lines %}<li>{{ x }}</li>{% endfor %}</ul>{% endif %}
+  </div>
+  {% endif %}
   <div class="stats periods num">
     <div class="stat {{ 'down' if w.btc_7d is not none and w.btc_7d < 0 else ('up' if w.btc_7d else '') }}"><span>BTC за неделю</span>
       <b>{{ '%+.1f%%' | format(w.btc_7d * 100) if w.btc_7d is not none else '—' }}</b>

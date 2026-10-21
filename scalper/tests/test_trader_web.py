@@ -612,3 +612,4 @@ def test_weather_card_empty_and_with_snapshot(env):
     assert "58.4%" in t and "+1.5%" in t and "+12.0%" in t and "0.85" in t and "+0.030%" in t and "63" in t
     assert "толпа в лонгах BTC, крупные трейдеры — в шортах" in t
     assert "Ликвидации лонгов" in t and "ликвидаций ещё не было" in t
+    assert "Вывод:" in t and "попутный" in t

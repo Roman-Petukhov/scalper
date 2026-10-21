@@ -444,3 +444,9 @@ dl.plan dd .sub { color: var(--muted); font-size: 12px; margin-left: 4px; white-
 .wx-row:last-child { border-bottom: 0; }
 .wx-row > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wx-row > span:nth-child(n+2) { text-align: right; }
+.wx-verdict { margin-top: 12px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); font-size: 13px; }
+.wx-verdict p { margin: 4px 0 0; }
+.wx-verdict ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+.wx-ok { border-left: 4px solid #2fb57c; }
+.wx-watch { border-left: 4px solid #d9a227; }
+.wx-warn { border-left: 4px solid #e0564d; }

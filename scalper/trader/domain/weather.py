@@ -174,3 +174,95 @@ def replay_stats(tf: str, since: datetime, trades: list[float], live: list[float
     return ReplayStats(tf=tf, since=since, n=n, avg_r=sum(trades) / n if n else None,
                        win_share=sum(r > 0 for r in trades) / n if n else None, live_n=len(live),
                        live_avg_r=sum(live) / len(live) if live else None)
+
+
+# Риск на сделку, выше которого настройка выходит за проверенное (docs/knowledge.md): 4h — потолок по Келли
+# (½ «вперёд»-оптимума, просадка > 50% в бутстрепе ≤ 5%); 15m — ½ Келли при живом крае вдвое ниже бэктеста
+# (+0.06R); 5m — край ≈ 0, только наблюдение.
+TESTED_RISK = {"4h": 4.0, "15m": 1.0, "5m": 0.25}
+TESTED_SIDES = {"15m": "short", "5m": "short"}         # лонги 15m / 5m в бэктесте в минусе
+TESTED_DAILY_LOSS = 6.0
+R_SD = 1.9                                              # разброс одной сделки −1R / +3R, R
+MIN_LIVE = 10
+
+
+@dataclass(frozen=True)
+class Assessment:
+    level: str                  # "ok" / "watch" / "warn"
+    market: str                 # одна строка про рынок
+    lines: tuple[str, ...]      # выводы по ТФ и настройкам
+
+    @property
+    def title(self) -> str:
+        return {"ok": "всё в норме", "watch": "есть на что посмотреть", "warn": "нужно внимание"}[self.level]
+
+    def text(self) -> str:
+        icon = {"ok": "🟢", "watch": "🟡", "warn": "🔴"}[self.level]
+        return "\n".join([f"{icon} Погода рынка: {self.title}", self.market, *(f"• {x}" for x in self.lines)])
+
+
+def market_line(w: Weather) -> str:
+    """Рынок для шортов бота по тем признакам, что в бэктесте отличали хорошие недели от плохих, — описание, не прогноз."""
+    good = bad = 0
+    if w.alts_vs_btc_30d is not None:
+        good += w.alts_vs_btc_30d <= -ALTS_GAP
+        bad += w.alts_vs_btc_30d >= ALTS_GAP
+    if w.btc_7d is not None:
+        good += abs(w.btc_7d) <= BTC_FLAT
+        bad += w.btc_7d > BTC_FLAT
+    if w.below_ema is not None:
+        good += w.below_ema >= BREADTH_DOWN
+        bad += w.below_ema <= BREADTH_UP
+    kind = "попутный" if good >= 2 and not bad else "встречный" if bad >= 2 and not good else "смешанный"
+    return f"Рынок для шортов бота — {kind} (признаков за {good}, против {bad})."
+
+
+def assess(w: Weather, settings) -> Assessment:
+    """Автовывод: бот против правила задним числом (с учётом случайности: разница больше двух стандартных ошибок),
+    удачный ли рынок для правила и что в настройках вне проверенного."""
+    lines, level = [], "ok"
+
+    def bump(to: str) -> None:
+        nonlocal level
+        order = ("ok", "watch", "warn")
+        level = max(level, to, key=order.index)
+
+    for r in w.replay:
+        if r.live_n < MIN_LIVE or r.live_avg_r is None:
+            lines.append(f"{r.tf}: сделок бота за окно {r.live_n} — для вывода мало (нужно от {MIN_LIVE})"
+                         + (f"; правило задним числом {r.avg_r:+.2f}R на {r.n}" if r.avg_r is not None else ""))
+            continue
+        if r.avg_r is None:
+            lines.append(f"{r.tf}: бот {r.live_avg_r:+.2f}R на {r.live_n}, правило задним числом сделок не нашло")
+            bump("watch")
+            continue
+        se = R_SD / r.live_n ** 0.5
+        gap = r.live_avg_r - r.avg_r
+        head = f"{r.tf}: бот {r.live_avg_r:+.2f}R на {r.live_n}, правило {r.avg_r:+.2f}R на {r.n}"
+        if gap < -2 * se:
+            lines.append(f"{head} — бот заметно хуже правила: проверить исполнение, пропуски и ручные действия")
+            bump("warn")
+        elif gap > 2 * se:
+            lines.append(f"{head} — бот заметно лучше правила: скорее везение, риск не поднимать")
+            bump("watch")
+        elif r.avg_r > 0.3:
+            lines.append(f"{head} — рынок удачный для правила, бот в норме: риск по удачной серии не поднимать")
+        elif r.avg_r < 0:
+            lines.append(f"{head} — рынок неудачный для правила, бот исправен: это нормальная просадка, не выключать")
+            bump("watch")
+        else:
+            lines.append(f"{head} — бот в пределах правила")
+    for tf in sorted(settings.timeframes, key=lambda x: x.minutes, reverse=True):
+        p = settings.p(tf)
+        cap = TESTED_RISK.get(tf.value)
+        if cap is not None and p.risk_pct > cap:
+            lines.append(f"{tf.value}: риск {p.risk_pct:g}% выше проверенного {cap:g}%")
+            bump("warn")
+        if TESTED_SIDES.get(tf.value) == "short" and p.sides.value != "short":
+            lines.append(f"{tf.value}: включены лонги — в бэктесте лонги {tf.value} в минусе")
+            bump("watch")
+    if settings.daily_loss_pct > TESTED_DAILY_LOSS:
+        lines.append(f"дневной стоп {settings.daily_loss_pct:g}% — при нём серия стопов успевает съесть много; "
+                     f"проверено до {TESTED_DAILY_LOSS:g}%")
+        bump("watch")
+    return Assessment(level, market_line(w), tuple(lines))
