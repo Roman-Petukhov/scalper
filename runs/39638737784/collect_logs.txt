@@ -1,0 +1,70 @@
+----- breakatr collect (часть 0/10) -----
+часть 0/10, набор 1h-qualified: монет 63
+часть 0/10, набор 15m-wide: монет 63
+  breakatr 4h: сделок 56
+  breakatr 15m: сделок 773
+часть 0/10, набор hot-wide: монет 63
+  breakatr 5m: сделок 1732
+----- breakatr collect (часть 1/10) -----
+часть 1/10, набор 1h-qualified: монет 66
+часть 1/10, набор 15m-wide: монет 66
+  breakatr 4h: сделок 43
+  breakatr 15m: сделок 668
+часть 1/10, набор hot-wide: монет 66
+  breakatr 5m: сделок 1528
+----- breakatr collect (часть 2/10) -----
+часть 2/10, набор 1h-qualified: монет 78
+часть 2/10, набор 15m-wide: монет 78
+  breakatr 4h: сделок 47
+  breakatr 15m: сделок 962
+часть 2/10, набор hot-wide: монет 78
+  breakatr 5m: сделок 2117
+----- breakatr collect (часть 3/10) -----
+часть 3/10, набор 1h-qualified: монет 73
+часть 3/10, набор 15m-wide: монет 73
+  breakatr 4h: сделок 54
+  breakatr 15m: сделок 796
+часть 3/10, набор hot-wide: монет 73
+  breakatr 5m: сделок 1845
+----- breakatr collect (часть 4/10) -----
+часть 4/10, набор 1h-qualified: монет 72
+часть 4/10, набор 15m-wide: монет 72
+  breakatr 4h: сделок 41
+  breakatr 15m: сделок 721
+часть 4/10, набор hot-wide: монет 72
+  breakatr 5m: сделок 1599
+----- breakatr collect (часть 5/10) -----
+часть 5/10, набор 1h-qualified: монет 83
+часть 5/10, набор 15m-wide: монет 83
+  breakatr 4h: сделок 45
+  breakatr 15m: сделок 823
+часть 5/10, набор hot-wide: монет 83
+  breakatr 5m: сделок 1876
+----- breakatr collect (часть 6/10) -----
+часть 6/10, набор 1h-qualified: монет 71
+часть 6/10, набор 15m-wide: монет 71
+  breakatr 4h: сделок 39
+  breakatr 15m: сделок 881
+часть 6/10, набор hot-wide: монет 71
+  breakatr 5m: сделок 1981
+----- breakatr collect (часть 7/10) -----
+часть 7/10, набор 1h-qualified: монет 61
+часть 7/10, набор 15m-wide: монет 61
+  breakatr 4h: сделок 42
+  breakatr 15m: сделок 864
+часть 7/10, набор hot-wide: монет 61
+  breakatr 5m: сделок 1810
+----- breakatr collect (часть 8/10) -----
+часть 8/10, набор 1h-qualified: монет 75
+часть 8/10, набор 15m-wide: монет 75
+  breakatr 4h: сделок 52
+  breakatr 15m: сделок 1011
+часть 8/10, набор hot-wide: монет 75
+  breakatr 5m: сделок 2171
+----- breakatr collect (часть 9/10) -----
+часть 9/10, набор 1h-qualified: монет 83
+часть 9/10, набор 15m-wide: монет 83
+  breakatr 4h: сделок 61
+  breakatr 15m: сделок 1229
+часть 9/10, набор hot-wide: монет 83
+  breakatr 5m: сделок 2641
