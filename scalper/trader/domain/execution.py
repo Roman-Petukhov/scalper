@@ -225,6 +225,7 @@ class ClosedPnl:
     exit: float
     pnl: float                  # $, по данным биржи (за вычетом комиссий)
     closed_at: datetime
+    symbol: str = ""            # монета записи (если известна): запись из общей выдачи по всем монетам
 
 
 @dataclass(frozen=True)

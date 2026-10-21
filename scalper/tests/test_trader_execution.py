@@ -601,6 +601,7 @@ def test_bybit_closed_pnl_parsing():
     since, until = NOW - timedelta(days=1), NOW
     (r,) = asyncio.run(br.closed_pnl("SOLUSDT", since, until))
     assert r.side is Side.LONG and r.qty == 2 and r.entry == 100.5 and r.exit == 110 and r.pnl == 18.7
+    assert r.symbol == "SOLUSDT"                                                  # запись знает свою монету
     assert fx.calls[-1] == ("pnl", ["SOL/USDT:USDT"], int(since.timestamp() * 1000), int(until.timestamp() * 1000))
 
 
@@ -1092,3 +1093,74 @@ def test_long_risk_x_scales_only_longs_and_keeps_the_tag_boost():
     for bad in (0.05, 1.5):
         with pytest.raises(ValueError, match="лонгов"):
             Settings().with_tf(Timeframe.H4, long_risk_x=bad)
+
+
+class _AllOnlyBroker(FakeBroker):
+    """Выдача по монете пуста (или падает), записи есть только в общей выдаче по всем монетам."""
+    def __init__(self, broken=False):
+        super().__init__()
+        self.broken, self.all = broken, []
+
+    async def closed_pnl(self, symbol, since, until):
+        if self.broken:
+            raise RuntimeError("Bybit 10001")
+        return []
+
+    async def closed_pnl_all(self, since, until):
+        return [r for r in self.all if since <= r.closed_at < until]
+
+
+def _gone_trade(tmp_path, b, clock):
+    st, ex = _exec(tmp_path, b, clock)
+    s = st.add(_signal())
+    asyncio.run(ex.execute(st.get(s.id)))
+    b.acc = replace(ACC, positions=(Position("SOLUSDT", Side.LONG, 3.33, 101.3, 105, 10),))
+    clock.t = NOW + timedelta(hours=1)
+    asyncio.run(ex.housekeep())
+    b.acc = ACC                                            # позиция исчезла
+    return st, ex, s
+
+
+@pytest.mark.parametrize("broken", [False, True])
+def test_result_falls_back_to_the_all_symbols_feed(tmp_path, broken):
+    b, clock = _AllOnlyBroker(broken), Clock(NOW)
+    st, ex, s = _gone_trade(tmp_path, b, clock)
+    b.all = [ClosedPnl(Side.LONG, 3.33, 101.3, 98.0, -11.0, NOW + timedelta(hours=2), "SOLUSDT"),
+             ClosedPnl(Side.LONG, 9, 1, 1, 999.0, NOW + timedelta(hours=2), "ETHUSDT")]      # чужая монета
+    clock.t = NOW + timedelta(hours=3)
+    asyncio.run(ex.housekeep())
+    t = st.trades_for([s.id])[s.id]
+    assert t.status is TradeStatus.CLOSED and t.result.pnl_usd == -11.0 and t.exit_reason == "стоп"
+
+
+def test_missing_exchange_record_is_reported_once_with_what_the_exchange_returned(tmp_path):
+    b, clock = _AllOnlyBroker(), Clock(NOW)
+    st, ex, s = _gone_trade(tmp_path, b, clock)
+    said = []
+
+    class N:
+        async def text(self, m):
+            said.append(m)
+    ex.notifier = N()
+    clock.t = NOW + timedelta(hours=1, minutes=5)
+    asyncio.run(ex.housekeep())                            # первая минута без позиции — ещё рано
+    assert not said
+    clock.t = NOW + timedelta(hours=2)
+    asyncio.run(ex.housekeep())
+    clock.t = NOW + timedelta(hours=3)
+    asyncio.run(ex.housekeep())
+    assert len(said) == 1 and "SOLUSDT" in said[0] and "не нашёл" in said[0] and "по монете: 0 зап." in said[0]
+    assert st.trades_for([s.id])[s.id].status is TradeStatus.FILLED       # ждём дальше, ничего не выдумываем
+
+
+def test_order_watching_failure_does_not_block_settlement(tmp_path, monkeypatch):
+    b, clock = FakeBroker(), Clock(NOW)
+    st, ex, s = _gone_trade(tmp_path, b, clock)
+    b.pnl = [("SOLUSDT", ClosedPnl(Side.LONG, 3.33, 101.3, 110.0, 28.5, NOW + timedelta(hours=2)))]
+
+    async def boom(*a, **k):
+        raise RuntimeError("сбой доливки")
+    monkeypatch.setattr(ex, "_watch_orders", boom)
+    clock.t = NOW + timedelta(hours=3)
+    asyncio.run(ex.housekeep())
+    assert st.trades_for([s.id])[s.id].status is TradeStatus.CLOSED

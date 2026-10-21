@@ -22,6 +22,8 @@ from .ports import Broker, MarketData, Notifier, SettingsRepository, SignalRepos
 log = logging.getLogger(__name__)
 
 PNL_WINDOW = timedelta(days=6, hours=23)    # биржа отдаёт закрытия окнами не длиннее 7 дней
+NOTICE_AFTER = timedelta(minutes=30)            # позиции нет, записи о закрытии нет — один раз сказать, что искали
+NOTICE_KEY = "noresult:{}"
 GIVE_UP = timedelta(days=2)                 # позиции нет уже столько, а закрытия на бирже нет — итог «нет данных»
 GONE_KEY = "gone:{}"                        # когда бот впервые не увидел позицию сделки (id) на бирже
 LOST_REOPEN_KEY = "lost_reopen_2026_10"     # один раз: вернуть в поиск итоги, потерянные старым правилом «8 дней с входа»
@@ -156,6 +158,19 @@ class Executor:
         open_ids, acc = await asyncio.gather(b.open_order_ids(), b.account())
         held = {p.symbol: p for p in acc.positions}
         now = self.clock()
+        try:
+            await self._watch_orders(b, pending, filled, held, open_ids, now, acc)
+        except Exception:                                       # сбой тут не должен лишать закрытые сделки итога
+            log.exception("сверка ордеров и сроков")
+        await self._settle_closed(b, held, now)
+        try:
+            await self._rebalance_hedge(b, acc)
+        except Exception:
+            log.exception("хедж BTC")
+
+    async def _watch_orders(self, b: Broker, pending: list[Trade], filled: list[Trade], held: dict, open_ids: set,
+                            now: datetime, acc: Account) -> None:
+        """Лимитки: исполнилась / истекла / цена ушла к цели; позиции: срок сделки и доливка."""
         for t in pending:
             if t.order_id not in open_ids:                         # исчезла из открытых: исполнилась или снята
                 if t.symbol in held:
@@ -208,11 +223,6 @@ class Executor:
                 continue
             self.trades.set_trade_status(t.id, TradeStatus.TIMED_OUT)
             await self._say(f"{t.symbol}: позиция закрыта по рынку — прошло {bars} свечей {sig.timeframe.value}")
-        await self._settle_closed(b, held, now)
-        try:
-            await self._rebalance_hedge(b, acc)
-        except Exception:
-            log.exception("хедж BTC")
 
     async def _pyramid(self, b: Broker, t: Trade, pos: Position, sig: Signal, settings, acc: Account) -> None:
         """Цена прошла +1.5R: стоп всей позиции — в точку входа, затем долить 0.5 исходного объёма (стоп и цель
@@ -330,18 +340,48 @@ class Executor:
             if t.created_at is not None:
                 last_at[t.symbol] = t.created_at
         for t in self.trades.unsettled_trades():
-            pos = held.get(t.symbol)
-            if t.id not in later and t.status is TradeStatus.FILLED and pos is not None and pos.side is t.side:
-                continue                                           # ещё открыта
-            until = later.get(t.id, now)
-            res = await self._result(b, t, until, now)
-            status = TradeStatus.TIMED_OUT if t.status is TradeStatus.TIMED_OUT else TradeStatus.CLOSED
-            if res is not None:
-                await self._settle(t, status, res)
-            elif now - self._gone_since(t, now) > GIVE_UP:
-                self.trades.settle_trade(t.id, status, None)
-                self._close_signal(t.signal_id)
-                await self._close_hedge_leg(b, t)
+            try:
+                await self._settle_one(b, t, held.get(t.symbol), later.get(t.id), now)
+            except Exception:                                      # одна сделка не должна держать остальные
+                log.exception("итог сделки %s", t.symbol)
+
+    async def _settle_one(self, b: Broker, t: Trade, pos: Position | None, until: datetime | None,
+                          now: datetime) -> None:
+        if until is None and t.status is TradeStatus.FILLED and pos is not None and pos.side is t.side:
+            return                                                 # ещё открыта
+        res = await self._result(b, t, until or now, now)
+        status = TradeStatus.TIMED_OUT if t.status is TradeStatus.TIMED_OUT else TradeStatus.CLOSED
+        if res is not None:
+            await self._settle(t, status, res)
+            return
+        gone = self._gone_since(t, now)
+        if now - gone > GIVE_UP:
+            self.trades.settle_trade(t.id, status, None)
+            self._close_signal(t.signal_id)
+            await self._close_hedge_leg(b, t)
+        elif now - gone > NOTICE_AFTER and not self.trades.kv_get(NOTICE_KEY.format(t.id)):
+            self.trades.kv_set(NOTICE_KEY.format(t.id), now.isoformat())
+            await self._say(f"⚠️ {t.symbol}: позиции на бирже нет уже {int((now - gone).total_seconds() // 60)} мин, а записи "
+                            f"о закрытии не нашёл ({await self._diagnose(b, t, until or now, now)}). "
+                            f"Продолжу искать до {GIVE_UP.days} суток.")
+
+    async def _diagnose(self, b: Broker, t: Trade, end: datetime, now: datetime) -> str:
+        """Что отдаёт биржа по монете в окне поиска: для разбора, почему итог не находится."""
+        since = (t.opened_at or now) - timedelta(minutes=1)
+        start = max(since, end - PNL_WINDOW)
+        parts = [f"окно {start:%d.%m %H:%M}–{end:%d.%m %H:%M}"]
+        for name, call in (("по монете", lambda: b.closed_pnl(t.symbol, start, end)),
+                           ("по всем", lambda: b.closed_pnl_all(start, end))):
+            try:
+                recs = await call()
+            except Exception as e:
+                parts.append(f"{name}: ошибка {_short(e)}")
+                continue
+            own = [r for r in recs if not r.symbol or r.symbol == t.symbol]
+            last = max(own, key=lambda r: r.closed_at, default=None)
+            parts.append(f"{name}: {len(own)} зап." + (f", последняя {last.side.label} {last.closed_at:%d.%m %H:%M}"
+                                                       f" {last.pnl:+.2f}$" if last else ""))
+        return "; ".join(parts)
 
     def _gone_since(self, t: Trade, now: datetime) -> datetime:
         """Когда бот впервые не увидел позицию: срок поиска итога считается от этого момента, а не от входа —
@@ -369,10 +409,18 @@ class Executor:
     async def _result(self, b: Broker, t: Trade, until: datetime | None, now: datetime) -> TradeResult | None:
         since = (t.opened_at or now) - timedelta(minutes=1)
         end = until or now
+        start = max(since, end - PNL_WINDOW)
         try:
-            recs = await b.closed_pnl(t.symbol, max(since, end - PNL_WINDOW), end)
+            res = settle(await b.closed_pnl(t.symbol, start, end), t.side, since, end)
         except Exception:
             log.exception("итог сделки %s", t.symbol)
+            res = None
+        if res is not None:
+            return res
+        try:                                                       # запрос по монете пуст или упал — общая выдача по всем
+            recs = [r for r in await b.closed_pnl_all(start, end) if r.symbol == t.symbol]
+        except Exception:
+            log.exception("итог сделки %s (общая выдача)", t.symbol)
             return None
         return settle(recs, t.side, since, end)
 
