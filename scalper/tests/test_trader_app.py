@@ -10,7 +10,7 @@ import pandas as pd
 import pytest
 
 from trader.application.services import Scanner, SettingsService, SignalDecisions
-from trader.domain.models import EntryKind, EntryPolicy, Mode, Settings, Side, Signal, SignalStatus, Timeframe, TradePlan
+from trader.domain.models import EntryKind, EntryPolicy, Mode, Settings, Side, SideFilter, Signal, SignalStatus, Timeframe, TradePlan
 from trader.infrastructure.binance_data import BinanceMarketData
 from trader.infrastructure.charts import MatplotlibCharts
 from trader.infrastructure.sqlite_repo import SqliteStore
@@ -370,6 +370,19 @@ def test_15m_gets_top150_and_own_position_limit_once(tmp_path):
     st2 = SqliteStore(tmp_path / "t.db")
     st2.save(s.with_tf(Timeframe.M15, top_n=100))
     assert SqliteStore(tmp_path / "t.db").load().p(Timeframe.M15).top_n == 100   # правка трейдера остаётся
+
+
+def test_long_risk_halved_on_15m_and_5m_once_and_4h_untouched(tmp_path):
+    st = SqliteStore(tmp_path / "t.db")
+    st.db.execute("DELETE FROM kv WHERE key IN ('m15_long_risk_2026_10', 'm5_long_risk_2026_10')")
+    st.save(Settings().with_tf(Timeframe.M15, long_risk_x=1.0, sides=SideFilter.BOTH, risk_pct=4.0)
+            .with_tf(Timeframe.M5, long_risk_x=1.0))
+    st.db.commit()
+    s = SqliteStore(tmp_path / "t.db").load()
+    assert s.p(Timeframe.M15).long_risk_x == 0.5 and s.p(Timeframe.M5).long_risk_x == 0.5
+    assert s.p(Timeframe.H4).long_risk_x == 1.0 and s.p(Timeframe.M15).risk_pct == 4.0
+    SqliteStore(tmp_path / "t.db").save(s.with_tf(Timeframe.M15, long_risk_x=0.8))
+    assert SqliteStore(tmp_path / "t.db").load().p(Timeframe.M15).long_risk_x == 0.8   # правка трейдера остаётся
 
 
 def test_daily_backup_is_a_readable_copy_and_old_ones_are_pruned(tmp_path):

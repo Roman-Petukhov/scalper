@@ -101,11 +101,16 @@ class TfParams:
     pyramid: bool = False               # на +1.5R долить 0.5 позиции, стоп всей позиции — в точку входа (research/pyramid.py)
     tag_risk_x: float = 1.0             # за каждую метку канона (3+ касания, длинная линия) риск / маржа ×; обе — ×²;
                                         # итог не выше 6% риска (100% маржи). 1 — без надбавки (research/tlcanon.py)
+    long_risk_x: float = 1.0            # риск / маржа лонгов × (после надбавки за метки); 1 — как у шортов. На 15m лонги
+                                        # хуже шортов в каждом периоде (research/sides15.py), в IS / VAL / HO — в минусе
 
-    def sized_for(self, touch3: bool, long_line: bool) -> tuple[float, float]:
-        """(риск %, маржа %) сделки с учётом надбавки за метки канона."""
+    def sized_for(self, touch3: bool, long_line: bool, side: Side | None = None) -> tuple[float, float]:
+        """(риск %, маржа %) сделки с учётом надбавки за метки канона и пониженного риска лонгов."""
         k = self.tag_risk_x ** (int(touch3) + int(long_line))
-        return min(self.risk_pct * k, 6.0), min(self.margin_pct * k, 100.0)
+        risk, margin = min(self.risk_pct * k, 6.0), min(self.margin_pct * k, 100.0)
+        if side is Side.LONG:
+            risk, margin = risk * self.long_risk_x, margin * self.long_risk_x
+        return risk, margin
 
     def __post_init__(self) -> None:
         if not 0.05 <= self.risk_pct <= 6.0:
@@ -142,6 +147,8 @@ class TfParams:
             raise ValueError("хедж BTC — да или нет")
         if not 1.0 <= self.tag_risk_x <= 2.0:
             raise ValueError("надбавка за метку линии — от ×1 до ×2")
+        if not 0.1 <= self.long_risk_x <= 1.0:
+            raise ValueError("риск лонгов — от ×0.1 до ×1 от риска шортов")
 
 
 # Лучшее по бэктесту (docs/research_report.md, docs/knowledge.md): 4h — основная стратегия (гибрид: ретест, а после
@@ -156,7 +163,8 @@ DEFAULT_TF_PARAMS: dict[Timeframe, TfParams] = {
                            tag_risk_x=1.25),
     Timeframe.M15: TfParams(risk_pct=0.25, min_close_loc=0.5, entry_policy=EntryPolicy.MARKET, sides=SideFilter.SHORT,
                             max_slope_atr=0.025, top_n=150, max_hold_bars=200, max_positions=3, leverage=15,
-                            tag_risk_x=1.25),        # надбавка за метки — по решению трейдера, на 15m в бэктесте ≈ 0
+                            tag_risk_x=1.25,         # надбавка за метки — по решению трейдера, на 15m в бэктесте ≈ 0
+                            long_risk_x=0.5),        # лонги на 15m хуже шортов в каждом периоде, в IS / VAL / HO в минусе
     # 5m — на проверку вживую по решению трейдера. Бэктест правила бота на 5m (research/lowtf.py, core70, ретест):
     # IS / VAL / HO −0.08 / −0.06 / −0.16R, каждый год в минусе, издержки ≈ 0.09R при стопе ~0.8% цены. Правило — как
     # у 15m (пологие шорты по рынку), риск минимальный, своих позиций не больше 2, автоторговля выключена. Срок сделки
@@ -164,7 +172,8 @@ DEFAULT_TF_PARAMS: dict[Timeframe, TfParams] = {
     Timeframe.M5: TfParams(risk_pct=0.1, min_close_loc=0.5, entry_policy=EntryPolicy.MARKET, sides=SideFilter.SHORT,
                            max_slope_atr=0.025, top_n=100, max_hold_bars=800, max_positions=2, leverage=25,
                            margin_pct=0.5,     # «как на Bybit»: 0.5% × 25 = 12.5% номинала — стоп ~0.8% ≈ 0.1% капитала
-                           tag_risk_x=1.25),   # надбавка за метки — по решению трейдера, на 5m не проверялась
+                           tag_risk_x=1.25,    # надбавка за метки — по решению трейдера, на 5m не проверялась
+                           long_risk_x=0.5),   # по аналогии с 15m: сторон на 5m отдельно не разбирали
 }
 HTF_CONFIRM: dict[Timeframe, Timeframe] = {Timeframe.M15: Timeframe.H4, Timeframe.M5: Timeframe.H4}   # чей пробой подтверждает сигнал младшего ТФ
 RETIRED_TIMEFRAMES = ("1h",)            # были в панели раньше: сигналы и настройки этих ТФ при загрузке убираются
@@ -181,7 +190,9 @@ TF_SETTINGS_ONCE: dict[str, tuple[Timeframe, dict[str, object]]] = {
     "h4_tag_risk_2026_10": (Timeframe.H4, {"tag_risk_x": 1.25}),
     "m15_tag_risk_2026_10": (Timeframe.M15, {"tag_risk_x": 1.25}),
     "m5_tag_risk_2026_10": (Timeframe.M5, {"tag_risk_x": 1.25}),
-    "m5_hold800_2026_10": (Timeframe.M5, {"max_hold_bars": 800})}
+    "m5_hold800_2026_10": (Timeframe.M5, {"max_hold_bars": 800}),
+    "m15_long_risk_2026_10": (Timeframe.M15, {"long_risk_x": 0.5}),
+    "m5_long_risk_2026_10": (Timeframe.M5, {"long_risk_x": 0.5})}
 TF_FIELDS = tuple(TfParams.__dataclass_fields__)
 
 

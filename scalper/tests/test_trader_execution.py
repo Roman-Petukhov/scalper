@@ -66,7 +66,7 @@ def test_leverage_caps_notional_and_is_sent_to_exchange():
 
 
 def test_timeframe_leverage_overrides_the_common_one():
-    s = Settings(leverage=5)
+    s = Settings(leverage=5).with_tf(Timeframe.M15, long_risk_x=1.0)          # без скидки лонгам — сравниваем плечо
     assert s.lev(Timeframe.M15) == 15 and s.lev(Timeframe.H4) == 5               # 15m по умолчанию — своё 15×
     tight = _sig(timeframe=Timeframe.M15, plan=TradePlan(EntryKind.MARKET, 101.0, 100.5, 102.5, 0))
     o = build_order(tight, s, ACC, INST, 101.0, None, NOW)
@@ -421,8 +421,8 @@ def test_credentials_and_holder(tmp_path):
 
 def test_order_uses_timeframe_risk():
     o4 = build_order(_sig(), Settings(), ACC, INST, 101.0, None, NOW)
-    o1 = build_order(_sig(timeframe=Timeframe.M15, bar_time=NOW - timedelta(minutes=16)), Settings(), ACC, INST,
-                     101.0, None, NOW)
+    o1 = build_order(_sig(timeframe=Timeframe.M15, bar_time=NOW - timedelta(minutes=16)),
+                     Settings().with_tf(Timeframe.M15, long_risk_x=1.0), ACC, INST, 101.0, None, NOW)
     assert o4.risk_usd == pytest.approx(9.99, abs=0.02) and o1.risk_usd == pytest.approx(2.49, abs=0.02)
 
 
@@ -1077,3 +1077,18 @@ def test_bybit_protect_sets_full_position_stop_and_ignores_not_modified():
     asyncio.run(br.protect("SOLUSDT", 101.0, 110.0))
     assert sent[0] == {"category": "linear", "symbol": "SOLUSDT", "stopLoss": "101.000", "takeProfit": "110.000",
                        "tpslMode": "Full", "positionIdx": 0}
+
+
+def test_long_risk_x_scales_only_longs_and_keeps_the_tag_boost():
+    st = Settings().with_tf(Timeframe.H4, long_risk_x=0.5)
+    p = st.p(Timeframe.H4)
+    assert p.sized_for(False, False, Side.LONG) == (0.5, 5.0) and p.sized_for(False, False, Side.SHORT) == (1.0, 10.0)
+    assert p.sized_for(True, True, Side.LONG)[0] == pytest.approx(0.5 * 1.25 ** 2)       # после надбавки за метки
+    assert p.sized_for(False, False) == (1.0, 10.0)                                   # сторона не задана — без скидки
+    assert build_order(_sig(), st, ACC, INST, 101.0, None, NOW).risk_usd == pytest.approx(4.99, abs=0.03)   # _sig — лонг
+    assert build_order(_sig(), Settings(), ACC, INST, 101.0, None, NOW).risk_usd == pytest.approx(9.99, abs=0.03)
+    assert Settings().p(Timeframe.H4).long_risk_x == 1.0                               # 4h: лонги как шорты
+    assert Settings().p(Timeframe.M15).long_risk_x == Settings().p(Timeframe.M5).long_risk_x == 0.5
+    for bad in (0.05, 1.5):
+        with pytest.raises(ValueError, match="лонгов"):
+            Settings().with_tf(Timeframe.H4, long_risk_x=bad)
