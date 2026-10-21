@@ -146,6 +146,8 @@ def test_service_builds_snapshot_once_a_day(tmp_path):
     assert "сильные движения" in notes
     assert [r.tf for r in w.replay] == ["4h"] and w.replay[0].since == replay_since(Timeframe.H4, NOW)
     assert svc.current() == w and not svc.due(NOW + timedelta(hours=5))
+    asyncio.run(svc._guarded())
+    assert st.kv_get("weather:2026-10-21") is not None
     assert svc.due(NOW + timedelta(days=1))
 
 

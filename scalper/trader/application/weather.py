@@ -10,6 +10,7 @@ from datetime import datetime, time, timedelta, timezone
 
 import pandas as pd
 
+from ..domain.liquidations import LiqTotals
 from ..domain.models import HTF_CONFIRM, Settings, Signal, Timeframe
 from ..domain.strategy import htf_breakouts, htf_confirmation, replay
 from ..domain.weather import Mood, Weather, alts_vs_btc, replay_stats, ret, share_below_ema
@@ -46,9 +47,10 @@ def replay_since(tf: Timeframe, now: datetime) -> datetime:
 class WeatherService:
     def __init__(self, market: MarketData, mood: SentimentData | None, trades: TradeRepository,
                  settings: SettingsRepository, clock: Callable[[], datetime] = _utcnow, concurrency: int = 4,
-                 stables: StablecoinData | None = None) -> None:
+                 stables: StablecoinData | None = None,
+                 liquidations: Callable[[], LiqTotals | None] | None = None) -> None:
         self.market, self.mood, self.trades, self.settings = market, mood, trades, settings
-        self.stables = stables
+        self.stables, self.liquidations = stables, liquidations
         self.clock = clock
         self.sem = asyncio.Semaphore(concurrency)
         self._tried: datetime | None = None
@@ -88,7 +90,13 @@ class WeatherService:
     async def _guarded(self) -> None:
         try:
             w = await self.run()
-            self.trades.kv_set(KEY, json.dumps(w.to_json()))
+            raw = json.dumps(w.to_json())
+            self.trades.kv_set(KEY, raw)
+            self.trades.kv_set(f"{KEY}:{w.day.isoformat()}", raw)          # история: проверить потом на живых данных
+            liq = self.liquidations() if self.liquidations is not None else None
+            if liq is not None:
+                self.trades.kv_set(f"{KEY}:liq:{w.day.isoformat()}", json.dumps(
+                    {"long_usd": liq.long_usd, "short_usd": liq.short_usd, "since": liq.since.isoformat()}))
             self.last_error = None
         except Exception as e:
             self.last_error = str(e)[:200]
