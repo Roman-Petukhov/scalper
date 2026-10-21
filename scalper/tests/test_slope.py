@@ -27,9 +27,9 @@ def test_verdict_accepts_only_when_the_added_trades_pay_everywhere():
     rng = np.random.default_rng(0)
     n = 6000
     z = pd.DataFrame({"t": pd.Timestamp("2022-01-01") + pd.to_timedelta(rng.integers(0, 1400, n), unit="D"),
-                      "slope_atr": rng.choice([0.01, 0.04, 0.08, 0.15, 0.5], n), "side": -1})
+                      "slope_atr": rng.choice([0.01, 0.028, 0.035, 0.04, 0.08, 0.15, 0.5], n), "side": -1})
     z["R"] = rng.normal(0, 1, n) + np.where(z.slope_atr > S.BASE, 0.6, 0.0)           # крутые линии платят
     ok = S.verdicts(z)
-    assert ok[0.05][0] and ok[np.inf][0]
+    assert ok[0.03][0] and ok[0.05][0] and ok[np.inf][0]
     z["R"] = rng.normal(0, 1, n) - np.where(z.slope_atr > S.BASE, 0.4, 0.0)           # крутые линии теряют
     assert not any(v[0] for v in S.verdicts(z).values())
