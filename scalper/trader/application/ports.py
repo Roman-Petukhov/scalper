@@ -197,3 +197,12 @@ class DailyBreakRepository(Protocol):
 class StablecoinData(Protocol):
     async def supply(self) -> pd.Series:
         """Суммарное предложение долларовых стейблкоинов по дням, $; индекс — день UTC."""
+
+
+class StatePublisher(Protocol):
+    """Внешнее хранилище для моста «бот → облако»: файлы по пути в одной ветке репозитория."""
+
+    async def put(self, path: str, data: bytes, message: str) -> None: ...
+
+    async def get(self, path: str) -> str | None:
+        """Текст файла или None, если файла (или ветки) нет."""
