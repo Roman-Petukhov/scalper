@@ -217,7 +217,7 @@ class Assessment:
 
 
 def market_line(w: Weather) -> str:
-    """Рынок для шортов бота по тем признакам, что в бэктесте отличали хорошие недели от плохих, — описание, не прогноз."""
+    """Рынок для сторон бота по тем признакам, что в бэктесте отличали хорошие недели от плохих, — описание, не прогноз."""
     good = bad = 0
     if w.alts_vs_btc_30d is not None:
         good += w.alts_vs_btc_30d <= -ALTS_GAP
@@ -228,8 +228,13 @@ def market_line(w: Weather) -> str:
     if w.below_ema is not None:
         good += w.below_ema >= BREADTH_DOWN
         bad += w.below_ema <= BREADTH_UP
-    kind = "попутный" if good >= 2 and not bad else "встречный" if bad >= 2 and not good else "смешанный"
-    return f"Рынок для шортов бота — {kind} (признаков за {good}, против {bad})."
+    if good >= 2 and not bad:
+        kind = "попутный для шортов, встречный для лонгов"
+    elif bad >= 2 and not good:
+        kind = "встречный для шортов, попутный для лонгов"
+    else:
+        kind = "смешанный для обеих сторон"
+    return f"Рынок — {kind} (признаков за шорты {good}, за лонги {bad})."
 
 
 def assess(w: Weather) -> Assessment:
