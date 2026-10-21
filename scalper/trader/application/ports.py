@@ -144,6 +144,17 @@ class TradeRepository(Protocol):
     def kv_set(self, key: str, value: str) -> None: ...
 
 
+class SentimentData(Protocol):
+    async def fear_greed(self, days: int = 8) -> list[tuple[int, str]]:
+        """Индекс страха и жадности: (значение 0…100, подпись), новые первыми."""
+
+    async def funding_now(self) -> dict[str, float]:
+        """Последняя ставка funding по монетам (доля за 8 ч)."""
+
+    async def btc_long_short(self, days: int = 8) -> list[float]:
+        """Лонги / шорты по счетам на BTC за последние дни, старые первыми."""
+
+
 class TrendRepository(Protocol):
     def trend_last(self, rule: str) -> TrendDay | None:
         """Последний шаг бумажного счёта стратегии."""

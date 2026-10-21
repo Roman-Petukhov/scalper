@@ -18,9 +18,10 @@ import numpy as np
 import pandas as pd
 
 from research.smc import _atr
-from research.tline import (LEVEL_PIV, PIV, crossed_round, htf_trend, last_confirmed, level_hit, line_touches, pivots,
-                            zz_lines)
+from research.tline import (LEVEL_PIV, MAKER, PIV, TAKER, crossed_round, htf_trend, last_confirmed, level_hit,
+                            line_touches, pivots, retest_fill, two_targets, zz_lines)
 
+from collections.abc import Callable
 from datetime import datetime, timedelta
 
 from .models import EntryKind, EntryPolicy, Settings, Side, Signal, Timeframe, TradePlan
@@ -56,15 +57,29 @@ def detect(d: pd.DataFrame, tf: Timeframe, symbol: str, settings: Settings) -> l
     recs = [r for r in zz_lines(x, log=LOG_LINES) if r["t"] == last]
     if not recs:
         return []
-    o, hi, lo, c = (d[k].to_numpy(dtype="float64") for k in ("open", "high", "low", "close"))
-    atr = _atr(d).to_numpy()
+    return _signals_at(d, _Bars(d, tf), recs, last, tf, symbol, settings)
+
+
+class _Bars:
+    """Массивы свечей и индикаторы для правила — считаются один раз на ряд."""
+
+    def __init__(self, d: pd.DataFrame, tf: Timeframe) -> None:
+        self.o, self.hi, self.lo, self.c = (d[k].to_numpy(dtype="float64") for k in ("open", "high", "low", "close"))
+        self.atr = _atr(d).to_numpy()
+        self.trend = htf_trend(d, tf.value)
+        self.buy = d["taker_buy_volume"].to_numpy(dtype="float64") / np.where(d["volume"] > 0, d["volume"], np.nan)
+        self.sw_lo = last_confirmed(pivots(self.lo, PIV, False), len(self.c))
+        self.sw_hi = last_confirmed(pivots(self.hi, PIV, True), len(self.c))
+        self.lv_hi, self.lv_lo = pivots(self.c, LEVEL_PIV, True), pivots(self.c, LEVEL_PIV, False)
+
+
+def _signals_at(d: pd.DataFrame, b: _Bars, recs: list[dict], last: int, tf: Timeframe, symbol: str,
+                settings: Settings) -> list[Signal]:
+    """Сигналы по пробоям `recs` на свече `last` (не больше одного на сторону)."""
+    o, hi, lo, c, atr = b.o, b.hi, b.lo, b.c, b.atr
     if not (atr[last] > 0):
         return []
-    trend = htf_trend(d, tf.value)
-    buy = d["taker_buy_volume"].to_numpy(dtype="float64") / np.where(d["volume"] > 0, d["volume"], np.nan)
-    sw_lo = last_confirmed(pivots(lo, PIV, False), len(c))
-    sw_hi = last_confirmed(pivots(hi, PIV, True), len(c))
-    lv_hi, lv_lo = pivots(c, LEVEL_PIV, True), pivots(c, LEVEL_PIV, False)
+    trend, buy, sw_lo, sw_hi = b.trend, b.buy, b.sw_lo, b.sw_hi
     tp = settings.p(tf)
     out, seen = [], set()
     for r in recs:
@@ -98,14 +113,14 @@ def detect(d: pd.DataFrame, tf: Timeframe, symbol: str, settings: Settings) -> l
             continue
         plan = TradePlan(kind, float(entry), float(stop), float(entry + int(side) * tp.target_r * risk),
                          tp.retest_bars if kind is EntryKind.RETEST else 0)
-        a, b = r["a"], r["b"]
-        lv = level_hit(c, atr, last, int(side), lv_hi, lv_lo)
+        a, bb = r["a"], r["b"]
+        lv = level_hit(c, atr, last, int(side), b.lv_hi, b.lv_lo)
         y = np.log(c) if LOG_LINES else c
         touches = line_touches(y, atr, a, last, int(side), float(y[a]), float(r["slope"]))
         line_bars = last - a
         out.append(Signal(symbol=symbol, timeframe=tf, side=side, bar_time=d.index[last].to_pydatetime(),
                           close=float(c[last]), line_value=float(r["line_t"]),
-                          line_points=((d.index[a].to_pydatetime(), float(c[a])), (d.index[b].to_pydatetime(), float(c[b]))),
+                          line_points=((d.index[a].to_pydatetime(), float(c[a])), (d.index[bb].to_pydatetime(), float(c[bb]))),
                           aggr=float(aggr), range_atr=float(range_atr), plan=plan,
                           extra={"log_line": LOG_LINES, "break_atr": round(float(brk), 3), "close_loc": round(float(loc), 3),
                                  "slope_atr": round(float(slope_atr), 4),
@@ -115,6 +130,49 @@ def detect(d: pd.DataFrame, tf: Timeframe, symbol: str, settings: Settings) -> l
                                  "round": bool(c[last - 1] > 0 and crossed_round(float(c[last - 1]), float(c[last]))),
                                  **({"level_px": lv[0], "level_n": lv[1]} if lv is not None else {})}))
         seen.add(side)
+    return out
+
+
+def replay(d: pd.DataFrame, tf: Timeframe, symbol: str, settings: Settings, since: datetime,
+           keep: Callable[[Signal], bool] | None = None) -> list[tuple[datetime, Side, float]]:
+    """Правило бота задним числом: все сигналы со свечой не раньше `since` и их итог в R по свечам `d` — вход по плану
+    (ретест — лимитка на линии, пока не истекла и цена не ушла к цели), стоп раньше цели в той же свече, срок
+    max_hold_bars, комиссии как в бэктесте, без funding и доливки. Сделки, ещё открытые на последней свече, и
+    неисполненные лимитки не попадают. `keep` — дополнительный отбор сигналов (подтверждение старшего ТФ)."""
+    if len(d) < 400 or any(k not in d.columns for k in REQUIRED):
+        return []
+    x = _with_probe_bar(d)
+    n = len(d)
+    by_t: dict[int, list[dict]] = {}
+    for r in zz_lines(x, log=LOG_LINES):
+        if 0 < r["t"] < n - 1 and d.index[r["t"]] >= since:
+            by_t.setdefault(r["t"], []).append(r)
+    if not by_t:
+        return []
+    b = _Bars(d, tf)
+    tp = settings.p(tf)
+    fund = np.zeros(n)
+    out = []
+    for t in sorted(by_t):
+        for sig in _signals_at(d, b, by_t[t], t, tf, symbol, settings):
+            if keep is not None and not keep(sig):
+                continue
+            side, plan = int(sig.side), sig.plan
+            risk = side * (plan.entry - plan.stop)
+            if plan.entry_kind is EntryKind.MARKET:
+                fill, fee = t, TAKER
+            else:
+                fill, fee = retest_fill(b.hi, b.lo, t, side, plan.entry, tp.target_r * risk, plan.valid_bars), MAKER
+                if fill < 0:
+                    continue
+                if (side > 0 and b.lo[fill] <= plan.stop) or (side < 0 and b.hi[fill] >= plan.stop):
+                    out.append((sig.bar_time, sig.side, (side * (plan.stop - plan.entry) - (fee + TAKER) * plan.entry) / risk))
+                    continue
+            r, ex = two_targets(b.o, b.hi, b.lo, b.c, fund, fill, side, plan.entry, plan.stop, tp.target_r, tp.target_r,
+                                False, tp.max_hold_bars, fee)
+            if not np.isfinite(r) or (ex >= n - 1 and ex - fill < tp.max_hold_bars):
+                continue                                                   # ещё открыта
+            out.append((sig.bar_time, sig.side, float(r)))
     return out
 
 

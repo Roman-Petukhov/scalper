@@ -55,6 +55,7 @@
       <div id="journal" hx-get="/journal" hx-trigger="every 60s, feed-refresh from:body" hx-swap="innerHTML">
         {% include "_journal.html" %}
       </div>
+      <div id="weather" hx-get="/weather" hx-trigger="load, every 300s" hx-swap="innerHTML"></div>
       <div id="trend" hx-get="/trend" hx-trigger="load, every 300s" hx-swap="innerHTML"></div>
       <div id="dbreak" hx-get="/dbreak" hx-trigger="load, every 300s" hx-swap="innerHTML"></div>
     </div>

@@ -586,3 +586,24 @@ def test_archived_chart_is_a_frozen_window_with_trade_marks(env):
     assert kinds["entry"]["time"] == int(t.bar_time.timestamp()) + step and kinds["entry"]["price"] == 101.2
     assert kinds["exit"]["time"] == int(t.bar_time.timestamp()) + 18 * step and kinds["exit"]["price"] == 110.0
     assert d["candles"][-1]["time"] == kinds["exit"]["time"] + 10 * step                # после выхода — 10 свечей
+
+
+def test_weather_card_empty_and_with_snapshot(env):
+    import json
+    from datetime import date, datetime, timedelta, timezone
+    from trader.domain.weather import Mood, ReplayStats, Weather
+    from trader.infrastructure.sqlite_repo import SqliteStore
+    c, tmp = env
+    _login(c)
+    r = c.get("/weather")
+    assert r.status_code == 200 and "Погода рынка" in r.text
+    now = datetime(2026, 10, 21, 0, 15, tzinfo=timezone.utc)
+    w = Weather(date(2026, 10, 21), now, 98, 0.64, 0.55, -0.071, 0.012, -0.04,
+                Mood(fear_greed=22, fear_greed_label="сильный страх", fear_greed_week=35, funding_median=0.00012,
+                     funding_pos_share=0.7, btc_long_short=1.8, btc_long_short_week=1.6),
+                (ReplayStats("15m", now - timedelta(days=11), 140, 0.21, 0.31, 12, 1.26),))
+    SqliteStore(tmp / "trader.db").kv_set("weather", json.dumps(w.to_json()))
+    r = c.get("/weather")
+    t = r.text
+    assert "+1.2%" in t and "-7.1%" in t and "64%" in t and "сильный страх" in t and "1.80" in t
+    assert "+0.21R · 140 сд." in t and "+1.26R · 12 сд." in t and "слабее BTC" in t

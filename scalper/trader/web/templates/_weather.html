@@ -1,0 +1,57 @@
+<div class="card weather">
+  <div class="journal-head">
+    <h2>Погода рынка</h2>
+    <span class="hint num" style="margin:0">{% if w %}на {{ w.computed_at.strftime('%d.%m %H:%M') }} UTC · {% endif %}раз в сутки</span>
+  </div>
+  {% if error %}<p class="err">Последний расчёт не удался: {{ error }}. Повторю через 30 минут.</p>{% endif %}
+  {% if w %}
+  <div class="stats periods num">
+    <div class="stat {{ 'down' if w.btc_7d is not none and w.btc_7d < 0 else ('up' if w.btc_7d else '') }}"><span>BTC за неделю</span>
+      <b>{{ '%+.1f%%' | format(w.btc_7d * 100) if w.btc_7d is not none else '—' }}</b>
+      <small>за месяц {{ '%+.1f%%' | format(w.btc_30d * 100) if w.btc_30d is not none else '—' }}</small></div>
+    <div class="stat {{ 'down' if w.alts_vs_btc_30d is not none and w.alts_vs_btc_30d < 0 else ('up' if w.alts_vs_btc_30d else '') }}"><span>Альты к BTC, 30 дн.</span>
+      <b>{{ '%+.1f%%' | format(w.alts_vs_btc_30d * 100) if w.alts_vs_btc_30d is not none else '—' }}</b>
+      <small>медиана {{ w.coins }} монет</small></div>
+    <div class="stat"><span>Ниже EMA50 дневок</span>
+      <b>{{ '%.0f%%' | format(w.below_ema * 100) if w.below_ema is not none else '—' }}</b>
+      <small>неделю назад {{ '%.0f%%' | format(w.below_ema_week * 100) if w.below_ema_week is not none else '—' }}</small></div>
+  </div>
+  {% set m = w.mood %}
+  <div class="stats periods num">
+    <div class="stat"><span>Страх и жадность</span>
+      <b>{{ m.fear_greed if m.fear_greed is not none else '—' }}</b>
+      <small>{{ m.fear_greed_label or 'нет данных' }}{% if m.fear_greed_week is not none %} · неделю назад {{ m.fear_greed_week }}{% endif %}</small></div>
+    <div class="stat"><span>Funding, медиана</span>
+      <b>{{ '%+.4f%%' | format(m.funding_median * 100) if m.funding_median is not none else '—' }}</b>
+      <small>{% if m.funding_pos_share is not none %}лонги платят у {{ '%.0f%%' | format(m.funding_pos_share * 100) }} монет{% else %}за 8 ч{% endif %}</small></div>
+    <div class="stat"><span>Лонги / шорты BTC</span>
+      <b>{{ '%.2f' | format(m.btc_long_short) if m.btc_long_short is not none else '—' }}</b>
+      <small>{% if m.btc_long_short_week is not none %}неделю назад {{ '%.2f' | format(m.btc_long_short_week) }}{% else %}по счетам{% endif %}</small></div>
+  </div>
+  {% set notes = w.notes() %}
+  {% if notes %}<ul class="hint weather-notes">{% for n in notes %}<li>{{ n }}</li>{% endfor %}</ul>{% endif %}
+  {% if w.replay %}
+  <div class="wx-rows num" role="table" aria-label="Правило задним числом против журнала">
+    <div class="wx-row hint" role="row" style="margin:0">
+      <span role="columnheader">ТФ</span><span role="columnheader">Правило задним числом</span>
+      <span role="columnheader">Бот на бирже</span></div>
+    {% for r in w.replay %}
+    <div class="wx-row" role="row">
+      <span role="cell">{{ r.tf }} <small class="hint" style="margin:0">с {{ r.since.strftime('%d.%m') }}</small></span>
+      <span role="cell" class="{{ 'jr-up' if r.avg_r and r.avg_r > 0 else ('jr-down' if r.avg_r and r.avg_r < 0 else '') }}">
+        {% if r.n %}{{ '%+.2f' | format(r.avg_r) }}R · {{ r.n }} сд. · цель {{ '%.0f%%' | format(r.win_share * 100) }}{% else %}сделок нет{% endif %}</span>
+      <span role="cell" class="{{ 'jr-up' if r.live_avg_r and r.live_avg_r > 0 else ('jr-down' if r.live_avg_r and r.live_avg_r < 0 else '') }}">
+        {% if r.live_n %}{{ '%+.2f' | format(r.live_avg_r) }}R · {{ r.live_n }} сд.{% else %}сделок нет{% endif %}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  <p class="hint">Описание, не прогноз: заранее угадать удачный для правила рынок не удалось ни одним проверенным
+    способом. «Правило задним числом» — сигналы с текущими настройками на свечах Binance за те же дни, без funding
+    и доливки. Если бот близок к нему — рынок был таким, а не бот угадал; заметно лучше или хуже — повод разобраться.</p>
+  {% elif running %}
+  <p class="hint">Считаю: свечи сотни монет и правило задним числом — несколько минут.</p>
+  {% else %}
+  <p class="hint">Первый расчёт — в ближайшую минуту.</p>
+  {% endif %}
+</div>

@@ -435,3 +435,12 @@ dl.plan dd .sub { color: var(--muted); font-size: 12px; margin-left: 4px; white-
 .trend-books { display: grid; gap: 16px; }
 .trend-book { min-width: 0; }
 .trend-book .stats.periods { margin-top: 10px; }
+
+/* Погода рынка */
+.weather-notes { margin: 12px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+.wx-rows { display: grid; margin-top: 12px; font-size: 13px; }
+.wx-row { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr) minmax(0, 1fr); gap: 8px;
+  padding: 8px 0; border-bottom: 1px solid var(--line, rgba(127, 127, 127, .2)); align-items: baseline; }
+.wx-row:last-child { border-bottom: 0; }
+.wx-row > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wx-row > span:nth-child(n+2) { text-align: right; }
