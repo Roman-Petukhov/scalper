@@ -70,7 +70,7 @@ class WeatherService:
 
     def assessment(self) -> Assessment | None:
         w = self.current()
-        return assess(w, self.settings.load()) if w is not None else None
+        return assess(w) if w is not None else None
 
     @property
     def running(self) -> bool:
@@ -104,7 +104,7 @@ class WeatherService:
                     {"long_usd": liq.long_usd, "short_usd": liq.short_usd, "since": liq.since.isoformat()}))
             if self.notifier is not None:
                 try:
-                    await self.notifier.text(assess(w, self.settings.load()).text())
+                    await self.notifier.text(assess(w).text())
                 except Exception:
                     log.exception("погода: уведомление")
             self.last_error = None

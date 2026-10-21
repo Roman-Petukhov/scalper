@@ -176,21 +176,16 @@ def replay_stats(tf: str, since: datetime, trades: list[float], live: list[float
                        live_avg_r=sum(live) / len(live) if live else None)
 
 
-# Риск на сделку, выше которого настройка выходит за проверенное (docs/knowledge.md): 4h — потолок по Келли
-# (½ «вперёд»-оптимума, просадка > 50% в бутстрепе ≤ 5%); 15m — ½ Келли при живом крае вдвое ниже бэктеста
-# (+0.06R); 5m — край ≈ 0, только наблюдение.
-TESTED_RISK = {"4h": 4.0, "15m": 1.0, "5m": 0.25}
-TESTED_SIDES = {"15m": "short", "5m": "short"}         # лонги 15m / 5m в бэктесте в минусе
-TESTED_DAILY_LOSS = 6.0
 R_SD = 1.9                                              # разброс одной сделки −1R / +3R, R
 MIN_LIVE = 10
 
 
 @dataclass(frozen=True)
 class Assessment:
-    level: str                  # "ok" / "watch" / "warn"
+    level: str                  # "ok" / "watch" / "warn" — по сделкам бота
     market: str                 # одна строка про рынок
-    lines: tuple[str, ...]      # выводы по ТФ и настройкам
+    mood: tuple[str, ...]       # режим и настроение простыми словами (Weather.notes)
+    lines: tuple[str, ...]      # выводы по сделкам каждого ТФ
 
     @property
     def title(self) -> str:
@@ -198,7 +193,12 @@ class Assessment:
 
     def text(self) -> str:
         icon = {"ok": "🟢", "watch": "🟡", "warn": "🔴"}[self.level]
-        return "\n".join([f"{icon} Погода рынка: {self.title}", self.market, *(f"• {x}" for x in self.lines)])
+        out = [f"{icon} Погода рынка: {self.title}", self.market]
+        if self.mood:
+            out.append("Настроение: " + "; ".join(self.mood) + ".")
+        if self.lines:
+            out += ["Сделки:", *(f"• {x}" for x in self.lines)]
+        return "\n".join(out)
 
 
 def market_line(w: Weather) -> str:
@@ -217,9 +217,9 @@ def market_line(w: Weather) -> str:
     return f"Рынок для шортов бота — {kind} (признаков за {good}, против {bad})."
 
 
-def assess(w: Weather, settings) -> Assessment:
-    """Автовывод: бот против правила задним числом (с учётом случайности: разница больше двух стандартных ошибок),
-    удачный ли рынок для правила и что в настройках вне проверенного."""
+def assess(w: Weather) -> Assessment:
+    """Автовывод: рынок и настроение толпы, бот против правила задним числом (с учётом случайности: разница больше
+    двух стандартных ошибок) и удачный ли рынок для правила."""
     lines, level = [], "ok"
 
     def bump(to: str) -> None:
@@ -243,26 +243,13 @@ def assess(w: Weather, settings) -> Assessment:
             lines.append(f"{head} — бот заметно хуже правила: проверить исполнение, пропуски и ручные действия")
             bump("warn")
         elif gap > 2 * se:
-            lines.append(f"{head} — бот заметно лучше правила: скорее везение, риск не поднимать")
+            lines.append(f"{head} — бот заметно лучше правила: скорее везение серии")
             bump("watch")
         elif r.avg_r > 0.3:
-            lines.append(f"{head} — рынок удачный для правила, бот в норме: риск по удачной серии не поднимать")
+            lines.append(f"{head} — рынок удачный для правила, бот в норме")
         elif r.avg_r < 0:
             lines.append(f"{head} — рынок неудачный для правила, бот исправен: это нормальная просадка, не выключать")
             bump("watch")
         else:
             lines.append(f"{head} — бот в пределах правила")
-    for tf in sorted(settings.timeframes, key=lambda x: x.minutes, reverse=True):
-        p = settings.p(tf)
-        cap = TESTED_RISK.get(tf.value)
-        if cap is not None and p.risk_pct > cap:
-            lines.append(f"{tf.value}: риск {p.risk_pct:g}% выше проверенного {cap:g}%")
-            bump("warn")
-        if TESTED_SIDES.get(tf.value) == "short" and p.sides.value != "short":
-            lines.append(f"{tf.value}: включены лонги — в бэктесте лонги {tf.value} в минусе")
-            bump("watch")
-    if settings.daily_loss_pct > TESTED_DAILY_LOSS:
-        lines.append(f"дневной стоп {settings.daily_loss_pct:g}% — при нём серия стопов успевает съесть много; "
-                     f"проверено до {TESTED_DAILY_LOSS:g}%")
-        bump("watch")
-    return Assessment(level, market_line(w), tuple(lines))
+    return Assessment(level, market_line(w), tuple(w.notes()), tuple(lines))

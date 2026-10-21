@@ -190,27 +190,21 @@ def test_liquidation_watcher_persists_and_counts_from_start(tmp_path):
 
 
 def test_assessment_separates_luck_from_a_broken_bot():
-    from trader.domain.models import SideFilter
     from trader.domain.weather import assess
-    s = Settings()
     base = Weather(date(2026, 10, 21), NOW, 90, 0.7, 0.6, -0.08, 0.01, -0.05)
     rep = lambda live, rule, n=40: replace_rep(base, ReplayStats("4h", NOW, 120, rule, 0.4, n, live))
-    a = assess(rep(1.2, 1.1), s)
+    a = assess(rep(1.2, 1.1))
     assert a.level == "ok" and "рынок удачный" in a.lines[0] and "попутный" in a.market
-    a = assess(rep(-0.5, -0.4), s)
+    a = assess(rep(-0.5, -0.4))
     assert a.level == "watch" and "не выключать" in a.lines[0]
-    a = assess(rep(-0.6, 0.6), s)
+    a = assess(rep(-0.6, 0.6))
     assert a.level == "warn" and "проверить исполнение" in a.lines[0]
-    a = assess(rep(1.5, 0.3), s)
+    a = assess(rep(1.5, 0.3))
     assert "скорее везение" in a.lines[0]
-    a = assess(rep(1.5, 0.3, n=4), s)
+    a = assess(rep(1.5, 0.3, n=4))
     assert "для вывода мало" in a.lines[0]
-    risky = s.with_tf(Timeframe.M15, risk_pct=4.0, sides=SideFilter.BOTH)
-    risky = replace(risky, timeframes=frozenset({Timeframe.H4, Timeframe.M15}), daily_loss_pct=12.0)
-    a = assess(base, risky)
-    txt = a.text()
-    assert a.level == "warn" and "15m: риск 4% выше проверенного 1%" in txt and "включены лонги" in txt
-    assert "дневной стоп 12%" in txt and txt.startswith("🔴")
+    txt = assess(base).text()
+    assert "Настроение:" in txt and "слабее BTC" in txt and "риск" not in txt and "проверенн" not in txt
 
 
 def replace_rep(w, r):
