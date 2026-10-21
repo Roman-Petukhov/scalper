@@ -18,6 +18,9 @@ class AppConfig:
     scheduler: bool
     heartbeat_url: str | None = None   # необязательно: пинг после каждого удачного скана (healthchecks.io и т. п.)
     backup_days: int = 14              # сколько дневных копий базы хранить в data/backups
+    bridge_token: str | None = None    # мост «бот → облако»: токен GitHub с записью в одну ветку; нет — моста нет
+    bridge_repo: str = "Roman-Petukhov/scalper"
+    bridge_branch: str = "bot-state"
 
     @staticmethod
     def from_env() -> AppConfig:
@@ -35,4 +38,7 @@ class AppConfig:
                          scan_delay_s=float(os.environ.get("SCAN_DELAY_S", "20")),
                          scheduler=os.environ.get("SCHEDULER", "1") == "1",
                          heartbeat_url=os.environ.get("HEARTBEAT_URL") or None,
-                         backup_days=int(os.environ.get("BACKUP_DAYS", "14")))
+                         backup_days=int(os.environ.get("BACKUP_DAYS", "14")),
+                         bridge_token=os.environ.get("BRIDGE_GITHUB_TOKEN") or None,
+                         bridge_repo=os.environ.get("BRIDGE_REPO", "Roman-Petukhov/scalper"),
+                         bridge_branch=os.environ.get("BRIDGE_BRANCH", "bot-state"))

@@ -30,6 +30,7 @@ from ..application.services import Scanner, SettingsService, SignalDecisions
 from ..application.daily_break import DailyBreakPaper
 from ..application.trend import TrendPaper
 from ..application.liquidations import LiquidationWatcher
+from ..application.bridge import BridgeService
 from ..application.weather import WeatherService
 from ..config import AppConfig
 from ..domain.execution import TradeStatus
@@ -43,6 +44,7 @@ from ..infrastructure.binance_data import BinanceMarketData
 from ..infrastructure.bybit import (ALIAS_MAX_GAP, BrokerHolder, BybitBroker, BybitCredentials, load_aliases,
                                     parse_symbol, save_aliases)
 from ..infrastructure.charts import MatplotlibCharts
+from ..infrastructure.github_state import GitHubState
 from ..infrastructure.defillama import DefiLlamaStablecoins
 from ..infrastructure.heartbeat import HttpHeartbeat
 from ..infrastructure.liquidations import stream as liquidation_stream
@@ -142,6 +144,8 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
     mood = MarketMood()
     liqs = LiquidationWatcher(store)
     weather = WeatherService(market, mood, store, store, stables=stables, liquidations=liqs.totals, notifier=notify)
+    state_repo = GitHubState(cfg.bridge_token, cfg.bridge_repo, cfg.bridge_branch) if cfg.bridge_token else None
+    bridge = BridgeService(state_repo, store, store, store, store, notify) if state_repo is not None else None
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -163,6 +167,8 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
             await trend.maybe_run()
             await dbreak.maybe_run()
             await weather.maybe_run()
+            if bridge is not None:
+                await bridge.maybe_run()
             liqs.save()
 
         task = liq_task = None
@@ -187,6 +193,8 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         await holder.close()
         await stables.aclose()
         await mood.aclose()
+        if state_repo is not None:
+            await state_repo.aclose()
         if heartbeat is not None:
             await heartbeat.close()
 
