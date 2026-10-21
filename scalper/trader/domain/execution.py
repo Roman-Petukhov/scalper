@@ -236,6 +236,33 @@ class TradeResult:
     closed_at: datetime
 
 
+@dataclass(frozen=True)
+class Fill:
+    """Исполнение ордера на бирже: сторона ордера (лонг — покупка), объём, цена, комиссия ($), сколько закрыло."""
+    side: Side
+    qty: float
+    price: float
+    fee: float
+    closed_qty: float           # > 0 — исполнение закрывало позицию
+    at: datetime
+
+
+def settle_fills(fills: list[Fill], side: Side, entry: float, since: datetime, until: datetime) -> TradeResult | None:
+    """Итог по исполнениям, когда биржа не отдаёт запись о закрытии: закрывающие исполнения против стороны сделки
+    в окне [since, until), вход — средняя открывающих (нет их в окне — цена ордера), комиссии всех исполнений."""
+    win = [f for f in fills if since <= f.at < until and f.qty > 0]
+    close = [f for f in win if f.side is not side and f.closed_qty > 0]
+    if not close:
+        return None
+    opened = [f for f in win if f.side is side and f.closed_qty <= 0]
+    q_in = sum(f.qty for f in opened)
+    entry_fill = sum(f.price * f.qty for f in opened) / q_in if q_in else entry
+    q = sum(f.closed_qty for f in close)
+    exit_ = sum(f.price * f.closed_qty for f in close) / q
+    pnl = int(side) * (exit_ - entry_fill) * q - sum(f.fee for f in opened + close)
+    return TradeResult(entry_fill=entry_fill, exit=exit_, pnl_usd=pnl, closed_at=max(f.at for f in close))
+
+
 def settle(records: list[ClosedPnl], side: Side, since: datetime, until: datetime) -> TradeResult | None:
     """Итог сделки из записей биржи: только своя сторона и закрытия в окне [since, until); цены — средние по объёму."""
     own = [r for r in records if r.side is side and since <= r.closed_at < until and r.qty > 0]

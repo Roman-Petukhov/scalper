@@ -7,7 +7,7 @@ import pandas as pd
 
 from datetime import datetime
 
-from ..domain.execution import Account, ClosedPnl, HedgeLeg, Instrument, OrderRequest, Trade, TradeResult, TradeStatus
+from ..domain.execution import Account, ClosedPnl, Fill, HedgeLeg, Instrument, OrderRequest, Trade, TradeResult, TradeStatus
 from ..domain.journal import JournalEntry
 from ..domain.models import Settings, Signal, SignalStatus, Timeframe
 from ..domain.daily_break import DailySetup
@@ -100,6 +100,9 @@ class Broker(Protocol):
 
     async def closed_pnl_all(self, since: datetime, until: datetime) -> list[ClosedPnl]:
         """Закрытия позиций по всем монетам за окно (не длиннее 7 дней), все страницы."""
+
+    async def fills(self, symbol: str, since: datetime, until: datetime) -> list[Fill]:
+        """Исполнения ордеров по монете за окно (не длиннее 7 дней), все страницы."""
 
     async def close(self) -> None: ...
 

@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from datetime import timedelta
 
 from ..domain.execution import (PYRAMID_AT_R, Account, ExecutionRefused, HedgeLeg, Position, Trade, TradeResult,
-                                TradeStatus, build_order, pyramid_due, pyramid_qty, settle, target_reached)
+                                TradeStatus, build_order, pyramid_due, pyramid_qty, settle, settle_fills, target_reached)
 from ..domain.hedge import HEDGE_SYMBOL, beta, held_qty, hedge_leverage, rebalance, target_qty, without_hedge
 from ..domain.journal import Health, tf_stats
 from ..domain.models import Signal, SignalStatus, Timeframe
@@ -23,7 +23,7 @@ log = logging.getLogger(__name__)
 
 PNL_WINDOW = timedelta(days=6, hours=23)    # биржа отдаёт закрытия окнами не длиннее 7 дней
 NOTICE_AFTER = timedelta(minutes=30)            # позиции нет, записи о закрытии нет — один раз сказать, что искали
-NOTICE_KEY = "noresult:{}"
+NOTICE_KEY = "noresult2:{}"           # 2 — после добавления поиска по исполнениям сказать ещё раз
 GIVE_UP = timedelta(days=2)                 # позиции нет уже столько, а закрытия на бирже нет — итог «нет данных»
 GONE_KEY = "gone:{}"                        # когда бот впервые не увидел позицию сделки (id) на бирже
 LOST_REOPEN_KEY = "lost_reopen_2026_10"     # один раз: вернуть в поиск итоги, потерянные старым правилом «8 дней с входа»
@@ -370,6 +370,11 @@ class Executor:
         since = (t.opened_at or now) - timedelta(minutes=1)
         start = max(since, end - PNL_WINDOW)
         parts = [f"окно {start:%d.%m %H:%M}–{end:%d.%m %H:%M}"]
+        try:
+            fl = await b.fills(t.symbol, start, end)
+            parts.append(f"исполнений: {len(fl)}, закрывающих: {sum(f.closed_qty > 0 for f in fl)}")
+        except Exception as e:
+            parts.append(f"исполнения: ошибка {_short(e)}")
         for name, call in (("по монете", lambda: b.closed_pnl(t.symbol, start, end)),
                            ("по всем", lambda: b.closed_pnl_all(start, end))):
             try:
@@ -418,11 +423,18 @@ class Executor:
         if res is not None:
             return res
         try:                                                       # запрос по монете пуст или упал — общая выдача по всем
-            recs = [r for r in await b.closed_pnl_all(start, end) if r.symbol == t.symbol]
+            res = settle([r for r in await b.closed_pnl_all(start, end) if r.symbol == t.symbol], t.side, since, end)
         except Exception:
             log.exception("итог сделки %s (общая выдача)", t.symbol)
+        if res is not None:
+            return res
+        try:                                                       # записи о закрытии нет совсем — по исполнениям
+            opened = (t.created_at or since) - timedelta(minutes=1)
+            return settle_fills(await b.fills(t.symbol, max(opened, end - PNL_WINDOW), end), t.side, t.price,
+                                max(opened, end - PNL_WINDOW), end)
+        except Exception:
+            log.exception("итог сделки %s (исполнения)", t.symbol)
             return None
-        return settle(recs, t.side, since, end)
 
     async def _settle(self, t: Trade, status: TradeStatus, res: TradeResult) -> None:
         self.trades.settle_trade(t.id, status, res)

@@ -13,7 +13,7 @@ from typing import Any, Callable
 
 import ccxt.async_support as ccxt
 
-from ..domain.execution import Account, ClosedPnl, Instrument, OrderRequest, Position
+from ..domain.execution import Account, ClosedPnl, Fill, Instrument, OrderRequest, Position
 from ..domain.models import EntryKind, Side
 
 log = logging.getLogger(__name__)
@@ -294,6 +294,28 @@ class BybitBroker:
             res = (await self.ex.privateGetV5PositionClosedPnl(req)).get("result") or {}
             rows = res.get("list") or []
             out += [_closed(i, self._to_local(i.get("symbol") or "")) for i in rows]
+            cursor = res.get("nextPageCursor")
+            if not cursor or not rows:
+                return out
+
+    async def fills(self, symbol: str, since: datetime, until: datetime) -> list[Fill]:
+        """/v5/execution/list по одной монете, постранично: запасной источник итога сделки."""
+        m = await self._market(symbol)
+        if m is None:
+            return []
+        out: list[Fill] = []
+        cursor = None
+        while True:
+            req = {"category": "linear", "symbol": m["id"], "startTime": int(since.timestamp() * 1000),
+                   "endTime": int(until.timestamp() * 1000), "limit": 100}
+            if cursor:
+                req["cursor"] = cursor
+            res = (await self.ex.privateGetV5ExecutionList(req)).get("result") or {}
+            rows = res.get("list") or []
+            out += [Fill(side=Side.LONG if i.get("side") == "Buy" else Side.SHORT, qty=_f(i.get("execQty")),
+                         price=_f(i.get("execPrice")), fee=_f(i.get("execFee")), closed_qty=_f(i.get("closedSize")),
+                         at=datetime.fromtimestamp(int(_f(i.get("execTime"))) / 1000, timezone.utc))
+                    for i in rows if i.get("execType", "Trade") == "Trade"]
             cursor = res.get("nextPageCursor")
             if not cursor or not rows:
                 return out

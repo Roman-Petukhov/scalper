@@ -1164,3 +1164,45 @@ def test_order_watching_failure_does_not_block_settlement(tmp_path, monkeypatch)
     clock.t = NOW + timedelta(hours=3)
     asyncio.run(ex.housekeep())
     assert st.trades_for([s.id])[s.id].status is TradeStatus.CLOSED
+
+
+def test_settle_from_fills_when_the_exchange_has_no_close_record(tmp_path):
+    from trader.domain.execution import Fill, settle_fills
+    t0 = NOW
+    fills = [Fill(Side.LONG, 3.0, 101.2, 0.17, 0.0, t0 + timedelta(seconds=5)),            # вход
+             Fill(Side.SHORT, 3.0, 98.0, 0.16, 3.0, t0 + timedelta(hours=5)),              # стоп
+             Fill(Side.SHORT, 1.0, 50.0, 0.0, 1.0, t0 - timedelta(days=1))]                # чужое, до окна
+    r = settle_fills(fills, Side.LONG, 101.0, t0, t0 + timedelta(days=1))
+    assert r.entry_fill == 101.2 and r.exit == 98.0 and r.pnl_usd == pytest.approx(3 * (98 - 101.2) - 0.33)
+    assert settle_fills(fills[:1], Side.LONG, 101.0, t0, t0 + timedelta(days=1)) is None    # закрытия ещё нет
+    assert settle_fills(fills[1:2], Side.LONG, 101.0, t0, t0 + timedelta(days=1)).entry_fill == 101.0   # вход вне окна
+
+    class FillsOnly(_AllOnlyBroker):
+        async def fills(self, symbol, since, until):
+            return [f for f in self.f if since <= f.at < until]
+    b, clock = FillsOnly(), Clock(NOW)
+    st, ex, s = _gone_trade(tmp_path, b, clock)
+    b.f = [Fill(Side.SHORT, 3.33, 98.0, 0.18, 3.33, NOW + timedelta(hours=2))]
+    clock.t = NOW + timedelta(hours=3)
+    asyncio.run(ex.housekeep())
+    t = st.trades_for([s.id])[s.id]
+    assert t.status is TradeStatus.CLOSED and t.exit_reason == "стоп" and t.result.pnl_usd < 0
+
+
+def test_bybit_fills_parsing_and_paging():
+    calls = []
+
+    class Fx(FakeCcxt):
+        async def privateGetV5ExecutionList(self, req):
+            calls.append(req)
+            if "cursor" not in req:
+                return {"result": {"list": [{"side": "Sell", "execQty": "2", "execPrice": "98", "execFee": "0.1",
+                                             "closedSize": "2", "execTime": "1791000000000", "execType": "Trade"},
+                                            {"side": "Buy", "execQty": "9", "execPrice": "1", "execFee": "0",
+                                             "closedSize": "0", "execTime": "1791000000000", "execType": "Funding"}],
+                                   "nextPageCursor": "p2"}}
+            return {"result": {"list": [], "nextPageCursor": ""}}
+    br = BybitBroker(CREDS, exchange=Fx())
+    (f,) = asyncio.run(br.fills("SOLUSDT", NOW - timedelta(days=1), NOW))
+    assert f.side is Side.SHORT and f.qty == 2 and f.closed_qty == 2 and f.fee == 0.1
+    assert calls[0]["symbol"] == "SOLUSDT" and calls[1]["cursor"] == "p2"
