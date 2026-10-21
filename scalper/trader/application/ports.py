@@ -130,6 +130,12 @@ class TradeRepository(Protocol):
     def settle_trade(self, trade_id: int, status: TradeStatus, result: TradeResult | None) -> None:
         """Записать итог (None — биржа итога не вернула, больше не ищем)."""
 
+    def lost_trades(self, filled_since: datetime) -> list[Trade]:
+        """Исполненные не раньше filled_since сделки с записанным «нет данных» (статус «закрыта», итога нет)."""
+
+    def reopen_trade(self, trade_id: int) -> None:
+        """Вернуть сделку в «на бирже» без итога — итог будет искаться заново."""
+
     def journal(self, limit: int = 500) -> list[JournalEntry]:
         """Сделки с таймфреймом сигнала, новые первыми."""
 

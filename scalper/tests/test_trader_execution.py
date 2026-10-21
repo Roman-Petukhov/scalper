@@ -648,6 +648,49 @@ def test_journal_gives_up_without_exchange_record_and_hold_counts_from_fill(tmp_
     assert st.get(s.id).status is SignalStatus.CLOSED
 
 
+def test_long_trade_closed_late_waits_for_exchange_record(tmp_path):
+    # сделка 4h живёт до 10 суток: закрылась на 9-е, а запись closed-pnl биржа отдала минутой позже
+    b = FakeBroker()
+    clock = Clock(NOW)
+    st, ex = _exec(tmp_path, b, clock)
+    s = st.add(_signal())
+    asyncio.run(ex.execute(st.get(s.id)))
+    b.acc = replace(ACC, positions=(Position("SOLUSDT", Side.LONG, 3.33, 101.3, 105, 10),))
+    clock.t = NOW + timedelta(days=9)
+    asyncio.run(ex.housekeep())
+    b.acc = ACC                                            # позиция исчезла, итога ещё нет
+    clock.t = NOW + timedelta(days=9, minutes=1)
+    asyncio.run(ex.housekeep())
+    assert st.trades_for([s.id])[s.id].status is TradeStatus.FILLED
+    b.pnl = [("SOLUSDT", ClosedPnl(Side.LONG, 3.33, 101.3, 98.0, -11.0, NOW + timedelta(days=9)))]
+    clock.t = NOW + timedelta(days=9, minutes=2)
+    asyncio.run(ex.housekeep())
+    t = st.trades_for([s.id])[s.id]
+    assert t.status is TradeStatus.CLOSED and t.result.pnl_usd == -11.0
+
+
+def test_trades_lost_by_old_give_up_rule_are_reopened_once(tmp_path):
+    from trader.domain.execution import HedgeLeg
+    b = FakeBroker()
+    clock = Clock(NOW)
+    st, ex = _exec(tmp_path, b, clock)
+    s = st.add(_signal())
+    asyncio.run(ex.execute(st.get(s.id)))
+    t0 = st.trades_for([s.id])[s.id]
+    st.set_trade_hedge(t0.id, HedgeLeg(beta=1.2, btc_in=80000.0, btc_out=81000.0))
+    st.settle_trade(t0.id, TradeStatus.CLOSED, None)        # «нет данных» по старому правилу
+    st.set_status(s.id, SignalStatus.CLOSED, st.get(s.id).note)
+    b.acc = replace(ACC, positions=(Position("SOLUSDT", Side.LONG, 3.33, 101.3, 105, 10),))   # а позиция открыта
+    clock.t = NOW + timedelta(hours=1)
+    asyncio.run(ex.housekeep())
+    t = st.trades_for([s.id])[s.id]
+    assert t.status is TradeStatus.FILLED and t.result is None and t.hedge.btc_out is None
+    assert st.get(s.id).status is SignalStatus.TAKEN
+    st.settle_trade(t.id, TradeStatus.CLOSED, None)
+    asyncio.run(ex.housekeep())                            # второй раз не трогаем
+    assert st.trades_for([s.id])[s.id].status is TradeStatus.CLOSED
+
+
 def test_taken_signals_with_finished_trades_are_closed_on_start(tmp_path):
     st = SqliteStore(tmp_path / "t.db")
     done, live = st.add(_signal()), st.add(_signal(symbol="ETHUSDT"))

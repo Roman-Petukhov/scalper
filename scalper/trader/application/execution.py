@@ -22,7 +22,10 @@ from .ports import Broker, MarketData, Notifier, SettingsRepository, SignalRepos
 log = logging.getLogger(__name__)
 
 PNL_WINDOW = timedelta(days=6, hours=23)    # биржа отдаёт закрытия окнами не длиннее 7 дней
-GIVE_UP = timedelta(days=8)                 # закрытия так и не нашлось — итог «нет данных», больше не ищем
+GIVE_UP = timedelta(days=2)                 # позиции нет уже столько, а закрытия на бирже нет — итог «нет данных»
+GONE_KEY = "gone:{}"                        # когда бот впервые не увидел позицию сделки (id) на бирже
+LOST_REOPEN_KEY = "lost_reopen_2026_10"     # один раз: вернуть в поиск итоги, потерянные старым правилом «8 дней с входа»
+LOST_LOOKBACK = timedelta(days=30)
 HEDGE_ERR_KEY = "hedge:error"               # последняя ошибка хеджа: уведомление — один раз, а не каждую минуту
 HEDGE_KEY = "hedge:held"                    # "1" — позицию BTCUSDT ведёт хедж (не трогать ручную, пока хеджа не было)
 
@@ -144,6 +147,8 @@ class Executor:
         без ретеста — снимаем; позиция дольше срока сделки (max_hold_bars свечей с исполнения) — закрываем;
         закрытая позиция — итог с биржи в журнал."""
         b = self.broker()
+        if b is not None and self.trades.kv_get(LOST_REOPEN_KEY) is None:
+            self._reopen_lost(self.clock())
         pending, filled = self.trades.pending_trades(), self.trades.filled_trades()
         unsettled = self.trades.unsettled_trades()
         if b is None or not (pending or filled or unsettled or self.trades.kv_get(HEDGE_KEY) == "1"):
@@ -333,10 +338,33 @@ class Executor:
             status = TradeStatus.TIMED_OUT if t.status is TradeStatus.TIMED_OUT else TradeStatus.CLOSED
             if res is not None:
                 await self._settle(t, status, res)
-            elif t.opened_at is not None and now - t.opened_at > GIVE_UP:
+            elif now - self._gone_since(t, now) > GIVE_UP:
                 self.trades.settle_trade(t.id, status, None)
                 self._close_signal(t.signal_id)
                 await self._close_hedge_leg(b, t)
+
+    def _gone_since(self, t: Trade, now: datetime) -> datetime:
+        """Когда бот впервые не увидел позицию: срок поиска итога считается от этого момента, а не от входа —
+        сделка 4h живёт до 10 суток, и закрытие на 9-й нельзя бросать с первой же пустой выдачи биржи."""
+        key = GONE_KEY.format(t.id)
+        v = self.trades.kv_get(key)
+        if v:
+            return datetime.fromisoformat(v)
+        self.trades.kv_set(key, now.isoformat())
+        return now
+
+    def _reopen_lost(self, now: datetime) -> None:
+        """Сделки, которым старое правило (8 суток с входа) записало «нет данных», хотя позиция могла закрыться
+        только что или ещё открыта: снова «на бирже» — итог ищется заново, хедж учитывает их как открытые."""
+        for t in self.trades.lost_trades(now - LOST_LOOKBACK):
+            self.trades.reopen_trade(t.id)
+            if t.hedge is not None:
+                self.trades.set_trade_hedge(t.id, replace(t.hedge, btc_out=None))
+            sig = self.signals.get(t.signal_id)
+            if sig is not None and sig.status is SignalStatus.CLOSED:
+                self.signals.set_status(t.signal_id, SignalStatus.TAKEN, sig.note)
+            log.info("сделка %s %s: итог снова ищем", t.id, t.symbol)
+        self.trades.kv_set(LOST_REOPEN_KEY, now.isoformat())
 
     async def _result(self, b: Broker, t: Trade, until: datetime | None, now: datetime) -> TradeResult | None:
         since = (t.opened_at or now) - timedelta(minutes=1)

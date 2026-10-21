@@ -438,6 +438,19 @@ class SqliteStore:
                             (status.value, payload, trade_id))
             self.db.commit()
 
+    def lost_trades(self, filled_since: datetime) -> list[Trade]:
+        with self.lock:
+            rows = self.db.execute("SELECT * FROM trades WHERE status = ? AND settled = 1 AND result IS NULL "
+                                   "AND filled_at IS NOT NULL AND filled_at >= ? ORDER BY id DESC",
+                                   (TradeStatus.CLOSED.value, filled_since.isoformat())).fetchall()
+        return [self._trade(r) for r in rows]
+
+    def reopen_trade(self, trade_id: int) -> None:
+        with self.lock:
+            self.db.execute("UPDATE trades SET status = ?, result = NULL, settled = 0 WHERE id = ?",
+                            (TradeStatus.FILLED.value, trade_id))
+            self.db.commit()
+
     def journal(self, limit: int = 500) -> list[JournalEntry]:
         with self.lock:
             rows = self.db.execute("SELECT t.*, s.timeframe AS tf, s.payload AS sig_payload FROM trades t "
