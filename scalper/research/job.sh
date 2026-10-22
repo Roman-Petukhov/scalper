@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"quarterly"}
+TASKS=${TASKS:-"ppr"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -355,6 +355,12 @@ oddtf30_collect() {
   ODD_TFS=30m python -m research.oddtf collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
 }
 oddtf30_report() { ODD_TFS=30m python -m research.oddtf report; }
+# Свечная формация PPR (Pivot Point Reversal): сама по себе, у уровня, ложный пробой; и как фильтр бота
+ppr_collect() {
+  RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-qualified 15m-wide
+  PPR_TFS=1h,4h,15m python -m research.ppr collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
+}
+ppr_report() { python -m research.ppr report; }
 # Круглые числа (Osler): пробой через круглый уровень, уровень впереди, стоп «за толпой» (4h и 15m)
 roundnum_collect() {
   RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-qualified 15m-wide
