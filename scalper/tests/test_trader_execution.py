@@ -1206,3 +1206,36 @@ def test_bybit_fills_parsing_and_paging():
     (f,) = asyncio.run(br.fills("SOLUSDT", NOW - timedelta(days=1), NOW))
     assert f.side is Side.SHORT and f.qty == 2 and f.closed_qty == 2 and f.fee == 0.1
     assert calls[0]["symbol"] == "SOLUSDT" and calls[1]["cursor"] == "p2"
+
+
+def test_fills_with_only_the_pyramid_add_in_window_use_order_price_for_the_rest():
+    from trader.domain.execution import Fill, settle_fills
+    t0 = NOW
+    add = Fill(Side.SHORT, 0.5, 85.0, 0.0, 0.0, t0 + timedelta(hours=1))            # доливка шорта на +1.5R
+    out = Fill(Side.LONG, 1.5, 100.0, 0.0, 1.5, t0 + timedelta(hours=5))            # стоп в точке входа 100
+    r = settle_fills([add, out], Side.SHORT, 100.0, t0, t0 + timedelta(days=1))     # вход 100 — раньше окна
+    assert r.entry_fill == pytest.approx((100 * 1 + 85 * 0.5) / 1.5)
+    assert r.pnl_usd == pytest.approx(-(100 - 85) * 0.5)                            # теряет только доливка
+
+
+def test_misfilled_pyramid_results_are_reopened_once(tmp_path):
+    from datetime import datetime, timezone
+    from trader.domain.execution import TradeResult
+    from trader.application.execution import RESETTLE_KEY
+    b, clock = FakeBroker(), Clock(datetime(2026, 10, 22, tzinfo=timezone.utc))
+    st, ex = _exec(tmp_path, b, clock)
+    s = st.add(_signal())
+    asyncio.run(ex.execute(st.get(s.id)))
+    t = st.trades_for([s.id])[s.id]
+    st.set_trade_pyramid(t.id, t.qty / 2, 105.5)
+    st.settle_trade(t.id, TradeStatus.CLOSED, TradeResult(105.5, 101.0, -2.3 * t.qty * 3,
+                                                           datetime(2026, 10, 21, 16, tzinfo=timezone.utc)))
+    st.set_status(s.id, SignalStatus.CLOSED, "")
+    st.kv_delete(RESETTLE_KEY)
+    b.acc = replace(ACC, positions=(Position("SOLUSDT", Side.LONG, 3.33, 101.3, 105, 10),))
+    asyncio.run(ex.housekeep())
+    t2 = st.trades_for([s.id])[s.id]
+    assert t2.status is TradeStatus.FILLED and t2.result is None and st.get(s.id).status is SignalStatus.TAKEN
+    st.settle_trade(t2.id, TradeStatus.CLOSED, TradeResult(105.5, 101.0, -2.3 * t.qty * 3, datetime(2026, 10, 21, 16, tzinfo=timezone.utc)))
+    asyncio.run(ex.housekeep())                                                     # второй раз не трогаем
+    assert st.trades_for([s.id])[s.id].status is TradeStatus.CLOSED

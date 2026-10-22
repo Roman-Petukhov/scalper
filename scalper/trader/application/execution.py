@@ -28,6 +28,9 @@ GIVE_UP = timedelta(days=2)                 # позиции нет уже ст�
 GONE_KEY = "gone:{}"                        # когда бот впервые не увидел позицию сделки (id) на бирже
 LOST_REOPEN_KEY = "lost_reopen_2026_10"     # один раз: вернуть в поиск итоги, потерянные старым правилом «8 дней с входа»
 LOST_LOOKBACK = timedelta(days=30)
+# один раз: итоги сделок с доливкой, посчитанные по исполнениям до исправления (весь объём — по цене доливки)
+RESETTLE_KEY = "pyramid_fill_resettle_2026_10"
+RESETTLE_SINCE = datetime(2026, 10, 21, tzinfo=timezone.utc)
 HEDGE_ERR_KEY = "hedge:error"               # последняя ошибка хеджа: уведомление — один раз, а не каждую минуту
 HEDGE_KEY = "hedge:held"                    # "1" — позицию BTCUSDT ведёт хедж (не трогать ручную, пока хеджа не было)
 
@@ -151,6 +154,8 @@ class Executor:
         b = self.broker()
         if b is not None and self.trades.kv_get(LOST_REOPEN_KEY) is None:
             self._reopen_lost(self.clock())
+        if b is not None and self.trades.kv_get(RESETTLE_KEY) is None:
+            self._reopen_misfilled(self.clock())
         pending, filled = self.trades.pending_trades(), self.trades.filled_trades()
         unsettled = self.trades.unsettled_trades()
         if b is None or not (pending or filled or unsettled or self.trades.kv_get(HEDGE_KEY) == "1"):
@@ -410,6 +415,24 @@ class Executor:
                 self.signals.set_status(t.signal_id, SignalStatus.TAKEN, sig.note)
             log.info("сделка %s %s: итог снова ищем", t.id, t.symbol)
         self.trades.kv_set(LOST_REOPEN_KEY, now.isoformat())
+
+    def _reopen_misfilled(self, now: datetime) -> None:
+        """Сделки с доливкой, закрытые после RESETTLE_SINCE с убытком больше 1.2R (при стопе в точке входа после
+        доливки так не бывает): итог считался по исполнениям с ценой доливки на весь объём — ищем заново."""
+        for e in self.trades.journal():
+            t = e.trade
+            r = t.r_multiple
+            if (t.id is None or t.result is None or not t.add_qty or r is None or r >= -1.2
+                    or t.result.closed_at < RESETTLE_SINCE):
+                continue
+            self.trades.reopen_trade(t.id)
+            if t.hedge is not None:
+                self.trades.set_trade_hedge(t.id, replace(t.hedge, btc_out=None))
+            sig = self.signals.get(t.signal_id)
+            if sig is not None and sig.status is SignalStatus.CLOSED:
+                self.signals.set_status(t.signal_id, SignalStatus.TAKEN, sig.note)
+            log.info("сделка %s %s: итог с доливкой пересчитываем", t.id, t.symbol)
+        self.trades.kv_set(RESETTLE_KEY, now.isoformat())
 
     async def _result(self, b: Broker, t: Trade, until: datetime | None, now: datetime) -> TradeResult | None:
         since = (t.opened_at or now) - timedelta(minutes=1)

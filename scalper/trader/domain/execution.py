@@ -249,15 +249,17 @@ class Fill:
 
 def settle_fills(fills: list[Fill], side: Side, entry: float, since: datetime, until: datetime) -> TradeResult | None:
     """Итог по исполнениям, когда биржа не отдаёт запись о закрытии: закрывающие исполнения против стороны сделки
-    в окне [since, until), вход — средняя открывающих (нет их в окне — цена ордера), комиссии всех исполнений."""
+    в окне [since, until), вход — средняя открывающих; объём, которого среди открывающих в окне нет (вход раньше окна
+    в 7 дней, а в окне только доливка), — по цене ордера entry. Комиссии — всех исполнений в окне."""
     win = [f for f in fills if since <= f.at < until and f.qty > 0]
     close = [f for f in win if f.side is not side and f.closed_qty > 0]
     if not close:
         return None
     opened = [f for f in win if f.side is side and f.closed_qty <= 0]
-    q_in = sum(f.qty for f in opened)
-    entry_fill = sum(f.price * f.qty for f in opened) / q_in if q_in else entry
     q = sum(f.closed_qty for f in close)
+    q_in = sum(f.qty for f in opened)
+    q_old = max(q - q_in, 0.0)                                  # вход раньше окна
+    entry_fill = (sum(f.price * f.qty for f in opened) + entry * q_old) / (q_in + q_old)
     exit_ = sum(f.price * f.closed_qty for f in close) / q
     pnl = int(side) * (exit_ - entry_fill) * q - sum(f.fee for f in opened + close)
     return TradeResult(entry_fill=entry_fill, exit=exit_, pnl_usd=pnl, closed_at=max(f.at for f in close))
