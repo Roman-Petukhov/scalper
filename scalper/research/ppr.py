@@ -139,13 +139,23 @@ def context(x: pd.DataFrame, name: str) -> pd.DataFrame:
     return x[x[name]]
 
 
+def day_t(z: pd.DataFrame, col: str) -> float:
+    """t по дням, как в _cell: формации одного дня на разных монетах — одна коррелированная группа."""
+    r = z[col].to_numpy(dtype="float64")
+    if len(r) < 10:
+        return float("nan")
+    g = pd.Series(r - r.mean()).groupby(z["t"].dt.floor("D").to_numpy()).sum()
+    d = float(np.sqrt((g ** 2).sum()))
+    return float(r.sum() / d) if d > 0 else float("nan")
+
+
 def verdict(z: pd.DataFrame, col: str) -> tuple[bool, float]:
     ok = []
     for _, (a, b) in PER_ALL.items():
         m = z[(z.t >= a) & (z.t < b)]
         if len(m) >= 20:
             ok.append(m[col].mean() > 0)
-    t = tstat(z[col].to_numpy())
+    t = day_t(z, col)
     return bool(ok) and all(ok) and t >= 3, t
 
 

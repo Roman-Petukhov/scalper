@@ -41,3 +41,14 @@ def test_verdict_needs_every_period_and_t3():
                       "R3": rng.normal(0.3, 1, n)})
     assert P.verdict(z, "R3")[0]
     assert not P.verdict(z.assign(R3=z.R3 - 0.3), "R3")[0]
+
+
+def test_verdict_uses_day_clustered_t():
+    """Сотни формаций за один день — одно наблюдение: наивный t раздувается, дневной — нет."""
+    rng = np.random.default_rng(1)
+    days = pd.Timestamp("2020-01-01") + pd.to_timedelta(np.repeat(np.arange(0, 2400, 6), 200), unit="D")
+    shift = rng.normal(0.0, 1.0, len(days) // 200)
+    day_shift = np.repeat(shift - shift.mean() + 0.03, 200)   # общее среднее +0.03R при разбросе по дням 1R
+    z = pd.DataFrame({"t": days, "R3": day_shift + rng.normal(0.05, 0.1, len(days))})
+    assert P.tstat(z.R3.to_numpy()) > 3          # наивный t «принял» бы шум
+    assert not P.verdict(z, "R3")[0]
