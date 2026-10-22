@@ -714,7 +714,7 @@ def _htf_bars(d: pd.DataFrame, rule: str) -> pd.DataFrame:
 
 
 def _to_bars(st: pd.Series, d: pd.DataFrame, rule: str, tf: str) -> np.ndarray:
-    st.index = st.index + {"15min": pd.Timedelta(minutes=15), "1h": pd.Timedelta(hours=1), "4h": pd.Timedelta(hours=4), "1D": pd.Timedelta(days=1),
+    st.index = st.index + {"15min": pd.Timedelta(minutes=15), "1h": pd.Timedelta(hours=1), "2h": pd.Timedelta(hours=2), "4h": pd.Timedelta(hours=4), "1D": pd.Timedelta(days=1),
                            "1W": pd.Timedelta(days=7)}[rule]
     bar_close = d.index + pd.Timedelta(minutes=BAR_MIN[tf])                  # известно после закрытия свечи ст. ТФ
     return st.reindex(bar_close, method="ffill").to_numpy()

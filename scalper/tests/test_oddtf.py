@@ -35,3 +35,10 @@ def test_variants_and_verdict():
     assert (flat.side < 0).all() and (flat.slope_atr <= O.MAX_SLOPE).all() and (flat.entry == "market").all()
     assert O.verdict(x)[0]
     assert not O.verdict(x.assign(R=x.R - 0.6))[0]
+
+
+def test_30m_frame_runs_through_the_bot_rule(tmp_path):
+    _write(tmp_path, "AUSDT", "15m", "15min", 20000)
+    d = tf_frame(tmp_path, "AUSDT", "30m")
+    rows = O.coin_rows(d, np.full(len(d), 1e9), "AUSDT", "30m")    # тренд 2h: раньше падало на KeyError
+    assert isinstance(rows, list)
