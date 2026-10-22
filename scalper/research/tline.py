@@ -51,11 +51,15 @@ from .wave2 import metrics_on_bars
 PER = {"is": ("2022-01-01", "2024-07-01"), "val": ("2024-07-01", "2025-07-01"), "ho": ("2025-07-01", "2026-10-01")}
 PIV = 5
 MAKER, TAKER = 2e-4, 5.5e-4
-HOLD = {"1m": 200, "5m": 200, "15m": 200, "1h": 120, "2h": 90, "4h": 60, "6h": 50, "12h": 40, "1d": 30}
-HTF = {"1m": "15min", "5m": "1h", "15m": "1h", "1h": "4h", "2h": "1D", "4h": "1D", "6h": "1D", "12h": "1W", "1d": "1W"}
-BAR_MIN = {"1m": 1, "5m": 5, "15m": 15, "1h": 60, "2h": 120, "4h": 240, "6h": 360, "12h": 720, "1d": 1440}
+HOLD = {"1m": 200, "3m": 200, "5m": 200, "15m": 200, "30m": 150, "1h": 120, "2h": 90, "4h": 60, "6h": 50, "8h": 45,
+        "12h": 40, "1d": 30}
+HTF = {"1m": "15min", "3m": "1h", "5m": "1h", "15m": "1h", "30m": "2h", "1h": "4h", "2h": "1D", "4h": "1D", "6h": "1D",
+       "8h": "1D", "12h": "1W", "1d": "1W"}
+BAR_MIN = {"1m": 1, "3m": 3, "5m": 5, "15m": 15, "30m": 30, "1h": 60, "2h": 120, "4h": 240, "6h": 360, "8h": 480,
+           "12h": 720, "1d": 1440}
 LOW_TFS = ("5m", "1m")                 # свои файлы свечей (research/lowtf.py)
-HIGH_TFS = {"2h": "2h", "4h": "4h", "6h": "6h", "12h": "12h", "1d": "1D"}      # собираются из 1h-свечей
+HIGH_TFS = {"2h": "2h", "4h": "4h", "6h": "6h", "8h": "8h", "12h": "12h", "1d": "1D"}      # собираются из 1h-свечей
+MID_TFS = {"30m": ("15m", "30min"), "3m": ("1m", "3min")}   # собираются из 15m / 1m (research/oddtf.py)
 RETEST_BARS = 12
 RETEST_OFF = 0.0       # лимитка ретеста: сдвиг от линии к цене, ATR (research/improve.py; бот — 0)
 STOP_BUF = 0.1          # стоп за свингом с отступом столько ATR (как у бота)
@@ -679,7 +683,8 @@ def _extend_daily(sym: str, df: pd.DataFrame, interval: str = "1h") -> pd.DataFr
 
 def tf_frame(root: Path, sym: str, tf: str, extend: bool = False) -> pd.DataFrame | None:
     p15, p1 = root / f"{sym}-15m.parquet", root / f"{sym}-1h.parquet"
-    src = p15 if tf == "15m" else root / f"{sym}-{tf}.parquet" if tf in LOW_TFS else p1
+    base = MID_TFS[tf][0] if tf in MID_TFS else tf
+    src = p15 if base == "15m" else root / f"{sym}-{base}.parquet" if base in LOW_TFS else p1
     if not src.exists():
         return None
     df = pd.read_parquet(src)
@@ -688,15 +693,17 @@ def tf_frame(root: Path, sym: str, tf: str, extend: bool = False) -> pd.DataFram
     df = df[~df.index.duplicated()].sort_index()
     if extend:
         df = _extend_daily(sym, df, "15m" if tf == "15m" else "1h")
-    if tf in HIGH_TFS:
-        df = df.resample(HIGH_TFS[tf], label="left", closed="left").agg(
+    rule = HIGH_TFS.get(tf) or (MID_TFS[tf][1] if tf in MID_TFS else None)
+    if rule:
+        df = df.resample(rule, label="left", closed="left").agg(
             {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum", "quote_volume": "sum",
              "count": "sum", "taker_buy_volume": "sum", "taker_buy_quote_volume": "sum"}).dropna(subset=["close"])
     df["funding"] = funding_on_bars(sym, root, df.index, BAR_MIN[tf])
     return df
 
 
-HTF2 = {"1m": "1h", "5m": "4h", "15m": "4h", "1h": "1D", "2h": "1W", "4h": "1W", "6h": "1W", "12h": "1W", "1d": "1W"}          # тренд ещё на ступень старше
+HTF2 = {"1m": "1h", "3m": "4h", "5m": "4h", "15m": "4h", "30m": "1D", "1h": "1D", "2h": "1W", "4h": "1W", "6h": "1W",
+        "8h": "1W", "12h": "1W", "1d": "1W"}          # тренд ещё на ступень старше
 
 
 def _htf_bars(d: pd.DataFrame, rule: str) -> pd.DataFrame:
