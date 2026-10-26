@@ -121,6 +121,14 @@ _S7 = dict(sides15="short", slope15=0.025, limit15=3, squeeze4h=1.5)
 BOOKS7 = tuple(Book(f"4h один {r:g}%", r15=0.0, r4h=r / 100, **_S7) for r in (2.0, 2.2, 2.25, 2.4, 2.5)) + (
     Book("15m 0.15% + 4h 2.25%", r15=0.0015, r4h=0.0225, **_S7), Book("15m 0.15% + 4h 2.4%", r15=0.0015, r4h=0.024, **_S7),
     Book("15m 0.25% + 4h 2%", r15=0.0025, r4h=0.02, **_S7), Book("15m 0.25% + 4h 2.25%", r15=0.0025, r4h=0.0225, **_S7))
+# восьмой заход — граница для владельца, готового терпеть глубокую просадку ради роста: где рост типичного пути перестаёт расти
+# (потеря от разброса), как растут хвосты (P просадки > 50 / 60 / 70%, 10-й процентиль роста). 15m шорты ≤ 0.025, ≤ 3 позиции
+_S8 = dict(sides15="short", slope15=0.025, limit15=3, squeeze4h=1.5)
+BOOKS8 = (Book("15m 0.15% + 4h 2.4% (эталон)", r15=0.0015, r4h=0.024, **_S8),
+          Book("4h один 3%", r15=0.0, r4h=0.03, **_S8), Book("4h один 4%", r15=0.0, r4h=0.04, **_S8),
+          Book("15m 0.25% + 4h 3%", r15=0.0025, r4h=0.03, **_S8), Book("15m 0.35% + 4h 3%", r15=0.0035, r4h=0.03, **_S8),
+          Book("15m 0.5% + 4h 3%", r15=0.005, r4h=0.03, **_S8), Book("15m 0.35% + 4h 4%", r15=0.0035, r4h=0.04, **_S8),
+          Book("15m 0.5% + 4h 4%", r15=0.005, r4h=0.04, **_S8), Book("15m 1% + 4h 4%", r15=0.01, r4h=0.04, **_S8))
 BOOKS = (Book("live"), Book("live, 15m <= 3", limit15=3), Book("live, 15m <= 5", limit15=5),
          Book("live, 15m <= 8", limit15=8), Book("live, риск <= 10%", heat=0.10), Book("live, риск <= 15%", heat=0.15),
          Book("live, риск <= 20%", heat=0.20), Book("умеренный", r15=0.005, r4h=0.01, limit15=3))
@@ -234,12 +242,15 @@ def portfolio_report(z: pd.DataFrame, books: tuple[Book, ...] = BOOKS,
     print(f"  сделок: 15m {int((z.tf == '15m').sum())}, 4h {int((z.tf == '4h').sum())}")
     rng = np.random.default_rng(23)
     boots = [week_blocks(z, rng) for _ in range(paths)]
+    years = (z.fill.max() - z.fill.min()).days / 365.25
     res = {}
     for b in books:
         s = simulate_book(z, b)
         g = _growth(s["curve"])
-        dds = np.array([simulate_book(q, b)["mdd"] for q in boots])
+        sims = [simulate_book(q, b) for q in boots]
+        dds = np.array([x["mdd"] for x in sims])
         p50 = float(np.mean(dds > 0.5))
+        cagr = np.array([x["eq"] ** (1 / years) - 1 for x in sims])
         main = [g[k] for k in MAIN if np.isfinite(g[k])]
         med = float(np.median(main)) if main else float("nan")
         safe = p50 <= 0.05 and s["mdd"] <= 0.35
@@ -248,7 +259,9 @@ def portfolio_report(z: pd.DataFrame, books: tuple[Book, ...] = BOOKS,
         skips = ", ".join(f"{k} {v}" for k, v in s["skip"].items() if v)
         print(f"    {b.name:<38} в год: {cells}\n{'':26}просадка {s['mdd']:.0%}, худший месяц "
               f"{worst_month(s['curve']):+.0%}, бутстреп: медиана просадки {np.median(dds):.0%}, P(> 50%) {p50:.0%}; "
-              f"макс. открытый риск {s['heat_max']:.0%}; пропущено: {skips or '—'} → "
+              f"макс. открытый риск {s['heat_max']:.0%}; пропущено: {skips or '—'}\n{'':26}пути бутстрепа, рост в год: 10-й процентиль "
+              f"{np.percentile(cagr, 10):+.0%}, медиана {np.median(cagr):+.0%}; P(просадка > 60%) {np.mean(dds > 0.6):.0%}, "
+              f"P(> 70%) {np.mean(dds > 0.7):.0%} → "
               f"{'безопасный' if safe else 'опасный'}")
     ok = {k: v for k, v in res.items() if v[0] and np.isfinite(v[1])}
     if ok:
@@ -318,6 +331,15 @@ def report2() -> None:
     portfolio_report(z, BOOKS2, "Варианты")
 
 
+def report8() -> None:
+    print("\n===== LIVEBOOK8: высокий риск — где рост типичного пути перестаёт расти и как растут хвосты (500 путей) =====")
+    z = load()
+    if z is None:
+        print("  crisk: нет данных")
+        return
+    portfolio_report(z, BOOKS8, "Высокий риск", paths=500)
+
+
 def report7() -> None:
     print("\n===== LIVEBOOK7: 4h отдельно против 4h + 15m при одинаковой просадке (500 путей) =====")
     z = load()
@@ -366,4 +388,4 @@ def report3() -> None:
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     warnings.filterwarnings("ignore")
-    {"2": report2, "3": report3, "4": report4, "5": report5, "6": report6, "7": report7}.get((sys.argv[1:] or [""])[0], report)()
+    {"2": report2, "3": report3, "4": report4, "5": report5, "6": report6, "7": report7, "8": report8}.get((sys.argv[1:] or [""])[0], report)()
