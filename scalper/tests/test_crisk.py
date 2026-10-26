@@ -67,3 +67,8 @@ def test_autocorr_sees_clustered_outcomes():
     r = np.array([2.0] * 50 + [-1.0] * 50 + [2.0] * 50 + [-1.0] * 50)
     pw, pl, rho, p = C.autocorr(_z(list(r)))
     assert pw > 0.9 and pl < 0.1 and rho > 0.9 and p < 0.01
+
+
+def test_custom_ladder_steps_are_used():
+    s = C.simulate(_z([3.0, 3.0, -1.0]), C.Policy("l", ladder=True, steps=(0.0025, 0.00375, 0.005625)), 3)
+    assert s["eq"] == pytest.approx((1 + 0.0075) * (1 + 0.01125) * (1 - 0.005625))

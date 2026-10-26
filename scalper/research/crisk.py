@@ -127,6 +127,7 @@ class Policy:
     be: bool = False
     breakers: bool = False
     limit: bool = True
+    steps: tuple[float, ...] = LADDER     # ступени лестницы
 
 
 DAY_NS = 86_400 * 10**9
@@ -181,7 +182,7 @@ def simulate(z: pd.DataFrame, p: Policy, limit: int, R: np.ndarray | None = None
             peak = max(peak, eq)
             mdd = max(mdd, 1 - eq / peak)
             if p.ladder:
-                step = min(step + 1, len(LADDER) - 1) if out_r[i] >= TAKE_R else 0 if out_r[i] < 0 else step
+                step = min(step + 1, len(p.steps) - 1) if out_r[i] >= TAKE_R else 0 if out_r[i] < 0 else step
             if p.breakers and not halted and eq <= day_eq * (1 - DAY_STOP):
                 halted, strikes = True, strikes + 1
                 if strikes >= 2:
@@ -192,7 +193,7 @@ def simulate(z: pd.DataFrame, p: Policy, limit: int, R: np.ndarray | None = None
         else:
             if eq <= 0 or (p.limit and len(open_) >= limit) or (p.breakers and halted):
                 continue
-            r = p.flat if p.flat > 0 else LADDER[step] if p.ladder else LADDER[0]
+            r = p.flat if p.flat > 0 else p.steps[step] if p.ladder else p.steps[0]
             if p.breakers and guard_to > 0:
                 if eq >= guard_to:
                     guard_to = 0.0
@@ -321,15 +322,69 @@ def report() -> None:
     print("\n  ИТОГ: " + ("прошли — " + ", ".join(passed) if passed else "риск-модель раздела 10 не принята"))
 
 
+LADDERS15 = ((0.0025, 0.00375, 0.005625), (0.005, 0.0075, 0.01125))
+
+
+def ladder_report() -> None:
+    """Лестница риска на 15m в рабочем масштабе (задано до запуска): ступени ×1.5 от 0.25% и от 0.5%, лимит 3, против
+    фиксированного риска того же среднего; принятие — как у лестницы в report()."""
+    print("\n===== CRISK15: лестница риска на 15m в масштабе бота (0.25 / 0.375 / 0.56% и 0.5 / 0.75 / 1.125%) против "
+          "фиксированного риска того же среднего =====")
+    parts = all_parts("crisk_15m")
+    if not parts:
+        print("  crisk 15m: нет данных")
+        return
+    z = pd.concat([pd.read_parquet(q) for q in parts], ignore_index=True)
+    for c in ("fill", "exit", "exit_be", "be_at"):
+        z[c] = pd.to_datetime(z[c], utc=True).dt.tz_localize(None)
+    z = z.dropna(subset=["R", "R_be"])
+    z = z[z.side < 0].sort_values("fill").reset_index(drop=True)
+    lim, runs, passed = LIMIT["15m"], RUNS["15m"], []
+    rng = np.random.default_rng(11)
+    print(f"  15m шорты: сигналов {len(z)}, лимит {lim}")
+    for steps in LADDERS15:
+        lad = Policy(f"ladder {'/'.join(f'{x:.3%}' for x in steps)}", ladder=True, steps=steps)
+        s_l = simulate(z, lad, lim)
+        avg = Policy(f"flat {s_l['avg_risk']:.3%}", flat=s_l["avg_risk"])
+        rows = {}
+        for p in (Policy(f"flat {steps[0]:.3%}", flat=steps[0]), avg, lad):
+            s = simulate(z, p, lim)
+            g = {k: period_growth(s["curve"], a, b) for k, (a, b) in PER_ALL.items()}
+            dd = dd50(z, p, lim, runs, rng)
+            rows[p.name] = (s, g, dd)
+            cells = "  ".join(f"{k} {np.expm1(v):+.0%}" if np.isfinite(v) else f"{k} —" for k, v in g.items())
+            print(f"    {p.name:<28} в год: {cells} | просадка {s['mdd']:.0%}, худший месяц "
+                  f"{worst_month(s['curve']):+.0%}, P(просадка > 50%) {dd:.0%}, средний риск {s['avg_risk']:.3%}")
+        (s_l, g_l, dd_l), (s_a, g_a, _) = rows[lad.name], rows[avg.name]
+        better = [g_l[k] > g_a[k] for k in MAIN if np.isfinite(g_l[k]) and np.isfinite(g_a[k])]
+        real = math.log(max(s_l["eq"], 1e-9)) - math.log(max(s_a["eq"], 1e-9))
+        perm = []
+        for _ in range(runs):
+            k = rng.permutation(len(z))
+            a = simulate(z, lad, lim, z.R.to_numpy()[k], z.R_be.to_numpy()[k])["eq"]
+            b = simulate(z, avg, lim, z.R.to_numpy()[k], z.R_be.to_numpy()[k])["eq"]
+            perm.append(math.log(max(a, 1e-9)) - math.log(max(b, 1e-9)))
+        pperm = float(np.mean(np.array(perm) >= real))
+        ok = bool(better) and all(better) and pperm <= 0.05 and dd_l <= 0.05
+        print(f"    {lad.name} против {avg.name}: лог-рост {real:+.2f} (перестановки: медиана {np.median(perm):+.2f}, "
+              f"p {pperm:.2f}), лучше в IS / VAL / HO: {better}, просадка {s_l['mdd']:.0%} против {s_a['mdd']:.0%} → "
+              f"{'принято' if ok else 'нет'}")
+        if ok:
+            passed.append(lad.name)
+    print("\n  ИТОГ: " + ("прошли — " + ", ".join(passed) if passed else "лестница риска на 15m не принята"))
+
+
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     warnings.filterwarnings("ignore")
     ap = argparse.ArgumentParser()
-    ap.add_argument("mode", choices=["collect", "report"])
+    ap.add_argument("mode", choices=["collect", "report", "ladder"])
     ap.add_argument("--root", default="~/bn")
     ap.add_argument("--symbols", default="")
     a = ap.parse_args()
     if a.mode == "collect":
         collect(Path(a.root).expanduser(), [s for s in a.symbols.split(",") if s])
+    elif a.mode == "ladder":
+        ladder_report()
     else:
         report()
