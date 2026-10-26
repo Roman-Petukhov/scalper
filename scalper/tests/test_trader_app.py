@@ -87,8 +87,8 @@ def test_15m_moves_to_gentle_shorts_once_and_keeps_trader_edits(tmp_path):
     s = SqliteStore(tmp_path / "t.db").load()
     assert s.timeframes == {Timeframe.H4, Timeframe.M15} and s.auto_timeframes == {Timeframe.H4}
     assert s.max_positions == 12                                        # было 5 — поднято один раз
-    assert s.p(Timeframe.M15) == replace(DEFAULT_TF_PARAMS[Timeframe.M15], risk_pct=2.0)   # база 2% — LADDER_ONCE
-    assert s.p(Timeframe.M15).sides is SideFilter.SHORT and s.p(Timeframe.H4) == old.p(Timeframe.H4)
+    assert s.p(Timeframe.M15) == DEFAULT_TF_PARAMS[Timeframe.M15]       # безопасный набор: шорты, 0.25% + лестница
+    assert s.p(Timeframe.M15).sides is SideFilter.SHORT and s.p(Timeframe.H4) == replace(old.p(Timeframe.H4), risk_pct=2.25)
     st2 = SqliteStore(tmp_path / "t.db")
     st2.save(replace(s.with_tf(Timeframe.M15, risk_pct=0.5).toggle_auto(Timeframe.M15), max_positions=7))
     s2 = SqliteStore(tmp_path / "t.db").load()                          # правки трейдера не перетираются
@@ -416,17 +416,22 @@ def test_binance_daily_bars_and_funding_sum():
     assert seen[1]["startTime"] == str(int(a.timestamp() * 1000) + 1)
 
 
-def test_ladder_enabled_once_with_a_2pct_base_risk(tmp_path):
+def test_safe_book_applied_once_to_live_settings(tmp_path):
+    from trader.domain.models import SideFilter
     st = SqliteStore(tmp_path / "t.db")
-    st.db.execute("DELETE FROM kv WHERE key = 'm15_ladder_2026_10b'")
-    st.save(Settings().with_tf(Timeframe.M15, risk_pct=4.0, ladder_x=1.0))
+    st.db.execute("DELETE FROM kv")
+    st.save(Settings().with_tf(Timeframe.M15, risk_pct=4.0, ladder_x=1.0, sides=SideFilter.BOTH, max_slope_atr=0.04,
+                               max_positions=0).with_tf(Timeframe.H4, risk_pct=4.5))
     st.db.commit()
     s = SqliteStore(tmp_path / "t.db").load()
-    assert s.p(Timeframe.M15).ladder_x == 1.5 and s.p(Timeframe.M15).risk_pct == 2.0
-    assert s.p(Timeframe.M15).ladder_steps == 3 and s.p(Timeframe.H4).ladder_x == 1.0
-    SqliteStore(tmp_path / "t.db").save(s.with_tf(Timeframe.M15, risk_pct=1.0, ladder_x=1.0))
+    m15 = s.p(Timeframe.M15)
+    assert (m15.risk_pct, m15.ladder_x, m15.ladder_steps) == (0.25, 1.5, 3)
+    assert (m15.sides, m15.max_slope_atr, m15.max_positions) == (SideFilter.SHORT, 0.025, 3)
+    assert s.p(Timeframe.H4).risk_pct == 2.25 and s.p(Timeframe.H4).ladder_x == 1.0
+    SqliteStore(tmp_path / "t.db").save(s.with_tf(Timeframe.M15, risk_pct=0.5, ladder_x=1.0).with_tf(Timeframe.H4, risk_pct=2.0))
     s = SqliteStore(tmp_path / "t.db").load()
-    assert s.p(Timeframe.M15).risk_pct == 1.0 and s.p(Timeframe.M15).ladder_x == 1.0   # правка трейдера остаётся
+    assert s.p(Timeframe.M15).risk_pct == 0.5 and s.p(Timeframe.M15).ladder_x == 1.0   # правка трейдера остаётся
+    assert s.p(Timeframe.H4).risk_pct == 2.0
 
 
 def test_squeeze_boost_enabled_once_on_saved_4h_settings(tmp_path):

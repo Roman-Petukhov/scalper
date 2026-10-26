@@ -193,10 +193,15 @@ TF_SETTINGS_ONCE: dict[str, tuple[Timeframe, dict[str, object]]] = {
     "h4_tag_risk_2026_10": (Timeframe.H4, {"tag_risk_x": 1.25}),
     "m15_tag_risk_2026_10": (Timeframe.M15, {"tag_risk_x": 1.25}),
     "m15_long_risk_2026_10": (Timeframe.M15, {"long_risk_x": 0.5}),
-    "h4_squeeze_risk_2026_10": (Timeframe.H4, {"squeeze_risk_x": 1.5})}
+    "h4_squeeze_risk_2026_10": (Timeframe.H4, {"squeeze_risk_x": 1.5}),
+    # безопасный набор для разгона счёта (research/livebook.py, прогоны 40324946983 / 40346311829 / 40348687229): 15m только
+    # шорты, наклон <= 0.025, <= 3 позиции; 4h 2.25% — граница (P(просадка > 50%) 3%, просадка 35%), дальше хвост растёт быстрее роста
+    "m15_safe_book_2026_10c": (Timeframe.M15, {"sides": "short", "max_slope_atr": 0.025, "max_positions": 3}),
+    "h4_risk_225_2026_10c": (Timeframe.H4, {"risk_pct": 2.25})}
 # лестница риска включается в сохранённых настройках один раз вместе с базовым риском (по решению трейдера 2026-10-26:
-# 15m — база 2%, ступени 2 / 3 / 4.5%); дальше настройки панели не трогаем
-LADDER_ONCE: dict[str, tuple[Timeframe, float, float]] = {"m15_ladder_2026_10b": (Timeframe.M15, 1.5, 2.0)}
+# 15m — база 0.25%, ступени 0.25 / 0.375 / 0.56%; база 2% из первой версии обнуляет счёт в бэктесте — research/livebook.py);
+# дальше настройки панели не трогаем
+LADDER_ONCE: dict[str, tuple[Timeframe, float, float]] = {"m15_ladder_2026_10c": (Timeframe.M15, 1.5, 0.25)}
 TF_FIELDS = tuple(TfParams.__dataclass_fields__)
 
 
