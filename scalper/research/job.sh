@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"quarterly"}
+TASKS=${TASKS:-"figure"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -405,6 +405,13 @@ formation_collect() {
   FORM_TFS=15m python -m research.formation collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
 }
 formation_report() { python -m research.formation report; }
+# Вид фигуры у пробоя линии: треугольник / клин / канал / коробка / расширение, ритм касаний, свечи внутри
+figure_collect() {
+  RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-qualified 15m-wide
+  FORM_TFS=4h python -m research.figure collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
+  FORM_TFS=15m python -m research.figure collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
+}
+figure_report() { python -m research.figure report; }
 # Круглые числа (Osler): пробой через круглый уровень, уровень впереди, стоп «за толпой» (4h и 15m)
 roundnum_collect() {
   RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-qualified 15m-wide

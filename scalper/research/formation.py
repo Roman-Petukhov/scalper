@@ -23,6 +23,7 @@ import os
 import sys
 import warnings
 from pathlib import Path
+from typing import Callable
 
 import numpy as np
 import pandas as pd
@@ -55,7 +56,11 @@ def features(c: np.ndarray, atr: np.ndarray, rec: dict, t: int, stop: float, px:
             "stop": abs(px - stop) / atr[t]}
 
 
-def coin_rows(d: pd.DataFrame, liq: np.ndarray, sym: str, tf: str) -> list[dict]:
+Extra = Callable[[pd.DataFrame, np.ndarray, dict, int], dict]
+
+
+def coin_rows(d: pd.DataFrame, liq: np.ndarray, sym: str, tf: str, extra: Extra | None = None) -> list[dict]:
+    """Сделки правила бота с признаками фигуры; extra(d, atr, линия, t) — дополнительные признаки (research/figure.py)."""
     noline.TF = tf
     x = noline.coin_trades(d, liq, sym, lines_only=True)
     if not len(x):
@@ -73,11 +78,12 @@ def coin_rows(d: pd.DataFrame, liq: np.ndarray, sym: str, tf: str) -> list[dict]
         if tf != "4h" and abs(float(rec["slope"])) / atr[t] > MAX_SLOPE:
             continue
         rows.append({"symbol": sym, "tf": tf, "t": r.t, "side": side, "R": float(r.R3),
-                     **features(c, atr, rec, t, float(r.stop), float(r.px))})
+                     **features(c, atr, rec, t, float(r.stop), float(r.px)),
+                     **(extra(d, atr, rec, t) if extra else {})})
     return rows
 
 
-def collect(root: Path, syms: list[str]) -> None:
+def collect(root: Path, syms: list[str], name: str = "formation", extra: Extra | None = None) -> None:
     for tf in TFS:
         rows = []
         for s in mine(syms):
@@ -87,12 +93,12 @@ def collect(root: Path, syms: list[str]) -> None:
                 d = tf_frame(root, s, tf)
                 if d is None or len(d) < 500:
                     continue
-                rows += coin_rows(d, adv30(root, s).reindex(d.index.floor("D")).to_numpy(), s, tf)
+                rows += coin_rows(d, adv30(root, s).reindex(d.index.floor("D")).to_numpy(), s, tf, extra)
             except Exception as e:
-                print(f"  formation {s} {tf}: пропуск ({e})", flush=True)
-        print(f"  formation {tf}: сделок {len(rows)}", flush=True)
+                print(f"  {name} {s} {tf}: пропуск ({e})", flush=True)
+        print(f"  {name} {tf}: сделок {len(rows)}", flush=True)
         if rows:
-            pd.DataFrame(rows).to_parquet(part_path(f"formation_{tf}"), index=False)
+            pd.DataFrame(rows).to_parquet(part_path(f"{name}_{tf}"), index=False)
 
 
 def is_edges(z: pd.DataFrame, f: str) -> np.ndarray:
