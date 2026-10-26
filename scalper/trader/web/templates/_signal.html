@@ -11,7 +11,7 @@
     {% if t and t.r_multiple is not none %}<span class="badge num {{ 'win' if t.r_multiple > 0 else 'loss' }}">{{ '%+.2f' | format(t.r_multiple) }}R</span>{% endif %}
     {% if sig.at_level %}<span class="badge level" title="Пробой линии совпал с пробоем горизонтального уровня">+ уровень</span>{% endif %}
     {% if sig.touch3 %}<span class="badge level" title="Линия с 3+ касаниями (Murphy, Bulkowski). В бэктесте 4h лучше остальных, но не доказано — смотрим по журналу">3+ касания</span>{% endif %}
-    {% if sig.long_line %}<span class="badge level" title="Линия длиннее медианы бэктеста (Bulkowski: длинные линии надёжнее). Пока метка, не фильтр">длинная линия</span>{% endif %}{% if sig.round_level %}<span class="badge level" title="Закрытие пробоя прошло крупный круглый уровень (Osler: за ним стопы толпы). В бэктесте 4h лучше, но не доказано — только метка">+ круглый</span>{% endif %}
+    {% if sig.long_line %}<span class="badge level" title="Линия длиннее медианы бэктеста (Bulkowski: длинные линии надёжнее). Пока метка, не фильтр">длинная линия</span>{% endif %}{% if sig.round_level %}<span class="badge level" title="Закрытие пробоя прошло крупный круглый уровень (Osler: за ним стопы толпы). В бэктесте 4h лучше, но не доказано — только метка">+ круглый</span>{% endif %}{% if sig.squeezed %}<span class="badge level" title="Пробой после сжатия волатильности: ATR свечи пробоя не больше половины ATR у опоры линии. Бэктест 4h: +1.0R против +0.35R у остальных; риск × надбавка за сжатие (research/squeezesize.py)">сжатие</span>{% endif %}
     <span class="hint num row-time">{{ sig.bar_time | lt }}</span>
     <span class="row-open" aria-hidden="true">график ▾</span>
     {% if sig.status in DELETABLE %}<button type="button" class="row-del" title="Удалить сигнал" aria-label="Удалить сигнал {{ sig.symbol }}"
@@ -36,7 +36,7 @@
       <span class="badge status-{{ sig.status.value }}">{{ STATUS_LABEL[sig.status] }}</span>
       {% if sig.at_level %}<span class="badge level" title="Пробой линии совпал с пробоем горизонтального уровня">+ уровень</span>{% endif %}
       {% if sig.touch3 %}<span class="badge level" title="Линия с 3+ касаниями (Murphy, Bulkowski). В бэктесте 4h лучше остальных, но не доказано — смотрим по журналу">3+ касания</span>{% endif %}
-      {% if sig.long_line %}<span class="badge level" title="Линия длиннее медианы бэктеста (Bulkowski: длинные линии надёжнее). Пока метка, не фильтр">длинная линия</span>{% endif %}{% if sig.round_level %}<span class="badge level" title="Закрытие пробоя прошло крупный круглый уровень (Osler: за ним стопы толпы). В бэктесте 4h лучше, но не доказано — только метка">+ круглый</span>{% endif %}
+      {% if sig.long_line %}<span class="badge level" title="Линия длиннее медианы бэктеста (Bulkowski: длинные линии надёжнее). Пока метка, не фильтр">длинная линия</span>{% endif %}{% if sig.round_level %}<span class="badge level" title="Закрытие пробоя прошло крупный круглый уровень (Osler: за ним стопы толпы). В бэктесте 4h лучше, но не доказано — только метка">+ круглый</span>{% endif %}{% if sig.squeezed %}<span class="badge level" title="Пробой после сжатия волатильности: ATR свечи пробоя не больше половины ATR у опоры линии. Бэктест 4h: +1.0R против +0.35R у остальных; риск × надбавка за сжатие (research/squeezesize.py)">сжатие</span>{% endif %}
     </div>
     <span class="hint" style="margin:0">Свеча пробоя {{ sig.bar_time | lt }}</span>
     <dl class="plan num">
@@ -61,7 +61,7 @@
     </div>
     {% endif %}
     {% if sig.status == SignalStatus.NEW and (s.mode == Mode.MANUAL or sig.timeframe not in s.auto_timeframes) %}
-    <p class="hint" style="margin:0">{% if exchange %}«Вхожу» отправит ордер на {{ exchange }} с риском {{ '%g' | format(s.p(sig.timeframe).sized_for(sig.touch3, sig.long_line, sig.side, ladder[sig.timeframe] if ladder else 0)[0]) }}%.{% else %}Bybit не подключён — «Вхожу» только отметит вход.{% endif %}</p>
+    <p class="hint" style="margin:0">{% if exchange %}«Вхожу» отправит ордер на {{ exchange }} с риском {{ '%g' | format(s.p(sig.timeframe).sized_for(sig.touch3, sig.long_line, sig.side, ladder[sig.timeframe] if ladder else 0, sig.squeezed)[0]) }}%.{% else %}Bybit не подключён — «Вхожу» только отметит вход.{% endif %}</p>
     <div class="row">
       <button class="btn {{ 'long' if long else 'short' }}" hx-post="/signals/{{ sig.id }}/take"
               hx-target="#signal-{{ sig.id }}" hx-swap="outerHTML" hx-disabled-elt="this"

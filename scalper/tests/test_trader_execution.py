@@ -458,6 +458,21 @@ def test_journal_splits_canon_tags():
     assert h4.round_closed == 1 and h4.round_avg_r == pytest.approx(-1.0) and h4.round_rest_r == pytest.approx(1.0)
     assert h4.touch_closed == 2 and h4.touch_avg_r == pytest.approx(1.0) and h4.touch_rest_r == pytest.approx(-1.0)
     assert h4.long_closed == 1 and h4.long_avg_r == pytest.approx(3.0) and h4.long_rest_r == pytest.approx(-1.0)
+    es[0] = replace(es[0], squeezed=True)
+    h4 = next(x for x in tf_stats(es) if x.timeframe is Timeframe.H4)
+    assert h4.squeeze_closed == 1 and h4.squeeze_avg_r == pytest.approx(3.0) and h4.squeeze_rest_r == pytest.approx(-1.0)
+
+
+def test_squeeze_risk_boost_on_4h_only_and_capped():
+    o0 = build_order(_sig(), Settings(), ACC, INST, 101.0, None, NOW)
+    o1 = build_order(_sig(extra={"squeezed": True}), Settings(), ACC, INST, 101.0, None, NOW)
+    assert o1.risk_usd == pytest.approx(o0.risk_usd * 1.5, rel=0.01)          # 4h: ×1.5 по умолчанию
+    assert Settings().p(Timeframe.M15).squeeze_risk_x == 1.0                  # на 15m сжатие не выделяется
+    assert _sig(extra={"squeezed": True}).tags[-1] == "сжатие"
+    hi = Settings().with_tf(Timeframe.H4, risk_pct=5.0, squeeze_risk_x=2.0)
+    assert hi.p(Timeframe.H4).sized_for(False, False, squeezed=True)[0] == 6.0  # не выше 6%
+    with pytest.raises(ValueError, match="сжатие"):
+        Settings().with_tf(Timeframe.H4, squeeze_risk_x=2.5)
 
 
 def _fresh_15m():

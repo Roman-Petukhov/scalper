@@ -427,3 +427,14 @@ def test_ladder_enabled_once_with_a_2pct_base_risk(tmp_path):
     SqliteStore(tmp_path / "t.db").save(s.with_tf(Timeframe.M15, risk_pct=1.0, ladder_x=1.0))
     s = SqliteStore(tmp_path / "t.db").load()
     assert s.p(Timeframe.M15).risk_pct == 1.0 and s.p(Timeframe.M15).ladder_x == 1.0   # правка трейдера остаётся
+
+
+def test_squeeze_boost_enabled_once_on_saved_4h_settings(tmp_path):
+    st = SqliteStore(tmp_path / "t.db")
+    st.db.execute("DELETE FROM kv WHERE key = 'h4_squeeze_risk_2026_10'")
+    st.save(Settings().with_tf(Timeframe.H4, risk_pct=4.5, squeeze_risk_x=1.0))
+    st.db.commit()
+    s = SqliteStore(tmp_path / "t.db").load()
+    assert s.p(Timeframe.H4).squeeze_risk_x == 1.5 and s.p(Timeframe.H4).risk_pct == 4.5
+    SqliteStore(tmp_path / "t.db").save(s.with_tf(Timeframe.H4, squeeze_risk_x=1.0))
+    assert SqliteStore(tmp_path / "t.db").load().p(Timeframe.H4).squeeze_risk_x == 1.0   # выключил трейдер — остаётся

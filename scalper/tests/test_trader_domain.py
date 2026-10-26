@@ -76,8 +76,11 @@ def test_detect_matches_research_rule_on_the_last_closed_bar(seed, stop_atr, mon
             assert x.extra["touches"] == n >= 2 and x.touch3 is (n >= 3)
             assert x.extra["line_bars"] == t - r["a"] and x.long_line is (t - r["a"] > strategy.LONG_LINE_BARS[Timeframe.H4])
             assert x.round_level is crossed_round(float(c[t - 1]), float(c[t]))
+            q = a[t] / a[r["a"]]                            # как research/crisk.py → squeezesize.py
+            assert x.extra["squeeze"] == pytest.approx(round(q, 3)) and x.squeezed is bool(q <= strategy.SQUEEZE_MAX)
             assert x.tags == tuple(k for k, on in (("+ уровень", x.at_level), ("3+ касания", x.touch3),
-                                                   ("длинная линия", x.long_line), ("+ круглый", x.round_level)) if on)
+                                                   ("длинная линия", x.long_line), ("+ круглый", x.round_level),
+                                                   ("сжатие", x.squeezed)) if on)
     if stop_atr[1] > 100:
         assert len(found) >= 2                              # сверка идёт на настоящих сигналах
 

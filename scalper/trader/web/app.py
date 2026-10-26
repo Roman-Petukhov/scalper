@@ -449,7 +449,9 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
                                                             settings_svc.get().p(tf).long_risk_x)),
                               "ladder_x": float(form.get(f"{tf.value}__ladder_x", settings_svc.get().p(tf).ladder_x)),
                               "ladder_steps": int(form.get(f"{tf.value}__ladder_steps",
-                                                           settings_svc.get().p(tf).ladder_steps))}
+                                                           settings_svc.get().p(tf).ladder_steps)),
+                              "squeeze_risk_x": float(form.get(f"{tf.value}__squeeze_risk_x",
+                                                               settings_svc.get().p(tf).squeeze_risk_x))}
             settings_svc.update(g, per_tf)
         except KeyError as e:
             err = f"не заполнено поле {e.args[0]}"

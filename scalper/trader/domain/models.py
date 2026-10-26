@@ -104,10 +104,15 @@ class TfParams:
     ladder_x: float = 1.0               # лестница риска: после сделки этого ТФ с итогом >= +2R риск × это число (до
                                         # ladder_steps ступеней), после убыточной — снова база; 1 — выключена
     ladder_steps: int = 3               # ступеней вместе с базой: 3 — база, ×x, ×x² (research/crisk.py, 15m)
+    squeeze_risk_x: float = 1.0         # риск / маржа × для пробоя после сжатия волатильности (ATR пробоя <= половины ATR
+                                        # опоры линии); 1 — без надбавки (research/squeezesize.py, 4h ×1.5)
 
-    def sized_for(self, touch3: bool, long_line: bool, side: Side | None = None, step: int = 0) -> tuple[float, float]:
-        """(риск %, маржа %) сделки с учётом ступени лестницы, надбавки за метки канона и пониженного риска лонгов."""
+    def sized_for(self, touch3: bool, long_line: bool, side: Side | None = None, step: int = 0,
+                  squeezed: bool = False) -> tuple[float, float]:
+        """(риск %, маржа %) сделки с учётом ступени лестницы, надбавок за метки канона и сжатие, пониженного риска
+        лонгов; итог не выше 6% риска (100% маржи)."""
         k = self.tag_risk_x ** (int(touch3) + int(long_line)) * self.ladder_x ** min(max(step, 0), self.ladder_steps - 1)
+        k *= self.squeeze_risk_x if squeezed else 1.0
         risk, margin = min(self.risk_pct * k, 6.0), min(self.margin_pct * k, 100.0)
         if side is Side.LONG:
             risk, margin = risk * self.long_risk_x, margin * self.long_risk_x
@@ -116,6 +121,8 @@ class TfParams:
     def __post_init__(self) -> None:
         if not 0.05 <= self.risk_pct <= 6.0:
             raise ValueError("риск на сделку — от 0.05% до 6%")
+        if not 1.0 <= self.squeeze_risk_x <= 2.0:
+            raise ValueError("надбавка за сжатие — от ×1 (выключена) до ×2")
         if not 0.5 <= self.min_aggr <= 0.8:
             raise ValueError("порог агрессоров — от 50% до 80%")
         if not 1.0 <= self.target_r <= 10.0:
@@ -165,7 +172,7 @@ class TfParams:
 DEFAULT_TF_PARAMS: dict[Timeframe, TfParams] = {
     # надбавка ×1.25 за каждую метку канона (обе — ×1.56) — по решению трейдера; в бэктесте метки не приняты (t 1.7–1.8)
     Timeframe.H4: TfParams(risk_pct=1.0, min_close_loc=0.5, entry_policy=EntryPolicy.HYBRID, pyramid=True,
-                           tag_risk_x=1.25),
+                           tag_risk_x=1.25, squeeze_risk_x=1.5),
     Timeframe.M15: TfParams(risk_pct=0.25, min_close_loc=0.5, entry_policy=EntryPolicy.MARKET, sides=SideFilter.SHORT,
                             max_slope_atr=0.025, top_n=150, max_hold_bars=200, max_positions=3, leverage=15,
                             tag_risk_x=1.25,         # надбавка за метки — по решению трейдера, на 15m в бэктесте ≈ 0
@@ -185,7 +192,8 @@ TF_SETTINGS_ONCE: dict[str, tuple[Timeframe, dict[str, object]]] = {
     "m15_top150_pos3_2026_10": (Timeframe.M15, {"top_n": 150, "max_positions": 3}),
     "h4_tag_risk_2026_10": (Timeframe.H4, {"tag_risk_x": 1.25}),
     "m15_tag_risk_2026_10": (Timeframe.M15, {"tag_risk_x": 1.25}),
-    "m15_long_risk_2026_10": (Timeframe.M15, {"long_risk_x": 0.5})}
+    "m15_long_risk_2026_10": (Timeframe.M15, {"long_risk_x": 0.5}),
+    "h4_squeeze_risk_2026_10": (Timeframe.H4, {"squeeze_risk_x": 1.5})}
 # лестница риска включается в сохранённых настройках один раз вместе с базовым риском (по решению трейдера 2026-10-26:
 # 15m — база 2%, ступени 2 / 3 / 4.5%); дальше настройки панели не трогаем
 LADDER_ONCE: dict[str, tuple[Timeframe, float, float]] = {"m15_ladder_2026_10b": (Timeframe.M15, 1.5, 2.0)}
@@ -309,6 +317,12 @@ class Signal:
         return bool(self.extra.get("long_line"))
 
     @property
+    def squeezed(self) -> bool:
+        """Пробой после сжатия волатильности: ATR свечи пробоя не больше SQUEEZE_MAX от ATR опоры линии
+        (research/squeezesize.py: на 4h +1.0R против +0.35R; надбавка к риску — TfParams.squeeze_risk_x)."""
+        return bool(self.extra.get("squeezed"))
+
+    @property
     def round_level(self) -> bool:
         """Закрытие пробоя прошло крупный круглый уровень (research/roundnum.py: метка, без надбавки к риску)."""
         return bool(self.extra.get("round"))
@@ -317,7 +331,8 @@ class Signal:
     def tags(self) -> tuple[str, ...]:
         """Пометки сигнала для уведомлений и панели."""
         return tuple(name for name, on in (("+ уровень", self.at_level), ("3+ касания", self.touch3),
-                                           ("длинная линия", self.long_line), ("+ круглый", self.round_level)) if on)
+                                           ("длинная линия", self.long_line), ("+ круглый", self.round_level),
+                                           ("сжатие", self.squeezed)) if on)
 
     @property
     def key(self) -> tuple[str, str, str, int]:

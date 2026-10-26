@@ -31,6 +31,7 @@ STOP_ATR = (0.3, 4.0)
 LOG_LINES = False           # обычные линии: по бэктесту 4h сильнее лог-шкалы (HOLDOUT +0.40R против +0.32R)
 LONG_LINE_BARS = {Timeframe.H4: 126}    # медиана длины линии сделок бота в IS (research/tlcanon.py); 15m — 110 свечей
 LONG_LINE_DEFAULT = 110
+SQUEEZE_MAX = 0.5          # «сжатие»: ATR свечи пробоя / ATR опоры A не больше (нижний квинтиль IS 4h — 0.499)
 
 
 def _with_probe_bar(d: pd.DataFrame) -> pd.DataFrame:
@@ -128,6 +129,8 @@ def _signals_at(d: pd.DataFrame, b: _Bars, recs: list[dict], last: int, tf: Time
                                  "touches": touches, "line_bars": int(line_bars), "touch3": touches >= 3,
                                  "long_line": line_bars > LONG_LINE_BARS.get(tf, LONG_LINE_DEFAULT),
                                  "round": bool(c[last - 1] > 0 and crossed_round(float(c[last - 1]), float(c[last]))),
+                                 "squeeze": round(float(atr[last] / atr[a]), 3) if atr[a] > 0 else None,
+                                 "squeezed": bool(atr[a] > 0 and atr[last] / atr[a] <= SQUEEZE_MAX),
                                  **({"level_px": lv[0], "level_n": lv[1]} if lv is not None else {})}))
         seen.add(side)
     return out
