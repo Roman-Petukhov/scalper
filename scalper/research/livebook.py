@@ -63,6 +63,7 @@ class Book:
     sides15: str = "both"         # "short" — только шорты 15m
     slope15: float = 0.04         # наклон линии 15m не круче
     squeeze4h: float = 1.0        # риск 4h × на сжатых пробоях (research/squeezesize.py)
+    long_x: float = 1.0           # риск лонгов 15m × (как long_risk_x бота, после лестницы); при sides15="both"
 
 
 # второй заход (после первого: живые и «умеренный» опасны) — где безопасно; задан до запуска, критерий тот же
@@ -89,6 +90,17 @@ BOOKS3 = (Book("4h 2.5% сж", r15=0.0, r4h=0.025, squeeze4h=1.5), Book("4h 3% �
           Book("15m ш 0.25% + 4h 2.75% сж", r15=0.0025, r4h=0.0275, **_S15),
           Book("15m ш 0.35% + 4h 2% сж", r15=0.0035, r4h=0.02, **_S15),
           Book("15m ш 0.35% + 4h 2.5% сж", r15=0.0035, r4h=0.025, **_S15))
+# четвёртый заход — наклон линии 15m и лонги 15m при безопасном масштабе (15m 0.25% + 4h 2.25% сж); задан до запуска.
+# Вариант принимается, если безопасен (P(просадка > 50%) <= 5%, просадка <= 35%) и его медианный рост в год IS / VAL / HO
+# выше, чем у базы (наклон 0.025, шорты)
+_S4 = dict(r15=0.0025, r4h=0.0225, limit15=3, squeeze4h=1.5)
+BOOKS4 = (Book("база: шорты ≤.025", sides15="short", slope15=0.025, **_S4),
+          Book("шорты ≤.03", sides15="short", slope15=0.03, **_S4),
+          Book("шорты ≤.04", sides15="short", slope15=0.04, **_S4),
+          Book("обе ≤.025, лонги ×0.25", slope15=0.025, long_x=0.25, **_S4),
+          Book("обе ≤.025, лонги ×0.5", slope15=0.025, long_x=0.5, **_S4),
+          Book("обе ≤.025, лонги ×1", slope15=0.025, **_S4),
+          Book("обе ≤.04, лонги ×0.5", slope15=0.04, long_x=0.5, **_S4))
 BOOKS = (Book("live"), Book("live, 15m <= 3", limit15=3), Book("live, 15m <= 5", limit15=5),
          Book("live, 15m <= 8", limit15=8), Book("live, риск <= 10%", heat=0.10), Book("live, риск <= 15%", heat=0.15),
          Book("live, риск <= 20%", heat=0.20), Book("умеренный", r15=0.005, r4h=0.01, limit15=3))
@@ -117,6 +129,7 @@ def simulate_book(z: pd.DataFrame, b: Book, R: np.ndarray | None = None) -> dict
     f = z.fill.to_numpy("datetime64[ns]").astype("int64")
     x = z.exit.to_numpy("datetime64[ns]").astype("int64")
     is15 = (z.tf == "15m").to_numpy()
+    long = (z.side > 0).to_numpy()
     stop = z.stop_pct.to_numpy()
     ev = sorted([(int(f[i]), 2, i) for i in range(len(z))] +
                 [(int(x[i]), 3 if x[i] <= f[i] else 0, i) for i in range(len(z))], key=lambda e: (e[0], e[1]))
@@ -155,7 +168,7 @@ def simulate_book(z: pd.DataFrame, b: Book, R: np.ndarray | None = None) -> dict
         if is15[i] and b.limit15 and n15 >= b.limit15:
             skip["лимит 15m"] += 1
             continue
-        r = min(b.r15 * b.ladder_x ** step, 0.06) if is15[i] else min(b.r4h * (b.squeeze4h if sq[i] else 1.0), 0.06)
+        r = min(b.r15 * b.ladder_x ** step * (b.long_x if long[i] else 1.0), 0.06) if is15[i] else min(b.r4h * (b.squeeze4h if sq[i] else 1.0), 0.06)
         used = sum(v[1] for v in open_.values())
         if b.heat and used + r > b.heat + 1e-12:
             skip["потолок риска"] += 1
@@ -284,6 +297,15 @@ def report2() -> None:
     portfolio_report(z, BOOKS2, "Варианты")
 
 
+def report4() -> None:
+    print("\n===== LIVEBOOK4: наклон линии 15m и лонги 15m при безопасном масштабе =====")
+    z = load()
+    if z is None:
+        print("  crisk: нет данных")
+        return
+    portfolio_report(z, BOOKS4, "Наклон и лонги")
+
+
 def report3() -> None:
     print("\n===== LIVEBOOK3: максимальный безопасный риск — сетка между P 1% и P 8% =====")
     z = load()
@@ -296,4 +318,4 @@ def report3() -> None:
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     warnings.filterwarnings("ignore")
-    {"2": report2, "3": report3}.get((sys.argv[1:] or [""])[0], report)()
+    {"2": report2, "3": report3, "4": report4}.get((sys.argv[1:] or [""])[0], report)()

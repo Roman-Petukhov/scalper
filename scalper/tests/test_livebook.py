@@ -57,3 +57,10 @@ def test_book_filters_15m_and_boosts_squeezed_4h():
     s = L.simulate_book(z, L.Book("b", r15=0.01, ladder_x=1.0, r4h=0.01, squeeze4h=1.5, sides15="short"))
     assert s["eq"] == pytest.approx(1.03 * 1.045)                            # лонг 15m отброшен, 4h ×1.5
     assert L.simulate_book(z, L.Book("b", r15=0.0, r4h=0.01))["eq"] == pytest.approx(1.03)   # только 4h
+
+
+def test_long_risk_multiplier_only_scales_15m_longs():
+    z = _z([("15m", 0, 1, 1.0, 0.03), ("15m", 5, 1, 1.0, 0.03)])
+    z["side"] = [1, -1]
+    s = L.simulate_book(z, L.Book("b", r15=0.02, ladder_x=1.0, sides15="both", long_x=0.5, lev15=100))
+    assert s["eq"] == pytest.approx(1.01 * 1.02)
