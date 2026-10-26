@@ -79,6 +79,16 @@ BOOKS2 = (Book("4h 1%", r15=0.0, r4h=0.01), Book("4h 2%", r15=0.0, r4h=0.02), Bo
                slope15=0.025, squeeze4h=1.5),
           Book("15m ш 1% ≤.025 ≤3 + 4h 2% сж", r15=0.01, r4h=0.02, limit15=3, sides15="short", slope15=0.025,
                squeeze4h=1.5))
+# третий заход — граница риска для старта с $1000 (между «15m 0.25% + 4h 2% сж», P 1%, и «4h 3%», P 8%);
+# задан до запуска, критерий тот же, максимум — безопасный вариант с наибольшим медианным ростом
+_S15 = dict(limit15=3, sides15="short", slope15=0.025, squeeze4h=1.5)
+BOOKS3 = (Book("4h 2.5% сж", r15=0.0, r4h=0.025, squeeze4h=1.5), Book("4h 3% сж", r15=0.0, r4h=0.03, squeeze4h=1.5),
+          Book("15m ш 0.25% + 4h 2% сж", r15=0.0025, r4h=0.02, **_S15),
+          Book("15m ш 0.25% + 4h 2.25% сж", r15=0.0025, r4h=0.0225, **_S15),
+          Book("15m ш 0.25% + 4h 2.5% сж", r15=0.0025, r4h=0.025, **_S15),
+          Book("15m ш 0.25% + 4h 2.75% сж", r15=0.0025, r4h=0.0275, **_S15),
+          Book("15m ш 0.35% + 4h 2% сж", r15=0.0035, r4h=0.02, **_S15),
+          Book("15m ш 0.35% + 4h 2.5% сж", r15=0.0035, r4h=0.025, **_S15))
 BOOKS = (Book("live"), Book("live, 15m <= 3", limit15=3), Book("live, 15m <= 5", limit15=5),
          Book("live, 15m <= 8", limit15=8), Book("live, риск <= 10%", heat=0.10), Book("live, риск <= 15%", heat=0.15),
          Book("live, риск <= 20%", heat=0.20), Book("умеренный", r15=0.005, r4h=0.01, limit15=3))
@@ -274,7 +284,16 @@ def report2() -> None:
     portfolio_report(z, BOOKS2, "Варианты")
 
 
+def report3() -> None:
+    print("\n===== LIVEBOOK3: максимальный безопасный риск — сетка между P 1% и P 8% =====")
+    z = load()
+    if z is None:
+        print("  crisk: нет данных")
+        return
+    portfolio_report(z, BOOKS3, "Граница риска")
+
+
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     warnings.filterwarnings("ignore")
-    report2() if sys.argv[1:] == ["2"] else report()
+    {"2": report2, "3": report3}.get((sys.argv[1:] or [""])[0], report)()
