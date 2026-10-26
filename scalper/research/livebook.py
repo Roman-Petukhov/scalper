@@ -115,6 +115,12 @@ _S6 = dict(r4h=0.0, sides15="short", slope15=0.025, limit15=3)
 BOOKS6 = (Book("15m один 0.25%", r15=0.0025, **_S6), Book("15m один 0.35%", r15=0.0035, **_S6),
           Book("15m один 0.35%, без лестницы", r15=0.0035, ladder_x=1.0, **_S6),
           Book("15m один 0.5%", r15=0.005, **_S6), Book("15m один 1%", r15=0.01, **_S6))
+# седьмой заход — 4h отдельно против 4h + 15m при одинаковой просадке (вопрос владельца: нужны ли обе стратегии вместе);
+# 15m шорты, наклон <= 0.025, <= 3 позиции, лестница; 4h со сжатием ×1.5; 500 путей
+_S7 = dict(sides15="short", slope15=0.025, limit15=3, squeeze4h=1.5)
+BOOKS7 = tuple(Book(f"4h один {r:g}%", r15=0.0, r4h=r / 100, **_S7) for r in (2.0, 2.2, 2.25, 2.4, 2.5)) + (
+    Book("15m 0.15% + 4h 2.25%", r15=0.0015, r4h=0.0225, **_S7), Book("15m 0.15% + 4h 2.4%", r15=0.0015, r4h=0.024, **_S7),
+    Book("15m 0.25% + 4h 2%", r15=0.0025, r4h=0.02, **_S7), Book("15m 0.25% + 4h 2.25%", r15=0.0025, r4h=0.0225, **_S7))
 BOOKS = (Book("live"), Book("live, 15m <= 3", limit15=3), Book("live, 15m <= 5", limit15=5),
          Book("live, 15m <= 8", limit15=8), Book("live, риск <= 10%", heat=0.10), Book("live, риск <= 15%", heat=0.15),
          Book("live, риск <= 20%", heat=0.20), Book("умеренный", r15=0.005, r4h=0.01, limit15=3))
@@ -312,6 +318,15 @@ def report2() -> None:
     portfolio_report(z, BOOKS2, "Варианты")
 
 
+def report7() -> None:
+    print("\n===== LIVEBOOK7: 4h отдельно против 4h + 15m при одинаковой просадке (500 путей) =====")
+    z = load()
+    if z is None:
+        print("  crisk: нет данных")
+        return
+    portfolio_report(z, BOOKS7, "4h отдельно и вместе с 15m", paths=500)
+
+
 def report6() -> None:
     print("\n===== LIVEBOOK6: 15m шорты отдельно, без 4h (500 путей) =====")
     z = load()
@@ -351,4 +366,4 @@ def report3() -> None:
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     warnings.filterwarnings("ignore")
-    {"2": report2, "3": report3, "4": report4, "5": report5, "6": report6}.get((sys.argv[1:] or [""])[0], report)()
+    {"2": report2, "3": report3, "4": report4, "5": report5, "6": report6, "7": report7}.get((sys.argv[1:] or [""])[0], report)()
