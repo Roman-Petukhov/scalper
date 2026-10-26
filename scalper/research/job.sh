@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"figure"}
+TASKS=${TASKS:-"btc200"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -412,6 +412,13 @@ figure_collect() {
   FORM_TFS=15m python -m research.figure collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
 }
 figure_report() { python -m research.figure report; }
+# BTC против EMA200 (дневка и неделя, спот с 2017) как фильтр стороны для сделок бота: 4h ретест, 15m по рынку
+btc200_collect() {
+  RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-qualified 15m-wide
+  B200_TFS=4h python -m research.btc200 collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
+  B200_TFS=15m python -m research.btc200 collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
+}
+btc200_report() { python -m research.btc200 report; }
 # Круглые числа (Osler): пробой через круглый уровень, уровень впереди, стоп «за толпой» (4h и 15m)
 roundnum_collect() {
   RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-qualified 15m-wide
