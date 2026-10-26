@@ -183,23 +183,18 @@ class SqliteStore:
             self.db.execute("INSERT INTO kv(key, value) VALUES (?, ?)", (key, "done"))
 
     def _ladder_once(self, once: dict[str, tuple[Timeframe, float, float]]) -> None:
-        """Один раз включить лестницу риска ТФ, если базовый риск в сохранённых настройках не выше max_base %."""
-        for key, (tf, x, max_base) in once.items():
+        """Один раз включить лестницу риска ТФ (шаг x, 3 ступени) и выставить базовый риск base % в сохранённых настройках."""
+        for key, (tf, x, base) in once.items():
             if self.db.execute("SELECT 1 FROM kv WHERE key = ?", (key,)).fetchone():
                 continue
             row = self.db.execute("SELECT payload FROM settings WHERE id = 1").fetchone()
-            note = "done"
             if row is not None:
                 p = json.loads(row["payload"])
                 tfp = p.setdefault("tf_params", {})
                 cur = {**self._tf_payload(DEFAULT_TF_PARAMS[tf]), **tfp.get(tf.value, {})}
-                if float(cur.get("risk_pct", 0)) <= max_base:
-                    tfp[tf.value] = {**cur, "ladder_x": x, "ladder_steps": 3}
-                else:
-                    tfp[tf.value] = {**cur, "ladder_x": 1.0}
-                    note = "skipped: base risk above cap"
+                tfp[tf.value] = {**cur, "risk_pct": base, "ladder_x": x, "ladder_steps": 3}
                 self.db.execute("UPDATE settings SET payload = ? WHERE id = 1", (json.dumps(p),))
-            self.db.execute("INSERT INTO kv(key, value) VALUES (?, ?)", (key, note))
+            self.db.execute("INSERT INTO kv(key, value) VALUES (?, ?)", (key, "done"))
 
     @staticmethod
     def _tf_payload(v: TfParams) -> dict:

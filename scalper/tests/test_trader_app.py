@@ -87,8 +87,8 @@ def test_15m_moves_to_gentle_shorts_once_and_keeps_trader_edits(tmp_path):
     s = SqliteStore(tmp_path / "t.db").load()
     assert s.timeframes == {Timeframe.H4, Timeframe.M15} and s.auto_timeframes == {Timeframe.H4}
     assert s.max_positions == 12                                        # было 5 — поднято один раз
-    assert s.p(Timeframe.M15) == DEFAULT_TF_PARAMS[Timeframe.M15] and s.p(Timeframe.M15).sides is SideFilter.SHORT
-    assert s.p(Timeframe.H4) == old.p(Timeframe.H4)
+    assert s.p(Timeframe.M15) == replace(DEFAULT_TF_PARAMS[Timeframe.M15], risk_pct=2.0)   # база 2% — LADDER_ONCE
+    assert s.p(Timeframe.M15).sides is SideFilter.SHORT and s.p(Timeframe.H4) == old.p(Timeframe.H4)
     st2 = SqliteStore(tmp_path / "t.db")
     st2.save(replace(s.with_tf(Timeframe.M15, risk_pct=0.5).toggle_auto(Timeframe.M15), max_positions=7))
     s2 = SqliteStore(tmp_path / "t.db").load()                          # правки трейдера не перетираются
@@ -416,17 +416,14 @@ def test_binance_daily_bars_and_funding_sum():
     assert seen[1]["startTime"] == str(int(a.timestamp() * 1000) + 1)
 
 
-def test_ladder_enabled_once_only_with_a_small_base_risk(tmp_path):
+def test_ladder_enabled_once_with_a_2pct_base_risk(tmp_path):
     st = SqliteStore(tmp_path / "t.db")
-    st.db.execute("DELETE FROM kv WHERE key = 'm15_ladder_2026_10'")
-    st.save(Settings().with_tf(Timeframe.M15, risk_pct=0.25, ladder_x=1.0))
+    st.db.execute("DELETE FROM kv WHERE key = 'm15_ladder_2026_10b'")
+    st.save(Settings().with_tf(Timeframe.M15, risk_pct=4.0, ladder_x=1.0))
     st.db.commit()
-    assert SqliteStore(tmp_path / "t.db").load().p(Timeframe.M15).ladder_x == 1.5
-    st2 = SqliteStore(tmp_path / "u.db")
-    st2.db.execute("DELETE FROM kv WHERE key = 'm15_ladder_2026_10'")
-    st2.save(Settings().with_tf(Timeframe.M15, risk_pct=4.0))
-    st2.db.commit()
-    s = SqliteStore(tmp_path / "u.db").load()
-    assert s.p(Timeframe.M15).ladder_x == 1.0 and s.p(Timeframe.M15).risk_pct == 4.0   # при базе 4% — не включаем
-    SqliteStore(tmp_path / "u.db").save(s.with_tf(Timeframe.M15, ladder_x=1.5))
-    assert SqliteStore(tmp_path / "u.db").load().p(Timeframe.M15).ladder_x == 1.5     # включил трейдер — остаётся
+    s = SqliteStore(tmp_path / "t.db").load()
+    assert s.p(Timeframe.M15).ladder_x == 1.5 and s.p(Timeframe.M15).risk_pct == 2.0
+    assert s.p(Timeframe.M15).ladder_steps == 3 and s.p(Timeframe.H4).ladder_x == 1.0
+    SqliteStore(tmp_path / "t.db").save(s.with_tf(Timeframe.M15, risk_pct=1.0, ladder_x=1.0))
+    s = SqliteStore(tmp_path / "t.db").load()
+    assert s.p(Timeframe.M15).risk_pct == 1.0 and s.p(Timeframe.M15).ladder_x == 1.0   # правка трейдера остаётся

@@ -186,9 +186,9 @@ TF_SETTINGS_ONCE: dict[str, tuple[Timeframe, dict[str, object]]] = {
     "h4_tag_risk_2026_10": (Timeframe.H4, {"tag_risk_x": 1.25}),
     "m15_tag_risk_2026_10": (Timeframe.M15, {"tag_risk_x": 1.25}),
     "m15_long_risk_2026_10": (Timeframe.M15, {"long_risk_x": 0.5})}
-# лестница риска включается в сохранённых настройках один раз и только при базовом риске не выше потолка: при большей
-# базе ×2.25 дал бы на 15m риск, который по бэктесту разоряет (research/crisk.py) — тогда трейдер включает сам
-LADDER_ONCE: dict[str, tuple[Timeframe, float, float]] = {"m15_ladder_2026_10": (Timeframe.M15, 1.5, 1.0)}
+# лестница риска включается в сохранённых настройках один раз вместе с базовым риском (по решению трейдера 2026-10-26:
+# 15m — база 2%, ступени 2 / 3 / 4.5%); дальше настройки панели не трогаем
+LADDER_ONCE: dict[str, tuple[Timeframe, float, float]] = {"m15_ladder_2026_10b": (Timeframe.M15, 1.5, 2.0)}
 TF_FIELDS = tuple(TfParams.__dataclass_fields__)
 
 
