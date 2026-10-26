@@ -110,6 +110,11 @@ BOOKS5 = (Book("база 0.25 / 2.25", sides15="short", slope15=0.025, **_S4 | {
                **_S4 | {"r15": 0.0035, "r4h": 0.0225}),
           Book("0.35 / 2.25, потолок риска 15%", sides15="short", slope15=0.025, heat=0.15,
                **_S4 | {"r15": 0.0035, "r4h": 0.0225}))
+# шестой заход — 15m один, без 4h (вклад в просадку в чистом виде): шорты, наклон <= 0.025, <= 3 позиции; 500 путей
+_S6 = dict(r4h=0.0, sides15="short", slope15=0.025, limit15=3)
+BOOKS6 = (Book("15m один 0.25%", r15=0.0025, **_S6), Book("15m один 0.35%", r15=0.0035, **_S6),
+          Book("15m один 0.35%, без лестницы", r15=0.0035, ladder_x=1.0, **_S6),
+          Book("15m один 0.5%", r15=0.005, **_S6), Book("15m один 1%", r15=0.01, **_S6))
 BOOKS = (Book("live"), Book("live, 15m <= 3", limit15=3), Book("live, 15m <= 5", limit15=5),
          Book("live, 15m <= 8", limit15=8), Book("live, риск <= 10%", heat=0.10), Book("live, риск <= 15%", heat=0.15),
          Book("live, риск <= 20%", heat=0.20), Book("умеренный", r15=0.005, r4h=0.01, limit15=3))
@@ -129,7 +134,7 @@ def load() -> pd.DataFrame | None:
 
 def simulate_book(z: pd.DataFrame, b: Book, R: np.ndarray | None = None) -> dict:
     """Один счёт на 15m и 4h; по закрытым сделкам, сложный процент."""
-    keep = ((z.tf == "4h") | ((b.r15 > 0) & (z.slope_atr <= b.slope15) & ((b.sides15 == "both") | (z.side < 0))))
+    keep = (((z.tf == "4h") & (b.r4h > 0)) | ((z.tf == "15m") & (b.r15 > 0) & (z.slope_atr <= b.slope15) & ((b.sides15 == "both") | (z.side < 0))))
     if not keep.all():
         z = z[keep.to_numpy()]
         R = None if R is None else R[keep.to_numpy()]
@@ -307,6 +312,15 @@ def report2() -> None:
     portfolio_report(z, BOOKS2, "Варианты")
 
 
+def report6() -> None:
+    print("\n===== LIVEBOOK6: 15m шорты отдельно, без 4h (500 путей) =====")
+    z = load()
+    if z is None:
+        print("  crisk: нет данных")
+        return
+    portfolio_report(z, BOOKS6, "15m отдельно", paths=500)
+
+
 def report5() -> None:
     print("\n===== LIVEBOOK5: связка владельца 15m 0.35% + 4h 2.25% (500 путей) =====")
     z = load()
@@ -337,4 +351,4 @@ def report3() -> None:
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     warnings.filterwarnings("ignore")
-    {"2": report2, "3": report3, "4": report4, "5": report5}.get((sys.argv[1:] or [""])[0], report)()
+    {"2": report2, "3": report3, "4": report4, "5": report5, "6": report6}.get((sys.argv[1:] or [""])[0], report)()

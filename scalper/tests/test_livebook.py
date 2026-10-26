@@ -64,3 +64,9 @@ def test_long_risk_multiplier_only_scales_15m_longs():
     z["side"] = [1, -1]
     s = L.simulate_book(z, L.Book("b", r15=0.02, ladder_x=1.0, sides15="both", long_x=0.5, lev15=100))
     assert s["eq"] == pytest.approx(1.01 * 1.02)
+
+
+def test_book_without_4h_drops_4h_trades():
+    z = _z([("15m", 0, 1, 1.0, 0.03), ("4h", 5, 1, 1.0, 0.03)])
+    s = L.simulate_book(z, L.Book("b", r15=0.02, r4h=0.0, ladder_x=1.0, lev15=100))
+    assert s["eq"] == pytest.approx(1.02)
