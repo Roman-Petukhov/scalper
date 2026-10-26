@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"quarterly"}
+TASKS=${TASKS:-"squeezesize"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -426,6 +426,12 @@ sharp_collect() {
   FORM_TFS=15m python -m research.sharp collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
 }
 sharp_report() { python -m research.sharp report; }
+# Повышенный риск (×1.5 / ×2) на сжатых 4h-пробоях против фиксированного риска того же среднего
+squeezesize_collect() {
+  RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-qualified
+  CRISK_TFS=4h python -m research.crisk collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
+}
+squeezesize_report() { python -m research.squeezesize; }
 # Круглые числа (Osler): пробой через круглый уровень, уровень впереди, стоп «за толпой» (4h и 15m)
 roundnum_collect() {
   RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-qualified 15m-wide

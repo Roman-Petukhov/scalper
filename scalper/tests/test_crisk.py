@@ -72,3 +72,9 @@ def test_autocorr_sees_clustered_outcomes():
 def test_custom_ladder_steps_are_used():
     s = C.simulate(_z([3.0, 3.0, -1.0]), C.Policy("l", ladder=True, steps=(0.0025, 0.00375, 0.005625)), 3)
     assert s["eq"] == pytest.approx((1 + 0.0075) * (1 + 0.01125) * (1 - 0.005625))
+
+
+def test_risk_multiplier_scales_each_trade():
+    s = C.simulate(_z([1.0, -1.0, 3.0]), C.Policy("f", flat=0.01), 12, mult=np.array([2.0, 1.0, 1.5]))
+    assert s["eq"] == pytest.approx(1.02 * 0.99 * 1.045)
+    assert s["avg_risk"] == pytest.approx((0.02 + 0.01 + 0.015) / 3)

@@ -94,7 +94,9 @@ def coin_rows(d: pd.DataFrame, liq: np.ndarray, sym: str, tf: str) -> list[dict]
             continue
         fill, ex = int(r.fill_i), int(r.exit_i)
         j, rb, exb = be_path(o, hi, lo, side, float(r.px), float(r.stop), fill, ex, float(r.R3), fee_in)
+        a = int(rec["a"])
         rows.append({"symbol": sym, "tf": tf, "side": side, "R": float(r.R3), "R_be": float(rb),
+                     "squeeze": float(atr[t] / atr[a]) if atr[a] > 0 else np.nan, "t": r.t,
                      "fill": d.index[fill], "exit": d.index[ex], "exit_be": d.index[exb],
                      "be_at": d.index[j] if j >= 0 else pd.NaT})
     return rows
@@ -154,8 +156,9 @@ def _events(z: pd.DataFrame, be: bool) -> list[tuple[int, int, int]]:
 
 
 def simulate(z: pd.DataFrame, p: Policy, limit: int, R: np.ndarray | None = None,
-             R_be: np.ndarray | None = None) -> dict:
-    """Счёт по сделкам z (fill, exit, exit_be, be_at); R / R_be — подмена исходов (перестановка, бутстреп)."""
+             R_be: np.ndarray | None = None, mult: np.ndarray | None = None) -> dict:
+    """Счёт по сделкам z (fill, exit, exit_be, be_at); R / R_be — подмена исходов (перестановка, бутстреп);
+    mult — множитель риска сделки (research/squeezesize.py), без него 1."""
     R = z.R.to_numpy() if R is None else R
     R_be = z.R_be.to_numpy() if R_be is None else R_be
     out_r = R_be if p.be else R
@@ -202,6 +205,8 @@ def simulate(z: pd.DataFrame, p: Policy, limit: int, R: np.ndarray | None = None
             if p.heat:
                 used = sum(v[1] for v in open_.values())
                 r = min(r, max(HEAT_FLOOR, HEAT - used))
+            if mult is not None:
+                r *= float(mult[i])
             open_[i] = (r * eq, r)
             risks.append(r)
     c = pd.Series(curve, index=pd.to_datetime(np.array(times, dtype="int64")), dtype="float64")
