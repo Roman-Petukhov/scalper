@@ -1,28 +1,37 @@
-"""Вид фигуры у пробоя трендовой линии: треугольник, клин, канал, коробка, расширение; ритм касаний; свечи внутри.
-По просьбе владельца после research/formation.py (там — только размеры фигуры): «как по графику видно».
+"""Вид фигуры у пробоя трендовой линии бота — по канону: Bulkowski («Encyclopedia of Chart Patterns», thepatternsite.com)
+и Lo, Mamaysky, Wang (2000, «Foundations of Technical Analysis»). По просьбе владельца: «как по графику видно».
 
-Вторая граница фигуры — как её рисует трейдер: прямая через два крупных разворота закрытий по другую сторону от линии
-(для пробоя вверх — впадины, вниз — вершины; разворот — самое далёкое от линии пробоя закрытие в окне ±PIV свечей,
-отошедшее от неё хотя бы на MAJOR высоты фигуры), которую не пересекает ни одно закрытие фигуры (ребро оболочки);
-из таких — ближайшая ко всем крупным разворотам (наименьший суммарный зазор). Если крупных
-разворотов меньше двух — через крайние закрытия половин отрезка A → пробой, сдвинутая так, чтобы закрытия не выходили. Класс — по наклонам двух границ и сходимости
-conv = ширина у пробоя / ширина у опоры A; граница «ровная», если за всю фигуру сдвинулась меньше чем на FLAT средней
-ширины фигуры (порог в ATR не годится: на длинной 4h фигуре наклон в 1 ATR — уже заметный канал):
-  box             — коробка: обе границы ровные (или средний наклон ровный при параллельных);
-  channel_counter — канал против пробоя (флаг: падающий канал, пробитый вверх); channel_with — канал по пробою;
-  tri_flat_break  — треугольник с ровной линией пробоя (восходящий для пробоя вверх);
-  tri_flat_opp    — треугольник с ровной другой границей; tri_sym — симметричный треугольник;
-  wedge_counter   — клин против пробоя (падающий клин вверх); wedge_with — клин по пробою;
-  expanding       — расширение (conv > 1 / CONV).
-Касания (как метка бота: в пределах TOUCH_ATR, подходы через TOUCH_GAP+ свечей): touch_gap — средний шаг между
-касаниями, свечей; touch_cv — неравномерность шага (σ / среднее); touch_err — точность касаний, ATR (без опор A и B);
+Развороты (Bulkowski, minor high / low): вершина, выше которой нет в окне ±k свечей, впадина — так же; только
+подтверждённые до свечи пробоя. У Bulkowski k = 2 дня на фигурах от 3 недель (~15 баров); у нас фигуры по 50–300 баров,
+и ±2 ловит шум — окно масштабируем к длине фигуры: k = max(PIV, длина / SCALE), на фигуре в 15 баров это его ±2.
+Границы — по закрытиям (как линия бота; линии по теням в проекте хуже, docs/knowledge.md, research/tlcanon.py K4, и
+одиночная шпилька задирает границу): прямая через два закрытия фигуры A … пробой, за которую не закрылась ни одна
+свеча (ребро оболочки); из таких — с наибольшим числом касаний (отдельные развороты ближе TOUCH_ATR ATR), при
+равенстве самая длинная. Допуски LMW (0.75% у дневных акций) переведены в ATR, как в research/patterns.py: TOL = 0.75 ATR.
+Класс (названия Bulkowski; граница «горизонтальна», если за фигуру сдвинулась не больше TOL; «сходятся / расходятся» —
+ширина у пробоя меньше / больше ширины у A больше чем на max(TOL, PAR средней ширины)):
+  rect        прямоугольник — обе горизонтальны (или параллельны со средним наклоном в пределах TOL);
+  tri_asc     восходящий треугольник — верх горизонтален, низ растёт;  tri_desc — нисходящий, зеркально;
+  tri_sym     симметричный треугольник — верх падает, низ растёт (LMW: E1 > E3 > E5, E2 < E4);
+  wedge_rise  восходящий клин — обе растут и сходятся;  wedge_fall — нисходящий клин;
+  chan_up     восходящий канал — обе растут, параллельны;  chan_down — нисходящий канал;
+  broad       расширение (мегафон, расширяющиеся клинья, прямоугольное расширение; LMW: E1 < E3 < E5, E2 > E4);
+  none        фигуры по канону нет — касаний мало: треугольникам, клиньям, прямоугольнику и расширению Bulkowski
+              требует >= 5 касаний (3 + 2, на каждой границе >= 2), каналу — >= 2 на каждой.
+classic — пробой в типичную по Bulkowski сторону фигуры (+1), против (−1), у фигуры без типичной стороны — 0:
+  восходящий треугольник и нисходящий клин — вверх; нисходящий треугольник и восходящий клин — вниз.
+apex_pos — у сходящихся фигур доля пути от A до вершины в момент пробоя (Bulkowski: обычно 64–74%).
+Флаги и вымпелы отдельно не выделяем: по Bulkowski нужен крутой «флагшток», а порога для него в барах канон не даёт.
+Касания линии бота (как метка бота: в пределах TOUCH_ATR, подходы через TOUCH_GAP+ свечей): touch_gap — средний шаг,
+свечей; touch_cv — неравномерность шага (σ / среднее); touch_err — точность касаний, ATR (без опор A и B);
 bounce — средний отскок от линии между соседними касаниями, ATR свечи пробоя.
 Свечи фигуры (A … пробой): body — среднее тело, ATR; long_share — доля длинных свечей (размах > 1.5 ATR);
 wick — доля теней в размахе; contraction — средний размах последней трети / первой трети.
 
 Принятие (задано до запуска, как в formation.py): числовой признак — срезаем нижний или верхний квинтиль (границы по IS);
-класс фигуры — убираем класс или оставляем только его. Отрезанные сделки убыточны в каждом периоде, где их >= 20,
-t по дням <= −3, R в месяц с фильтром не ниже. Решают срезы 4h (обе стороны) и 15m шорты; журнал — только иллюстрация.
+класс фигуры — убираем класс или оставляем только его; classic — убираем пробои против типичной стороны или оставляем
+только типичные. Отрезанные сделки убыточны в каждом периоде, где их >= 20, t по дням <= −3, R в месяц с фильтром не
+ниже. Решают срезы 4h (обе стороны) и 15m шорты; журнал — только иллюстрация.
 
     python -m research.figure collect --symbols <монеты>      # FORM_TFS=4h или 15m
     python -m research.figure report
@@ -47,73 +56,72 @@ from .smc import _atr, _cell
 from .spec import cut_verdicts
 from .tline import TOUCH_ATR, TOUCH_GAP
 
-FLAT, CONV, PIV, MAJOR = 0.25, 0.6, 5, 0.5
-SHAPES = {"box": "коробка", "channel_counter": "канал против пробоя (флаг)", "channel_with": "канал по пробою",
-          "tri_flat_break": "треугольник, линия пробоя ровная", "tri_flat_opp": "треугольник, другая граница ровная",
-          "tri_sym": "симметричный треугольник", "wedge_counter": "клин против пробоя",
-          "wedge_with": "клин по пробою", "expanding": "расширение"}
-FEATS = ("conv", "touch_gap", "touch_cv", "touch_err", "bounce", "body", "long_share", "wick", "contraction")
-NAMES = {"conv": "сходимость (ширина у пробоя / у опоры A)", "touch_gap": "шаг между касаниями, свечей",
-         "touch_cv": "неравномерность касаний (σ/среднее)", "touch_err": "точность касаний, ATR",
-         "bounce": "отскок между касаниями, ATR", "body": "тело свечи, ATR", "long_share": "доля длинных свечей",
-         "wick": "доля теней", "contraction": "размах свечей: конец / начало"}
+PIV, SCALE, TOL, PAR = 2, 15, 0.75, 0.2
+SHAPES = {"rect": "прямоугольник", "tri_asc": "восходящий треугольник", "tri_desc": "нисходящий треугольник",
+          "tri_sym": "симметричный треугольник", "wedge_rise": "восходящий клин", "wedge_fall": "нисходящий клин",
+          "chan_up": "восходящий канал", "chan_down": "нисходящий канал", "broad": "расширение",
+          "none": "нет фигуры по канону (мало касаний)"}
+CLASSIC = {"tri_asc": 1, "wedge_fall": 1, "tri_desc": -1, "wedge_rise": -1}
+FEATS = ("apex_pos", "conv", "touch_gap", "touch_cv", "touch_err", "bounce", "body", "long_share", "wick", "contraction")
+NAMES = {"apex_pos": "пробой: доля пути до вершины", "conv": "сходимость (ширина у пробоя / у опоры A)",
+         "touch_gap": "шаг между касаниями, свечей", "touch_cv": "неравномерность касаний (σ/среднее)",
+         "touch_err": "точность касаний, ATR", "bounce": "отскок между касаниями, ATR", "body": "тело свечи, ATR",
+         "long_share": "доля длинных свечей", "wick": "доля теней", "contraction": "размах свечей: конец / начало"}
 
 
-def opposite(c: np.ndarray, a: int, t: int, side: int, sb: float) -> tuple[int, int, float, float]:
-    """Вторая граница на A … t−1 (линия пробоя c[a] + sb·(j − a)) → (опорные развороты j1 < j2, наклон, значение прямой
-    в j1). Как трейдер: прямая по двум крупным разворотам, которую не пересекает ни одно закрытие фигуры; из таких —
-    та, что ближе всего ко всем крупным разворотам (наименьший суммарный зазор)."""
-    dist = side * (c[a] + sb * (np.arange(len(c)) - a) - c)          # насколько закрытие отошло от линии внутрь
-    top = dist[a:t].max()
-    piv = [j for j in range(a + 1, t - 1)
-           if dist[j] == dist[max(a, j - PIV):min(t, j + PIV + 1)].max() and dist[j] >= MAJOR * top > 0]
-    best: tuple | None = None
-    if len(piv) >= 2:
-        hull: list[int] = []                                          # верхняя оболочка разворотов в осях (j, dist)
-        for k in piv:
-            while len(hull) >= 2 and ((hull[-1] - hull[-2]) * (dist[k] - dist[hull[-2]])
-                                      - (dist[hull[-1]] - dist[hull[-2]]) * (k - hull[-2])) >= 0:
-                hull.pop()
-            hull.append(k)
-        k = np.array(piv)
-        for p, q in zip(hull[:-1], hull[1:]):
-            sl = (dist[q] - dist[p]) / (q - p)
-            gap = float(np.sum(dist[p] + sl * (k - p) - dist[k]))      # суммарный зазор до всех крупных разворотов
-            if best is None or gap < best[0]:
-                best = (gap, p, q, sl)
-    if best is not None:
-        _, j1, j2, sl = best
-    else:                                                             # меньше двух крупных разворотов
-        m = a + max((t - a) // 2, 1)
-        j1 = a + int(np.argmax(dist[a:m]))
-        j2 = m + int(np.argmax(dist[m:t])) if t > m else j1
-        sl = (dist[j2] - dist[j1]) / (j2 - j1) if j2 != j1 else 0.0
-    jj = np.arange(a, t)
-    shift = max(float(np.max(dist[a:t] - (dist[j1] + sl * (jj - j1)))), 0.0)   # ни одно закрытие не за границей
-    v1 = dist[j1] + shift
-    return j1, j2, sb - side * sl, float(c[a] + sb * (j1 - a) - side * v1)
+def minor_pivots(y: np.ndarray, a: int, t: int, top: bool, k: int = PIV) -> np.ndarray:
+    """Развороты Bulkowski на a … t−1: вершина (top) без более высокой в окне ±k свечей, впадина — зеркально; окно не
+    заходит за пробой (разворот подтверждён до t), у начала фигуры обрезается по A."""
+    s = y if top else -y
+    out = [j for j in range(a, t - k) if s[j] >= s[max(a, j - k):j + k + 1].max()]
+    return np.array(out, dtype=int)
 
 
-def classify(sb: float, so: float, n: int, width: float, conv: float, side: int) -> str:
-    """Класс по наклонам линии пробоя sb и второй границы so (цена за свечу), длине n, средней ширине и сходимости."""
-    flat = lambda s: abs(s) * n < FLAT * width
-    counter = lambda s: np.sign(s) == -side
-    if conv < CONV:
-        if flat(sb) and flat(so):
-            return "box"
-        if flat(sb):
-            return "tri_flat_break"
-        if flat(so):
-            return "tri_flat_opp"
-        if np.sign(sb) != np.sign(so):
-            return "tri_sym"
-        return "wedge_counter" if counter(sb) else "wedge_with"
-    if conv > 1 / CONV:
-        return "expanding"
-    mid = (sb + so) / 2
-    if flat(mid):
-        return "box"
-    return "channel_counter" if counter(mid) else "channel_with"
+def boundary(c: np.ndarray, a: int, t: int, top: bool, tol: float) -> tuple[float, float, int] | None:
+    """Верхняя (top) или нижняя граница фигуры по закрытиям A … t−1 → (наклон, значение в A, касаний) или None."""
+    k = max(PIV, round((t - a) / SCALE))
+    piv = minor_pivots(c, a, t, top, k)
+    sg = 1.0 if top else -1.0
+    z = sg * c
+    hull: list[int] = []                                              # верхняя оболочка закрытий (j, z)
+    for q in range(a, t):
+        while len(hull) >= 2 and ((hull[-1] - hull[-2]) * (z[q] - z[hull[-2]])
+                                  - (z[hull[-1]] - z[hull[-2]]) * (q - hull[-2])) >= 0:
+            hull.pop()
+        hull.append(q)
+    best = None
+    for p, q in zip(hull[:-1], hull[1:]):
+        sl = (z[q] - z[p]) / (q - p)
+        near = piv[np.abs(z[piv] - (z[p] + sl * (piv - p))) <= tol]
+        touch, last = 0, -10 ** 9
+        for j in near:                                               # касания — отдельные развороты
+            if j - last >= k:
+                touch += 1
+                last = j
+        if best is None or (touch, q - p) > best[0]:
+            best = ((touch, q - p), sg * sl, sg * (z[p] + sl * (a - p)), touch)
+    return None if best is None else best[1:]
+
+
+def classify(su: float, sl: float, n: int, w0: float, w1: float, at: float, tu: int, tl: int) -> str:
+    """Класс по наклонам верхней su и нижней sl границ (цена за свечу), длине n, ширине у A (w0) и у пробоя (w1),
+    ATR и касаниям границ."""
+    tol = TOL * at
+    flat = lambda s: abs(s) * n <= tol
+    band = max(tol, PAR * (abs(w0) + abs(w1)) / 2)
+    if flat(su) and flat(sl):
+        k = "rect"
+    elif w1 - w0 < -band:
+        k = ("tri_asc" if flat(su) else "tri_desc" if flat(sl) else "tri_sym" if su < 0 < sl
+             else "wedge_rise" if su > 0 else "wedge_fall")
+    elif w1 - w0 > band:
+        k = "broad"
+    else:
+        mid = (su + sl) / 2
+        k = "rect" if flat(mid) else "chan_up" if mid > 0 else "chan_down"
+    if tu < 2 or tl < 2 or (not k.startswith("chan") and tu + tl < 5):
+        return "none"
+    return k
 
 
 def touch_points(c: np.ndarray, atr: np.ndarray, a: int, t: int, side: int, slope: float) -> list[tuple[int, float]]:
@@ -136,26 +144,30 @@ def touch_points(c: np.ndarray, atr: np.ndarray, a: int, t: int, side: int, slop
 def figure_features(d: pd.DataFrame, atr: np.ndarray, rec: dict, t: int) -> dict:
     o, h, lo, c = (d[k].to_numpy(dtype="float64") for k in ("open", "high", "low", "close"))
     a, b, side, sb = int(rec["a"]), int(rec["b"]), int(rec["side"]), float(rec["slope"])
-    j1, j2, so, o1 = opposite(c, a, t, side, sb)
-    line = lambda j: c[a] + sb * (j - a)
-    opp = lambda j: o1 + so * (j - j1)
-    w0, w1 = side * (line(a) - opp(a)), side * (line(t - 1) - opp(t - 1))
-    if not w0 > 0:                                   # прямые пересеклись левее A — ширина в первом развороте
-        w0 = side * (line(j1) - opp(j1))
-    w0 = w0 if w0 > 0 else np.nan
-    conv = w1 / w0 if w0 > 0 else np.nan
+    tol = TOUCH_ATR * atr[t]
+    up, dn = boundary(c, a, t, True, tol), boundary(c, a, t, False, tol)
+    shape, conv, apex = "none", np.nan, np.nan
+    geo = {"up_slope": np.nan, "up_a": np.nan, "up_n": 0, "dn_slope": np.nan, "dn_a": np.nan, "dn_n": 0}
+    if up is not None and dn is not None:
+        (su, ua, tu), (sl, la, tl) = up, dn
+        n = t - 1 - a
+        w0, w1 = ua - la, ua + su * n - (la + sl * n)
+        shape = classify(su, sl, n, w0, w1, atr[t], tu, tl)
+        conv = w1 / w0 if w0 > 0 else np.nan
+        if w0 > 0 and sl - su > 0:
+            apex = (t - a) / (w0 / (sl - su))                      # вершина: верх и низ встречаются
+        geo = {"up_slope": su, "up_a": ua, "up_n": tu, "dn_slope": sl, "dn_a": la, "dn_n": tl}
     tp = touch_points(c, atr, a, t, side, sb)
     js = np.array([p[0] for p in tp])
     gaps = np.diff(js) if len(js) >= 2 else np.array([])
     errs = [e for jj, e in tp if jj not in (a, b)]
-    inside = -side * (c - line(np.arange(len(c))))
+    inside = -side * (c - (c[a] + sb * (np.arange(len(c)) - a)))
     bounce = [inside[x:y].max() / atr[t] for x, y in zip(js[:-1], js[1:]) if y > x] if len(js) >= 2 else []
     ak = atr[a:t]
     ok = ak > 0
     rng, body = (h - lo)[a:t], np.abs(c - o)[a:t]
     third = max((t - a) // 3, 1)
-    return {"shape": classify(sb, so, t - a, max((w0 + w1) / 2, atr[t]), conv if np.isfinite(conv) else 1.0, side), "conv": conv,
-            "opp_j1": j1, "opp_j2": j2, "opp_slope": so, "opp_v1": o1,
+    return {"shape": shape, "classic": side * CLASSIC.get(shape, 0), "apex_pos": apex, "conv": conv, **geo,
             "touch_gap": float(gaps.mean()) if len(gaps) else np.nan,
             "touch_cv": float(gaps.std() / gaps.mean()) if len(gaps) >= 2 and gaps.mean() > 0 else np.nan,
             "touch_err": float(np.mean(errs)) if errs else np.nan,
@@ -205,6 +217,16 @@ def report() -> None:
                         print(f"        {what}: {'принято' if ok and primary else 'нет'}\n{txt}")
                         if ok and primary:
                             passed.append(f"{tf} {label}: {what} «{name}»")
+            print("    пробой в типичную сторону фигуры (Bulkowski) / против / фигура без типичной стороны:")
+            for v, name in ((1, "типичная"), (-1, "против"), (0, "нет типичной")):
+                m = z[z.classic == v]
+                print(f"      {name} ({len(m) / max(len(z), 1):.0%}): {_periods(m)}  всё время: {_cell(m)}")
+            for what, col, thr in (("убираем пробои против", "classic", -0.5), ("оставляем только типичные", "classic", 0.5)):
+                if (z[col] < thr).sum() >= 30 and (z[col] >= thr).sum() >= 30:
+                    for _, (ok, txt) in cut_verdicts(z, col, (thr,)).items():
+                        print(f"      {what}: {'принято' if ok and primary else 'нет'}\n{txt}")
+                        if ok and primary:
+                            passed.append(f"{tf} {label}: {what}")
             for f in FEATS:
                 e = F.is_edges(z, f)
                 if not len(e):
@@ -279,28 +301,32 @@ def draw(cases: dict, png: Path) -> None:
     import matplotlib.pyplot as plt
     keys = [k for k in SHAPES if k in cases]
     cols = 3
-    fig, axes = plt.subplots((len(keys) + cols - 1) // cols, cols, figsize=(5.2 * cols, 3.4 * ((len(keys) + 2) // 3)),
-                             squeeze=False)
+    rows = (len(keys) + cols - 1) // cols
+    fig, axes = plt.subplots(rows, cols, figsize=(5.4 * cols, 3.6 * rows), squeeze=False)
     for ax in axes.ravel():
         ax.axis("off")
     for ax, k in zip(axes.ravel(), keys):
         s, d, rec, t, f = cases[k]
         a, side, sb = rec["a"], rec["side"], rec["slope"]
-        lo_ = max(a - 10, 0)
-        hi_ = min(t + 6, len(d) - 1)
-        c = d["close"].to_numpy()
+        lo_, hi_ = max(a - 10, 0), min(t + 6, len(d) - 1)
+        o, h, lo, c = (d[x].to_numpy()[lo_:hi_ + 1] for x in ("open", "high", "low", "close"))
         j = np.arange(lo_, hi_ + 1)
         ax.axis("on")
-        ax.vlines(j, d["low"].to_numpy()[lo_:hi_ + 1], d["high"].to_numpy()[lo_:hi_ + 1], color="#9aa0a6", lw=0.6)
-        ax.plot(j, c[lo_:hi_ + 1], color="#202124", lw=1)
+        ax.vlines(j, lo, h, color="#80868b", lw=0.6)
+        up = c >= o
+        ax.vlines(j[up], o[up], c[up], color="#188038", lw=2.2)
+        ax.vlines(j[~up], c[~up], o[~up], color="#d93025", lw=2.2)
         jl = np.arange(a, t + 1)
-        ax.plot(jl, c[a] + sb * (jl - a), color="#d93025", lw=1.6, label="линия пробоя")
-        j1 = f["opp_j1"]
-        ax.plot(jl, f["opp_v1"] + f["opp_slope"] * (jl - j1), color="#1a73e8", lw=1.2, ls="--", label="вторая граница")
-        ax.scatter([t], [c[t]], color="#d93025", zorder=5, s=18)
+        cc = d["close"].to_numpy()
+        ax.plot(jl, cc[a] + sb * (jl - a), color="#202124", lw=1.6, label="линия бота (закрытия)")
+        if np.isfinite(f["up_slope"]):
+            ax.plot(jl, f["up_a"] + f["up_slope"] * (jl - a), color="#1a73e8", lw=1.2, ls="--",
+                    label="границы фигуры")
+            ax.plot(jl, f["dn_a"] + f["dn_slope"] * (jl - a), color="#1a73e8", lw=1.2, ls="--")
+        ax.scatter([t], [cc[t]], color="#f29900", zorder=5, s=22)
         r = (s.get("trade") or {}).get("r")
-        ax.set_title(f"{SHAPES[k]}\n{s['symbol']} {s['tf']} {'вверх' if side > 0 else 'вниз'}"
-                     f"{'' if r is None else f', {r:+.2f}R'}", fontsize=9)
+        ax.set_title(f"{SHAPES[k]} (касаний {f['up_n']} + {f['dn_n']})\n{s['symbol']} {s['tf']} пробой "
+                     f"{'вверх' if side > 0 else 'вниз'}{'' if r is None else f', {r:+.2f}R'}", fontsize=9)
         ax.tick_params(labelsize=7)
     axes.ravel()[0].legend(fontsize=7, loc="best")
     fig.tight_layout()
