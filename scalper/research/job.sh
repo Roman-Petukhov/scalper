@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"quarterly"}
+TASKS=${TASKS:-"emagrid"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -465,6 +465,12 @@ emasys_collect() {
   python -m research.emasys collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
 }
 emasys_report() { python -m research.emasys report; }
+# Сетка вокруг EMA200 (стратегия владельца): вход лимит / стоп, выходы, мартингейл, шаг по ATR, фильтр пилы; 15m и 1h на 5m
+emagrid_collect() {
+  RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare lowtf-core70
+  python -m research.emagrid collect --symbols "$(cat /tmp/syms_lowtf-core70.txt)"
+}
+emagrid_report() { python -m research.emagrid report; }
 # Круглые числа (Osler): пробой через круглый уровень, уровень впереди, стоп «за толпой» (4h и 15m)
 roundnum_collect() {
   RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-qualified 15m-wide
