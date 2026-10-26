@@ -101,6 +101,15 @@ BOOKS4 = (Book("база: шорты ≤.025", sides15="short", slope15=0.025, *
           Book("обе ≤.025, лонги ×0.5", slope15=0.025, long_x=0.5, **_S4),
           Book("обе ≤.025, лонги ×1", slope15=0.025, **_S4),
           Book("обе ≤.04, лонги ×0.5", slope15=0.04, long_x=0.5, **_S4))
+# пятый заход — связка, которую владелец поставил в панели (15m 0.35%, 4h 2.25%): между проверенными 0.35 / 2% (36%, P 3%) и
+# 0.35 / 2.5% (40%, P 11%); 500 путей вместо 200 (первые 200 те же, seed), критерий тот же; плюс 0.3% и дневной стоп 10%
+BOOKS5 = (Book("база 0.25 / 2.25", sides15="short", slope15=0.025, **_S4 | {"r4h": 0.0225}),
+          Book("владелец 0.35 / 2.25", sides15="short", slope15=0.025, **_S4 | {"r15": 0.0035, "r4h": 0.0225}),
+          Book("0.30 / 2.25", sides15="short", slope15=0.025, **_S4 | {"r15": 0.003, "r4h": 0.0225}),
+          Book("0.35 / 2.25, дневной стоп 10%", sides15="short", slope15=0.025, day_stop=0.10,
+               **_S4 | {"r15": 0.0035, "r4h": 0.0225}),
+          Book("0.35 / 2.25, потолок риска 15%", sides15="short", slope15=0.025, heat=0.15,
+               **_S4 | {"r15": 0.0035, "r4h": 0.0225}))
 BOOKS = (Book("live"), Book("live, 15m <= 3", limit15=3), Book("live, 15m <= 5", limit15=5),
          Book("live, 15m <= 8", limit15=8), Book("live, риск <= 10%", heat=0.10), Book("live, риск <= 15%", heat=0.15),
          Book("live, риск <= 20%", heat=0.20), Book("умеренный", r15=0.005, r4h=0.01, limit15=3))
@@ -208,11 +217,12 @@ def _growth(curve: pd.Series) -> dict[str, float]:
 
 
 def portfolio_report(z: pd.DataFrame, books: tuple[Book, ...] = BOOKS,
-                     title: str = "1. Портфель в живых настройках: 15m (обе стороны, наклон <= 0.04) + 4h") -> None:
+                     title: str = "1. Портфель в живых настройках: 15m (обе стороны, наклон <= 0.04) + 4h",
+                     paths: int = PATHS) -> None:
     print(f"\n  === {title} одним счётом, маржа, дневной стоп; P(просадка > 50%) — блочный бутстреп недель ===")
     print(f"  сделок: 15m {int((z.tf == '15m').sum())}, 4h {int((z.tf == '4h').sum())}")
     rng = np.random.default_rng(23)
-    boots = [week_blocks(z, rng) for _ in range(PATHS)]
+    boots = [week_blocks(z, rng) for _ in range(paths)]
     res = {}
     for b in books:
         s = simulate_book(z, b)
@@ -297,6 +307,15 @@ def report2() -> None:
     portfolio_report(z, BOOKS2, "Варианты")
 
 
+def report5() -> None:
+    print("\n===== LIVEBOOK5: связка владельца 15m 0.35% + 4h 2.25% (500 путей) =====")
+    z = load()
+    if z is None:
+        print("  crisk: нет данных")
+        return
+    portfolio_report(z, BOOKS5, "Связка владельца", paths=500)
+
+
 def report4() -> None:
     print("\n===== LIVEBOOK4: наклон линии 15m и лонги 15m при безопасном масштабе =====")
     z = load()
@@ -318,4 +337,4 @@ def report3() -> None:
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     warnings.filterwarnings("ignore")
-    {"2": report2, "3": report3, "4": report4}.get((sys.argv[1:] or [""])[0], report)()
+    {"2": report2, "3": report3, "4": report4, "5": report5}.get((sys.argv[1:] or [""])[0], report)()
