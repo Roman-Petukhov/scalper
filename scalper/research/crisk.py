@@ -42,12 +42,13 @@ from .broad import adv30
 from .oos import PER_ALL
 from .shard import all_parts, mine, part_path
 from .smc import _atr
-from .tline import MAKER, TAKER, tf_frame, zz_lines
+from .tline import LEVEL_PIV, MAKER, TAKER, level_hit, pivots, tf_frame, zz_lines
 
 TFS = tuple(os.environ.get("CRISK_TFS", "4h,15m").split(","))
 ENTRY = {"4h": "retest", "15m": "market"}
 LIMIT = {"4h": 12, "15m": 3}
-MAX_SLOPE = 0.025
+MAX_SLOPE = 0.025          # отчёты этого модуля (15m-шорты в настройках на момент проверки)
+COLLECT_SLOPE = 0.04       # собираем шире — живые настройки 15m (research/livebook.py); наклон — в slope_atr
 BE_AT = 1.2
 TAKE_R = 2.0
 LADDER = (0.02, 0.03, 0.045)
@@ -80,9 +81,10 @@ def coin_rows(d: pd.DataFrame, liq: np.ndarray, sym: str, tf: str) -> list[dict]
     if not len(x):
         return []
     x = x[x.entry == ENTRY[tf]]
-    o, hi, lo = (d[k].to_numpy(dtype="float64") for k in ("open", "high", "low"))
+    o, hi, lo, c = (d[k].to_numpy(dtype="float64") for k in ("open", "high", "low", "close"))
     atr = _atr(d).to_numpy()
     recs = {(int(r["t"]), int(r["side"])): r for r in zz_lines(d) if r["t"] > 0}
+    lv_hi, lv_lo = pivots(c, LEVEL_PIV, True), pivots(c, LEVEL_PIV, False)
     fee_in = MAKER if ENTRY[tf] == "retest" else TAKER
     rows = []
     for r in x.itertuples(index=False):
@@ -90,19 +92,35 @@ def coin_rows(d: pd.DataFrame, liq: np.ndarray, sym: str, tf: str) -> list[dict]
         rec = recs.get((t, side))
         if rec is None or not (atr[t] > 0) or not np.isfinite(r.R3):
             continue
-        if tf != "4h" and abs(float(rec["slope"])) / atr[t] > MAX_SLOPE:
+        slope = abs(float(rec["slope"])) / atr[t]
+        if tf != "4h" and slope > COLLECT_SLOPE:
             continue
         fill, ex = int(r.fill_i), int(r.exit_i)
         j, rb, exb = be_path(o, hi, lo, side, float(r.px), float(r.stop), fill, ex, float(r.R3), fee_in)
         a = int(rec["a"])
         rows.append({"symbol": sym, "tf": tf, "side": side, "R": float(r.R3), "R_be": float(rb),
-                     "squeeze": float(atr[t] / atr[a]) if atr[a] > 0 else np.nan, "t": r.t,
+                     "squeeze": float(atr[t] / atr[a]) if atr[a] > 0 else np.nan, "t": r.t, "slope_atr": slope,
+                     "stop_pct": abs(float(r.px) - float(r.stop)) / float(r.px),
+                     "level": level_hit(c, atr, t, side, lv_hi, lv_lo) is not None,
                      "fill": d.index[fill], "exit": d.index[ex], "exit_be": d.index[exb],
                      "be_at": d.index[j] if j >= 0 else pd.NaT})
     return rows
 
 
+def btc_vol(root: Path) -> pd.Series | None:
+    """Реализованная волатильность BTC за 20 дней (годовая), известная на начало дня: индекс — день, с которого она
+    известна (research/livebook.py, размер по волатильности рынка)."""
+    btc = tf_frame(root, "BTCUSDT", "4h")
+    if btc is None:
+        return None
+    c = btc["close"].resample("1D").last().dropna()
+    v = np.log(c).diff().rolling(20).std() * math.sqrt(365)
+    v.index = v.index + pd.Timedelta(days=1)
+    return v.dropna()
+
+
 def collect(root: Path, syms: list[str]) -> None:
+    vol = btc_vol(root)
     for tf in TFS:
         rows = []
         for s in mine(syms):
@@ -117,7 +135,16 @@ def collect(root: Path, syms: list[str]) -> None:
                 print(f"  crisk {s} {tf}: пропуск ({e})", flush=True)
         print(f"  crisk {tf}: сделок {len(rows)}", flush=True)
         if rows:
-            pd.DataFrame(rows).to_parquet(part_path(f"crisk_{tf}"), index=False)
+            out = pd.DataFrame(rows)
+            if vol is not None:
+                k = vol.index.searchsorted(pd.DatetimeIndex(out["t"]), side="right") - 1
+                out["btc_vol"] = np.where(k >= 0, vol.to_numpy()[np.clip(k, 0, None)], np.nan)
+            out.to_parquet(part_path(f"crisk_{tf}"), index=False)
+
+
+def bot15(z: pd.DataFrame) -> pd.Series:
+    """15m-сделки в масштабе отчётов этого модуля (наклон <= MAX_SLOPE); в старых частях наклона нет — все."""
+    return z["slope_atr"] <= MAX_SLOPE if "slope_atr" in z else pd.Series(True, index=z.index)
 
 
 @dataclass(frozen=True)
@@ -280,7 +307,7 @@ def report() -> None:
             z[c] = pd.to_datetime(z[c], utc=True).dt.tz_localize(None)
         z = z.dropna(subset=["R", "R_be"])
         if tf != "4h":
-            z = z[z.side < 0]
+            z = z[(z.side < 0) & bot15(z)]
         z = z.sort_values("fill").reset_index(drop=True)
         lim, runs = LIMIT[tf], RUNS[tf]
         rng = np.random.default_rng(7)
@@ -343,7 +370,7 @@ def ladder_report() -> None:
     for c in ("fill", "exit", "exit_be", "be_at"):
         z[c] = pd.to_datetime(z[c], utc=True).dt.tz_localize(None)
     z = z.dropna(subset=["R", "R_be"])
-    z = z[z.side < 0].sort_values("fill").reset_index(drop=True)
+    z = z[(z.side < 0) & bot15(z)].sort_values("fill").reset_index(drop=True)
     lim, runs, passed = LIMIT["15m"], RUNS["15m"], []
     rng = np.random.default_rng(11)
     print(f"  15m шорты: сигналов {len(z)}, лимит {lim}")
