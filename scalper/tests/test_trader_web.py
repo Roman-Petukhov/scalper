@@ -384,6 +384,25 @@ def test_journal_card_shows_live_results_against_backtest(env):
     assert "после 20 сделок (сейчас 1)" in r.text and "цель" in r.text and "проск. +0.10R" in r.text
 
 
+def test_journal_card_shows_shadow_longs_and_spring_tag(env):
+    from datetime import timedelta
+    from trader.domain import shadow as shadow_mod
+    from trader.infrastructure.sqlite_repo import SqliteStore
+    from test_trader_app import _signal
+    c, tmp = env
+    st = SqliteStore(tmp / "trader.db")
+    sig = _signal()
+    st.add_shadow(shadow_mod.AGGR525, sig)
+    st.add_shadow(shadow_mod.AGGR525, __import__("dataclasses").replace(sig, symbol="ETHUSDT", extra={"spring": True}))
+    (sid, _, _), = [x for x in st.open_shadow(Timeframe.H4) if x[2].symbol == "ETHUSDT"]
+    st.finish_shadow(sid, "closed", 2.9, sig.bar_time + timedelta(hours=8))
+    _login(c)
+    t = c.get("/").text
+    assert "Теневые: Лонг 4h, агрессоры 52.5–55%" in t and "не торгуются" in t
+    assert "сигналов 2 · закрыто 1 · итог +2.9R" in t and "в работе 1" in t and "после выноса 1: +2.90R" in t
+    assert "Оценка — после 19 закрытых сделок" in t
+
+
 def test_times_are_rendered_as_utc_for_the_browser_to_localize():
     from datetime import datetime, timezone
     from trader.web.app import local_time

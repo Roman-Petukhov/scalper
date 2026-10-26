@@ -10,6 +10,7 @@ from pathlib import Path
 
 from ..domain.execution import HedgeLeg, Trade, TradeResult, TradeStatus
 from ..domain.journal import JournalEntry
+from ..domain.shadow import ShadowRow
 from ..domain.daily_break import DailySetup, Status as DailyStatus
 from ..domain.trend import TrendDay, TrendPosition
 from ..domain.models import (DEFAULT_TF_PARAMS, RETIRED_TIMEFRAMES, SETTINGS_ONCE, STRATEGY_RESETS, TF_FIELDS, TF_SETTINGS_ONCE, LADDER_ONCE, EntryKind, EntryPolicy, Mode, Settings, Sizing,
@@ -24,6 +25,12 @@ CREATE TABLE IF NOT EXISTS signals (
     UNIQUE(symbol, timeframe, bar_time, side)
 );
 CREATE INDEX IF NOT EXISTS signals_created ON signals(created_at DESC);
+CREATE TABLE IF NOT EXISTS shadow_signals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL, symbol TEXT NOT NULL, timeframe TEXT NOT NULL, side INTEGER NOT NULL, bar_time TEXT NOT NULL,
+    created_at TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'open', r REAL, closed_at TEXT, payload TEXT NOT NULL,
+    UNIQUE(kind, symbol, timeframe, bar_time)
+);
 CREATE TABLE IF NOT EXISTS settings (id INTEGER PRIMARY KEY CHECK (id = 1), payload TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS push_subscriptions (
     endpoint TEXT PRIMARY KEY, payload TEXT NOT NULL, created_at TEXT NOT NULL
@@ -307,6 +314,44 @@ class SqliteStore:
             self.db.execute("UPDATE signals SET chart_path = ? WHERE id = ?", (path, signal_id))
             self.db.commit()
 
+    # ---------- теневые сигналы ----------
+    def add_shadow(self, kind: str, signal: Signal) -> bool:
+        with self.lock:
+            try:
+                self.db.execute(
+                    "INSERT INTO shadow_signals(kind, symbol, timeframe, side, bar_time, created_at, payload)"
+                    " VALUES (?,?,?,?,?,?,?)",
+                    (kind, signal.symbol, signal.timeframe.value, int(signal.side), signal.bar_time.isoformat(),
+                     datetime.now(timezone.utc).isoformat(), self._payload(signal)))
+                self.db.commit()
+            except sqlite3.IntegrityError:
+                return False
+        return True
+
+    def _shadow_signal(self, r: sqlite3.Row) -> Signal:
+        return self._row({"symbol": r["symbol"], "timeframe": r["timeframe"], "side": r["side"],
+                          "bar_time": r["bar_time"], "payload": r["payload"], "status": SignalStatus.NEW.value,
+                          "id": r["id"], "created_at": r["created_at"], "chart_path": None, "note": ""})
+
+    def open_shadow(self, tf: Timeframe) -> list[tuple[int, str, Signal]]:
+        with self.lock:
+            rows = self.db.execute("SELECT * FROM shadow_signals WHERE state = 'open' AND timeframe = ? "
+                                   "ORDER BY id", (tf.value,)).fetchall()
+        return [(r["id"], r["kind"], self._shadow_signal(r)) for r in rows]
+
+    def finish_shadow(self, shadow_id: int, state: str, r: float | None, closed_at: datetime) -> None:
+        with self.lock:
+            self.db.execute("UPDATE shadow_signals SET state = ?, r = ?, closed_at = ? WHERE id = ?",
+                            (state, r, closed_at.isoformat(), shadow_id))
+            self.db.commit()
+
+    def shadow_rows(self, limit: int = 1000) -> list[ShadowRow]:
+        with self.lock:
+            rows = self.db.execute("SELECT * FROM shadow_signals ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+        tfs = {t.value for t in Timeframe}
+        return [ShadowRow(r["kind"], self._shadow_signal(r), r["state"], r["r"],
+                          _dt(r["closed_at"]) if r["closed_at"] else None) for r in rows if r["timeframe"] in tfs]
+
     # ---------- настройки ----------
     def load(self) -> Settings:
         with self.lock:
@@ -478,7 +523,7 @@ class SqliteStore:
                 continue
             ex = json.loads(r["sig_payload"]).get("extra", {})
             out.append(JournalEntry(self._trade(r), Timeframe(r["tf"]), bool(ex.get("level")), bool(ex.get("touch3")),
-                                    bool(ex.get("long_line")), bool(ex.get("round")), bool(ex.get("squeezed"))))
+                                    bool(ex.get("long_line")), bool(ex.get("round")), bool(ex.get("squeezed")), bool(ex.get("spring"))))
         return out
 
     # ---------- бумажный счёт тренда ----------

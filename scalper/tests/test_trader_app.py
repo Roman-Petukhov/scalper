@@ -443,3 +443,28 @@ def test_squeeze_boost_enabled_once_on_saved_4h_settings(tmp_path):
     assert s.p(Timeframe.H4).squeeze_risk_x == 1.5 and s.p(Timeframe.H4).risk_pct == 4.5
     SqliteStore(tmp_path / "t.db").save(s.with_tf(Timeframe.H4, squeeze_risk_x=1.0))
     assert SqliteStore(tmp_path / "t.db").load().p(Timeframe.H4).squeeze_risk_x == 1.0   # выключил трейдер — остаётся
+
+
+def test_scanner_records_shadow_candidates_without_signals_or_orders(tmp_path, monkeypatch):
+    import trader.application.services as svc_mod
+    from trader.domain import shadow as shadow_mod
+    st = SqliteStore(tmp_path / "t.db")
+    idx = pd.date_range(end=T0, periods=20, freq="4h", tz="UTC")
+    bars = pd.DataFrame({"open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0, "volume": 1.0, "taker_buy_volume": 0.5},
+                        index=idx)
+    monkeypatch.setattr(svc_mod, "detect", lambda d, tf, sym, s: [])
+    monkeypatch.setattr(svc_mod, "shadow_candidates", lambda d, tf, sym, s: [
+        (shadow_mod.AGGR525, replace(_signal(sym, tf), bar_time=d.index[-1].to_pydatetime()))])
+    note = _Notifier()
+    sc = Scanner(_Market({"AAA": bars}), st, st, None, note, "https://panel", shadow=st)
+
+    class _NoBars(_Market):
+        async def bars_between(self, symbol, tf, start, end):
+            return pd.DataFrame({"open": [], "high": [], "low": [], "close": []}, index=pd.DatetimeIndex([], tz="UTC"))
+
+    sc.tracker.market = _NoBars({"AAA": bars})
+    rep = asyncio.run(sc.scan(Timeframe.H4))
+    assert not rep.signals and note.sent == [] and st.recent(10) == []         # ни сигнала, ни уведомления
+    assert [x[2].symbol for x in st.open_shadow(Timeframe.H4)] == ["AAA"]
+    asyncio.run(sc.scan(Timeframe.H4))                                           # та же свеча — без дубля
+    assert len(st.open_shadow(Timeframe.H4)) == 1

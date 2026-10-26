@@ -50,6 +50,17 @@ class SignalRepository(Protocol):
     def set_chart(self, signal_id: int, path: str) -> None: ...
 
 
+class ShadowRepository(Protocol):
+    """Теневые сигналы: ведутся в журнале, не торгуются (trader/domain/shadow.py)."""
+
+    def add_shadow(self, kind: str, signal: Signal) -> bool:
+        """Сохранить; False — такой теневой сигнал (вид, монета, ТФ, свеча) уже есть."""
+
+    def open_shadow(self, tf: Timeframe) -> list[tuple[int, str, Signal]]: ...
+
+    def finish_shadow(self, shadow_id: int, state: str, r: float | None, closed_at: datetime) -> None: ...
+
+
 class SettingsRepository(Protocol):
     def load(self) -> Settings: ...
 

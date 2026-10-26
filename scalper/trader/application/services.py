@@ -10,10 +10,12 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 
 from ..domain.models import HTF_CONFIRM, Mode, Settings, Signal, SignalStatus, Sizing, Timeframe
+from ..domain.shadow import candidates as shadow_candidates
 from ..domain.strategy import detect, htf_breakouts, htf_confirmation
 from ..domain.execution import ExecutionRefused
 from .execution import Executor, _short
-from .ports import ChartRenderer, MarketData, Notifier, SettingsRepository, SignalRepository
+from .ports import ChartRenderer, MarketData, Notifier, SettingsRepository, ShadowRepository, SignalRepository
+from .shadow import ShadowTracker
 
 log = logging.getLogger(__name__)
 
@@ -35,8 +37,11 @@ class ScanReport:
 class Scanner:
     def __init__(self, market: MarketData, signals: SignalRepository, settings: SettingsRepository,
                  charts: ChartRenderer, notifier: Notifier | None, panel_url: str, concurrency: int = 8,
-                 executor: Executor | None = None, heartbeat: Callable[[], Awaitable[None]] | None = None) -> None:
+                 executor: Executor | None = None, heartbeat: Callable[[], Awaitable[None]] | None = None,
+                 shadow: ShadowRepository | None = None) -> None:
         self.market, self.signals, self.settings = market, signals, settings
+        self.shadow = shadow
+        self.tracker = ShadowTracker(market, shadow, settings) if shadow is not None else None
         self.executor, self.heartbeat = executor, heartbeat
         self.charts, self.notifier, self.panel_url = charts, notifier, panel_url
         self.sem = asyncio.Semaphore(concurrency)
@@ -56,6 +61,12 @@ class Scanner:
                 if j and now >= sig.valid_until():
                     continue
                 found.append((replace(sig, extra={**sig.extra, "caught_up": True}) if j else sig, sub))
+        if self.shadow is not None:                                  # теневые лонги: только запись, без сигнала и ордера
+            try:
+                for kind, sig in shadow_candidates(bars, tf, symbol, s):
+                    self.shadow.add_shadow(kind, sig)
+            except Exception:
+                log.exception("теневой сигнал %s %s", symbol, tf.value)
         hours, htf = s.p(tf).htf_confirm_h, HTF_CONFIRM.get(tf)
         if found and hours and htf is not None:                     # только вслед за свежим пробоем старшего ТФ
             async with self.sem:
@@ -115,6 +126,11 @@ class Scanner:
         if (s.mode is Mode.AUTO and tf in s.auto_timeframes and self.executor is not None
                 and self.executor.connected):
             found = [await self._auto(sig) for sig in found]
+        if self.tracker is not None:
+            try:
+                await self.tracker.update(tf)
+            except Exception:
+                log.exception("итоги теневых сигналов %s", tf.value)
         rep = ScanReport(tf, len(symbols), found, errors, started, datetime.now(timezone.utc))
         self.last[tf] = rep
         log.info("скан %s: монет %d, сигналов %d, ошибок %d%s", tf.value, len(symbols), len(found), errors,

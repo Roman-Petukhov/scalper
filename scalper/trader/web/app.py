@@ -35,6 +35,7 @@ from ..application.weather import WeatherService
 from ..config import AppConfig
 from ..domain.execution import TradeStatus
 from ..domain.journal import BACKTEST_DD_R, tf_stats
+from ..domain.shadow import shadow_stats
 from ..domain.models import (DEFAULT_TF_PARAMS, HTF_CONFIRM, EntryPolicy, Mode, Settings, SideFilter, SignalStatus,
                              Sizing, Timeframe)
 from ..domain.sizing import exposure, risk_notes
@@ -134,7 +135,8 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
     holder = BrokerHolder(store)
     executor = Executor(broker or holder, store, store, store, notify, market=market)
     heartbeat = HttpHeartbeat(cfg.heartbeat_url) if cfg.heartbeat_url else None
-    scanner = Scanner(market, store, store, charts, notify, cfg.panel_url, executor=executor, heartbeat=heartbeat)
+    scanner = Scanner(market, store, store, charts, notify, cfg.panel_url, executor=executor, heartbeat=heartbeat,
+                      shadow=store)
     settings_svc = SettingsService(store)
     decisions = SignalDecisions(store, store, executor)
     stables = DefiLlamaStablecoins()
@@ -235,6 +237,7 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
                   and (e.trade.result is not None or e.trade.status is TradeStatus.TIMED_OUT)]
         return {"s": s, "signals": signals, "view": view, "last": scanner.last,
                 "journal": tf_stats(entries, {t: s.p(t).target_r for t in Timeframe}), "journal_rows": closed[:JOURNAL_ROWS],
+                "shadow": shadow_stats(store.shadow_rows()),
                 "archived_count": store.count(ARCHIVED), "new_count": store.count({SignalStatus.NEW}),
                 "risk": risk_view(s), "equity": last_equity(),
                 "trades": store.trades_for([x.id for x in signals if x.id is not None]),

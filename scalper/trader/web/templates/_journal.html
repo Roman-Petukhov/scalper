@@ -31,6 +31,9 @@
       {% if st.squeeze_closed %}
       <p class="hint num">«Сжатие»: {{ st.squeeze_closed }} сделок, {{ '%+.2f' % st.squeeze_avg_r }}R{% if st.squeeze_rest_r is not none %} · остальные {{ '%+.2f' % st.squeeze_rest_r }}R{% endif %}</p>
       {% endif %}
+      {% if st.spring_closed %}
+      <p class="hint num">«После выноса» (лонги): {{ st.spring_closed }} сделок, {{ '%+.2f' % st.spring_avg_r }}R{% if st.spring_rest_r is not none %} · остальные лонги {{ '%+.2f' % st.spring_rest_r }}R{% endif %}</p>
+      {% endif %}
       {% if st.hedged_closed %}
       <p class="hint num">С хеджем BTC: {{ st.hedged_closed }} сделок, сама сделка {{ '%+.2f' % st.hedged_trade_r }}R · с хеджем {{ '%+.2f' % st.hedged_total_r }}R</p>
       {% endif %}
@@ -38,6 +41,16 @@
     </div>
   {% endfor %}
   </div>
+  {% for sh in shadow %}{% if sh.total %}
+  <div class="jr-tf" style="margin-top:12px">
+    <div class="row" style="justify-content:space-between;align-items:baseline">
+      <b>Теневые: {{ sh.label }} <span class="hint" style="margin:0">(не торгуются)</span></b>
+      {% if sh.closed %}<span class="num"><span class="{{ 'jr-up' if sh.avg_r > 0 else 'jr-down' }}">{{ '%+.2f' % sh.avg_r }}R</span> <span class="hint" style="margin:0">на сделку</span></span>{% endif %}
+    </div>
+    <p class="hint num">сигналов {{ sh.total }} · закрыто {{ sh.closed }}{% if sh.closed %} · итог {{ '%+.1f' % sh.sum_r }}R · прибыльных {{ '%.0f' % (sh.win_share * 100) }}%{% endif %} · в работе {{ sh.open }}{% if sh.unfilled %} · лимитка не исполнилась {{ sh.unfilled }}{% endif %}{% if sh.spring_closed %} · после выноса {{ sh.spring_closed }}: {{ '%+.2f' % sh.spring_avg_r }}R{% endif %}</p>
+    <p class="hint">{{ sh.note }}. {% if sh.enough %}Закрытых сделок достаточно для первой оценки.{% else %}Оценка — после {{ sh.need }} закрытых сделок.{% endif %}</p>
+  </div>
+  {% endif %}{% endfor %}
   {% if journal_rows %}
   <div class="jr-rows scroll-list num" role="table" tabindex="0" aria-label="Последние закрытые сделки">
     {% for e in journal_rows %}{% set t = e.trade %}

@@ -10,9 +10,12 @@ hybrid_range_atr ATR — по рынку: после длинной свечи �
 не фильтр, а признак для сравнения по журналу (research/oos.py, docs/knowledge.md).
 Пометки extra["touch3"] / extra["long_line"] — канон Murphy / Bulkowski (research/tlcanon.py): 3+ касания линии и линия
 длиннее медианы бэктеста. В бэктесте 4h лучше остальных в IS / VAL / HO (t 1.7 / 1.8), но не приняты — метки для
-журнала, не фильтры. extra["round"] — закрытие пробоя прошло крупный круглый уровень (Osler; research/roundnum.py:
+журнала, не фильтры. extra["spring"] — лонг после выноса минимума за последние 5 дней (research/springbo.py: у лонгов
+бота 33 сделки +28.7R против 13 сделок −5.3R без выноса, мало сделок — метка для журнала). extra["round"] — закрытие пробоя прошло крупный круглый уровень (Osler; research/roundnum.py:
 4h лучше в IS / VAL / HO, t 1.6) — метка без надбавки к риску."""
 from __future__ import annotations
+
+from bisect import bisect_right
 
 import numpy as np
 import pandas as pd
@@ -32,6 +35,24 @@ LOG_LINES = False           # обычные линии: по бэктесту 4
 LONG_LINE_BARS = {Timeframe.H4: 126}    # медиана длины линии сделок бота в IS (research/tlcanon.py); 15m — 110 свечей
 LONG_LINE_DEFAULT = 110
 SQUEEZE_MAX = 0.5          # «сжатие»: ATR свечи пробоя / ATR опоры A не больше (нижний квинтиль IS 4h — 0.499)
+SPRING_RECLAIM, SPRING_AFTER = 3, 30    # «вынос» минимума: возврат за 3 свечи; пробой линии не позже 30 свечей (5 дней 4h)
+
+
+def sweeps(lo: np.ndarray, c: np.ndarray, sw: np.ndarray) -> list[tuple[int, float]]:
+    """(бар возврата, дно выноса) для каждого выноса последнего подтверждённого свинг-лоу: минимум ниже него, закрытие
+    этой или одной из двух следующих свечей — снова выше (research/springbo.py; известно на закрытии свечи возврата)."""
+    out, used = [], -1
+    for s_ in range(1, len(c)):
+        p = sw[s_ - 1]
+        if p < 0 or p == used or not lo[s_] < lo[p]:
+            continue
+        level = lo[p]
+        for r in range(s_, min(len(c), s_ + SPRING_RECLAIM)):
+            if c[r] > level:
+                out.append((r, float(lo[s_: r + 1].min())))
+                used = p
+                break
+    return out
 
 
 def _with_probe_bar(d: pd.DataFrame) -> pd.DataFrame:
@@ -72,6 +93,14 @@ class _Bars:
         self.sw_lo = last_confirmed(pivots(self.lo, PIV, False), len(self.c))
         self.sw_hi = last_confirmed(pivots(self.hi, PIV, True), len(self.c))
         self.lv_hi, self.lv_lo = pivots(self.c, LEVEL_PIV, True), pivots(self.c, LEVEL_PIV, False)
+        self._sweeps: list[int] | None = None
+
+    def spring(self, last: int) -> bool:
+        """Последний вынос минимума, известный к закрытию `last`, был не раньше SPRING_AFTER свечей назад."""
+        if self._sweeps is None:
+            self._sweeps = [r for r, _ in sweeps(self.lo, self.c, self.sw_lo)]
+        k = bisect_right(self._sweeps, last) - 1
+        return k >= 0 and last - self._sweeps[k] <= SPRING_AFTER
 
 
 def _signals_at(d: pd.DataFrame, b: _Bars, recs: list[dict], last: int, tf: Timeframe, symbol: str,
@@ -131,6 +160,7 @@ def _signals_at(d: pd.DataFrame, b: _Bars, recs: list[dict], last: int, tf: Time
                                  "round": bool(c[last - 1] > 0 and crossed_round(float(c[last - 1]), float(c[last]))),
                                  "squeeze": round(float(atr[last] / atr[a]), 3) if atr[a] > 0 else None,
                                  "squeezed": bool(atr[a] > 0 and atr[last] / atr[a] <= SQUEEZE_MAX),
+                                 "spring": bool(side is Side.LONG and b.spring(last)),
                                  **({"level_px": lv[0], "level_n": lv[1]} if lv is not None else {})}))
         seen.add(side)
     return out

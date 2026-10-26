@@ -80,7 +80,7 @@ def test_detect_matches_research_rule_on_the_last_closed_bar(seed, stop_atr, mon
             assert x.extra["squeeze"] == pytest.approx(round(q, 3)) and x.squeezed is bool(q <= strategy.SQUEEZE_MAX)
             assert x.tags == tuple(k for k, on in (("+ уровень", x.at_level), ("3+ касания", x.touch3),
                                                    ("длинная линия", x.long_line), ("+ круглый", x.round_level),
-                                                   ("сжатие", x.squeezed)) if on)
+                                                   ("сжатие", x.squeezed), ("после выноса", x.spring)) if on)
     if stop_atr[1] > 100:
         assert len(found) >= 2                              # сверка идёт на настоящих сигналах
 
@@ -229,3 +229,25 @@ def test_5m_timeframe_is_retired():
     assert "5m" in RETIRED_TIMEFRAMES and "5m" not in {t.value for t in Timeframe}
     with pytest.raises(ValueError):
         Timeframe("5m")
+
+
+def test_sweeps_match_research_and_spring_flag_is_long_only():
+    from research.springbo import sweeps as research_sweeps
+    from research.tline import PIV, last_confirmed
+    st = Settings().with_tf(Timeframe.H4, min_aggr=0.5, entry_policy=EntryPolicy.MARKET, min_close_loc=0.0)
+    longs = shorts = spring_on = 0
+    for seed in (5, 11, 3):
+        d = _frame(seed=seed)
+        lo, c = d.low.to_numpy(), d.close.to_numpy()
+        sw = last_confirmed(pivots(lo, PIV, False), len(c))
+        ends = [r for r, _ in strategy.sweeps(lo, c, sw)]
+        assert strategy.sweeps(lo, c, sw) == research_sweeps(lo, c, sw) and len(ends) > 5
+        b = strategy._Bars(d, Timeframe.H4)
+        for t in range(400, 1400, 7):                          # метка = вынос не раньше 30 свечей назад, без заглядывания вперёд
+            assert b.spring(t) is any(0 <= t - r <= strategy.SPRING_AFTER for r in ends)
+        for t in sorted({r_["t"] for r_ in zz_lines(d, log=strategy.LOG_LINES) if r_["t"] >= 400})[:80]:
+            for x in detect(d.iloc[: t + 1], Timeframe.H4, "X", st):
+                assert x.spring is (b.spring(t) if x.side is Side.LONG else False)
+                longs, shorts, spring_on = longs + (x.side is Side.LONG), shorts + (x.side is Side.SHORT), \
+                    spring_on + x.spring
+    assert longs >= 1 and shorts >= 1

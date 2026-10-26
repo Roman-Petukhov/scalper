@@ -329,6 +329,11 @@ class Signal:
         return bool(self.extra.get("squeezed"))
 
     @property
+    def spring(self) -> bool:
+        """Лонг после выноса минимума (research/springbo.py; метка для журнала, не фильтр)."""
+        return bool(self.extra.get("spring"))
+
+    @property
     def round_level(self) -> bool:
         """Закрытие пробоя прошло крупный круглый уровень (research/roundnum.py: метка, без надбавки к риску)."""
         return bool(self.extra.get("round"))
@@ -338,7 +343,7 @@ class Signal:
         """Пометки сигнала для уведомлений и панели."""
         return tuple(name for name, on in (("+ уровень", self.at_level), ("3+ касания", self.touch3),
                                            ("длинная линия", self.long_line), ("+ круглый", self.round_level),
-                                           ("сжатие", self.squeezed)) if on)
+                                           ("сжатие", self.squeezed), ("после выноса", self.spring)) if on)
 
     @property
     def key(self) -> tuple[str, str, str, int]:
