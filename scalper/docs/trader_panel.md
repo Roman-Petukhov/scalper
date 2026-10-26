@@ -112,17 +112,25 @@ docker compose logs -f trader             # первые сканы — посл
 Домен: A-запись на IP сервера, его же в `DOMAIN` и `PANEL_URL` — сертификат HTTPS Caddy выпустит сам.
 Без домена: `DOMAIN=localhost`, вход по `https://<IP>` с предупреждением браузера о сертификате.
 
-Обновление: `git pull && docker compose up -d --build`. База и графики — в томе `trader-data`.
+Обновление: `git pull && docker compose up -d --build` (на Tailscale-сервере — так же, если в `.env` есть строка
+`COMPOSE_FILE`, см. ниже). База и графики — в томе `trader-data`.
 
 Без домена, только для своих устройств (рекомендуется): Tailscale на сервере, панель на 127.0.0.1:
 
 ```bash
 curl -fsSL https://tailscale.com/install.sh | sh && tailscale up          # войти тем же аккаунтом, что на ПК и телефоне
 cd scalper/scalper/deploy && cp env.example .env && nano .env              # PANEL_URL=https://<сервер>.<tailnet>.ts.net
-docker compose -f docker-compose.tailscale.yml run --rm trader python -m trader.check
-docker compose -f docker-compose.tailscale.yml up -d --build
+echo "COMPOSE_FILE=docker-compose.tailscale.yml" >> .env                   # дальше docker compose берёт этот файл сам
+docker compose run --rm trader python -m trader.check
+docker compose up -d --build
 tailscale serve --bg localhost:8000
 ```
+
+Строка `COMPOSE_FILE` в `.env` нужна, чтобы обычные `docker compose up -d --build` и `docker compose logs` работали с
+Tailscale-вариантом. Без неё Docker возьмёт `docker-compose.yml` с Caddy, и запуск упадёт:
+`failed to bind host port 0.0.0.0:443/tcp: address already in use` — порт 443 занят Tailscale. Если это уже случилось:
+добавьте строку и выполните `docker compose up -d --build --remove-orphans` — лишний контейнер Caddy удалится, база
+и настройки останутся в томе `trader-data`.
 
 Когда панель на сервере заработала — закройте панель на ПК: иначе сигналы и уведомления придут дважды, а в авто-режиме
 обе копии отправят ордера.
