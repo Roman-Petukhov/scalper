@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"champs"}
+TASKS=${TASKS:-"ema200"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -383,6 +383,13 @@ champs_collect() {
   python -m research.champs collect --symbols "$(cat /tmp/syms_1h-qualified.txt)" --spot
 }
 champs_report() { python -m research.crisk report; python -m research.champs report; }
+# EMA200 в фильтре тренда бота и «чистая линия» (прокол линии закрытием до пробоя): 4h ретест, 15m по рынку
+ema200_collect() {
+  RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-qualified 15m-wide
+  E200_TFS=4h python -m research.ema200 collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
+  E200_TFS=15m python -m research.ema200 collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
+}
+ema200_report() { python -m research.ema200 report; }
 # Круглые числа (Osler): пробой через круглый уровень, уровень впереди, стоп «за толпой» (4h и 15m)
 roundnum_collect() {
   RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-qualified 15m-wide
