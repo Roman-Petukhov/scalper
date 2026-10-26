@@ -24,7 +24,7 @@ def _signal(symbol="SOLUSDT", tf=Timeframe.H4, side=Side.LONG, bar=T0) -> Signal
 
 
 def _trade(sig: Signal, pnl: float) -> Trade:
-    return Trade(sig.id, sig.symbol, sig.side, EntryKind.MARKET, 12.3, 101.0, 98.0, 110.0, "oid", "live",
+    return Trade(sig.id, sig.symbol, sig.side, EntryKind.MARKET, 12.34567, 101.0, 98.0, 110.0, "oid", "live",
                  status=TradeStatus.CLOSED, created_at=T0, filled_at=T0,
                  result=TradeResult(101.0, 110.0, pnl, T0 + timedelta(hours=8)))
 
@@ -43,7 +43,7 @@ def test_snapshot_has_r_and_prices_but_no_money(tmp_path):
     sigs = st.recent(100)
     snap = build_snapshot(sigs, st.trades_for([s.id for s in sigs]), Settings(), {"day": "2026-10-21"}, NOW)
     text = json.dumps(snap)
-    for forbidden in ("qty", "notional_usd", "risk_usd", "pnl_usd", "777", "12.3", "oid"):
+    for forbidden in ("qty", "notional_usd", "risk_usd", "pnl_usd", "777.0", "12.34567", "oid"):
         assert forbidden not in text
     rows = {r["signal_id"]: r for r in snap["signals"]}
     assert rows[s1.id]["trade"]["r"] is not None and rows[s1.id]["trade"]["exit"] == 110.0

@@ -7,22 +7,20 @@ from enum import Enum
 
 
 MAX_LEVERAGE = 12                       # верхняя граница общего плеча в панели
-MAX_TF_LEVERAGE = 25                    # своё плечо таймфрейма: у 15m стоп ~1.5% цены, ликвидация при 15× — ~6.5%;
-#                                         у 5m стоп ~0.8%, при 25× ликвидация ~3.5% — стоп раньше неё
+MAX_TF_LEVERAGE = 25                    # своё плечо таймфрейма: у 15m стоп ~1.5% цены, ликвидация при 15× — ~6.5%
 MAX_HEDGE_LEVERAGE = 50                 # плечо позиции BTC-хеджа (BTCUSDT на Bybit допускает до 100×)
 MARKET_VALID_BARS = 2                   # вход по рынку возможен ещё 2 свечи после свечи пробоя
 
 
 class Timeframe(str, Enum):
-    """Таймфреймы панели. 1h убран по решению трейдера (на бэктесте — лишь тонкий плюс); 5m добавлен по решению
-    трейдера для живой проверки, хотя на бэктесте в минусе (docs/knowledge.md, research/lowtf.py)."""
-    M5 = "5m"
+    """Таймфреймы панели. 1h убран по решению трейдера (на бэктесте — лишь тонкий плюс); 5m — тоже (2026-10: живая
+    проверка около нуля, на бэктесте в минусе — docs/knowledge.md, research/lowtf.py)."""
     M15 = "15m"
     H4 = "4h"
 
     @property
     def minutes(self) -> int:
-        return {"5m": 5, "15m": 15, "4h": 240}[self.value]
+        return {"15m": 15, "4h": 240}[self.value]
 
 
 class Mode(str, Enum):
@@ -103,10 +101,13 @@ class TfParams:
                                         # итог не выше 6% риска (100% маржи). 1 — без надбавки (research/tlcanon.py)
     long_risk_x: float = 1.0            # риск / маржа лонгов × (после надбавки за метки); 1 — как у шортов. На 15m лонги
                                         # хуже шортов в каждом периоде (research/sides15.py), в IS / VAL / HO — в минусе
+    ladder_x: float = 1.0               # лестница риска: после сделки этого ТФ с итогом >= +2R риск × это число (до
+                                        # ladder_steps ступеней), после убыточной — снова база; 1 — выключена
+    ladder_steps: int = 3               # ступеней вместе с базой: 3 — база, ×x, ×x² (research/crisk.py, 15m)
 
-    def sized_for(self, touch3: bool, long_line: bool, side: Side | None = None) -> tuple[float, float]:
-        """(риск %, маржа %) сделки с учётом надбавки за метки канона и пониженного риска лонгов."""
-        k = self.tag_risk_x ** (int(touch3) + int(long_line))
+    def sized_for(self, touch3: bool, long_line: bool, side: Side | None = None, step: int = 0) -> tuple[float, float]:
+        """(риск %, маржа %) сделки с учётом ступени лестницы, надбавки за метки канона и пониженного риска лонгов."""
+        k = self.tag_risk_x ** (int(touch3) + int(long_line)) * self.ladder_x ** min(max(step, 0), self.ladder_steps - 1)
         risk, margin = min(self.risk_pct * k, 6.0), min(self.margin_pct * k, 100.0)
         if side is Side.LONG:
             risk, margin = risk * self.long_risk_x, margin * self.long_risk_x
@@ -149,6 +150,10 @@ class TfParams:
             raise ValueError("надбавка за метку линии — от ×1 до ×2")
         if not 0.1 <= self.long_risk_x <= 1.0:
             raise ValueError("риск лонгов — от ×0.1 до ×1 от риска шортов")
+        if not 1.0 <= self.ladder_x <= 2.0:
+            raise ValueError("шаг лестницы риска — от ×1 (выключена) до ×2")
+        if not (isinstance(self.ladder_steps, int) and 1 <= self.ladder_steps <= 5):
+            raise ValueError("ступеней лестницы — от 1 до 5")
 
 
 # Лучшее по бэктесту (docs/research_report.md, docs/knowledge.md): 4h — основная стратегия (гибрид: ретест, а после
@@ -164,19 +169,12 @@ DEFAULT_TF_PARAMS: dict[Timeframe, TfParams] = {
     Timeframe.M15: TfParams(risk_pct=0.25, min_close_loc=0.5, entry_policy=EntryPolicy.MARKET, sides=SideFilter.SHORT,
                             max_slope_atr=0.025, top_n=150, max_hold_bars=200, max_positions=3, leverage=15,
                             tag_risk_x=1.25,         # надбавка за метки — по решению трейдера, на 15m в бэктесте ≈ 0
-                            long_risk_x=0.5),        # лонги на 15m хуже шортов в каждом периоде, в IS / VAL / HO в минусе
-    # 5m — на проверку вживую по решению трейдера. Бэктест правила бота на 5m (research/lowtf.py, core70, ретест):
-    # IS / VAL / HO −0.08 / −0.06 / −0.16R, каждый год в минусе, издержки ≈ 0.09R при стопе ~0.8% цены. Правило — как
-    # у 15m (пологие шорты по рынку), риск минимальный, своих позиций не больше 2, автоторговля выключена. Срок сделки
-    # 800 свечей (research/holdlen.py: лучше 200 в IS / VAL / HO, t 2.9, но прибавка всего +0.015R на сделку).
-    Timeframe.M5: TfParams(risk_pct=0.1, min_close_loc=0.5, entry_policy=EntryPolicy.MARKET, sides=SideFilter.SHORT,
-                           max_slope_atr=0.025, top_n=100, max_hold_bars=800, max_positions=2, leverage=25,
-                           margin_pct=0.5,     # «как на Bybit»: 0.5% × 25 = 12.5% номинала — стоп ~0.8% ≈ 0.1% капитала
-                           tag_risk_x=1.25,    # надбавка за метки — по решению трейдера, на 5m не проверялась
-                           long_risk_x=0.5),   # по аналогии с 15m: сторон на 5m отдельно не разбирали
+                            long_risk_x=0.5,         # лонги на 15m хуже шортов в каждом периоде, в IS / VAL / HO в минусе
+                            ladder_x=1.5),           # лестница 0.25 → 0.375 → 0.56%: лучше фиксированного риска того же
+                                                     # среднего во всех периодах, просадка не выше (research/crisk.py)
 }
-HTF_CONFIRM: dict[Timeframe, Timeframe] = {Timeframe.M15: Timeframe.H4, Timeframe.M5: Timeframe.H4}   # чей пробой подтверждает сигнал младшего ТФ
-RETIRED_TIMEFRAMES = ("1h",)            # были в панели раньше: сигналы и настройки этих ТФ при загрузке убираются
+HTF_CONFIRM: dict[Timeframe, Timeframe] = {Timeframe.M15: Timeframe.H4}   # чей пробой подтверждает сигнал младшего ТФ
+RETIRED_TIMEFRAMES = ("1h", "5m")       # были в панели раньше: сигналы и настройки этих ТФ при загрузке убираются
 # один раз при запуске перевести таймфрейм на новую стратегию в сохранённых настройках: правило — из DEFAULT_TF_PARAMS,
 # сигналы ищутся, автоторговля по нему выключена до проверки на демо; дальше трейдер меняет всё сам
 STRATEGY_RESETS: dict[str, Timeframe] = {"m15_gentle_shorts_2026_10": Timeframe.M15}
@@ -185,14 +183,12 @@ SETTINGS_ONCE: dict[str, dict[str, object]] = {"max_positions_12_2026_10": {"max
 # один раз при запуске поменять поля правила таймфрейма в сохранённых настройках
 TF_SETTINGS_ONCE: dict[str, tuple[Timeframe, dict[str, object]]] = {
     "m15_top150_pos3_2026_10": (Timeframe.M15, {"top_n": 150, "max_positions": 3}),
-    "m5_leverage25_2026_10": (Timeframe.M5, {"leverage": 25}),
-    "m5_margin05_2026_10": (Timeframe.M5, {"margin_pct": 0.5}),
     "h4_tag_risk_2026_10": (Timeframe.H4, {"tag_risk_x": 1.25}),
     "m15_tag_risk_2026_10": (Timeframe.M15, {"tag_risk_x": 1.25}),
-    "m5_tag_risk_2026_10": (Timeframe.M5, {"tag_risk_x": 1.25}),
-    "m5_hold800_2026_10": (Timeframe.M5, {"max_hold_bars": 800}),
-    "m15_long_risk_2026_10": (Timeframe.M15, {"long_risk_x": 0.5}),
-    "m5_long_risk_2026_10": (Timeframe.M5, {"long_risk_x": 0.5})}
+    "m15_long_risk_2026_10": (Timeframe.M15, {"long_risk_x": 0.5})}
+# лестница риска включается в сохранённых настройках один раз и только при базовом риске не выше потолка: при большей
+# базе ×2.25 дал бы на 15m риск, который по бэктесту разоряет (research/crisk.py) — тогда трейдер включает сам
+LADDER_ONCE: dict[str, tuple[Timeframe, float, float]] = {"m15_ladder_2026_10": (Timeframe.M15, 1.5, 1.0)}
 TF_FIELDS = tuple(TfParams.__dataclass_fields__)
 
 

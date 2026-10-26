@@ -221,13 +221,8 @@ def test_level_break_needs_two_turns_crossed_by_the_breakout_close():
     assert not level_break(c, a, 50, 1, piv, empty)         # закрытие не дошло до уровня
 
 
-def test_5m_timeframe_defaults_are_cautious():
-    from trader.domain.models import DEFAULT_TF_PARAMS, HTF_CONFIRM, EntryPolicy, Settings, SideFilter
-    p = DEFAULT_TF_PARAMS[Timeframe.M5]
-    assert Timeframe("5m").minutes == 5 and HTF_CONFIRM[Timeframe.M5] is Timeframe.H4
-    assert (p.risk_pct, p.sides, p.entry_policy, p.top_n, p.max_positions, p.leverage) == \
-        (0.1, SideFilter.SHORT, EntryPolicy.MARKET, 100, 2, 25)
-    assert Settings().lev(Timeframe.M5) == 25 and p.margin_pct == 0.5        # 0.5% × 25 — стоп ≈ 0.1% капитала
-    assert p.max_hold_bars == 800 and DEFAULT_TF_PARAMS[Timeframe.M15].max_hold_bars == 200   # research/holdlen.py
-    s = Settings()
-    assert Timeframe.M5 not in s.timeframes and Timeframe.M5 not in s.auto_timeframes      # включает только трейдер
+def test_5m_timeframe_is_retired():
+    from trader.domain.models import RETIRED_TIMEFRAMES
+    assert "5m" in RETIRED_TIMEFRAMES and "5m" not in {t.value for t in Timeframe}
+    with pytest.raises(ValueError):
+        Timeframe("5m")

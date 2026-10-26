@@ -14,8 +14,8 @@ from datetime import timedelta
 from ..domain.execution import (PYRAMID_AT_R, Account, ExecutionRefused, HedgeLeg, Position, Trade, TradeResult,
                                 TradeStatus, build_order, pyramid_due, pyramid_qty, settle, settle_fills, target_reached)
 from ..domain.hedge import HEDGE_SYMBOL, beta, held_qty, hedge_leverage, rebalance, target_qty, without_hedge
-from ..domain.journal import Health, tf_stats
-from ..domain.models import Signal, SignalStatus, Timeframe
+from ..domain.journal import Health, ladder_step, tf_stats
+from ..domain.models import Settings, Signal, SignalStatus, Timeframe
 from .pnl import PnlHistory, PnlPeriod
 from .ports import Broker, MarketData, Notifier, SettingsRepository, SignalRepository, TradeRepository
 
@@ -108,6 +108,16 @@ class Executor:
             n += sig is not None and sig.timeframe is tf
         return n
 
+    def ladder(self, settings: Settings, tf: Timeframe) -> int:
+        """Текущая ступень лестницы риска ТФ по закрытым сделкам с известным итогом (0 — лестница выключена)."""
+        p = settings.p(tf)
+        if p.ladder_x <= 1.0 or p.ladder_steps <= 1:
+            return 0
+        done = [e.trade for e in self.trades.journal() if e.timeframe is tf and e.trade.result is not None
+                and e.trade.r_multiple is not None]
+        done.sort(key=lambda t: t.result.closed_at)
+        return ladder_step([t.r_multiple for t in done], p.ladder_steps)
+
     async def execute(self, signal: Signal) -> Trade:
         """Отправить ордер по сигналу. ExecutionRefused — не отправлен (причина в тексте); сигнал тогда не меняется."""
         b = self.broker()
@@ -131,7 +141,7 @@ class Executor:
                 leg = await self._hedge_leg(signal) if settings.p(signal.timeframe).hedge_btc else None
                 req = build_order(signal, settings, acc, inst, price, self._day_start(acc.equity),
                                   self.clock(), self._tf_open(acc, signal.timeframe), leg.beta if leg else 0.0,
-                                  settings.hedge_lev)
+                                  settings.hedge_lev, self.ladder(settings, signal.timeframe))
                 order_id = await b.place(req)
             except ExecutionRefused:
                 raise

@@ -1089,7 +1089,7 @@ def test_long_risk_x_scales_only_longs_and_keeps_the_tag_boost():
     assert build_order(_sig(), st, ACC, INST, 101.0, None, NOW).risk_usd == pytest.approx(4.99, abs=0.03)   # _sig — лонг
     assert build_order(_sig(), Settings(), ACC, INST, 101.0, None, NOW).risk_usd == pytest.approx(9.99, abs=0.03)
     assert Settings().p(Timeframe.H4).long_risk_x == 1.0                               # 4h: лонги как шорты
-    assert Settings().p(Timeframe.M15).long_risk_x == Settings().p(Timeframe.M5).long_risk_x == 0.5
+    assert Settings().p(Timeframe.M15).long_risk_x == 0.5
     for bad in (0.05, 1.5):
         with pytest.raises(ValueError, match="лонгов"):
             Settings().with_tf(Timeframe.H4, long_risk_x=bad)
@@ -1239,3 +1239,47 @@ def test_misfilled_pyramid_results_are_reopened_once(tmp_path):
     st.settle_trade(t2.id, TradeStatus.CLOSED, TradeResult(105.5, 101.0, -2.3 * t.qty * 3, datetime(2026, 10, 21, 16, tzinfo=timezone.utc)))
     asyncio.run(ex.housekeep())                                                     # второй раз не трогаем
     assert st.trades_for([s.id])[s.id].status is TradeStatus.CLOSED
+
+
+def test_ladder_step_climbs_on_takes_and_resets_on_losses():
+    from trader.domain.journal import ladder_step
+    assert ladder_step([], 3) == 0
+    assert ladder_step([3.0], 3) == 1 and ladder_step([3.0, 2.9, 3.1], 3) == 2      # не выше последней ступени
+    assert ladder_step([3.0, 0.5, -0.1], 3) == 0                                    # срок в плюс — без изменений, убыток — сброс
+    assert ladder_step([3.0, 0.0], 3) == 1 and ladder_step([3.0, 3.0], 1) == 0
+
+
+def test_ladder_scales_risk_and_respects_the_cap():
+    p = Settings().p(Timeframe.M15)
+    assert (p.ladder_x, p.ladder_steps) == (1.5, 3) and Settings().p(Timeframe.H4).ladder_x == 1.0
+    base = p.sized_for(False, False, Side.SHORT)[0]
+    assert p.sized_for(False, False, Side.SHORT, 1)[0] == pytest.approx(base * 1.5)
+    assert p.sized_for(False, False, Side.SHORT, 7)[0] == pytest.approx(base * 2.25)   # ступеней 3 — не выше ×x²
+    big = replace(p, risk_pct=4.0)
+    assert big.sized_for(False, False, Side.SHORT, 2)[0] == 6.0                         # общий потолок 6%
+    for bad in ({"ladder_x": 0.9}, {"ladder_x": 2.5}, {"ladder_steps": 0}):
+        with pytest.raises(ValueError, match="лестниц"):
+            replace(p, **bad)
+
+
+def test_executor_ladder_reads_closed_trades_of_its_timeframe_in_close_order(tmp_path):
+    from datetime import datetime, timezone
+    from trader.domain.execution import TradeResult
+    st, ex = _exec(tmp_path, FakeBroker())
+    day = datetime(2026, 10, 20, tzinfo=timezone.utc)
+
+    def closed(sym, tf, pnl, hours):
+        s = st.add(_signal(sym, tf, Side.LONG))
+        t = st.add_trade(Trade(s.id, sym, Side.LONG, EntryKind.MARKET, 1, 101, 98, 110, f"o{sym}", "demo",
+                               TradeStatus.FILLED))
+        st.settle_trade(t.id, TradeStatus.CLOSED, TradeResult(101, 101 + pnl, pnl, day + timedelta(hours=hours)))
+
+    assert ex.ladder(Settings(), Timeframe.M15) == 0
+    closed("AAAUSDT", Timeframe.M15, 9.0, 1)            # +3R
+    closed("BBBUSDT", Timeframe.H4, -3.0, 2)            # убыток другого ТФ лестницу 15m не трогает
+    assert ex.ladder(Settings(), Timeframe.M15) == 1
+    closed("CCCUSDT", Timeframe.M15, -3.0, 0)           # закрылась раньше первой — порядок по времени закрытия
+    assert ex.ladder(Settings(), Timeframe.M15) == 1
+    closed("DDDUSDT", Timeframe.M15, -3.0, 5)
+    assert ex.ladder(Settings(), Timeframe.M15) == 0
+    assert ex.ladder(Settings(), Timeframe.H4) == 0                                  # на 4h лестница выключена

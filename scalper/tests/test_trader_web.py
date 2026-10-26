@@ -78,7 +78,7 @@ def test_chips_mode_and_csrf_header(env):
 
 def _params_form(**over):
     f = {"leverage": "5", "max_positions": "5", "daily_loss_pct": "4"}
-    for tf, risk, loc in (("4h", "1", "50"), ("15m", "0.25", "50"), ("5m", "0.1", "50")):
+    for tf, risk, loc in (("4h", "1", "50"), ("15m", "0.25", "50")):
         f |= {f"{tf}__risk_pct": risk, f"{tf}__entry_policy": "retest", f"{tf}__min_aggr_pct": "55",
               f"{tf}__target_r": "3", f"{tf}__min_close_loc_pct": loc, f"{tf}__min_break_atr": "0",
               f"{tf}__hybrid_range_atr": "2.5", f"{tf}__retest_bars": "12", f"{tf}__sides": "both",

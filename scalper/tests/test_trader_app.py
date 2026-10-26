@@ -372,14 +372,13 @@ def test_15m_gets_top150_and_own_position_limit_once(tmp_path):
     assert SqliteStore(tmp_path / "t.db").load().p(Timeframe.M15).top_n == 100   # правка трейдера остаётся
 
 
-def test_long_risk_halved_on_15m_and_5m_once_and_4h_untouched(tmp_path):
+def test_long_risk_halved_on_15m_once_and_4h_untouched(tmp_path):
     st = SqliteStore(tmp_path / "t.db")
-    st.db.execute("DELETE FROM kv WHERE key IN ('m15_long_risk_2026_10', 'm5_long_risk_2026_10')")
-    st.save(Settings().with_tf(Timeframe.M15, long_risk_x=1.0, sides=SideFilter.BOTH, risk_pct=4.0)
-            .with_tf(Timeframe.M5, long_risk_x=1.0))
+    st.db.execute("DELETE FROM kv WHERE key = 'm15_long_risk_2026_10'")
+    st.save(Settings().with_tf(Timeframe.M15, long_risk_x=1.0, sides=SideFilter.BOTH, risk_pct=4.0))
     st.db.commit()
     s = SqliteStore(tmp_path / "t.db").load()
-    assert s.p(Timeframe.M15).long_risk_x == 0.5 and s.p(Timeframe.M5).long_risk_x == 0.5
+    assert s.p(Timeframe.M15).long_risk_x == 0.5
     assert s.p(Timeframe.H4).long_risk_x == 1.0 and s.p(Timeframe.M15).risk_pct == 4.0
     SqliteStore(tmp_path / "t.db").save(s.with_tf(Timeframe.M15, long_risk_x=0.8))
     assert SqliteStore(tmp_path / "t.db").load().p(Timeframe.M15).long_risk_x == 0.8   # правка трейдера остаётся
@@ -415,3 +414,19 @@ def test_binance_daily_bars_and_funding_sum():
     a, b = datetime(2026, 10, 1, tzinfo=timezone.utc), datetime(2026, 10, 2, tzinfo=timezone.utc)
     assert asyncio.run(md.funding_sum("NEARUSDT", a, b)) == pytest.approx(0.00005)
     assert seen[1]["startTime"] == str(int(a.timestamp() * 1000) + 1)
+
+
+def test_ladder_enabled_once_only_with_a_small_base_risk(tmp_path):
+    st = SqliteStore(tmp_path / "t.db")
+    st.db.execute("DELETE FROM kv WHERE key = 'm15_ladder_2026_10'")
+    st.save(Settings().with_tf(Timeframe.M15, risk_pct=0.25, ladder_x=1.0))
+    st.db.commit()
+    assert SqliteStore(tmp_path / "t.db").load().p(Timeframe.M15).ladder_x == 1.5
+    st2 = SqliteStore(tmp_path / "u.db")
+    st2.db.execute("DELETE FROM kv WHERE key = 'm15_ladder_2026_10'")
+    st2.save(Settings().with_tf(Timeframe.M15, risk_pct=4.0))
+    st2.db.commit()
+    s = SqliteStore(tmp_path / "u.db").load()
+    assert s.p(Timeframe.M15).ladder_x == 1.0 and s.p(Timeframe.M15).risk_pct == 4.0   # при базе 4% — не включаем
+    SqliteStore(tmp_path / "u.db").save(s.with_tf(Timeframe.M15, ladder_x=1.5))
+    assert SqliteStore(tmp_path / "u.db").load().p(Timeframe.M15).ladder_x == 1.5     # включил трейдер — остаётся

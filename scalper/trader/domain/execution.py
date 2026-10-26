@@ -123,10 +123,10 @@ def day_loss_hit(equity: float, day_start_equity: float | None, daily_loss_pct: 
 
 def build_order(signal: Signal, settings: Settings, account: Account, instrument: Instrument, price: float,
                 day_start_equity: float | None, now: datetime, tf_open: int = 0, hedge_beta: float = 0.0,
-                hedge_lev: int = 0) -> OrderRequest:
+                hedge_lev: int = 0, ladder: int = 0) -> OrderRequest:
     """Ордер по сигналу или ExecutionRefused с понятной причиной. tf_open — сколько из занятых монет заняты
     сделками того же таймфрейма; hedge_beta — к сделке добавится хедж BTC на бету × номинал, ему тоже нужна маржа
-    (по плечу хеджа hedge_lev; 0 — как у сделки)."""
+    (по плечу хеджа hedge_lev; 0 — как у сделки); ladder — ступень лестницы риска ТФ (domain/journal.ladder_step)."""
     if signal.id is None:
         raise ExecutionRefused("сигнал не сохранён")
     sym, side, plan = signal.symbol, signal.side, signal.plan
@@ -162,7 +162,7 @@ def build_order(signal: Signal, settings: Settings, account: Account, instrument
     entry = round_price(entry, instrument.tick)
     stop, target = round_price(plan.stop, instrument.tick), round_price(plan.target, instrument.tick)
     tp = settings.p(signal.timeframe)
-    risk_pct, margin_pct = tp.sized_for(signal.touch3, signal.long_line, signal.side)   # метки линии, лонги ×long_risk_x
+    risk_pct, margin_pct = tp.sized_for(signal.touch3, signal.long_line, signal.side, ladder)   # лестница, метки, лонги
     lev = int(max(1, min(settings.lev(signal.timeframe), instrument.max_leverage)))
     if settings.sizing is Sizing.MARGIN:                                 # как на Bybit: маржа × плечо
         want_qty = account.equity * margin_pct / 100 * lev / entry

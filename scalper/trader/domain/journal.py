@@ -103,6 +103,18 @@ class JournalEntry:
     round_level: bool = False   # пробой прошёл крупный круглый уровень (Signal.round_level)
 
 
+LADDER_TAKE_R = 2.0     # сделка с таким итогом и выше поднимает лестницу риска на ступень (research/crisk.py)
+
+
+def ladder_step(results: list[float], steps: int) -> int:
+    """Ступень лестницы риска по итогам закрытых сделок ТФ в порядке закрытия: +1 после итога >= +2R (не выше
+    steps − 1), 0 после убыточной, без изменений после остальных (срок, безубыток)."""
+    step = 0
+    for r in results:
+        step = min(step + 1, steps - 1) if r >= LADDER_TAKE_R else 0 if r < 0 else step
+    return step
+
+
 @dataclass(frozen=True)
 class TfStats:
     timeframe: Timeframe

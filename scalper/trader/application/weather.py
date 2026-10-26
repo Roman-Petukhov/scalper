@@ -28,7 +28,7 @@ WARMUP = 400                    # правилу нужно столько св�
 BARS = 1500                     # столько свечей отдаёт closed_bars
 AFTER_CLOSE = timedelta(minutes=10)
 RETRY = timedelta(minutes=30)
-REPLAY_TFS = (Timeframe.H4, Timeframe.M15, Timeframe.M5)
+REPLAY_TFS = (Timeframe.H4, Timeframe.M15)
 
 
 def _utcnow() -> datetime:

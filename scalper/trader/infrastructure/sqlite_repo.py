@@ -12,7 +12,7 @@ from ..domain.execution import HedgeLeg, Trade, TradeResult, TradeStatus
 from ..domain.journal import JournalEntry
 from ..domain.daily_break import DailySetup, Status as DailyStatus
 from ..domain.trend import TrendDay, TrendPosition
-from ..domain.models import (DEFAULT_TF_PARAMS, RETIRED_TIMEFRAMES, SETTINGS_ONCE, STRATEGY_RESETS, TF_FIELDS, TF_SETTINGS_ONCE, EntryKind, EntryPolicy, Mode, Settings, Sizing,
+from ..domain.models import (DEFAULT_TF_PARAMS, RETIRED_TIMEFRAMES, SETTINGS_ONCE, STRATEGY_RESETS, TF_FIELDS, TF_SETTINGS_ONCE, LADDER_ONCE, EntryKind, EntryPolicy, Mode, Settings, Sizing,
                              Side, SideFilter, Signal, SignalStatus, TfParams, Timeframe, TradePlan)
 
 SCHEMA = """
@@ -116,6 +116,7 @@ class SqliteStore:
             self._reset_strategies(STRATEGY_RESETS)
             self._set_once(SETTINGS_ONCE)
             self._set_tf_once(TF_SETTINGS_ONCE)
+            self._ladder_once(LADDER_ONCE)
             self.db.commit()
 
     def _reset_strategies(self, once: dict[str, Timeframe]) -> None:
@@ -180,6 +181,25 @@ class SqliteStore:
                 tfp[tf.value] = {**tfp.get(tf.value, self._tf_payload(DEFAULT_TF_PARAMS[tf])), **fields}
                 self.db.execute("UPDATE settings SET payload = ? WHERE id = 1", (json.dumps(p),))
             self.db.execute("INSERT INTO kv(key, value) VALUES (?, ?)", (key, "done"))
+
+    def _ladder_once(self, once: dict[str, tuple[Timeframe, float, float]]) -> None:
+        """Один раз включить лестницу риска ТФ, если базовый риск в сохранённых настройках не выше max_base %."""
+        for key, (tf, x, max_base) in once.items():
+            if self.db.execute("SELECT 1 FROM kv WHERE key = ?", (key,)).fetchone():
+                continue
+            row = self.db.execute("SELECT payload FROM settings WHERE id = 1").fetchone()
+            note = "done"
+            if row is not None:
+                p = json.loads(row["payload"])
+                tfp = p.setdefault("tf_params", {})
+                cur = {**self._tf_payload(DEFAULT_TF_PARAMS[tf]), **tfp.get(tf.value, {})}
+                if float(cur.get("risk_pct", 0)) <= max_base:
+                    tfp[tf.value] = {**cur, "ladder_x": x, "ladder_steps": 3}
+                else:
+                    tfp[tf.value] = {**cur, "ladder_x": 1.0}
+                    note = "skipped: base risk above cap"
+                self.db.execute("UPDATE settings SET payload = ? WHERE id = 1", (json.dumps(p),))
+            self.db.execute("INSERT INTO kv(key, value) VALUES (?, ?)", (key, note))
 
     @staticmethod
     def _tf_payload(v: TfParams) -> dict:
@@ -317,7 +337,7 @@ class SqliteStore:
             # поля, которых не было в сохранённой версии, — из значений по умолчанию этого ТФ
             d = {**{k: getattr(DEFAULT_TF_PARAMS[tf], k) for k in TF_FIELDS}, **p["tf_params"][tf.value]}
         else:
-            sfx = {Timeframe.H4: "", Timeframe.M15: "_15m", Timeframe.M5: "_5m"}[tf]
+            sfx = {Timeframe.H4: "", Timeframe.M15: "_15m"}[tf]
             d = {k: p[k] for k in ("min_aggr", "target_r", "min_break_atr", "hybrid_range_atr", "retest_bars",
                                    "entry_policy") if k in p}
             for k in ("risk_pct", "min_close_loc"):

@@ -60,9 +60,8 @@ REMEMBER_S = 365 * 24 * 3600          # «запомнить на этом ус�
 SHORT_LOGIN_S = 12 * 3600
 CHART_BARS = 300                      # свечей на живом графике
 JOURNAL_ROWS = 15                     # последних закрытых сделок в журнале
-TYPICAL_STOP_PCT = {Timeframe.H4: 8.6, Timeframe.M15: 1.5, Timeframe.M5: 0.8}   # стоп, % цены, пока своих сигналов мало: 4h — медиана
-#                                                                  бэктеста 2020–2026 (research/margsim.py), 15m — прикидка,
-#                                                                  5m — медиана research/lowtf.py
+TYPICAL_STOP_PCT = {Timeframe.H4: 8.6, Timeframe.M15: 1.5}   # стоп, % цены, пока своих сигналов мало: 4h — медиана
+#                                                              бэктеста 2020–2026 (research/margsim.py), 15m — прикидка
 ARCHIVED = {SignalStatus.EXPIRED, SignalStatus.SKIPPED, SignalStatus.CLOSED}
 DELETABLE = {SignalStatus.EXPIRED, SignalStatus.SKIPPED}   # закрытые сделки — история журнала, не удаляем
 VIEWS = {"all", "archive"} | {t.value for t in Timeframe}
@@ -240,7 +239,7 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
                 "risk": risk_view(s), "equity": last_equity(),
                 "trades": store.trades_for([x.id for x in signals if x.id is not None]),
                 "exchange": exchange_label(), "creds": holder.credentials if broker is None else None,
-                "aliases": load_aliases(store)}
+                "aliases": load_aliases(store), "ladder": {t: executor.ladder(s, t) for t in Timeframe}}
 
     def risk_view(s: Settings) -> dict[Timeframe, dict]:
         """«Что это значит» под настройками: типичный стоп ТФ (медиана по последним сигналам), доля капитала
@@ -447,7 +446,10 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
                               "leverage": int(form.get(f"{tf.value}__tf_leverage", settings_svc.get().p(tf).leverage)),
                               "tag_risk_x": float(form.get(f"{tf.value}__tag_risk_x", settings_svc.get().p(tf).tag_risk_x)),
                               "long_risk_x": float(form.get(f"{tf.value}__long_risk_x",
-                                                            settings_svc.get().p(tf).long_risk_x))}
+                                                            settings_svc.get().p(tf).long_risk_x)),
+                              "ladder_x": float(form.get(f"{tf.value}__ladder_x", settings_svc.get().p(tf).ladder_x)),
+                              "ladder_steps": int(form.get(f"{tf.value}__ladder_steps",
+                                                           settings_svc.get().p(tf).ladder_steps))}
             settings_svc.update(g, per_tf)
         except KeyError as e:
             err = f"не заполнено поле {e.args[0]}"
