@@ -44,6 +44,7 @@ from .squeezesize import compare
 DAY_NS = 86_400 * 10**9
 PATHS = 200
 LADDER_TAKE = 2.0
+SQUEEZE_EDGE = 0.5        # как SQUEEZE_MAX бота (trader/domain/strategy.py)
 
 
 @dataclass(frozen=True)
@@ -59,8 +60,25 @@ class Book:
     day_stop: float = 0.15
     lev15: float = 15.0
     lev4h: float = 12.0
+    sides15: str = "both"         # "short" — только шорты 15m
+    slope15: float = 0.04         # наклон линии 15m не круче
+    squeeze4h: float = 1.0        # риск 4h × на сжатых пробоях (research/squeezesize.py)
 
 
+# второй заход (после первого: живые и «умеренный» опасны) — где безопасно; задан до запуска, критерий тот же
+BOOKS2 = (Book("4h 1%", r15=0.0, r4h=0.01), Book("4h 2%", r15=0.0, r4h=0.02), Book("4h 3%", r15=0.0, r4h=0.03),
+          Book("4h 2% + сжатие", r15=0.0, r4h=0.02, squeeze4h=1.5),
+          Book("15m ш 0.25% ≤.025 ≤3 + 4h 1%", r15=0.0025, r4h=0.01, limit15=3, sides15="short", slope15=0.025),
+          Book("15m ш 0.25% ≤.025 ≤3 + 4h 2% сж", r15=0.0025, r4h=0.02, limit15=3, sides15="short", slope15=0.025,
+               squeeze4h=1.5),
+          Book("15m ш 0.5% ≤.025 ≤3 + 4h 2% сж", r15=0.005, r4h=0.02, limit15=3, sides15="short", slope15=0.025,
+               squeeze4h=1.5),
+          Book("15m ш 0.5% ≤.04 ≤3 + 4h 2% сж", r15=0.005, r4h=0.02, limit15=3, sides15="short", slope15=0.04,
+               squeeze4h=1.5),
+          Book("15m ш 0.25% ≤.025 риск≤10% + 4h 2% сж", r15=0.0025, r4h=0.02, heat=0.10, sides15="short",
+               slope15=0.025, squeeze4h=1.5),
+          Book("15m ш 1% ≤.025 ≤3 + 4h 2% сж", r15=0.01, r4h=0.02, limit15=3, sides15="short", slope15=0.025,
+               squeeze4h=1.5))
 BOOKS = (Book("live"), Book("live, 15m <= 3", limit15=3), Book("live, 15m <= 5", limit15=5),
          Book("live, 15m <= 8", limit15=8), Book("live, риск <= 10%", heat=0.10), Book("live, риск <= 15%", heat=0.15),
          Book("live, риск <= 20%", heat=0.20), Book("умеренный", r15=0.005, r4h=0.01, limit15=3))
@@ -80,7 +98,12 @@ def load() -> pd.DataFrame | None:
 
 def simulate_book(z: pd.DataFrame, b: Book, R: np.ndarray | None = None) -> dict:
     """Один счёт на 15m и 4h; по закрытым сделкам, сложный процент."""
+    keep = ((z.tf == "4h") | ((b.r15 > 0) & (z.slope_atr <= b.slope15) & ((b.sides15 == "both") | (z.side < 0))))
+    if not keep.all():
+        z = z[keep.to_numpy()]
+        R = None if R is None else R[keep.to_numpy()]
     R = z.R.to_numpy() if R is None else R
+    sq = (z["squeeze"].to_numpy() <= SQUEEZE_EDGE) if "squeeze" in z else np.zeros(len(z), bool)
     f = z.fill.to_numpy("datetime64[ns]").astype("int64")
     x = z.exit.to_numpy("datetime64[ns]").astype("int64")
     is15 = (z.tf == "15m").to_numpy()
@@ -122,7 +145,7 @@ def simulate_book(z: pd.DataFrame, b: Book, R: np.ndarray | None = None) -> dict
         if is15[i] and b.limit15 and n15 >= b.limit15:
             skip["лимит 15m"] += 1
             continue
-        r = min(b.r15 * b.ladder_x ** step, 0.06) if is15[i] else b.r4h
+        r = min(b.r15 * b.ladder_x ** step, 0.06) if is15[i] else min(b.r4h * (b.squeeze4h if sq[i] else 1.0), 0.06)
         used = sum(v[1] for v in open_.values())
         if b.heat and used + r > b.heat + 1e-12:
             skip["потолок риска"] += 1
@@ -161,14 +184,14 @@ def _growth(curve: pd.Series) -> dict[str, float]:
     return {k: period_growth(curve, a, b) for k, (a, b) in PER_ALL.items()}
 
 
-def portfolio_report(z: pd.DataFrame) -> None:
-    print("\n  === 1. Портфель в живых настройках: 15m (обе стороны, наклон <= 0.04) + 4h одним счётом, маржа, дневной "
-          "стоп; P(просадка > 50%) — блочный бутстреп недель ===")
+def portfolio_report(z: pd.DataFrame, books: tuple[Book, ...] = BOOKS,
+                     title: str = "1. Портфель в живых настройках: 15m (обе стороны, наклон <= 0.04) + 4h") -> None:
+    print(f"\n  === {title} одним счётом, маржа, дневной стоп; P(просадка > 50%) — блочный бутстреп недель ===")
     print(f"  сделок: 15m {int((z.tf == '15m').sum())}, 4h {int((z.tf == '4h').sum())}")
     rng = np.random.default_rng(23)
     boots = [week_blocks(z, rng) for _ in range(PATHS)]
     res = {}
-    for b in BOOKS:
+    for b in books:
         s = simulate_book(z, b)
         g = _growth(s["curve"])
         dds = np.array([simulate_book(q, b)["mdd"] for q in boots])
@@ -179,7 +202,7 @@ def portfolio_report(z: pd.DataFrame) -> None:
         res[b.name] = (safe, med)
         cells = "  ".join(f"{k} {np.expm1(v):+.0%}" if np.isfinite(v) else f"{k} —" for k, v in g.items())
         skips = ", ".join(f"{k} {v}" for k, v in s["skip"].items() if v)
-        print(f"    {b.name:<20} в год: {cells}\n{'':26}просадка {s['mdd']:.0%}, худший месяц "
+        print(f"    {b.name:<38} в год: {cells}\n{'':26}просадка {s['mdd']:.0%}, худший месяц "
               f"{worst_month(s['curve']):+.0%}, бутстреп: медиана просадки {np.median(dds):.0%}, P(> 50%) {p50:.0%}; "
               f"макс. открытый риск {s['heat_max']:.0%}; пропущено: {skips or '—'} → "
               f"{'безопасный' if safe else 'опасный'}")
@@ -242,7 +265,16 @@ def report() -> None:
           + ("принят: " + "; ".join(vo) if vo else "не принят"))
 
 
+def report2() -> None:
+    print("\n===== LIVEBOOK2: где безопасно — 4h отдельно и с 15m-шортами в масштабе проверок =====")
+    z = load()
+    if z is None:
+        print("  crisk: нет данных")
+        return
+    portfolio_report(z, BOOKS2, "Варианты")
+
+
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     warnings.filterwarnings("ignore")
-    report()
+    report2() if sys.argv[1:] == ["2"] else report()

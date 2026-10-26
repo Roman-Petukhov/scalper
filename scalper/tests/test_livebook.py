@@ -12,7 +12,7 @@ def _z(rows):
     return pd.DataFrame({"tf": [r[0] for r in rows], "fill": fill,
                          "exit": [f + pd.Timedelta(hours=r[2]) for f, r in zip(fill, rows)],
                          "R": [r[3] for r in rows], "stop_pct": [r[4] for r in rows], "side": -1,
-                         "t": fill})
+                         "t": fill, "slope_atr": 0.01, "squeeze": 1.0})
 
 
 def test_ladder_steps_on_15m_takes_only():
@@ -48,3 +48,12 @@ def test_week_blocks_keep_trades_of_a_week_together():
     pair = (f[1::2] - f[0::2]) / np.timedelta64(1, "h")
     assert (pair == 1.0).all() and (q.sort_values("fill").R.to_numpy()[0::2] == q.sort_values("fill").R.to_numpy()[1::2]).all()
     assert q.fill.min() == z.fill.min()                                      # ряд начинается с той же недели
+
+
+def test_book_filters_15m_and_boosts_squeezed_4h():
+    z = _z([("15m", 0, 1, 3.0, 0.03), ("4h", 2, 1, 3.0, 0.03), ("15m", 4, 1, 3.0, 0.03)])
+    z.loc[1, "squeeze"] = 0.4
+    z.loc[2, "side"] = 1
+    s = L.simulate_book(z, L.Book("b", r15=0.01, ladder_x=1.0, r4h=0.01, squeeze4h=1.5, sides15="short"))
+    assert s["eq"] == pytest.approx(1.03 * 1.045)                            # лонг 15m отброшен, 4h ×1.5
+    assert L.simulate_book(z, L.Book("b", r15=0.0, r4h=0.01))["eq"] == pytest.approx(1.03)   # только 4h
