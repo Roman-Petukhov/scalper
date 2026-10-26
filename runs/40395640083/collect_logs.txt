@@ -1,0 +1,90 @@
+----- emagrid collect (часть 0/10) -----
+часть 0/10, набор lowtf-core70: монет 6
+  emagrid SOLUSDT: дней 2203
+  emagrid MKRUSDT: дней 2235
+  emagrid 1INCHUSDT: дней 2106
+  emagrid ZECUSDT: дней 2425
+  emagrid XTZUSDT: дней 2429
+  emagrid ZILUSDT: дней 2291
+----- emagrid collect (часть 1/10) -----
+часть 1/10, набор lowtf-core70: монет 6
+  emagrid ARBUSDT: дней 1288
+  emagrid AXSUSDT: дней 2141
+  emagrid EOSUSDT: дней 1961
+  emagrid FTMUSDT: дней 2193
+  emagrid 1000SHIBUSDT: дней 1970
+  emagrid GMTUSDT: дней 1659
+----- emagrid collect (часть 2/10) -----
+часть 2/10, набор lowtf-core70: монет 9
+  emagrid BNBUSDT: дней 2425
+  emagrid XRPUSDT: дней 2455
+  emagrid FILUSDT: дней 2171
+  emagrid OPUSDT: дней 1583
+  emagrid HBARUSDT: дней 2019
+  emagrid CHZUSDT: дней 2079
+  emagrid NEOUSDT: дней 2418
+  emagrid TIAUSDT: дней 1066
+  emagrid ARUSDT: дней 1829
+----- emagrid collect (часть 3/10) -----
+часть 3/10, набор lowtf-core70: монет 7
+  emagrid AVAXUSDT: дней 2199
+  emagrid NEARUSDT: дней 2172
+  emagrid GALAUSDT: дней 1839
+  emagrid SUSHIUSDT: дней 2213
+  emagrid COMPUSDT: дней 2284
+  emagrid GRTUSDT: дней 2107
+  emagrid SUIUSDT: дней 1247
+----- emagrid collect (часть 4/10) -----
+часть 4/10, набор lowtf-core70: монет 6
+  emagrid DOGEUSDT: дней 2274
+  emagrid ALGOUSDT: дней 2298
+  emagrid VETUSDT: дней 2416
+  emagrid ICPUSDT: дней 1943
+  emagrid RUNEUSDT: дней 2218
+  emagrid SEIUSDT: дней 1141
+----- emagrid collect (часть 5/10) -----
+часть 5/10, набор lowtf-core70: монет 7
+  emagrid ETCUSDT: дней 2450
+  emagrid SANDUSDT: дней 2070
+  emagrid THETAUSDT: дней 2318
+  emagrid SNXUSDT: дней 2239
+  emagrid KAVAUSDT: дней 2256
+  emagrid KSMUSDT: дней 2173
+  emagrid 1000PEPEUSDT: дней 1245
+----- emagrid collect (часть 6/10) -----
+часть 6/10, набор lowtf-core70: монет 8
+  emagrid LINKUSDT: дней 2449
+  emagrid APTUSDT: дней 1443
+  emagrid MANAUSDT: дней 2021
+  emagrid APEUSDT: дней 1659
+  emagrid EGLDUSDT: дней 2208
+  emagrid CRVUSDT: дней 2221
+  emagrid IOTAUSDT: дней 2418
+  emagrid WAVESUSDT: дней 2236
+----- emagrid collect (часть 7/10) -----
+часть 7/10, набор lowtf-core70: монет 6
+  emagrid BTCUSDT: дней 2465
+  emagrid ADAUSDT: дней 2435
+  emagrid DOTUSDT: дней 2231
+  emagrid TRXUSDT: дней 2446
+  emagrid MATICUSDT: дней 1421
+  emagrid DASHUSDT: дней 2431
+----- emagrid collect (часть 8/10) -----
+часть 8/10, набор lowtf-core70: монет 8
+  emagrid ETHUSDT: дней 2465
+  emagrid LTCUSDT: дней 2452
+  emagrid ATOMUSDT: дней 2428
+  emagrid XLMUSDT: дней 2441
+  emagrid LDOUSDT: дней 1470
+  emagrid WLDUSDT: дней 1165
+  emagrid FETUSDT: дней 1353
+  emagrid STXUSDT: дней 1318
+----- emagrid collect (часть 9/10) -----
+часть 9/10, набор lowtf-core70: монет 7
+  emagrid BCHUSDT: дней 2465
+  emagrid INJUSDT: дней 1506
+  emagrid AAVEUSDT: дней 2176
+  emagrid UNIUSDT: дней 2204
+  emagrid DYDXUSDT: дней 1847
+  emagrid ENJUSDT: дней 2193
+  emagrid IMXUSDT: дней 1688
