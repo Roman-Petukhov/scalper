@@ -30,6 +30,7 @@ from trader.domain.trend import LOOKBACKS, TAKER, _mid_models
 from . import dtrend
 from .broad import ADV_MIN, adv30
 from .dboost import JUDGED, PER, SINCE, _bot_months, _combo, _dd, _sharpe, judge
+from .oos import sector
 from .shard import all_parts, mine, part_path
 from .tline import tf_frame
 
@@ -46,9 +47,10 @@ def ensemble(close: pd.DataFrame, lookbacks: tuple[int, ...] = LOOKBACKS, bpd: i
 
 
 def book(close: pd.DataFrame, adv: pd.DataFrame, fund: pd.DataFrame | None = None, *, top: int = TOP, k: int = K,
-         bpd: int = 1, fund_cap: float | None = None, sig: pd.DataFrame | None = None) -> pd.DataFrame:
+         bpd: int = 1, fund_cap: float | None = None, sig: pd.DataFrame | None = None,
+         sector_cap: int | None = None) -> pd.DataFrame:
     """Веса «сильнейшие K + долив» на свечах с bpd свечами в дне (1 — дневки, 6 — 4h); sig — готовый сигнал
-    ансамбля вместо полного (9 периодов)."""
+    ансамбля вместо полного (9 периодов); sector_cap — не больше стольких монет из одного сектора (research/dboost4.py)."""
     if sig is None:
         sig = ensemble(close, LOOKBACKS, bpd)
     hi = close.rolling(20 * bpd, min_periods=20 * bpd).max().shift(1)
@@ -70,8 +72,32 @@ def book(close: pd.DataFrame, adv: pd.DataFrame, fund: pd.DataFrame | None = Non
     if fund_cap is not None and fund is not None:
         ok &= ~(fund.rolling(7 * bpd, min_periods=1).sum() / 7 > fund_cap)
     keep = mom.where(ok).rank(axis=1, ascending=False, method="first") <= k
+    if sector_cap is not None:
+        keep = capped_pick(mom.where(ok), k, sector_cap)
     w = (sized.where(keep, 0.0) * (COIN_VOL / vol) / k).where(member & close.notna(), 0.0).fillna(0.0)
     return _cap(w)
+
+
+CAPPED_SECTORS = ("мемы", "AI", "L2", "DeFi", "игры/NFT")    # L1 и «другое» — ядро рынка, без лимита
+
+
+def capped_pick(score: pd.DataFrame, k: int, per_sector: int) -> pd.DataFrame:
+    """Лучшие k по score в каждой строке, не больше per_sector монет из одного сектора CAPPED_SECTORS."""
+    sec = [sector(c) for c in score.columns]
+    x = score.to_numpy()
+    out = np.zeros(x.shape, dtype=bool)
+    for i in range(len(x)):
+        row = x[i]
+        cnt: dict[str, int] = {}
+        for j in np.argsort(-np.where(np.isnan(row), -np.inf, row), kind="stable"):
+            if np.isnan(row[j]) or out[i].sum() >= k:
+                break
+            s = sec[j]
+            if s in CAPPED_SECTORS and cnt.get(s, 0) >= per_sector:
+                continue
+            cnt[s] = cnt.get(s, 0) + 1
+            out[i, j] = True
+    return pd.DataFrame(out, index=score.index, columns=score.columns)
 
 
 def _cap(w: pd.DataFrame) -> pd.DataFrame:

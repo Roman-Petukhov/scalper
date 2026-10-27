@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"quarterly"}
+TASKS=${TASKS:-"dboost4"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -549,6 +549,12 @@ dboost2_collect() { python -m research.dboost2 collect --symbols "$(cat /tmp/sym
 dboost2_report() { python -m research.dboost2 report; }
 dboost3_collect() { python -m research.dboost3 collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
 dboost3_report() { python -m research.dboost3 report; }
+# Тренд бумажного счёта: спот вместо перпа, вход внутри дня по уровню канала, лимит сектора, цель волатильности
+dboost4_collect() {
+  python -m research.extreg collect
+  python -m research.dboost4 collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
+}
+dboost4_report() { python -m research.dboost4 report; }
 bybitflow_collect() { python -m research.bybitflow collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"; }
 bybitflow_report() { python -m research.bybitflow report; }
 retest15_collect() { python -m research.retest15 collect --symbols "$(cat /tmp/syms_15m-wide.txt)"; }

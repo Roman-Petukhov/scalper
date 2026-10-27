@@ -48,6 +48,7 @@ def collect(root: Path, syms: list[str]) -> None:
                 continue
             a = adv30(root, s).reindex(d.index)
             days.append(pd.DataFrame({"symbol": s, "day": d.index, "close": d["close"].to_numpy(),
+                                      "open": d["open"].to_numpy(), "high": d["high"].to_numpy(),
                                       "funding": d["funding"].to_numpy(), "adv": a.to_numpy()}))
             x = coin_trades(root, s, "4h", ctx)
             if len(x):
