@@ -552,6 +552,7 @@ dboost3_report() { python -m research.dboost3 report; }
 # Тренд бумажного счёта: спот вместо перпа, вход внутри дня по уровню канала, лимит сектора, цель волатильности
 dboost4_collect() {
   python -m research.extreg collect
+  RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-qualified
   python -m research.dboost4 collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
 }
 dboost4_report() { python -m research.dboost4 report; }
