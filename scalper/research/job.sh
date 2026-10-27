@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"quarterly"}
+TASKS=${TASKS:-"onchainprobe spotrev"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -669,6 +669,13 @@ spikesfull_report() {
   echo "===== SPIKES FULL: прострелы по всему рынку и счёт \$100 ====="
   python -m research.spikes_full report
 }
+
+# «Недооценённые альты на месяцы»: этап 1 — проба бесплатной истории (адреса, комиссии, капитализация),
+# этап 2 — разворот 1–12 мес. на споте Binance против удержания BTC
+onchainprobe_collect() { :; }
+onchainprobe_report() { python -m research.onchainprobe report; }
+spotrev_collect() { python -m research.spotrev collect; }
+spotrev_report() { python -m research.spotrev report; }
 
 case "$MODE" in
   collect|report) ;;
