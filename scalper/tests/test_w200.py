@@ -52,3 +52,34 @@ def test_alt_forward_haircuts_dead_coins():
     meta.loc["C0USDT", "last"] = m[11]
     r = W.alt_forward(c, adv, meta, 12)
     assert r.loc[m[0]] == pytest.approx(((1 - W.DEAD_HAIRCUT) - 1 + 1.0) / 20)
+
+
+def _wk(closes, e50, e200, lows=None):
+    idx = pd.date_range("2020-01-05", periods=len(closes), freq="W-SUN")
+    return pd.DataFrame({"close": closes, "low": lows if lows is not None else closes, "ema50": e50, "ema200": e200},
+                        index=idx, dtype="float64")
+
+
+def test_launch_needs_close_below_ema200_then_k_closes_above_ema50():
+    w = _wk([12, 9, 11, 11.5, 12, 13, 9, 11, 11], [10.5] * 9, [10] * 9)
+    la = W.launches(w, 2)
+    assert la == [w.index[3], w.index[8]]                   # 11 (1-е над EMA50), 11.5 (2-е) → запуск; потом снова
+
+
+def test_pullback_touch_in_bull_regime_and_gap():
+    n = 20
+    e50 = np.linspace(100, 120, n)
+    close = e50 * 1.1
+    low = close.copy()
+    low[10] = e50[10] * 1.005                               # касание
+    low[12] = e50[12]                                       # слишком рано после прошлого касания
+    w = _wk(close, e50, np.full(n, 50.0), low)
+    assert W.pullbacks(w) == [w.index[10]]
+
+
+def test_event_returns_uses_month_end_for_alts():
+    d = pd.Series(np.linspace(100, 200, 800), index=pd.date_range("2020-01-01", periods=800, freq="D"))
+    alt = {3: pd.Series({pd.Timestamp("2020-02-29"): 0.1}), 6: pd.Series(dtype=float), 12: pd.Series(dtype=float)}
+    ev = W.event_returns([pd.Timestamp("2020-02-09")], d, alt)
+    assert ev.loc[0, "альты 3м"] == pytest.approx(0.1)
+    assert ev.loc[0, "BTC 3м"] == pytest.approx(d.asof(pd.Timestamp("2020-05-09")) / d.asof(pd.Timestamp("2020-02-09")) - 1)

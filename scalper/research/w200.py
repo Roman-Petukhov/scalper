@@ -35,6 +35,12 @@ SPAN = 200
 BINS = (0.0, 1.0, 1.5, 2.5, np.inf)
 BIN_NAMES = ("< 1 (ниже)", "1–1.5", "1.5–2.5", "> 2.5")
 HS = (12, 24)
+FAST = 50
+HOLD_K = 2                   # запуск: столько недельных закрытий подряд над EMA50 после закрытия под EMA200
+TOUCH = 1.01                 # откат: недельный минимум закрытий <= EMA50 × TOUCH, закрытие недели >= EMA50 × FLOOR
+FLOOR = 0.97
+GAP = 4                      # новое касание — не раньше чем через столько недель без касания
+EV_HS = (3, 6, 12)
 ADV_MIN = 1e6
 
 
@@ -62,6 +68,76 @@ def weekly_ratio(daily: pd.Series) -> pd.DataFrame:
     ema = w.ewm(span=SPAN, adjust=False).mean()
     ema[np.arange(len(w)) < SPAN - 1] = np.nan
     return pd.DataFrame({"close": w, "ema": ema, "ratio": w / ema})
+
+
+def weekly_frame(daily: pd.Series) -> pd.DataFrame:
+    """Неделя: закрытие, минимум дневных закрытий, EMA50 и EMA200 (NaN до прогрева)."""
+    w = daily.resample("W-SUN").agg(["last", "min"]).dropna()
+    w.columns = ["close", "low"]
+    for span, k in ((FAST, "ema50"), (SPAN, "ema200")):
+        e = w["close"].ewm(span=span, adjust=False).mean()
+        e[np.arange(len(w)) < span - 1] = np.nan
+        w[k] = e
+    return w
+
+
+def launches(w: pd.DataFrame, k: int = HOLD_K) -> list[pd.Timestamp]:
+    """Запуск роста: после закрытия под EMA200 — k закрытий подряд над EMA50; дальше ждём нового закрытия под EMA200."""
+    out, armed, run = [], False, 0
+    for t, r in w.dropna().iterrows():
+        if r.close < r.ema200:
+            armed, run = True, 0
+            continue
+        run = run + 1 if r.close > r.ema50 else 0
+        if armed and run >= k:
+            out.append(t)
+            armed = False
+    return out
+
+
+def bull(w: pd.DataFrame) -> pd.Series:
+    """Бычий режим: закрытие над EMA200 и EMA50 растёт (выше, чем 4 недели назад)."""
+    return (w["close"] > w["ema200"]) & (w["ema50"] > w["ema50"].shift(4))
+
+
+def pullbacks(w: pd.DataFrame) -> list[pd.Timestamp]:
+    """Откат к EMA50 в бычьем режиме: минимум недели у EMA50, закрытие не провалилось; касания реже раза в GAP недель."""
+    b = bull(w.shift(1)).fillna(False)                 # режим на прошлой неделе — до касания
+    hit = b & (w["low"] <= w["ema50"] * TOUCH) & (w["close"] >= w["ema50"] * FLOOR)
+    out, last = [], None
+    for i, t in enumerate(w.index):
+        if hit.iloc[i] and (last is None or i - last > GAP):
+            out.append(t)
+        if w["low"].iloc[i] <= w["ema50"].iloc[i] * TOUCH:
+            last = i
+    return out
+
+
+def event_returns(dates: list[pd.Timestamp], daily: pd.Series, alt: dict[int, pd.Series]) -> pd.DataFrame:
+    """Доходность BTC от закрытия недели события за 3 / 6 / 12 мес.; альты — от конца месяца события (первый конец
+    месяца не раньше события), корзина с оборотом."""
+    rows = []
+    for t in dates:
+        p0 = daily.asof(t)
+        r = {"неделя": t.date(), "цена": p0}
+        for h in EV_HS:
+            t1 = t + pd.DateOffset(months=h)
+            r[f"BTC {h}м"] = daily.asof(t1) / p0 - 1 if t1 <= daily.index[-1] else np.nan
+            a = alt.get(h)
+            me = t + pd.offsets.MonthEnd(0)
+            r[f"альты {h}м"] = a.get(me, np.nan) if a is not None else np.nan
+        rows.append(r)
+    return pd.DataFrame(rows)
+
+
+def base_returns(daily: pd.Series, weeks: pd.Index, h: int) -> pd.Series:
+    """Фон: доходность за h мес. от закрытия каждой недели из weeks."""
+    out = {}
+    for t in weeks:
+        t1 = t + pd.DateOffset(months=h)
+        if t1 <= daily.index[-1]:
+            out[t] = daily.asof(t1) / daily.asof(t) - 1
+    return pd.Series(out, dtype="float64")
 
 
 def monthly_state(daily: pd.Series, wk: pd.DataFrame) -> pd.DataFrame:
@@ -178,7 +254,7 @@ def report() -> None:
         c_end, _, adv, meta, _, _ = got
         c_end.index = c_end.index.to_period("M").to_timestamp("M")
         adv.index = c_end.index
-        for h in HS:
+        for h in sorted({*HS, *EV_HS}):
             alt[h] = alt_forward(c_end, adv, meta, h)
         print(f"  альты: месяцев с корзиной {len(alt[12])} ({alt[12].index.min():%Y-%m} … {alt[12].index.max():%Y-%m})")
     else:
@@ -222,6 +298,54 @@ def report() -> None:
                     verdicts.append(f"  альты при BTC ниже: корзина «ниже» минус «остальные» {d2:+.0%} (t {t2:.1f}, "
                                     f"месяцев {n2}), сверх BTC в среднем {ex.mean() if len(ex) else np.nan:+.0%} → "
                                     f"{'работает' if good else 'не подтверждено'}")
+    btc = prices["btc"]
+    w = weekly_frame(btc)
+    print(f"\n  ===== BTC: запуск роста и откаты к недельной EMA50 =====")
+    print(f"  запуск — после закрытия под EMA200 {HOLD_K} недельных закрытия подряд над EMA50; бычий режим — над EMA200 "
+          f"и EMA50 растёт 4 недели; откат — минимум недели <= EMA50 × {TOUCH}, закрытие >= EMA50 × {FLOOR}, не чаще "
+          f"раза в {GAP} недели. Альты — корзина от конца месяца события.")
+    def fmt(df: pd.DataFrame) -> str:
+        f = df.copy()
+        f["цена"] = f["цена"].map(lambda v: f"{v:,.0f}")
+        for c in f.columns[2:]:
+            f[c] = f[c].map(lambda v: f"{v:+.0%}" if np.isfinite(v) else "—")
+        return f.to_string(index=False)
+    la, pb = launches(w), pullbacks(w)
+    ev_l, ev_p = event_returns(la, btc, alt), event_returns(pb, btc, alt)
+    print(f"\n  --- запуски ({len(la)}) ---\n{fmt(ev_l) if len(la) else '  не было'}")
+    print(f"\n  --- откаты к EMA50 в бычьем режиме ({len(pb)}) ---\n{fmt(ev_p) if len(pb) else '  не было'}")
+    wk_all = w.dropna().index
+    wk_bull = w.dropna().index[bull(w.dropna()).to_numpy()]
+    rows = []
+    for name, idx in (("все недели", wk_all), ("недели бычьего режима", wk_bull)):
+        rows.append({"фон": name, **{f"BTC {h}м": f"{base_returns(btc, idx, h).mean():+.0%}" for h in EV_HS}})
+    for name, ev in (("после запуска", ev_l), ("после отката к EMA50", ev_p)):
+        rows.append({"фон": name, **{f"BTC {h}м": f"{ev[f'BTC {h}м'].mean():+.0%}" if len(ev) else "—" for h in EV_HS}})
+    if alt:
+        am = {h: alt[h] for h in EV_HS if h in alt}
+        bull_m = bull(w.dropna()).resample("ME").last()
+        for name, sel in (("альты: все месяцы", None), ("альты: месяцы бычьего режима", bull_m)):
+            r = {"фон": name}
+            for h, a in am.items():
+                v = a if sel is None else a[sel.reindex(a.index).fillna(False).to_numpy()]
+                r[f"BTC {h}м"] = f"{v.mean():+.0%}" if len(v) else "—"
+            rows.append(r)
+        for name, ev in (("альты после запуска", ev_l), ("альты после отката", ev_p)):
+            rows.append({"фон": name, **{f"BTC {h}м": f"{ev[f'альты {h}м'].mean():+.0%}" if len(ev) else "—"
+                                         for h in EV_HS}})
+    print("\n  --- среднее за 3 / 6 / 12 мес. (у альтов в столбцах BTC — доходность корзины альтов) ---")
+    print(pd.DataFrame(rows).to_string(index=False))
+    if len(ev_p):
+        for h in (3, 6):
+            base = base_returns(btc, wk_bull, h)
+            x = ev_p[f"BTC {h}м"].dropna()
+            verdicts.append(f"  откат к EMA50, BTC {h} мес.: {x.mean():+.0%} против {base.mean():+.0%} у любой недели "
+                            f"бычьего режима, в плюсе {np.mean(x > 0):.0%} из {len(x)} → "
+                            f"{'лучше фона' if x.mean() > base.mean() and np.mean(x > 0) >= 0.6 else 'не лучше фона'}")
+    if len(ev_l):
+        x = ev_l["BTC 12м"].dropna()
+        verdicts.append(f"  запуск: BTC за 12 мес. {x.mean():+.0%} (в плюсе {np.mean(x > 0):.0%} из {len(x)}) — эпизодов "
+                        "мало, справка")
     print("\n  Критерии (заданы до запуска):")
     for v in verdicts:
         print(v)
