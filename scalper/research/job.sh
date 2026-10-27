@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"fundscreen"}
+TASKS=${TASKS:-"w200"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -716,6 +716,10 @@ placebo_report() { python -m research.placebo report; }
 # Фундаментальный скринер на 1–2 года: выручка держателям, FDV, разлоки (DefiLlama + CoinGecko, только сегодня)
 fundscreen_collect() { :; }
 fundscreen_report() { python -m research.fundscreen; }
+
+# BTC / ETH ниже недельной EMA200 как зона накопления; альты — цены из частей spotrev того же прогона
+w200_collect() { python -m research.spotrev collect; }
+w200_report() { python -m research.w200; }
 
 case "$MODE" in
   collect|report) ;;
