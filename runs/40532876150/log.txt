@@ -1,0 +1,51 @@
+----- flows report (часть 0/10) -----
+
+===== FLOWS: экосистемы сетей, внимание по Википедии, комиссии по категориям — куда пойдут деньги =====
+
+  --- F1: экосистемы (рост базового токена → токены его сети) ---
+  F1: категорий CoinGecko найдено 23 из 24
+  flows: https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&category=avalanche-ecosyste → HTTP 429, жду 60 с
+  flows: https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&category=arbitrum-ecosystem → HTTP 429, жду 60 с
+  flows: https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&category=fantom-ecosystem&p → HTTP 429, жду 60 с
+  flows: https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&category=ethereum-ecosystem → HTTP 429, жду 60 с
+  flows: https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&category=kaspa-ecosystem&pe → HTTP 429, жду 60 с
+  корзины: SOL 82, BNB 132, AVAX 55, SUI 19, NEAR 4, TRX 3, TON 10, ARB 33, OP 5, POL 11, MATIC 11, FTM 5, ATOM 4, HYPE 5, ETH 135, ADA 3, DOT 8, BERA 3
+    a: лучший базовый токен за 28 дн. → его экосистема, неделя: нет (сделок 298)
+        сверх рынка: 2020 +0.76% (20)  2021 +0.72% (46)  is -0.36% (120)  val -1.16% (51)  ho -2.04% (61)
+        всё время -0.60% (t -1.9); ×2 -0.71%
+        чаще всего: ETHUSDT 64, SOLUSDT 61, BNBUSDT 59, NEARUSDT 29
+    b: базовый токен обогнал рынок на >= 30% за 28 дн. → экосистема на 28 дн.: нет (сделок 77)
+        сверх рынка: 2020 -0.58% (4)  2021 +16.03% (15)  is +0.09% (25)  val -4.29% (19)  ho +7.08% (14)
+        всё время +3.35% (t 1.1); ×2 +3.24%
+        чаще всего: SOLUSDT 17, BNBUSDT 12, ETHUSDT 10, NEARUSDT 10
+        плацебо (другие экосистемы с той же даты): +1.87% (80)
+
+  --- F2: внимание (просмотры Википедии) ---
+  flows: https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/us → HTTP 429, жду 44 с
+  flows: https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/us → HTTP 429, жду 56 с
+  flows: https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/us → HTTP 429, жду 55 с
+  flows: https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/us → HTTP 429, жду 55 с
+  flows: https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/us → HTTP 429, жду 56 с
+  статей с данными: 32 из 52
+    a: сектор с наибольшим ростом просмотров → неделя: нет (сделок 339)
+        сверх рынка: 2020 -2.29% (40)  2021 +6.45% (52)  is -0.26% (130)  val -1.56% (53)  ho +1.63% (64)
+        всё время +0.69% (t 1.1); ×2 +0.58%
+        чаще всего: приватность 70, игры/NFT 51, DeFi 46, DePIN 44
+    b: рост просмотров + сектор в плюсе за 7 дн. → неделя: нет (сделок 314)
+        сверх рынка: 2020 -1.60% (26)  2021 +7.33% (50)  is +0.26% (126)  val -0.52% (52)  ho +2.12% (60)
+        всё время +1.46% (t 2.1); ×2 +1.35%
+        чаще всего: приватность 73, DeFi 51, DePIN 43, игры/NFT 42
+
+  --- F3: комиссии по категориям DefiLlama ---
+  протоколов 2417, категорий с комиссиями 84, с корзиной токенов 61; дни 2018-03-26 … 2026-10-27
+    a: наибольший рост комиссий категории → неделя: нет (сделок 296)
+        сверх рынка: 2021 -0.78% (52)  is +0.14% (128)  val -0.01% (53)  ho -1.06% (63)
+        всё время -0.30% (t -0.9); ×2 -0.41%
+        чаще всего: Derivatives 43, Launchpad 35, Prediction Market 31, Gaming 22
+    b: наибольший рост комиссий категории → 4 недели: нет (сделок 76)
+        сверх рынка: 2020 -23.08% (1)  2021 -1.99% (13)  is -0.77% (33)  val -4.41% (13)  ho -3.01% (16)
+        всё время -2.37% (t -1.6); ×2 -2.48%
+        чаще всего: Derivatives 12, Launchpad 8, Prediction Market 7, Liquid Staking 6
+
+  ИТОГ: ни один источник не предсказывает следующий сектор с запасом на издержки
+частей с результатами: 10 файлов; collect: success
