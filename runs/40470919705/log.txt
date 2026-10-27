@@ -1,0 +1,23 @@
+----- markets report (часть 0/10) -----
+
+===== MARKETS: фондовый рынок (S&P 500, Nasdaq, VIX — FRED) и спотовые ETF против крипты =====
+  markets: https://fred.stlouisfed.org/graph/fredgraph.csv?id=SP500 → The read operation timed out
+  markets: https://fred.stlouisfed.org/graph/fredgraph.csv?id=SP500 → The read operation timed out
+  markets: https://fred.stlouisfed.org/graph/fredgraph.csv?id=NASDAQCOM → The read operation timed out
+  markets: https://fred.stlouisfed.org/graph/fredgraph.csv?id=NASDAQCOM → The read operation timed out
+  markets: https://fred.stlouisfed.org/graph/fredgraph.csv?id=VIXCLS → The read operation timed out
+  markets: https://fred.stlouisfed.org/graph/fredgraph.csv?id=VIXCLS → The read operation timed out
+  FRED: spx 0 дней, ndx 0 дней, vix 0 дней
+
+  --- E: спотовые ETF в США — ход монеты сверх корзины альтов (у BTC — сверх ETH) ---
+    BTC 2024-01-11: за 30 дней до +12% (сверх -7%)  0…7 после -11% (сверх -5%)  7…30 +16% (сверх +14%)  30…90 +48% (сверх +6%)
+    ETH 2024-07-23: за 30 дней до +2% (сверх -1%)  0…7 после -6% (сверх -3%)  7…30 -20% (сверх -9%)  30…90 +2% (сверх -8%)
+    SOL 2025-10-28: за 30 дней до -8% (сверх +9%)  0…7 после -20% (сверх -6%)  7…30 -9% (сверх -2%)  30…90 -12% (сверх +1%)
+    LTC 2025-10-28: за 30 дней до -10% (сверх +7%)  0…7 после -12% (сверх +3%)  7…30 +2% (сверх +8%)  30…90 -19% (сверх -6%)
+    HBAR 2025-10-28: за 30 дней до -10% (сверх +7%)  0…7 после -13% (сверх +1%)  7…30 -13% (сверх -6%)  30…90 -28% (сверх -14%)
+    XRP 2025-11-13: за 30 дней до -7% (сверх +8%)  0…7 после -14% (сверх -3%)  7…30 +1% (сверх +9%)  30…90 -32% (сверх -5%)
+    DOGE 2025-11-24: за 30 дней до -23% (сверх +2%)  0…7 после -11% (сверх -3%)  7…30 -5% (сверх +2%)  30…90 -26% (сверх -7%)
+    LINK 2025-12-02: за 30 дней до -23% (сверх -2%)  0…7 после +7% (сверх +6%)  7…30 -12% (сверх -5%)  30…90 -29% (сверх -6%)
+
+  ИТОГ: данных фондового рынка нет — проверка не состоялась
+частей с результатами: 10 файлов; collect: success
