@@ -109,4 +109,15 @@ def test_extra_strategy_uses_notional_share_and_own_limit():
 
 def test_extra_trades_load_both_strategies():
     x = L.extra_trades()
-    assert set(x.tf) == {"oi", "spike"} and (x.stop_pct == 1.0).all() and x.R.notna().all()
+    assert set(x.tf) == {"oi", "spike", "spike5d", "spike4"} and (x.stop_pct == 1.0).all() and x.R.notna().all()
+
+
+def test_breaker_stops_spike_fills_for_the_rest_of_the_day():
+    t0 = pd.Timestamp("2024-03-01 10:00")
+    fills = [t0 + pd.Timedelta(minutes=m) for m in (0, 5, 10, 15, 20)] + [t0 + pd.Timedelta(hours=20)]
+    ex = pd.DataFrame({"tf": "spike", "fill": fills, "R": 0.03, "stop_pct": 1.0, "side": 1, "slope_atr": 0.0,
+                       "squeeze": 1.0})
+    ex["exit"] = ex.fill + pd.Timedelta(minutes=60)
+    ex["t"] = ex.fill
+    s = L.simulate_book(ex, L.Book("b", r15=0.0, r4h=0.0, breaker=3, extra=(("spike", 0.05, 10.0, 0),)))
+    assert s["skip"]["предохранитель"] == 2 and len(s["taken"]) == 4          # наутро (новый день) — снова берём

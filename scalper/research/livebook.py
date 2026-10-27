@@ -65,6 +65,7 @@ class Book:
     slope15: float = 0.04         # наклон линии 15m не круче
     squeeze4h: float = 1.0        # риск 4h × на сжатых пробоях (research/squeezesize.py)
     long_x: float = 1.0           # риск лонгов 15m × (как long_risk_x бота, после лестницы); при sides15="both"
+    breaker: int = 0              # прострелы: столько исполнений за час — до конца дня (UTC) новых не берём; 0 — нет
     extra: tuple = ()             # другие стратегии: (tf, доля номинала от счёта, плечо, лимит позиций или 0); их R —
                                   # доходность на номинал (stop_pct = 1), в общий лимит бота не входят (research/livebook 10)
 
@@ -149,6 +150,16 @@ BOOKS10 = (Book("B2", **_B2), Book("B2 + oi 0.3 (≤ 3)", extra=(OI,), **_B2),
            Book("без бота: oi 0.3 + прострелы 0.05", extra=(OI, SPIKE), **(_B2 | {"r15": 0.0, "r4h": 0.0})))
 COMBO_DIR = Path(__file__).resolve().parent / "combo_data"
 CRASH_DAY = "2025-10-10"
+# одиннадцатый заход — прострелы с ограничениями риска (просьба владельца «без стопа можно слить»): потолок позиций,
+# предохранитель на обвал (3 исполнения за час — до конца дня новых нет), аварийный стоп 5D (отдельный ряд сделок)
+SP5 = ("spike", 0.05, 10.0, 5)
+BOOKS11 = (Book("B2", **_B2), Book("B2 + прострелы 5%, без ограничений", extra=(SPIKE,), **_B2),
+           Book("B2 + прострелы 5%, ≤ 5 позиций", extra=(SP5,), **_B2),
+           Book("B2 + прострелы 5%, ≤ 5, предохранитель 3/ч", extra=(SP5,), breaker=3, **_B2),
+           Book("B2 + прострелы 5% стоп 5D, ≤ 5, предохр.", extra=(("spike5d", 0.05, 10.0, 5),), breaker=3, **_B2),
+           Book("B2 + прострелы 10%, ≤ 5, предохранитель 3/ч", extra=(("spike", 0.10, 10.0, 5),), breaker=3, **_B2),
+           Book("B2 + прострелы 4σ 5%, ≤ 5, предохранитель 3/ч", extra=(("spike4", 0.05, 10.0, 5),), breaker=3, **_B2),
+           Book("B2 + прострелы 4σ 5%, без ограничений", extra=(("spike4", 0.05, 10.0, 0),), **_B2))
 GOAL, GOAL_YEARS = 100_000 / 3_000, 2.0
 EDGES = (1.0, 0.5)
 BOOKS = (Book("live"), Book("live, 15m <= 3", limit15=3), Book("live, 15m <= 5", limit15=5),
@@ -183,13 +194,16 @@ def simulate_book(z: pd.DataFrame, b: Book, R: np.ndarray | None = None) -> dict
     tfs = z.tf.to_numpy()
     ext = {e[0]: e[1:] for e in b.extra if e[1] > 0}
     n_ext = dict.fromkeys(ext, 0)
+    spike_times: list[int] = []
+    spike_off = -1                                           # день, до конца которого прострелы выключены
+    taken: list[tuple[int, float]] = []                      # (номер сделки доп. стратегии, доля счёта на входе)
     stop = z.stop_pct.to_numpy()
     ev = sorted([(int(f[i]), 2, i) for i in range(len(z))] +
                 [(int(x[i]), 3 if x[i] <= f[i] else 0, i) for i in range(len(z))], key=lambda e: (e[0], e[1]))
     eq, peak, mdd = 1.0, 1.0, 0.0
     open_: dict[int, tuple[float, float, float]] = {}       # номер → (риск в деньгах, доля риска, маржа в деньгах)
     step, day, day_eq, halted = 0, -1, 1.0, False
-    skip = {"лимит": 0, "лимит 15m": 0, "лимит доп.": 0, "потолок риска": 0, "маржа": 0, "дневной стоп": 0}
+    skip = {"лимит": 0, "лимит 15m": 0, "лимит доп.": 0, "предохранитель": 0, "потолок риска": 0, "маржа": 0, "дневной стоп": 0}
     times, curve, heat_max, n15 = [], [], 0.0, 0
     for t, kind, i in ev:
         d = t // DAY_NS
@@ -219,6 +233,15 @@ def simulate_book(z: pd.DataFrame, b: Book, R: np.ndarray | None = None) -> dict
             continue
         if tfs[i] in ext:
             frac, lev, lim = ext[tfs[i]]
+            if tfs[i].startswith("spike") and b.breaker:
+                if spike_off == d:
+                    skip["предохранитель"] += 1
+                    continue
+                spike_times = [x for x in spike_times if x > t - 3600 * 10**9]
+                if len(spike_times) >= b.breaker:
+                    spike_off = d
+                    skip["предохранитель"] += 1
+                    continue
             if lim and n_ext[tfs[i]] >= lim:
                 skip["лимит доп."] += 1
                 continue
@@ -228,6 +251,9 @@ def simulate_book(z: pd.DataFrame, b: Book, R: np.ndarray | None = None) -> dict
                 continue
             open_[i] = (frac * eq, 0.0, margin)
             n_ext[tfs[i]] += 1
+            taken.append((i, frac))
+            if tfs[i].startswith("spike"):
+                spike_times.append(t)
             continue
         if len(open_) - sum(n_ext.values()) >= b.limit:
             skip["лимит"] += 1
@@ -248,7 +274,10 @@ def simulate_book(z: pd.DataFrame, b: Book, R: np.ndarray | None = None) -> dict
         n15 += int(is15[i])
         heat_max = max(heat_max, used + r)
     c = pd.Series(curve, index=pd.to_datetime(np.array(times, dtype="int64")), dtype="float64")
-    return {"eq": eq, "mdd": mdd, "curve": c, "skip": skip, "heat_max": heat_max}
+    tk = pd.DataFrame(taken, columns=["i", "frac"])
+    if len(tk):
+        tk = tk.assign(tf=tfs[tk.i], R=R[tk.i], fill=z.fill.to_numpy()[tk.i])
+    return {"eq": eq, "mdd": mdd, "curve": c, "skip": skip, "heat_max": heat_max, "taken": tk}
 
 
 def week_blocks(z: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame:
@@ -384,7 +413,15 @@ def extra_trades(root: Path = COMBO_DIR) -> pd.DataFrame:
     t = pd.to_datetime(sp["t"], utc=True, format="ISO8601").dt.tz_localize(None)
     b = pd.DataFrame({"tf": "spike", "fill": t, "exit": t + pd.Timedelta(minutes=60), "R": sp["r"].to_numpy(),
                       "symbol": sp["symbol"]})
-    x = pd.concat([a, b], ignore_index=True)
+    sp5 = pd.read_csv(root / "spikes_6s_stop5d_bybit.csv")
+    t = pd.to_datetime(sp5["t"], utc=True, format="ISO8601").dt.tz_localize(None)
+    b5 = pd.DataFrame({"tf": "spike5d", "fill": t, "exit": t + pd.Timedelta(minutes=60), "R": sp5["r"].to_numpy(),
+                       "symbol": sp5["symbol"]})
+    sp4 = pd.read_csv(root / "spikes_4s_bybit.csv")
+    t = pd.to_datetime(sp4["t"], utc=True, format="ISO8601").dt.tz_localize(None)
+    b4 = pd.DataFrame({"tf": "spike4", "fill": t, "exit": t + pd.Timedelta(minutes=60), "R": sp4["r"].to_numpy(),
+                       "symbol": sp4["symbol"]})
+    x = pd.concat([a, b, b5, b4], ignore_index=True)
     return x.assign(stop_pct=1.0, side=1, t=x.fill, slope_atr=0.0, squeeze=1.0).dropna(subset=["R"])
 
 
@@ -427,6 +464,50 @@ def report10() -> None:
         print("  crisk: нет данных")
         return
     combo_report(z, extra_trades())
+
+
+def spike_stats(tk: pd.DataFrame) -> str:
+    sp = tk[tk.tf.str.startswith("spike")] if len(tk) else tk
+    if not len(sp):
+        return "прострелов не взято"
+    day = (sp.frac * sp.R).groupby(pd.to_datetime(sp.fill).dt.normalize()).sum()
+    return (f"прострелов {len(sp)}, прибыльных {(sp.R > 0).mean():.0%}, средняя {sp.R.mean():+.2%}, худшая {sp.R.min():+.0%}"
+            f" (на счёт {(sp.frac * sp.R).min():+.1%}), худший день прострелов {day.min():+.1%} счёта")
+
+
+def guarded_report(z: pd.DataFrame, ex: pd.DataFrame, paths: int = 300) -> None:
+    cols = [c for c in ("tf", "fill", "exit", "R", "stop_pct", "side", "t", "slope_atr", "squeeze") if c in z]
+    for title, drop in (("2025-07 … 2026-09", False), ("2025-07 … 2026-09 без обвала 10.10.2025", True)):
+        q = pd.concat([z[cols], ex[cols]], ignore_index=True)
+        q = q[(q.fill >= "2025-07-03") & (q.fill < "2026-10-01")]
+        if drop:
+            q = q[q.fill.dt.strftime("%Y-%m-%d") != CRASH_DAY]
+        q = q.sort_values(["fill", "tf"]).reset_index(drop=True)
+        years = (q.fill.max() - q.fill.min()).days / 365.25
+        print(f"\n  === {title}: {years:.1f} года ===")
+        rng = np.random.default_rng(37)
+        boots = [week_blocks(q, rng) for _ in range(paths)]
+        for edge in EDGES:
+            print(f"    -- {'бэктест' if edge == 1.0 else f'ожидание ×{edge:g} (у каждой стратегии)'} --")
+            for b in BOOKS11:
+                s = simulate_book(q, b, haircut(q, b, edge))
+                sims = [simulate_book(w, b, haircut(w, b, edge)) for w in boots]
+                cg = np.array([x["eq"] ** (1 / years) - 1 for x in sims])
+                dd = np.array([x["mdd"] for x in sims])
+                skips = ", ".join(f"{k} {v}" for k, v in s["skip"].items() if v)
+                print(f"      {b.name:<44} история {s['eq'] ** (1 / years) - 1:+.0%} в год, просадка {s['mdd']:.0%}, худший "
+                      f"месяц {worst_month(s['curve']):+.0%}; бутстреп: медиана {np.median(cg):+.0%}, 10-й процентиль "
+                      f"{np.percentile(cg, 10):+.0%}, P(просадка > 50%) {np.mean(dd > 0.5):.0%}\n{'':8}{spike_stats(s['taken'])}; "
+                      f"пропущено: {skips or '—'}")
+
+
+def report11() -> None:
+    print("\n===== LIVEBOOK11: прострелы с ограничениями риска рядом с ботом B2 (потолок, предохранитель, стоп 5D) =====")
+    z = load()
+    if z is None:
+        print("  crisk: нет данных")
+        return
+    guarded_report(z, extra_trades())
 
 
 def report9() -> None:
@@ -556,4 +637,4 @@ if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     warnings.filterwarnings("ignore")
     {"2": report2, "3": report3, "4": report4, "5": report5, "6": report6, "7": report7, "8": report8,
-     "9": report9, "10": report10}.get((sys.argv[1:] or [""])[0], report)()
+     "9": report9, "10": report10, "11": report11}.get((sys.argv[1:] or [""])[0], report)()
