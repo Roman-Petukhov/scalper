@@ -1,0 +1,44 @@
+----- markets report (часть 0/10) -----
+
+===== MARKETS: фондовый рынок (S&P 500, Nasdaq, VIX — FRED) и спотовые ETF против крипты =====
+  markets: https://fred.stlouisfed.org/graph/fredgraph.csv?id=SP500 → The read operation timed out
+  markets: https://fred.stlouisfed.org/graph/fredgraph.csv?id=SP500 → The read operation timed out
+  markets: https://stooq.com/q/d/l/?s=^spx&i=d → <urlopen error timed out>
+  markets: https://stooq.com/q/d/l/?s=^spx&i=d → <urlopen error timed out>
+  markets: Stooq ^spx — нет данных, пробую Dukascopy
+  markets: https://fred.stlouisfed.org/graph/fredgraph.csv?id=NASDAQCOM → The read operation timed out
+  markets: https://fred.stlouisfed.org/graph/fredgraph.csv?id=NASDAQCOM → The read operation timed out
+  markets: https://stooq.com/q/d/l/?s=^ndq&i=d → <urlopen error timed out>
+  markets: https://stooq.com/q/d/l/?s=^ndq&i=d → <urlopen error timed out>
+  markets: Stooq ^ndq — нет данных, пробую Dukascopy
+  markets: https://fred.stlouisfed.org/graph/fredgraph.csv?id=VIXCLS → The read operation timed out
+  markets: https://fred.stlouisfed.org/graph/fredgraph.csv?id=VIXCLS → The read operation timed out
+  markets: https://stooq.com/q/d/l/?s=^vix&i=d → <urlopen error timed out>
+  markets: https://stooq.com/q/d/l/?s=^vix&i=d → <urlopen error timed out>
+  markets: Stooq ^vix — нет данных, пробую Dukascopy
+  FRED: spx 1435 дней (2020-01-01 … 2026-09-30), ndx 1071 дней (2020-01-01 … 2026-09-30), vix 0 дней
+
+  --- K: корреляция с S&P 500 в тот же день (свеча крипты дня t содержит сессию США дня t) ---
+    2020: BTC +0.40, альты +0.44, Nasdaq–BTC +0.50
+    2021: BTC +0.26, альты +0.30, Nasdaq–BTC +0.23
+    is: BTC +0.42, альты +0.44, Nasdaq–BTC +0.33
+    val: BTC +0.38, альты +0.38, Nasdaq–BTC +0.35
+    ho: BTC +0.41, альты +0.41, Nasdaq–BTC +0.13
+
+  --- N: S&P 500 за день > ±1% → BTC на следующий день крипты по знаку: нет ---
+        2020 -0.68% (92)  2021 -0.81% (18)  is -0.28% (211)  val -0.24% (63)  ho -0.34% (46)
+        всё время -0.39% (t -2.2, в плюсе 46%); ×2 -0.50%
+        после роста -0.35% (227), после падения -0.43% (203)
+
+  --- E: спотовые ETF в США — ход монеты сверх корзины альтов (у BTC — сверх ETH) ---
+    BTC 2024-01-11: за 30 дней до +12% (сверх -7%)  0…7 после -11% (сверх -5%)  7…30 +16% (сверх +14%)  30…90 +48% (сверх +6%)
+    ETH 2024-07-23: за 30 дней до +2% (сверх -1%)  0…7 после -6% (сверх -3%)  7…30 -20% (сверх -9%)  30…90 +2% (сверх -8%)
+    SOL 2025-10-28: за 30 дней до -8% (сверх +9%)  0…7 после -20% (сверх -6%)  7…30 -9% (сверх -2%)  30…90 -12% (сверх +1%)
+    LTC 2025-10-28: за 30 дней до -10% (сверх +7%)  0…7 после -12% (сверх +3%)  7…30 +2% (сверх +8%)  30…90 -19% (сверх -6%)
+    HBAR 2025-10-28: за 30 дней до -10% (сверх +7%)  0…7 после -13% (сверх +1%)  7…30 -13% (сверх -6%)  30…90 -28% (сверх -14%)
+    XRP 2025-11-13: за 30 дней до -7% (сверх +8%)  0…7 после -14% (сверх -3%)  7…30 +1% (сверх +9%)  30…90 -32% (сверх -5%)
+    DOGE 2025-11-24: за 30 дней до -23% (сверх +2%)  0…7 после -11% (сверх -3%)  7…30 -5% (сверх +2%)  30…90 -26% (сверх -7%)
+    LINK 2025-12-02: за 30 дней до -23% (сверх -2%)  0…7 после +7% (сверх +6%)  7…30 -12% (сверх -5%)  30…90 -29% (сверх -6%)
+
+  ИТОГ: фондовый рынок не даёт сделки по крипте, окупающей издержки
+частей с результатами: 10 файлов; collect: success
