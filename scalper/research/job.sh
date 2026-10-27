@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"squeezefuel sectors"}
+TASKS=${TASKS:-"markets"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -703,6 +703,8 @@ sectors_collect() {
   python -m research.sectors collect --symbols "$(cat /tmp/syms_1h-all.txt)"
 }
 sectors_report() { python -m research.sectors report; python -m research.markets report; }
+markets_collect() { sectors_collect; }
+markets_report() { python -m research.markets report; }
 
 case "$MODE" in
   collect|report) ;;

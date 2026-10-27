@@ -31,7 +31,9 @@ from .ppr import day_t
 from .sectors import ADV_MIN, load_daily
 
 FRED = "https://fred.stlouisfed.org/graph/fredgraph.csv?id={s}"
+STOOQ = "https://stooq.com/q/d/l/?s={s}&i=d"
 SERIES = {"spx": "SP500", "ndx": "NASDAQCOM", "vix": "VIXCLS"}
+STOOQ_SYM = {"spx": "^spx", "ndx": "^ndq", "vix": "^vix"}     # запасной источник: FRED с машин GitHub не отвечал
 COST = 0.0011
 MOVE = 0.01
 VIX_LEVEL, VIX_JUMP = 30.0, 0.20
@@ -40,18 +42,29 @@ ETF = {"BTCUSDT": "2024-01-11", "ETHUSDT": "2024-07-23", "SOLUSDT": "2025-10-28"
 WINDOWS = {"за 30 дней до": (-30, 0), "0…7 после": (0, 7), "7…30": (7, 30), "30…90": (30, 90)}
 
 
-def fred(series: str) -> pd.Series:
-    for attempt in range(4):
+def _csv(url: str) -> pd.DataFrame | None:
+    for attempt in range(2):
         try:
-            req = urllib.request.Request(FRED.format(s=series), headers={"User-Agent": "Mozilla/5.0"})
-            with urllib.request.urlopen(req, timeout=60) as r:
-                df = pd.read_csv(io.BytesIO(r.read()))
-            df.columns = ["day", "v"]
-            s = pd.Series(pd.to_numeric(df["v"], errors="coerce").to_numpy(), index=pd.to_datetime(df["day"]))
-            return s.dropna()
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=30) as r:
+                return pd.read_csv(io.BytesIO(r.read()))
         except Exception as e:
-            print(f"  markets: FRED {series} → {e}", flush=True)
+            print(f"  markets: {url[:70]} → {e}", flush=True)
             time.sleep(2 ** attempt)
+    return None
+
+
+def fred(key: str) -> pd.Series:
+    """Дневной ряд: FRED, при отказе — Stooq (закрытие)."""
+    df = _csv(FRED.format(s=SERIES[key]))
+    if df is not None and df.shape[1] >= 2:
+        s = pd.Series(pd.to_numeric(df.iloc[:, 1], errors="coerce").to_numpy(), index=pd.to_datetime(df.iloc[:, 0]))
+        if s.notna().sum() > 100:
+            return s.dropna()
+    df = _csv(STOOQ.format(s=STOOQ_SYM[key]))
+    if df is not None and {"Date", "Close"} <= set(df.columns):
+        s = pd.Series(pd.to_numeric(df["Close"], errors="coerce").to_numpy(), index=pd.to_datetime(df["Date"]))
+        return s.dropna()
     return pd.Series(dtype="float64")
 
 
@@ -141,7 +154,7 @@ def report() -> None:
         print("  markets: нет BTCUSDT в дневках")
         return
     btc = close["BTCUSDT"].dropna()
-    st = {k: fred(v) for k, v in SERIES.items()}
+    st = {k: fred(k) for k in SERIES}
     print("  FRED: " + ", ".join(f"{k} {len(v)} дней" + (f" ({v.index.min():%Y-%m-%d} … {v.index.max():%Y-%m-%d})" if len(v) else "")
                                   for k, v in st.items()))
     passed = []
@@ -177,6 +190,9 @@ def report() -> None:
             if good:
                 passed.append(f"V {h} дней")
     etf_study(close, alts)
+    if not len(spx) and not len(vix):
+        print("\n  ИТОГ: данных фондового рынка нет — проверка не состоялась")
+        return
     print("\n  ИТОГ: " + ("прошли — " + "; ".join(passed) if passed else "фондовый рынок не даёт сделки по крипте, окупающей издержки"))
 
 
