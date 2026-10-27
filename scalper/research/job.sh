@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"quarterly"}
+TASKS=${TASKS:-"flows"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -726,6 +726,9 @@ spx200_report() { python -m research.spx200; }
 # Очередь секторов: лестница размера, внимание (оборот), ширина пробоя, очередь по циклам
 secorder_collect() { sectors_collect; }
 secorder_report() { python -m research.secorder; }
+# Экосистемы сетей, внимание по Википедии, комиссии по категориям DefiLlama
+flows_collect() { sectors_collect; }
+flows_report() { python -m research.flows; }
 
 case "$MODE" in
   collect|report) ;;
