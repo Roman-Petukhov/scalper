@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"quarterly"}
+TASKS=${TASKS:-"longlevels"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -424,6 +424,13 @@ majors_collect() {
   python -m research.majors collect
 }
 majors_report() { python -m research.majors report; }
+# Горизонтальные уровни на лонгах (шорты зеркально): пробой, отбой, ложный пробой; 4h и 1d
+longlevels_collect() {
+  RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-qualified
+  LL_TFS=4h python -m research.longlevels collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
+  LL_TFS=1d python -m research.longlevels collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
+}
+longlevels_report() { python -m research.longlevels report; }
 # Вход на откате 30 / 50% после длинной свечи пробоя и лестница риска на 15m в масштабе бота
 pullladder_collect() {
   RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-qualified 15m-wide

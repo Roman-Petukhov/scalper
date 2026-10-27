@@ -38,11 +38,13 @@ def _level_series(c: np.ndarray, piv: np.ndarray) -> np.ndarray:
     return np.where(idx >= 0, c[np.maximum(idx, 0)], np.nan)
 
 
-def triggers(d: pd.DataFrame, a: np.ndarray, lines_only: bool = False) -> list[tuple[str, int, int, float]]:
+def triggers(d: pd.DataFrame, a: np.ndarray, lines_only: bool = False,
+             kinds: tuple[str, ...] | None = None) -> list[tuple[str, int, int, float]]:
     """(повод, бар пробоя, сторона, уровень для ретеста). Пробой — закрытие за уровнем, прошлое закрытие — нет.
-    lines_only — только пробои линий (на 1m / 5m уровни вроде «бар» дают миллионы поводов)."""
+    lines_only — только пробои линий (на 1m / 5m уровни вроде «бар» дают миллионы поводов); kinds — только эти поводы."""
     c, hi, lo = (d[k].to_numpy(dtype="float64") for k in ("close", "high", "low"))
-    out = [("line", r["t"], r["side"], r["line_t"]) for r in zz_lines(d) if r["t"] > 0]
+    out = [] if kinds is not None and "line" not in kinds else \
+        [("line", r["t"], r["side"], r["line_t"]) for r in zz_lines(d) if r["t"] > 0]
     if lines_only:
         return out
     zh, zl = zigzag(c, a, ZZ_K)
@@ -54,6 +56,8 @@ def triggers(d: pd.DataFrame, a: np.ndarray, lines_only: bool = False) -> list[t
         "bar": (np.r_[np.nan, hi[:-1]], np.r_[np.nan, lo[:-1]]),
     }
     for name, (up, dn) in levels.items():
+        if kinds is not None and name not in kinds:
+            continue
         for side, lv in ((1, up), (-1, dn)):
             prev = np.r_[np.nan, lv[:-1]]
             hit = (side * (c - lv) > 0) & (side * (np.r_[np.nan, c[:-1]] - prev) <= 0)
@@ -65,7 +69,7 @@ def triggers(d: pd.DataFrame, a: np.ndarray, lines_only: bool = False) -> list[t
 
 
 def coin_trades(d: pd.DataFrame, liq: np.ndarray, sym: str, lines_only: bool = False,
-                min_aggr: float = 0.55) -> pd.DataFrame:
+                min_aggr: float = 0.55, kinds: tuple[str, ...] | None = None) -> pd.DataFrame:
     """Сделки правила бота; min_aggr — порог агрессоров (0 — без фильтра, research/aggr200.py)."""
     o, hi, lo, c = (d[k].to_numpy(dtype="float64") for k in ("open", "high", "low", "close"))
     f = d["funding"].to_numpy(dtype="float64") if "funding" in d else np.zeros(len(c))
@@ -76,7 +80,7 @@ def coin_trades(d: pd.DataFrame, liq: np.ndarray, sym: str, lines_only: bool = F
     loc = (c - lo) / np.where(rng > 0, rng, np.nan)
     sw_lo, sw_hi = last_confirmed(pivots(lo, PIV, False), len(c)), last_confirmed(pivots(hi, PIV, True), len(c))
     rows = []
-    for name, t, side, level in triggers(d, a, lines_only):
+    for name, t, side, level in triggers(d, a, lines_only, kinds):
         if t >= len(c) - 1 or not (a[t] > 0) or not (liq[t] >= ADV_MIN) or trend[t] != side:
             continue
         aggr = buy[t] if side > 0 else 1 - buy[t]
