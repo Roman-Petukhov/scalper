@@ -1,7 +1,7 @@
-// Разделы панели (Сигналы / Счёт / Настройки): один виден, выбор — в адресе (#account) и в памяти браузера.
+// Разделы панели (Сигналы / Счёт / Скринер / Настройки): один виден, выбор — в адресе (#account) и в памяти браузера.
 // Без JS видны все разделы подряд.
 (() => {
-  const VIEWS = ["signals", "account", "settings"];
+  const VIEWS = ["signals", "account", "screener", "settings"];
   const KEY = "panel-view";
 
   function read() {

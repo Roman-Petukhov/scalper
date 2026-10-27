@@ -5,13 +5,14 @@ from typing import Protocol
 
 import pandas as pd
 
-from datetime import datetime
+from datetime import date, datetime
 
 from ..domain.execution import Account, ClosedPnl, Fill, HedgeLeg, Instrument, OrderRequest, Trade, TradeResult, TradeStatus
 from ..domain.journal import JournalEntry
 from ..domain.models import Settings, Signal, SignalStatus, Timeframe
 from ..domain.daily_break import DailySetup
 from ..domain.trend import TrendDay
+from ..domain.screener import FeeRow, Quote
 
 
 class MarketData(Protocol):
@@ -220,3 +221,35 @@ class StatePublisher(Protocol):
 
     async def get(self, path: str) -> str | None:
         """Текст файла или None, если файла (или ветки) нет."""
+
+
+class FundamentalsData(Protocol):
+    """Комиссии и выручка протоколов, их токены и расписания разлоков (DefiLlama)."""
+
+    async def fee_rows(self) -> list[FeeRow]:
+        """Обзор комиссий, выручки и выручки держателям: строка на версию протокола и вид данных."""
+
+    async def token_ids(self) -> dict[str, str]:
+        """Ключ бизнеса (group_key) или slug → id монеты в CoinGecko."""
+
+    async def token_id(self, key: str) -> str | None:
+        """id монеты для бизнеса, которого нет в общем списке (родители, сети); None — не нашли."""
+
+    async def unlock_schedules(self, keys: set[str]) -> dict[str, list[tuple[date, float]]]:
+        """Накопленный разлок по дням для бизнесов из keys, у которых есть расписание."""
+
+
+class MarketQuotes(Protocol):
+    async def quotes(self, ids: list[str]) -> dict[str, Quote]:
+        """Цена, капитализация, FDV, оборот и изменение за год по id CoinGecko."""
+
+
+class WeeklyBars(Protocol):
+    async def weekly(self, symbol: str) -> pd.DataFrame:
+        """Закрытые недели спота (столбцы low, close), старые первыми."""
+
+
+class KeyValueStore(Protocol):
+    def kv_get(self, key: str) -> str | None: ...
+
+    def kv_set(self, key: str, value: str) -> None: ...

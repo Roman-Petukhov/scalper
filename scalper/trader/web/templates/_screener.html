@@ -1,0 +1,129 @@
+{% macro pct(v, sign=True) -%}
+{%- if v is none -%}—{%- else -%}{{ ('%+.0f%%' if sign else '%.0f%%') | format(v * 100) }}{%- endif -%}
+{%- endmacro %}
+{% macro pct_raw(v) -%}
+{%- if v is none -%}—{%- else -%}{{ '%+.0f%%' | format(v) }}{%- endif -%}
+{%- endmacro %}
+<div class="scr-head">
+  <span class="hint num" style="margin:0">
+    {% if s %}пересчёт {{ s.computed_at | lt }} · {% endif %}автоматически раз в {{ every_h }} ч
+  </span>
+  <button type="button" class="btn small" hx-post="/screener/run" hx-target="#screener-body" hx-swap="innerHTML"
+          {% if running %}disabled aria-busy="true"{% endif %}>
+    {% if running %}<span class="spinner" aria-hidden="true"></span> Считаю…{% else %}Пересчитать сейчас{% endif %}
+  </button>
+</div>
+{% if running %}
+<div hx-get="/screener" hx-trigger="every 10s" hx-target="#screener-body" hx-swap="innerHTML"></div>
+<p class="hint scr-note" aria-live="polite">Скачиваю комиссии ~3000 протоколов, цены и разлоки — обычно 1–3 минуты.</p>
+{% elif started is sameas false %}
+<p class="hint scr-note" aria-live="polite">Пересчёт уже идёт.</p>
+{% endif %}
+{% if error %}<p class="err">Последний пересчёт не удался: {{ error }}. Повторю через 30 минут.</p>{% endif %}
+
+{% if not s %}
+<div class="card scr-empty">
+  <h2>Первый расчёт</h2>
+  <p class="hint">Снимка ещё нет: скринер посчитает его в фоне в течение минуты после запуска панели или по кнопке выше.</p>
+</div>
+{% else %}
+{% set r = s.regime %}
+<div class="card scr-regime scr-zone-{{ r.zone.value }}">
+  <div class="journal-head">
+    <h2>Рынок · BTC на неделях</h2>
+    <span class="hint num" style="margin:0">{% if r.week %}неделя с {{ r.week.strftime('%d.%m.%Y') }}{% endif %}</span>
+  </div>
+  <div class="scr-verdict">
+    <b>{{ r.title }}</b>{% if r.weeks_in_zone > 1 %} <span class="hint num" style="margin:0">· {{ r.weeks_in_zone }} нед.</span>{% endif %}
+    <p>{{ r.text }}</p>
+  </div>
+  {% if r.close %}
+  <div class="stats periods num">
+    <div class="stat"><span>Закрытие недели</span><b>{{ '{:,.0f}'.format(r.close).replace(',', ' ') }}</b><small>BTC, спот Binance</small></div>
+    <div class="stat {{ 'up' if (r.to_ema50 or 0) > 0 else 'down' }}"><span>К EMA50 недель</span><b>{{ pct(r.to_ema50) }}</b>
+      <small>EMA50 {{ '{:,.0f}'.format(r.ema50).replace(',', ' ') }}</small></div>
+    <div class="stat {{ 'up' if (r.to_ema200 or 0) > 0 else 'down' }}"><span>К EMA200 недель</span><b>{{ pct(r.to_ema200) }}</b>
+      <small>EMA200 {{ '{:,.0f}'.format(r.ema200).replace(',', ' ') }}</small></div>
+  </div>
+  {% endif %}
+  <p class="hint">Режим — ваше наблюдение (зона под EMA200, запуск над EMA50, откаты к EMA50); на истории BTC с 2014 года
+    оно проверяется (research/w200.py) — пока это подсказка, когда набирать, а не сигнал.</p>
+</div>
+
+<div class="card scr-list">
+  <div class="journal-head">
+    <h2>Кандидаты · {{ s.candidates | length }}</h2>
+    <span class="hint num" style="margin:0">из {{ s.with_holders_rev }} с выручкой держателям · бизнесов {{ s.businesses }}</span>
+  </div>
+  {% if s.candidates %}
+  <div class="scr-table num" role="table" aria-label="Кандидаты скринера">
+    <div class="scr-row scr-th" role="row">
+      <span role="columnheader">Монета</span>
+      <span role="columnheader" title="Капитализация / полная оценка (FDV)">Кап. / FDV</span>
+      <span role="columnheader" title="Доля монет в обращении и разлок за 12 месяцев">Обращение</span>
+      <span role="columnheader" title="Годовая выручка держателям по последним 30 дням: выкуп, сжигание, раздача">Держателям</span>
+      <span role="columnheader" title="FDV к годовой выручке держателям — как P/E">FDV / выр.</span>
+      <span role="columnheader" title="Выручка держателям за 30 дней к среднему месяцу года">Рост</span>
+      <span role="columnheader" title="Цена за год и от исторического максимума">Цена</span>
+      <span role="columnheader" title="Изменение цены с первого попадания в список — бумажная проверка">С попадания</span>
+    </div>
+    {% for c in s.candidates %}
+    <div class="scr-row{% if loop.index > s.rules.top %} scr-tail{% endif %}" role="row">
+      <span role="cell" class="scr-coin">
+        <span class="scr-rank">{{ loop.index }}</span>
+        <span class="scr-name"><span class="scr-sym"><b>{{ c.symbol or '?' }}</b>{% if c.binance_perp %}<span class="badge" title="Есть перпетуал на Binance">перп</span>{% endif %}</span>
+          <small>{{ c.project }} · {{ c.category }}</small>
+          {% if c.flags %}<small class="scr-flags">{{ c.flags | join(' · ') }}</small>{% endif %}</span>
+      </span>
+      <span role="cell" data-label="Кап. / FDV">{{ money(c.mcap) }}<small>{{ money(c.fdv) }}</small></span>
+      <span role="cell" data-label="Обращение">{{ pct(c.float_share, False) }}<small>разлок {{ pct(c.unlock_12m, False) if c.unlock_12m is not none else '?' }}</small></span>
+      <span role="cell" data-label="Держателям">{{ money(c.hr_year) }}<small>выручка {{ money(c.rev_year) }}</small></span>
+      <span role="cell" data-label="FDV / выр.">{% if c.fdv_to_hr %}×{{ '%.0f' | format(c.fdv_to_hr) }}{% else %}—{% endif %}</span>
+      <span role="cell" data-label="Рост" class="{{ 'up' if (c.hr_growth or 0) >= 1.2 else ('down' if c.hr_growth is not none and c.hr_growth < 0.8 else '') }}">
+        {% if c.hr_growth is not none %}×{{ '%.1f' | format(c.hr_growth) }}{% else %}—{% endif %}</span>
+      <span role="cell" data-label="Цена">{{ pct_raw(c.chg_1y) }}<small>от ATH {{ pct_raw(c.ath_chg) }}</small></span>
+      <span role="cell" data-label="С попадания" class="{{ 'up' if (c.since_seen or 0) > 0 else ('down' if (c.since_seen or 0) < 0 else '') }}">
+        {{ pct(c.since_seen) }}<small>{% if c.first_seen %}с {{ c.first_seen.strftime('%d.%m.%y') }}{% endif %}</small></span>
+    </div>
+    {% endfor %}
+  </div>
+  <p class="hint">Уведомление приходит, когда монета впервые входит в топ-{{ s.rules.top }}. Сортировка — дешевизна плюс рост
+    выручки держателям; «всплеск выручки за месяц» часто бывает разовым — смотрите и годовую выручку.</p>
+  {% else %}
+  <p class="hint">Сейчас правила не прошла ни одна монета.</p>
+  {% endif %}
+</div>
+
+{% if s.rejected %}
+<details class="card scr-rejected">
+  <summary><span>Крупный бизнес, отсеянный правилами · {{ s.rejected | length }}</span></summary>
+  <div class="scr-table num" role="table" aria-label="Отсеянные">
+    {% for c in s.rejected %}
+    <div class="scr-row scr-row-rej" role="row">
+      <span role="cell" class="scr-coin"><span class="scr-name"><b>{{ c.symbol or '?' }}</b><small>{{ c.project }} · {{ c.category }}</small></span></span>
+      <span role="cell" data-label="Выручка">{{ money(c.rev_year) }}<small>держателям {{ money(c.hr_year) }}</small></span>
+      <span role="cell" data-label="Обращение">{{ pct(c.float_share, False) }}<small>разлок {{ pct(c.unlock_12m, False) if c.unlock_12m is not none else '?' }}</small></span>
+      <span role="cell" data-label="Почему" class="scr-why">{{ c.reasons | join(', ') }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</details>
+{% endif %}
+
+<details class="card scr-rules">
+  <summary><span>Как отбираю</span></summary>
+  <ol class="scr-rule-list">
+    <li><b>Бизнес работает:</b> комиссии и выручка протокола или сети за 30 дней и за год — DefiLlama.</li>
+    <li><b>Токен получает долю:</b> выручка держателям (выкуп, сжигание, раздача) не меньше {{ money(s.rules.holders_rev_30d_min) }} за 30 дней.
+      Бизнес без доли для токена — «акция без дивидендов», не берём.</li>
+    <li><b>Нет навеса:</b> в обращении не меньше {{ pct(s.rules.float_min, False) }} от FDV, разлок за год не больше
+      {{ pct(s.rules.unlock_12m_max, False) }} (нет расписания — пометка, не отсев).</li>
+    <li><b>Торгуется и не новичок:</b> капитализация от {{ money(s.rules.mcap_min) }}, оборот от {{ money(s.rules.volume_min) }} в сутки,
+      история цены не меньше года — свежие листинги в среднем отдают рост.</li>
+    <li><b>Сортировка:</b> дешевле к выручке держателям и быстрее её рост — выше.</li>
+  </ol>
+  <p class="hint">Это список «куда смотреть», не сигнал на покупку: истории FDV и разлоков бесплатно нет, бэктеста нет.
+    Проверка — столбец «С попадания»: бумажный счёт вперёд. Цены — CoinGecko ({{ s.priced }} монет), разлоки известны у {{ s.unlocks_known }}.
+    У сетей (ETH, SOL) выручка держателям — сжигание комиссий, эмиссия стейкинга не вычтена.</p>
+</details>
+{% endif %}

@@ -21,6 +21,7 @@ class AppConfig:
     bridge_token: str | None = None    # мост «бот → облако»: токен GitHub с записью в одну ветку; нет — моста нет
     bridge_repo: str = "Roman-Petukhov/scalper"
     bridge_branch: str = "bot-state"
+    coingecko_key: str | None = None   # необязательно: демо-ключ CoinGecko для скринера (без него — общий лимит)
 
     @staticmethod
     def from_env() -> AppConfig:
@@ -41,4 +42,5 @@ class AppConfig:
                          backup_days=int(os.environ.get("BACKUP_DAYS", "14")),
                          bridge_token=os.environ.get("BRIDGE_GITHUB_TOKEN") or None,
                          bridge_repo=os.environ.get("BRIDGE_REPO", "Roman-Petukhov/scalper"),
-                         bridge_branch=os.environ.get("BRIDGE_BRANCH", "bot-state"))
+                         bridge_branch=os.environ.get("BRIDGE_BRANCH", "bot-state"),
+                         coingecko_key=os.environ.get("COINGECKO_API_KEY") or None)

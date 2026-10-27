@@ -32,12 +32,14 @@ from ..application.trend import TrendPaper
 from ..application.liquidations import LiquidationWatcher
 from ..application.bridge import BridgeService
 from ..application.weather import WeatherService
+from ..application.screener import ScreenerService
 from ..config import AppConfig
 from ..domain.execution import TradeStatus
 from ..domain.journal import BACKTEST_DD_R, tf_stats
 from ..domain.shadow import shadow_stats
 from ..domain.models import (DEFAULT_TF_PARAMS, HTF_CONFIRM, EntryPolicy, Mode, Settings, SideFilter, SignalStatus,
                              Sizing, Timeframe)
+from ..domain.screener import money
 from ..domain.sizing import exposure, risk_notes
 from ..domain.daily_break import RULES as DBREAK_RULES, book as dbreak_book
 from ..domain.trend import RULES as TREND_RULES, TrendDay
@@ -47,6 +49,7 @@ from ..infrastructure.bybit import (ALIAS_MAX_GAP, BrokerHolder, BybitBroker, By
 from ..infrastructure.charts import MatplotlibCharts
 from ..infrastructure.github_state import GitHubState
 from ..infrastructure.defillama import DefiLlamaStablecoins
+from ..infrastructure.fundamentals import BinanceSpotWeekly, CoinGeckoQuotes, DefiLlamaFundamentals
 from ..infrastructure.heartbeat import HttpHeartbeat
 from ..infrastructure.liquidations import stream as liquidation_stream
 from ..infrastructure.sentiment import MarketMood
@@ -98,6 +101,7 @@ def asset(name: str) -> str:
 
 
 templates.env.globals["asset"] = asset
+templates.env.globals["money"] = money
 templates.env.globals.update(ARCHIVED=ARCHIVED, DELETABLE=DELETABLE, TRADE_LABEL={TradeStatus.PLACED: "лимитка ждёт", TradeStatus.FILLED: "на бирже",
                                           TradeStatus.EXPIRED: "лимитка снята", TradeStatus.CANCELLED: "снят / закрыт",
                                           TradeStatus.TIMED_OUT: "закрыт по сроку", TradeStatus.CLOSED: "закрыта"},
@@ -145,6 +149,9 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
     mood = MarketMood()
     liqs = LiquidationWatcher(store)
     weather = WeatherService(market, mood, store, store, stables=stables, liquidations=liqs.totals, notifier=notify)
+    fundamentals, cg_quotes, spot_weekly = DefiLlamaFundamentals(), CoinGeckoQuotes(api_key=cfg.coingecko_key), \
+        BinanceSpotWeekly()
+    screener = ScreenerService(fundamentals, cg_quotes, spot_weekly, store, notifier=notify, market=market)
     state_repo = GitHubState(cfg.bridge_token, cfg.bridge_repo, cfg.bridge_branch) if cfg.bridge_token else None
     bridge = BridgeService(state_repo, store, store, store, store, notify) if state_repo is not None else None
 
@@ -168,6 +175,7 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
             await trend.maybe_run()
             await dbreak.maybe_run()
             await weather.maybe_run()
+            await screener.maybe_run()
             if bridge is not None:
                 await bridge.maybe_run()
             liqs.save()
@@ -193,6 +201,8 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
             liqs.save()
         await holder.close()
         await stables.aclose()
+        for c in (fundamentals, cg_quotes, spot_weekly):
+            await c.aclose()
         await mood.aclose()
         if state_repo is not None:
             await state_repo.aclose()
@@ -558,6 +568,21 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         return templates.TemplateResponse(request, "_weather.html", {"w": weather.current(), "error": weather.last_error,
                                                                      "running": weather.running, "liq": liqs.totals(),
                                                                      "a": weather.assessment()})
+
+    def screener_view(request: Request, started: bool | None = None):
+        return templates.TemplateResponse(request, "_screener.html", {
+            "s": screener.current(), "error": screener.last_error, "running": screener.running,
+            "started": started, "every_h": int(screener.every.total_seconds() // 3600)})
+
+    @app.get("/screener", response_class=HTMLResponse)
+    async def screener_card(request: Request):
+        guard(request)
+        return screener_view(request)
+
+    @app.post("/screener/run", response_class=HTMLResponse)
+    async def screener_run(request: Request):
+        guard(request, mutate=True)
+        return screener_view(request, started=screener.start())
 
     @app.get("/dbreak", response_class=HTMLResponse)
     async def dbreak_card(request: Request):
