@@ -1,0 +1,70 @@
+----- majors collect (часть 0/10) -----
+часть 0/10, набор 1h-qualified: монет 63
+часть 0/10, набор 15m-wide: монет 63
+  majors 15m: сделок 103
+  majors 1h: сделок 74
+  majors 4h: сделок 15
+  majors 1d: сделок 1
+----- majors collect (часть 1/10) -----
+часть 1/10, набор 1h-qualified: монет 66
+часть 1/10, набор 15m-wide: монет 66
+  majors 15m: сделок 0
+  majors 1h: сделок 0
+  majors 4h: сделок 0
+  majors 1d: сделок 0
+----- majors collect (часть 2/10) -----
+часть 2/10, набор 1h-qualified: монет 78
+часть 2/10, набор 15m-wide: монет 78
+  majors 15m: сделок 253
+  majors 1h: сделок 210
+  majors 4h: сделок 55
+  majors 1d: сделок 5
+----- majors collect (часть 3/10) -----
+часть 3/10, набор 1h-qualified: монет 73
+часть 3/10, набор 15m-wide: монет 73
+  majors 15m: сделок 0
+  majors 1h: сделок 0
+  majors 4h: сделок 0
+  majors 1d: сделок 0
+----- majors collect (часть 4/10) -----
+часть 4/10, набор 1h-qualified: монет 72
+часть 4/10, набор 15m-wide: монет 72
+  majors 15m: сделок 114
+  majors 1h: сделок 72
+  majors 4h: сделок 13
+  majors 1d: сделок 3
+----- majors collect (часть 5/10) -----
+часть 5/10, набор 1h-qualified: монет 83
+часть 5/10, набор 15m-wide: монет 83
+  majors 15m: сделок 0
+  majors 1h: сделок 0
+  majors 4h: сделок 0
+  majors 1d: сделок 0
+----- majors collect (часть 6/10) -----
+часть 6/10, набор 1h-qualified: монет 71
+часть 6/10, набор 15m-wide: монет 71
+  majors 15m: сделок 113
+  majors 1h: сделок 97
+  majors 4h: сделок 23
+  majors 1d: сделок 3
+----- majors collect (часть 7/10) -----
+часть 7/10, набор 1h-qualified: монет 61
+часть 7/10, набор 15m-wide: монет 61
+  majors 15m: сделок 357
+  majors 1h: сделок 270
+  majors 4h: сделок 69
+  majors 1d: сделок 9
+----- majors collect (часть 8/10) -----
+часть 8/10, набор 1h-qualified: монет 75
+часть 8/10, набор 15m-wide: монет 75
+  majors 15m: сделок 259
+  majors 1h: сделок 197
+  majors 4h: сделок 39
+  majors 1d: сделок 6
+----- majors collect (часть 9/10) -----
+часть 9/10, набор 1h-qualified: монет 83
+часть 9/10, набор 15m-wide: монет 83
+  majors 15m: сделок 0
+  majors 1h: сделок 0
+  majors 4h: сделок 0
+  majors 1d: сделок 0
