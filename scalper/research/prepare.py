@@ -10,6 +10,7 @@
     1h-spot        те же 725 монет: спот-свечи Binance 1h (остаются монеты, у которых есть спот)
     1h-premium     те же 725 монет: 1h + premium index (премия перпа к индексу спота)
     1h-all         все USDT-перпетуалы архива (включая делистнутые), 1h без метрик
+    sect-metrics   монеты секторов research/sectors.py: OI/LSR-метрики с 2022 года (свечи — из кеша)
     lowtf-core70   core16 + ext54: 1h, 15m, 5m и 1m (1m — с RESEARCH_START_1M)
 """
 from __future__ import annotations
@@ -28,6 +29,7 @@ ROOT = Path.home() / "bn"
 START = os.environ.get("RESEARCH_START", "2022-01")   # RESEARCH_START=2020-01 — проверка на 2020–2021
 END = os.environ.get("RESEARCH_END", "2026-09")       # последний месяц; квартальная пересдача ставит прошлый месяц
 START_1M = os.environ.get("RESEARCH_START_1M", "2025-07")      # 1m — только HOLDOUT: ~650 тыс. свечей на монету
+METRICS_START = "2022-01"                              # архивы метрик Binance — с декабря 2021
 METRICS = os.environ.get("RESEARCH_METRICS", "1") != "0"   # 0 — без OI/LSR: ~1.2 млн дневных архивов, на VPS долго
 
 
@@ -69,6 +71,12 @@ def build(name: str) -> list[str]:
         D.build(syms, "15m", START, END, ROOT, 64)
         D.build(syms, "5m", START, END, ROOT, 64)
         part = [s for s in part if (ROOT / f"{s}-1h.parquet").exists()]
+    elif name == "sect-metrics":                                                 # research/posflow.py
+        from .sectors import sector_map
+        smap = sector_map()
+        part = mine([s for s in list_symbols() if s in smap])
+        D.METRICS_FREQ = "1h"
+        D.build(sorted(set(part) | ALWAYS), "1h", METRICS_START, END, ROOT, 64, metrics=True)
     elif name == "1h-all":
         part = mine(list_symbols())
         D.build(sorted(set(part) | ALWAYS), "1h", START, END, ROOT, 64)
