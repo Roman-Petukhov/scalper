@@ -1,0 +1,30 @@
+----- longstop collect (часть 0/10) -----
+часть 0/10, набор 1h-qualified: монет 63
+  longstop: сделок 252
+----- longstop collect (часть 1/10) -----
+часть 1/10, набор 1h-qualified: монет 66
+  longstop: сделок 200
+----- longstop collect (часть 2/10) -----
+часть 2/10, набор 1h-qualified: монет 78
+  longstop: сделок 323
+----- longstop collect (часть 3/10) -----
+часть 3/10, набор 1h-qualified: монет 73
+  longstop: сделок 244
+----- longstop collect (часть 4/10) -----
+часть 4/10, набор 1h-qualified: монет 72
+  longstop: сделок 190
+----- longstop collect (часть 5/10) -----
+часть 5/10, набор 1h-qualified: монет 83
+  longstop: сделок 230
+----- longstop collect (часть 6/10) -----
+часть 6/10, набор 1h-qualified: монет 71
+  longstop: сделок 272
+----- longstop collect (часть 7/10) -----
+часть 7/10, набор 1h-qualified: монет 61
+  longstop: сделок 229
+----- longstop collect (часть 8/10) -----
+часть 8/10, набор 1h-qualified: монет 75
+  longstop: сделок 278
+----- longstop collect (часть 9/10) -----
+часть 9/10, набор 1h-qualified: монет 83
+  longstop: сделок 337
