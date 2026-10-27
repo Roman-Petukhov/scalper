@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"quarterly"}
+TASKS=${TASKS:-"placebo"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -705,6 +705,13 @@ sectors_collect() {
 sectors_report() { python -m research.sectors report; python -m research.markets report; }
 markets_collect() { sectors_collect; }
 markets_report() { python -m research.markets report; }
+
+# Плацебо бота 4h: случайный вход на тех же монетах, месяце, стороне и стопе; фон «шорт любого альта»
+placebo_collect() {
+  RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-qualified
+  python -m research.placebo collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
+}
+placebo_report() { python -m research.placebo report; }
 
 case "$MODE" in
   collect|report) ;;
