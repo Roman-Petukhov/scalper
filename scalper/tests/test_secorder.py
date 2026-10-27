@@ -48,3 +48,9 @@ def test_strategies_run_and_pick_weekly_follows_score():
     assert set(z.sector) == {"B"} and (z.X > 0).all()
     gated = O.pick_weekly(score, ex, gate=pd.DataFrame({"A": 1, "B": -1, "C": 1, "D": -1}, index=days))
     assert set(gated.sector) == {"A"}
+
+
+def test_cycle_order_without_sector_data(capsys):
+    idx = pd.date_range("2020-01-01", periods=100, freq="D")
+    O.cycle_order({"A": pd.Series(np.nan, index=idx)}, pd.Series(0.0, index=idx))
+    assert "секторов с данными нет" in capsys.readouterr().out

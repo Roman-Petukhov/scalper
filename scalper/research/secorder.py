@@ -29,7 +29,6 @@ import warnings
 import numpy as np
 import pandas as pd
 
-from .oos import PER_ALL
 from .sectors import ADV_MIN, COST, load_daily, panel, sector_map, verdict
 
 LOOK = 28
@@ -149,6 +148,9 @@ def cycle_order(idx: dict[str, pd.Series], mkt: pd.Series) -> None:
         for s in seg.columns[have.to_numpy()]:
             rows.append({"сектор": s, "пик": cum[s].idxmax().date(), "сверх рынка в пике": cum[s].max(),
                          "к концу": cum[s].iloc[-1]})
+        if not rows:
+            print(f"  {name}: секторов с данными нет")
+            continue
         tab = pd.DataFrame(rows).sort_values("пик").reset_index(drop=True)
         tab.index += 1
         orders[name] = {r["сектор"]: i for i, r in tab.iterrows()}
