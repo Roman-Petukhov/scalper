@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"livebook11"}
+TASKS=${TASKS:-"dayrev btclag"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -535,6 +535,17 @@ boxema_collect() {
   python -m research.boxema collect --symbols "$(cat /tmp/syms_15m-core70.txt)"
 }
 boxema_report() { python -m research.boxema report; }
+# Малоликвидные альты: дневной разворот (Zaremba и др. 2021) и отставание от резкого хода BTC на 5m
+dayrev_collect() {
+  RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-all
+  python -m research.dayrev collect --symbols "$(cat /tmp/syms_1h-all.txt)"
+}
+dayrev_report() { python -m research.dayrev report; }
+btclag_collect() {
+  RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-all
+  python -m research.btclag collect --symbols "$(cat /tmp/syms_1h-all.txt)"
+}
+btclag_report() { python -m research.btclag report; }
 # Круглые числа (Osler): пробой через круглый уровень, уровень впереди, стоп «за толпой» (4h и 15m)
 roundnum_collect() {
   RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-qualified 15m-wide
