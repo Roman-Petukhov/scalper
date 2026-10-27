@@ -1,0 +1,60 @@
+----- causal collect (часть 0/10) -----
+часть 0/10, набор 1h-qualified: монет 63
+  causal: выплат funding 254183
+----- nmfilter collect (часть 0/10) -----
+часть 0/10, набор 1h-qualified: монет 63
+  crisk 4h: сделок 56
+----- causal collect (часть 1/10) -----
+часть 1/10, набор 1h-qualified: монет 66
+  causal: выплат funding 224625
+----- nmfilter collect (часть 1/10) -----
+часть 1/10, набор 1h-qualified: монет 66
+  crisk 4h: сделок 43
+----- causal collect (часть 2/10) -----
+часть 2/10, набор 1h-qualified: монет 78
+  causal: выплат funding 273875
+----- nmfilter collect (часть 2/10) -----
+часть 2/10, набор 1h-qualified: монет 78
+  crisk 4h: сделок 47
+----- causal collect (часть 3/10) -----
+часть 3/10, набор 1h-qualified: монет 73
+  causal: выплат funding 244615
+----- nmfilter collect (часть 3/10) -----
+часть 3/10, набор 1h-qualified: монет 73
+  crisk 4h: сделок 54
+----- causal collect (часть 4/10) -----
+часть 4/10, набор 1h-qualified: монет 72
+  causal: выплат funding 244798
+----- nmfilter collect (часть 4/10) -----
+часть 4/10, набор 1h-qualified: монет 72
+  crisk 4h: сделок 41
+----- causal collect (часть 5/10) -----
+часть 5/10, набор 1h-qualified: монет 83
+  causal: выплат funding 300191
+----- nmfilter collect (часть 5/10) -----
+часть 5/10, набор 1h-qualified: монет 83
+  crisk 4h: сделок 45
+----- causal collect (часть 6/10) -----
+часть 6/10, набор 1h-qualified: монет 71
+  causal: выплат funding 252277
+----- nmfilter collect (часть 6/10) -----
+часть 6/10, набор 1h-qualified: монет 71
+  crisk 4h: сделок 39
+----- causal collect (часть 7/10) -----
+часть 7/10, набор 1h-qualified: монет 61
+  causal: выплат funding 234548
+----- nmfilter collect (часть 7/10) -----
+часть 7/10, набор 1h-qualified: монет 61
+  crisk 4h: сделок 42
+----- causal collect (часть 8/10) -----
+часть 8/10, набор 1h-qualified: монет 75
+  causal: выплат funding 278439
+----- nmfilter collect (часть 8/10) -----
+часть 8/10, набор 1h-qualified: монет 75
+  crisk 4h: сделок 52
+----- causal collect (часть 9/10) -----
+часть 9/10, набор 1h-qualified: монет 83
+  causal: выплат funding 324632
+----- nmfilter collect (часть 9/10) -----
+часть 9/10, набор 1h-qualified: монет 83
+  crisk 4h: сделок 61
