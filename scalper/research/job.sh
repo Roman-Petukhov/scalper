@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"onchainprobe spotrev"}
+TASKS=${TASKS:-"spotrev onchainval"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -676,6 +676,9 @@ onchainprobe_collect() { :; }
 onchainprobe_report() { python -m research.onchainprobe report; }
 spotrev_collect() { python -m research.spotrev collect; }
 spotrev_report() { python -m research.spotrev report; }
+# этап 3: ончейн-стоимость (CoinMetrics, DefiLlama) — цены из частей spotrev того же прогона
+onchainval_collect() { :; }
+onchainval_report() { python -m research.onchainval report; }
 
 case "$MODE" in
   collect|report) ;;

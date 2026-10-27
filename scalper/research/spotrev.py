@@ -48,15 +48,20 @@ BASKETS = ("проигравшие", "победители", "все")
 PERIODS = {"2017–19": ("2017-08-01", "2020-01-01"), "2020–21": ("2020-01-01", "2022-01-01"),
            "is": ("2022-01-01", "2024-07-01"), "val": ("2024-07-01", "2025-07-01"), "ho": ("2025-07-01", "2026-10-01")}
 MIN_COHORTS = 6
+# Этап 2б (по обзору, до запуска): низкая волатильность за 6 мес. (Kaya, Mostowfi, FRL 2022; Leong и др., JEF 2023) и
+# MAX — лучший день прошлого месяца (Özdamar и др., Financial Innovation 2021: плюс у высоких MAX); пара — справка
+CHAR_BASKETS = {"vol6": ("низкая вола", "высокая вола"), "mx": ("MAX низ", "MAX верх")}
+CHAR_MAIN = ("низкая вола", "MAX верх")
 
 
 def monthly(d: pd.DataFrame) -> pd.DataFrame:
-    """Помесячно: закрытие последнего дня месяца, закрытие первого дня, средний оборот за 30 дней на конце месяца."""
+    """Помесячно: закрытие последнего дня и первого дня месяца, средний оборот за 30 дней на конце месяца, дисперсия
+    дневных доходностей за месяц и лучший день месяца (MAX)."""
     c = d["close"].astype("float64")
     adv = d["quote_volume"].astype("float64").rolling(30, min_periods=20).mean()
-    m = c.index.to_period("M")
-    g = pd.DataFrame({"c": c, "adv": adv, "m": m})
-    end = g.groupby("m").agg(c_end=("c", "last"), adv=("adv", "last"))
+    m = c.index.tz_localize(None).to_period("M") if c.index.tz is not None else c.index.to_period("M")
+    g = pd.DataFrame({"c": c, "adv": adv, "m": m, "r": c.pct_change()})
+    end = g.groupby("m").agg(c_end=("c", "last"), adv=("adv", "last"), var=("r", "var"), mx=("r", "max"))
     d1 = g[g.index.day == 1].groupby("m")["c"].first().rename("c_d1")
     out = end.join(d1, how="outer")
     out.index = out.index.to_timestamp()
@@ -110,8 +115,9 @@ def exit_prices(c_d1: pd.DataFrame, c_end: pd.DataFrame, meta: pd.DataFrame, exi
 
 
 def cohorts(c_end: pd.DataFrame, c_d1: pd.DataFrame, adv: pd.DataFrame, meta: pd.DataFrame, regime: pd.Series,
-            btc_sym: str, L: int, H: int, band: float) -> pd.DataFrame:
-    """Когорты: дата входа, доходности корзин (до издержек), BTC, режим и число отобранных."""
+            btc_sym: str, L: int, H: int, band: float, chars: dict[str, pd.DataFrame] | None = None) -> pd.DataFrame:
+    """Когорты: дата входа, доходности корзин (до издержек), BTC, режим и число отобранных. chars — признаки на
+    конце месяца (vol6 — дисперсия дневных доходностей за 6 мес., mx — лучший день месяца) для корзин этапа 2б."""
     months = c_end.index
     first = meta["first"].reindex(c_end.columns)
     out = []
@@ -132,8 +138,13 @@ def cohorts(c_end: pd.DataFrame, c_d1: pd.DataFrame, adv: pd.DataFrame, meta: pd
         sig = past[r.index]
         rk = sig.rank(pct=True)
         b0, b1 = c_d1[btc_sym].get(entry_m, np.nan), exit_prices(c_d1, c_end, meta, exit_m).get(btc_sym, np.nan)
-        out.append({"t": entry_m, "проигравшие": r[rk <= DECILE].mean(), "победители": r[rk > 1 - DECILE].mean(),
-                    "все": r.mean(), "btc": b1 / b0 - 1, "on": bool(regime.get(m, False)), "n": len(r)})
+        row = {"t": entry_m, "проигравшие": r[rk <= DECILE].mean(), "победители": r[rk > 1 - DECILE].mean(),
+               "все": r.mean(), "btc": b1 / b0 - 1, "on": bool(regime.get(m, False)), "n": len(r)}
+        for key, (lo_name, hi_name) in CHAR_BASKETS.items():
+            if chars and key in chars and m in chars[key].index:
+                ck = chars[key].loc[m].reindex(r.index).rank(pct=True)
+                row[lo_name], row[hi_name] = r[ck <= DECILE].mean(), r[ck > 1 - DECILE].mean()
+        out.append(row)
     return pd.DataFrame(out)
 
 
@@ -195,7 +206,7 @@ def compound(z: pd.DataFrame, basket: str, regime: str) -> str:
     return f"корзина {st(r)}; BTC {st(b)}"
 
 
-def load() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.Series] | None:
+def load() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.Series, dict] | None:
     parts, mparts, bparts = all_parts("spotrev"), all_parts("spotrev_meta"), all_parts("spotrev_btc")
     if not parts or not mparts or not bparts:
         return None
@@ -206,9 +217,14 @@ def load() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.S
         meta[k] = pd.to_datetime(meta[k], utc=True).dt.tz_localize(None).dt.normalize()
     c_end, c_d1, adv = (x.pivot_table(index="month", columns="symbol", values=k) for k in ("c_end", "c_d1", "adv"))
     c_d1, adv = c_d1.reindex(index=c_end.index, columns=c_end.columns), adv.reindex_like(c_end)
+    chars = {}
+    if "var" in x and "mx" in x:
+        var = x.pivot_table(index="month", columns="symbol", values="var").reindex_like(c_end)
+        chars = {"vol6": var.rolling(6, min_periods=5).mean(),
+                 "mx": x.pivot_table(index="month", columns="symbol", values="mx").reindex_like(c_end)}
     b = pd.concat([pd.read_parquet(p) for p in bparts]).drop_duplicates("day")
     btc = pd.Series(b["close"].to_numpy(), index=pd.to_datetime(b["day"], utc=True).dt.tz_localize(None)).sort_index()
-    return c_end, c_d1, adv, meta, btc_regime(btc)
+    return c_end, c_d1, adv, meta, btc_regime(btc), chars
 
 
 def report() -> None:
@@ -218,7 +234,7 @@ def report() -> None:
     if got is None:
         print("  spotrev: нет данных")
         return
-    c_end, c_d1, adv, meta, regime = got
+    c_end, c_d1, adv, meta, regime, chars = got
     btc_sym = "BTCUSDT"
     if btc_sym not in c_end.columns:
         print("  spotrev: нет BTCUSDT в монетах")
@@ -246,6 +262,31 @@ def report() -> None:
                     passed.append(f"L {L} H {H} {reg}")
     print("\n  ИТОГ: " + ("прошли — " + "; ".join(passed) if passed else
                          "покупка упавших альтов на месяцы не обгоняет удержание BTC"))
+    if chars:
+        char_report(c_end, c_d1, adv, meta, regime, chars, btc_sym)
+
+
+def char_report(c_end: pd.DataFrame, c_d1: pd.DataFrame, adv: pd.DataFrame, meta: pd.DataFrame, regime: pd.Series,
+                chars: dict, btc_sym: str) -> None:
+    """Этап 2б: низкая волатильность и MAX, полоса от $1M, H 1 / 3 / 6, те же правила принятия."""
+    print("\n  ===== этап 2б: низкая волатильность за 6 мес. и MAX (лучший день месяца), полоса от $1M =====")
+    passed = []
+    for H in HS:
+        z = cohorts(c_end, c_d1, adv, meta, regime, btc_sym, 1, H, BANDS["от $1M"], chars)
+        if z.empty or "низкая вола" not in z:
+            print(f"    H {H}: когорт нет")
+            continue
+        print(f"\n    H {H} мес.: когорт {len(z)}")
+        for basket, reg in itertools.product([b for pair in CHAR_BASKETS.values() for b in pair], REGIMES):
+            good, txt = verdict(z.dropna(subset=[basket]), basket, reg, H)
+            tag = ("принято" if good else "нет") if basket in CHAR_MAIN else "справка"
+            print(f"      {basket}, {reg}: {tag}\n        {txt}")
+            if H == 1 and basket in CHAR_MAIN:
+                print(f"        счёт: {compound(z.dropna(subset=[basket]), basket, reg)}")
+            if good and basket in CHAR_MAIN:
+                passed.append(f"{basket} H {H} {reg}")
+    print("\n  ИТОГ 2б: " + ("прошли — " + "; ".join(passed) if passed else
+                            "ни низкая волатильность, ни MAX не обгоняют удержание BTC"))
 
 
 if __name__ == "__main__":

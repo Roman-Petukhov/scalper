@@ -60,3 +60,20 @@ def test_nw_t_matches_plain_t_without_lag():
     x = rng.normal(0.01, 0.05, 200)
     plain = x.mean() / (x.std() / np.sqrt(len(x)))
     assert abs(S.nw_t(x, 0) - plain) < 1e-9
+
+
+def test_low_vol_basket_picks_calm_coins():
+    c_end, c_d1, adv, meta, regime = _panel()
+    calm = [f"C{i}USDT" for i in range(5)]
+    var = pd.DataFrame(0.01, index=c_end.index, columns=c_end.columns)
+    var[calm] = 0.0001
+    c_d1.loc[pd.Timestamp("2019-08-01"), calm] = 110.0
+    z = S.cohorts(c_end, c_d1, adv, meta, regime, "BTCUSDT", 1, 1, 1e6, {"vol6": var, "mx": var})
+    row = z[z.t == pd.Timestamp("2019-07-01")].iloc[0]
+    assert abs(row["низкая вола"] - 0.1) < 1e-12 and np.isnan(row["высокая вола"])   # остальные — одна связка
+
+
+def test_monthly_reports_variance_and_best_day():
+    p = np.r_[np.full(10, 100.0), 120.0, np.full(50, 120.0)]
+    m = S.monthly(_daily(p))
+    assert abs(m.iloc[0]["mx"] - 0.2) < 1e-12 and m.iloc[0]["var"] > 0 and m.iloc[1]["var"] == 0
