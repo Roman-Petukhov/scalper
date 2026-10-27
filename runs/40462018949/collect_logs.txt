@@ -1,0 +1,40 @@
+----- squeezefuel collect (часть 0/10) -----
+часть 0/10, набор 1h-qualified: монет 63
+часть 0/10, набор 1h-spot: монет 45
+  squeezefuel: монет 62, со спотом 45
+----- squeezefuel collect (часть 1/10) -----
+часть 1/10, набор 1h-qualified: монет 66
+часть 1/10, набор 1h-spot: монет 39
+  squeezefuel: монет 63, со спотом 38
+----- squeezefuel collect (часть 2/10) -----
+часть 2/10, набор 1h-qualified: монет 78
+часть 2/10, набор 1h-spot: монет 45
+  squeezefuel: монет 76, со спотом 44
+----- squeezefuel collect (часть 3/10) -----
+часть 3/10, набор 1h-qualified: монет 73
+часть 3/10, набор 1h-spot: монет 46
+  squeezefuel: монет 71, со спотом 45
+----- squeezefuel collect (часть 4/10) -----
+часть 4/10, набор 1h-qualified: монет 72
+часть 4/10, набор 1h-spot: монет 44
+  squeezefuel: монет 72, со спотом 44
+----- squeezefuel collect (часть 5/10) -----
+часть 5/10, набор 1h-qualified: монет 83
+часть 5/10, набор 1h-spot: монет 46
+  squeezefuel: монет 81, со спотом 46
+----- squeezefuel collect (часть 6/10) -----
+часть 6/10, набор 1h-qualified: монет 71
+часть 6/10, набор 1h-spot: монет 49
+  squeezefuel: монет 69, со спотом 49
+----- squeezefuel collect (часть 7/10) -----
+часть 7/10, набор 1h-qualified: монет 61
+часть 7/10, набор 1h-spot: монет 49
+  squeezefuel: монет 59, со спотом 47
+----- squeezefuel collect (часть 8/10) -----
+часть 8/10, набор 1h-qualified: монет 75
+часть 8/10, набор 1h-spot: монет 45
+  squeezefuel: монет 75, со спотом 45
+----- squeezefuel collect (часть 9/10) -----
+часть 9/10, набор 1h-qualified: монет 83
+часть 9/10, набор 1h-spot: монет 60
+  squeezefuel: монет 80, со спотом 59
