@@ -143,7 +143,7 @@ def cycle_order(idx: dict[str, pd.Series], mkt: pd.Series) -> None:
     for name, (a, b) in CYCLES.items():
         seg = ex.loc[a:b]
         cum = np.expm1(np.log1p(seg.fillna(0.0)).cumsum())
-        have = seg.notna().sum() >= 0.6 * len(seg)
+        have = seg.notna().sum() >= max(1.0, 0.6 * len(seg))
         rows = []
         for s in seg.columns[have.to_numpy()]:
             rows.append({"сектор": s, "пик": cum[s].idxmax().date(), "сверх рынка в пике": cum[s].max(),
