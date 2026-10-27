@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"quarterly"}
+TASKS=${TASKS:-"longexit"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -397,6 +397,13 @@ aggr200_collect() {
   A200_TFS=15m python -m research.aggr200 collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
 }
 aggr200_report() { python -m research.aggr200 report; }
+# Длинные выходы только на лонгах 4h / 2h (5R, 8R, трейлинг 3 ATR, дневная EMA20, минимум 10 дней) при трёх порогах агрессоров
+longexit_collect() {
+  RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-qualified
+  LX_TFS=4h python -m research.longexit collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
+  LX_TFS=2h python -m research.longexit collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
+}
+longexit_report() { python -m research.longexit report; }
 # Вход на откате 30 / 50% после длинной свечи пробоя и лестница риска на 15m в масштабе бота
 pullladder_collect() {
   RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-qualified 15m-wide
