@@ -30,6 +30,7 @@ import math
 import sys
 import warnings
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -64,6 +65,8 @@ class Book:
     slope15: float = 0.04         # наклон линии 15m не круче
     squeeze4h: float = 1.0        # риск 4h × на сжатых пробоях (research/squeezesize.py)
     long_x: float = 1.0           # риск лонгов 15m × (как long_risk_x бота, после лестницы); при sides15="both"
+    extra: tuple = ()             # другие стратегии: (tf, доля номинала от счёта, плечо, лимит позиций или 0); их R —
+                                  # доходность на номинал (stop_pct = 1), в общий лимит бота не входят (research/livebook 10)
 
 
 # второй заход (после первого: живые и «умеренный» опасны) — где безопасно; задан до запуска, критерий тот же
@@ -134,6 +137,18 @@ BOOKS8 = (Book("15m 0.15% + 4h 2.4% (эталон)", r15=0.0015, r4h=0.024, **_S
 BOOKS9 = (Book("B2: 15m 0.35% + 4h 3% (текущие)", r15=0.0035, r4h=0.03, **_S8),
           Book("C1: 15m 0.35% + 4h 4%", r15=0.0035, r4h=0.04, **_S8),
           Book("15m 0.5% + 4h 4%", r15=0.005, r4h=0.04, **_S8), Book("15m 1% + 4h 4%", r15=0.01, r4h=0.04, **_S8))
+# десятый заход — бот B2 вместе с oi_liq (откуп ликвидационных каскадов, лесенка 5 лимитов, 4 ч) и ловлей прострелов 6σ
+# (лимитка на 6σ ниже, тейк на половине отката, до 60 мин; только монеты Bybit, исполнение при проколе на 0.2%) одним
+# счётом; размеры как research/portfolio_sim2 («умеренный» / «агрессивный»). Сделки — research/combo_data
+_B2 = dict(r15=0.0035, r4h=0.03, **_S8)
+OI, SPIKE = ("oi", 0.3, 5.0, 3), ("spike", 0.05, 10.0, 0)
+BOOKS10 = (Book("B2", **_B2), Book("B2 + oi 0.3 (≤ 3)", extra=(OI,), **_B2),
+           Book("B2 + oi 0.6 (≤ 5)", extra=(("oi", 0.6, 5.0, 5),), **_B2),
+           Book("B2 + прострелы 0.05", extra=(SPIKE,), **_B2), Book("B2 + прострелы 0.10", extra=(("spike", 0.10, 10.0, 0),), **_B2),
+           Book("B2 + oi 0.3 + прострелы 0.05", extra=(OI, SPIKE), **_B2),
+           Book("без бота: oi 0.3 + прострелы 0.05", extra=(OI, SPIKE), **(_B2 | {"r15": 0.0, "r4h": 0.0})))
+COMBO_DIR = Path(__file__).resolve().parent / "combo_data"
+CRASH_DAY = "2025-10-10"
 GOAL, GOAL_YEARS = 100_000 / 3_000, 2.0
 EDGES = (1.0, 0.5)
 BOOKS = (Book("live"), Book("live, 15m <= 3", limit15=3), Book("live, 15m <= 5", limit15=5),
@@ -165,13 +180,16 @@ def simulate_book(z: pd.DataFrame, b: Book, R: np.ndarray | None = None) -> dict
     x = z.exit.to_numpy("datetime64[ns]").astype("int64")
     is15 = (z.tf == "15m").to_numpy()
     long = (z.side > 0).to_numpy()
+    tfs = z.tf.to_numpy()
+    ext = {e[0]: e[1:] for e in b.extra if e[1] > 0}
+    n_ext = dict.fromkeys(ext, 0)
     stop = z.stop_pct.to_numpy()
     ev = sorted([(int(f[i]), 2, i) for i in range(len(z))] +
                 [(int(x[i]), 3 if x[i] <= f[i] else 0, i) for i in range(len(z))], key=lambda e: (e[0], e[1]))
     eq, peak, mdd = 1.0, 1.0, 0.0
     open_: dict[int, tuple[float, float, float]] = {}       # номер → (риск в деньгах, доля риска, маржа в деньгах)
     step, day, day_eq, halted = 0, -1, 1.0, False
-    skip = {"лимит": 0, "лимит 15m": 0, "потолок риска": 0, "маржа": 0, "дневной стоп": 0}
+    skip = {"лимит": 0, "лимит 15m": 0, "лимит доп.": 0, "потолок риска": 0, "маржа": 0, "дневной стоп": 0}
     times, curve, heat_max, n15 = [], [], 0.0, 0
     for t, kind, i in ev:
         d = t // DAY_NS
@@ -182,6 +200,8 @@ def simulate_book(z: pd.DataFrame, b: Book, R: np.ndarray | None = None) -> dict
                 continue
             amt, _, _ = open_.pop(i)
             eq += amt * R[i]
+            if tfs[i] in ext:
+                n_ext[tfs[i]] -= 1
             if is15[i]:
                 n15 -= 1
                 step = min(step + 1, b.steps - 1) if R[i] >= LADDER_TAKE else 0 if R[i] < 0 else step
@@ -197,7 +217,19 @@ def simulate_book(z: pd.DataFrame, b: Book, R: np.ndarray | None = None) -> dict
         if halted:
             skip["дневной стоп"] += 1
             continue
-        if len(open_) >= b.limit:
+        if tfs[i] in ext:
+            frac, lev, lim = ext[tfs[i]]
+            if lim and n_ext[tfs[i]] >= lim:
+                skip["лимит доп."] += 1
+                continue
+            margin = frac * eq / lev
+            if sum(v[2] for v in open_.values()) + margin > eq:
+                skip["маржа"] += 1
+                continue
+            open_[i] = (frac * eq, 0.0, margin)
+            n_ext[tfs[i]] += 1
+            continue
+        if len(open_) - sum(n_ext.values()) >= b.limit:
             skip["лимит"] += 1
             continue
         if is15[i] and b.limit15 and n15 >= b.limit15:
@@ -279,15 +311,16 @@ def portfolio_report(z: pd.DataFrame, books: tuple[Book, ...] = BOOKS,
 
 
 def keep_mask(z: pd.DataFrame, b: Book) -> np.ndarray:
+    extra = [e[0] for e in b.extra if e[1] > 0]
     return (((z.tf == "4h") & (b.r4h > 0)) | ((z.tf == "15m") & (b.r15 > 0) & (z.slope_atr <= b.slope15)
-                                               & ((b.sides15 == "both") | (z.side < 0)))).to_numpy()
+                                               & ((b.sides15 == "both") | (z.side < 0))) | z.tf.isin(extra)).to_numpy()
 
 
 def haircut(z: pd.DataFrame, b: Book, edge: float) -> np.ndarray:
     """R сделок с ожиданием × edge: из каждого R вычитается (1 − edge) × среднее R своего ТФ по сделкам книги."""
     R = z.R.to_numpy().copy()
     k = keep_mask(z, b)
-    for tf in ("15m", "4h"):
+    for tf in ("15m", "4h", *(e[0] for e in b.extra)):
         m = k & (z.tf == tf).to_numpy()
         if m.any():
             R[(z.tf == tf).to_numpy()] -= (1 - edge) * R[m].mean()
@@ -339,6 +372,61 @@ def goal_report(z: pd.DataFrame, books: tuple[Book, ...] = BOOKS9, paths: int = 
                   f"медиана {np.median(x2):.1f}, 90-й {np.percentile(x2, 90):.0f}; дошли до ×{GOAL:.0f} {hit.mean():.0%}; "
                   f"меньше старта {np.mean(x2 < 1):.0%}; просадка > 50% за это время {np.mean(dd2 > 0.5):.0%}\n{'':6}"
                   f"до ×{GOAL:.0f}: медиана {t_med}, дошли вообще (за всю длину пути) {reached.mean():.0%}\n{'':6}{hist}")
+
+
+def extra_trades(root: Path = COMBO_DIR) -> pd.DataFrame:
+    """Сделки oi_liq и прострелов в формате load(): R — доходность на номинал (комиссии внутри), stop_pct = 1."""
+    oi = pd.read_csv(root / "oi_liq_trades.csv")
+    t = pd.to_datetime(oi["t"], utc=True, format="ISO8601").dt.tz_localize(None)
+    a = pd.DataFrame({"tf": "oi", "fill": t + pd.Timedelta(hours=1), "exit": t + pd.Timedelta(hours=5),
+                      "R": oi["L5x0.5"].to_numpy(), "symbol": oi["symbol"]})
+    sp = pd.read_csv(root / "spikes_6s_bybit.csv")
+    t = pd.to_datetime(sp["t"], utc=True, format="ISO8601").dt.tz_localize(None)
+    b = pd.DataFrame({"tf": "spike", "fill": t, "exit": t + pd.Timedelta(minutes=60), "R": sp["r"].to_numpy(),
+                      "symbol": sp["symbol"]})
+    x = pd.concat([a, b], ignore_index=True)
+    return x.assign(stop_pct=1.0, side=1, t=x.fill, slope_atr=0.0, squeeze=1.0).dropna(subset=["R"])
+
+
+def combo_report(z: pd.DataFrame, ex: pd.DataFrame, paths: int = 300) -> None:
+    windows = (("с 2022-01 (бот + oi_liq)", "2022-01-21", "2026-10-01", False, ("прострел",)),
+               ("2025-07 … 2026-09 (все три)", "2025-07-03", "2026-10-01", False, ()),
+               ("2025-07 … 2026-09 без обвала 10.10.2025", "2025-07-03", "2026-10-01", True, ()))
+    cols = [c for c in ("tf", "fill", "exit", "R", "stop_pct", "side", "t", "slope_atr", "squeeze") if c in z]
+    for title, a, e, drop, skip in windows:
+        q = pd.concat([z[cols], ex[cols]], ignore_index=True)
+        q = q[(q.fill >= a) & (q.fill < e)]
+        if drop:
+            q = q[q.fill.dt.strftime("%Y-%m-%d") != CRASH_DAY]
+        q = q.sort_values(["fill", "tf"]).reset_index(drop=True)
+        years = (q.fill.max() - q.fill.min()).days / 365.25
+        n = q.tf.value_counts().to_dict()
+        print(f"\n  === {title}: {years:.1f} года, сделок {n} ===")
+        rng = np.random.default_rng(31)
+        boots = [week_blocks(q, rng) for _ in range(paths)]
+        for edge in EDGES:
+            print(f"    -- {'бэктест' if edge == 1.0 else f'ожидание ×{edge:g} (у каждой стратегии)'} --")
+            for b in BOOKS10:
+                if any(k in b.name for k in skip):
+                    continue
+                s = simulate_book(q, b, haircut(q, b, edge))
+                cagr = s["eq"] ** (1 / years) - 1
+                sims = [simulate_book(w, b, haircut(w, b, edge)) for w in boots]
+                cg = np.array([x["eq"] ** (1 / years) - 1 for x in sims])
+                dd = np.array([x["mdd"] for x in sims])
+                skips = ", ".join(f"{k} {v}" for k, v in s["skip"].items() if v)
+                print(f"      {b.name:<36} история {cagr:+.0%} в год, просадка {s['mdd']:.0%}, худший месяц "
+                      f"{worst_month(s['curve']):+.0%}; бутстреп: медиана {np.median(cg):+.0%}, 10-й процентиль "
+                      f"{np.percentile(cg, 10):+.0%}, P(просадка > 50%) {np.mean(dd > 0.5):.0%}; пропущено: {skips or '—'}")
+
+
+def report10() -> None:
+    print("\n===== LIVEBOOK10: бот B2 вместе с oi_liq и ловлей прострелов одним счётом (маржа Bybit; 300 путей) =====")
+    z = load()
+    if z is None:
+        print("  crisk: нет данных")
+        return
+    combo_report(z, extra_trades())
 
 
 def report9() -> None:
@@ -468,4 +556,4 @@ if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     warnings.filterwarnings("ignore")
     {"2": report2, "3": report3, "4": report4, "5": report5, "6": report6, "7": report7, "8": report8,
-     "9": report9}.get((sys.argv[1:] or [""])[0], report)()
+     "9": report9, "10": report10}.get((sys.argv[1:] or [""])[0], report)()

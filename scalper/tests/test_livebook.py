@@ -93,3 +93,20 @@ def test_rolling_windows_measure_growth_from_each_month():
     curve = pd.Series(2.0 ** (np.arange(40) / 12), index=idx)
     w = L.rolling_windows(curve, 2.0)
     assert len(w) == 16 and np.allclose(w, 4.0)
+
+
+def test_extra_strategy_uses_notional_share_and_own_limit():
+    z = _z([("4h", 0, 2, 1.0, 0.03)])
+    ex = pd.DataFrame({"tf": "oi", "fill": z.fill.iloc[0] + pd.Timedelta(hours=1) + pd.to_timedelta([0, 0], unit="h"),
+                       "R": [0.02, 0.02], "stop_pct": 1.0, "side": 1, "slope_atr": 0.0, "squeeze": 1.0})
+    ex["exit"] = ex.fill + pd.Timedelta(hours=4)
+    ex["t"] = ex.fill
+    q = pd.concat([z, ex], ignore_index=True)
+    b = L.Book("b", r15=0.0, r4h=0.01, lev4h=100, extra=(("oi", 0.3, 5.0, 1),))
+    s = L.simulate_book(q, b)
+    assert s["skip"]["лимит доп."] == 1 and s["eq"] == pytest.approx(1.01 + 0.3 * 0.02)   # oi открыт при счёте 1.0
+
+
+def test_extra_trades_load_both_strategies():
+    x = L.extra_trades()
+    assert set(x.tf) == {"oi", "spike"} and (x.stop_pct == 1.0).all() and x.R.notna().all()
