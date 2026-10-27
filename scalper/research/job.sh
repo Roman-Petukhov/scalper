@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"quarterly"}
+TASKS=${TASKS:-"longstop"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -404,6 +404,12 @@ longexit_collect() {
   LX_TFS=2h python -m research.longexit collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
 }
 longexit_report() { python -m research.longexit report; }
+# Выбивают ли лонги по стопам: доля «стоп, потом цель», стоп шире / от линии, перезаход после выноса (4h)
+longstop_collect() {
+  RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-qualified
+  python -m research.longstop collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
+}
+longstop_report() { python -m research.longstop report; }
 # Вход на откате 30 / 50% после длинной свечи пробоя и лестница риска на 15m в масштабе бота
 pullladder_collect() {
   RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-qualified 15m-wide
