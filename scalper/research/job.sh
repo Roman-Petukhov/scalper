@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"livebook10"}
+TASKS=${TASKS:-"vrgrid vrp"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -516,6 +516,17 @@ emagrid_collect() {
   python -m research.emagrid collect --symbols "$(cat /tmp/syms_lowtf-core70.txt)"
 }
 emagrid_report() { python -m research.emagrid report; }
+# Сетка с отбором по variance ratio / автокорреляции (core70, 15m и 1h из 5m) и продажа недельной волатильности BTC / ETH
+vrgrid_collect() {
+  RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare lowtf-core70
+  python -m research.vrgrid collect --symbols "$(cat /tmp/syms_lowtf-core70.txt)"
+}
+vrgrid_report() { python -m research.vrgrid report; }
+vrp_collect() {
+  RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-qualified
+  python -m research.vrp collect
+}
+vrp_report() { python -m research.vrp report; }
 # Круглые числа (Osler): пробой через круглый уровень, уровень впереди, стоп «за толпой» (4h и 15m)
 roundnum_collect() {
   RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-qualified 15m-wide
