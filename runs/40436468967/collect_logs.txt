@@ -1,0 +1,60 @@
+----- reentry collect (часть 0/10) -----
+часть 0/10, набор 1h-qualified: монет 63
+часть 0/10, набор 15m-wide: монет 63
+  reentry 15m: шортов 480
+  reentry 2h: шортов 133
+  reentry 4h: шортов 50
+----- reentry collect (часть 1/10) -----
+часть 1/10, набор 1h-qualified: монет 66
+часть 1/10, набор 15m-wide: монет 66
+  reentry 15m: шортов 433
+  reentry 2h: шортов 88
+  reentry 4h: шортов 40
+----- reentry collect (часть 2/10) -----
+часть 2/10, набор 1h-qualified: монет 78
+часть 2/10, набор 15m-wide: монет 78
+  reentry 15m: шортов 619
+  reentry 2h: шортов 128
+  reentry 4h: шортов 42
+----- reentry collect (часть 3/10) -----
+часть 3/10, набор 1h-qualified: монет 73
+часть 3/10, набор 15m-wide: монет 73
+  reentry 15m: шортов 522
+  reentry 2h: шортов 152
+  reentry 4h: шортов 49
+----- reentry collect (часть 4/10) -----
+часть 4/10, набор 1h-qualified: монет 72
+часть 4/10, набор 15m-wide: монет 72
+  reentry 15m: шортов 488
+  reentry 2h: шортов 145
+  reentry 4h: шортов 39
+----- reentry collect (часть 5/10) -----
+часть 5/10, набор 1h-qualified: монет 83
+часть 5/10, набор 15m-wide: монет 83
+  reentry 15m: шортов 521
+  reentry 2h: шортов 121
+  reentry 4h: шортов 42
+----- reentry collect (часть 6/10) -----
+часть 6/10, набор 1h-qualified: монет 71
+часть 6/10, набор 15m-wide: монет 71
+  reentry 15m: шортов 556
+  reentry 2h: шортов 130
+  reentry 4h: шортов 36
+----- reentry collect (часть 7/10) -----
+часть 7/10, набор 1h-qualified: монет 61
+часть 7/10, набор 15m-wide: монет 61
+  reentry 15m: шортов 516
+  reentry 2h: шортов 115
+  reentry 4h: шортов 35
+----- reentry collect (часть 8/10) -----
+часть 8/10, набор 1h-qualified: монет 75
+часть 8/10, набор 15m-wide: монет 75
+  reentry 15m: шортов 641
+  reentry 2h: шортов 136
+  reentry 4h: шортов 47
+----- reentry collect (часть 9/10) -----
+часть 9/10, набор 1h-qualified: монет 83
+часть 9/10, набор 15m-wide: монет 83
+  reentry 15m: шортов 775
+  reentry 2h: шортов 167
+  reentry 4h: шортов 51
