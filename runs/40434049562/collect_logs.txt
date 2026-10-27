@@ -1,0 +1,40 @@
+----- longexit collect (часть 0/10) -----
+часть 0/10, набор 1h-qualified: монет 63
+  longexit 4h: лонгов 100
+  longexit 2h: лонгов 246
+----- longexit collect (часть 1/10) -----
+часть 1/10, набор 1h-qualified: монет 66
+  longexit 4h: лонгов 77
+  longexit 2h: лонгов 174
+----- longexit collect (часть 2/10) -----
+часть 2/10, набор 1h-qualified: монет 78
+  longexit 4h: лонгов 125
+  longexit 2h: лонгов 250
+----- longexit collect (часть 3/10) -----
+часть 3/10, набор 1h-qualified: монет 73
+  longexit 4h: лонгов 87
+  longexit 2h: лонгов 177
+----- longexit collect (часть 4/10) -----
+часть 4/10, набор 1h-qualified: монет 72
+  longexit 4h: лонгов 74
+  longexit 2h: лонгов 189
+----- longexit collect (часть 5/10) -----
+часть 5/10, набор 1h-qualified: монет 83
+  longexit 4h: лонгов 84
+  longexit 2h: лонгов 199
+----- longexit collect (часть 6/10) -----
+часть 6/10, набор 1h-qualified: монет 71
+  longexit 4h: лонгов 117
+  longexit 2h: лонгов 223
+----- longexit collect (часть 7/10) -----
+часть 7/10, набор 1h-qualified: монет 61
+  longexit 4h: лонгов 91
+  longexit 2h: лонгов 225
+----- longexit collect (часть 8/10) -----
+часть 8/10, набор 1h-qualified: монет 75
+  longexit 4h: лонгов 108
+  longexit 2h: лонгов 272
+----- longexit collect (часть 9/10) -----
+часть 9/10, набор 1h-qualified: монет 83
+  longexit 4h: лонгов 135
+  longexit 2h: лонгов 259
