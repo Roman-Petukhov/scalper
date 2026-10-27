@@ -16,6 +16,14 @@ HO (сделок >= 20), t по дням >= 3, > 0 при издержках ×2
 
     python -m research.prepare 1h-qualified 1h-spot && python -m research.squeezefuel collect --symbols <1h-qualified>
     python -m research.squeezefuel report
+
+Прогон 1 (40462018949): лонг 3 / 7 дней прошёл (сверх рынка +0.46% / +0.70%, t 3.6 / 4.1), шорт — нет. Прогон 2 —
+устойчивость лонга 7 дней (задана до запуска; принят, если все пункты в плюсе в IS / VAL / HO):
+    без перекрытия   по монете не больше одной сделки на 7 дней (первый сигнал эпизода)
+    без хвоста       без 1% лучших сделок
+    издержки мелочи  60 б.п. за круг, если спотовый оборот за 30 дней < $5M
+    соседи           верхние 5% / 20% fuel; funding < −0.05% вместо < 0
+    по годам         2022 … 2026 — справка
 """
 from __future__ import annotations
 
@@ -64,9 +72,11 @@ def coin_days(d: pd.DataFrame, m: pd.DataFrame, spot: pd.Series | None) -> pd.Da
     if spot is not None:
         sadv = spot.reindex(a.index).rolling(30, min_periods=20).mean()
         out["fuel"] = oi_val / sadv.where(sadv > 0)
+        out["sadv"] = sadv
         out["spot"] = True
     else:
         out["fuel"] = np.nan
+        out["sadv"] = np.nan
         out["spot"] = False
     out["fund3"] = a["fund"].rolling(3).sum()
     out["ret7"] = a["close"].pct_change(7)
@@ -142,6 +152,46 @@ def verdict(z: pd.DataFrame) -> tuple[bool, str]:
                   f"{z.R.mean():+.2%}, в плюсе {(z.R > 0).mean():.0%}; ×2 {x2:+.2%}")
 
 
+def robust(x: pd.DataFrame) -> None:
+    """Прогон 2: устойчивость лонга 7 дней."""
+    h = 7
+    base = trades(x, 1, h).join(x[["symbol", "fuel", "fund3"]], how="left")
+    print("\n  --- C: устойчивость лонга 7 дней ---")
+
+    def show(name: str, z: pd.DataFrame) -> bool:
+        good, txt = verdict(z)
+        print(f"    {name}: {'держится' if good else 'нет'}\n        {txt}")
+        return good
+
+    nz = base.sort_values(["symbol", "t"])
+    keep, last = [], {}
+    for i, (s, t) in zip(nz.index, zip(nz.symbol, nz.t)):
+        if s not in last or (t - last[s]).days >= h:
+            keep.append(i)
+            last[s] = t
+    res = [show("без перекрытия (одна сделка на монету на 7 дней)", base.loc[keep])]
+    cut = base.raw.quantile(0.99)
+    res.append(show("без 1% лучших сделок", base[base.raw < cut]))
+    small = base.index.isin(x.index[(x["sadv"] < 5e6)]) if "sadv" in x else np.zeros(len(base), bool)
+    z = base.copy()
+    z.loc[small, ["R", "X"]] -= 0.0049
+    print(f"      монет со спотовым оборотом < $5M среди сделок: {small.mean():.0%}")
+    res.append(show("издержки 60 б.п. у мелочи", z))
+    for q, name in ((0.05, "верхние 5% fuel"), (0.20, "верхние 20% fuel")):
+        mkt = x.groupby("day")[f"f{h}"].transform("mean")
+        sel = x[(x.fuel_rk >= 1 - q) & (x.fund3 < 0)].dropna(subset=[f"f{h}"])
+        raw = sel[f"f{h}"] - sel[f"ff{h}"].fillna(0.0)
+        res.append(show(name, pd.DataFrame({"t": sel["day"], "R": raw - COST, "X": raw - mkt.loc[sel.index] - COST,
+                                            "raw": raw})))
+    res.append(show("funding за 3 дня < −0.05%", base[base.fund3 < -0.0005]))
+    for y in range(2022, 2027):
+        m = base[base.t.dt.year == y]
+        if len(m):
+            print(f"      {y}: сверх рынка {m.X.mean():+.2%}, сама {m.R.mean():+.2%} ({len(m)}, монет {m.symbol.nunique()})")
+    print(f"\n  ИТОГ УСТОЙЧИВОСТИ: {'держится во всех проверках' if all(res) else 'не во всех проверках'} "
+          f"({sum(res)} из {len(res)})")
+
+
 def report() -> None:
     print("\n===== SQUEEZEFUEL: открытый интерес против спотового рынка и перекос толпы — анатомия пампов и сделки =====")
     parts = all_parts("squeezefuel")
@@ -166,6 +216,7 @@ def report() -> None:
         if good:
             passed.append(name)
     print("\n  ИТОГ: " + ("прошли — " + "; ".join(passed) if passed else "топливо сквиза не даёт сделки, окупающей издержки"))
+    robust(x)
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"squeezefuel"}
+TASKS=${TASKS:-"squeezefuel sectors"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -697,6 +697,12 @@ squeezefuel_collect() {
   python -m research.squeezefuel collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
 }
 squeezefuel_report() { python -m research.squeezefuel report; }
+# Сектора (ротация, заражение, опережение), фондовый рынок и спотовые ETF
+sectors_collect() {
+  RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-all
+  python -m research.sectors collect --symbols "$(cat /tmp/syms_1h-all.txt)"
+}
+sectors_report() { python -m research.sectors report; python -m research.markets report; }
 
 case "$MODE" in
   collect|report) ;;
