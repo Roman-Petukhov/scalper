@@ -1,0 +1,113 @@
+----- vrgrid collect (часть 0/10) -----
+часть 0/10, набор lowtf-core70: монет 6
+  vrgrid SOLUSDT: дней 2203
+  vrgrid MKRUSDT: дней 2235
+  vrgrid 1INCHUSDT: дней 2106
+  vrgrid ZECUSDT: дней 2425
+  vrgrid XTZUSDT: дней 2429
+  vrgrid ZILUSDT: дней 2291
+----- vrp collect (часть 0/10) -----
+часть 0/10, набор 1h-qualified: монет 63
+  vrp BTC: DVOL 2036 дней (2021-04-01 00:00:00+00:00 … 2026-10-27 00:00:00+00:00), часов 59160
+  vrp ETH: DVOL 2036 дней (2021-04-01 00:00:00+00:00 … 2026-10-27 00:00:00+00:00), часов 0
+  vrp: сделок 1144
+----- vrgrid collect (часть 1/10) -----
+часть 1/10, набор lowtf-core70: монет 6
+  vrgrid ARBUSDT: дней 1288
+  vrgrid AXSUSDT: дней 2141
+  vrgrid EOSUSDT: дней 1961
+  vrgrid FTMUSDT: дней 2193
+  vrgrid 1000SHIBUSDT: дней 1970
+  vrgrid GMTUSDT: дней 1659
+----- vrp collect (часть 1/10) -----
+часть 1/10, набор 1h-qualified: монет 66
+----- vrgrid collect (часть 2/10) -----
+часть 2/10, набор lowtf-core70: монет 9
+  vrgrid BNBUSDT: дней 2425
+  vrgrid XRPUSDT: дней 2455
+  vrgrid FILUSDT: дней 2171
+  vrgrid OPUSDT: дней 1583
+  vrgrid HBARUSDT: дней 2019
+  vrgrid CHZUSDT: дней 2079
+  vrgrid NEOUSDT: дней 2418
+  vrgrid TIAUSDT: дней 1066
+  vrgrid ARUSDT: дней 1829
+----- vrp collect (часть 2/10) -----
+часть 2/10, набор 1h-qualified: монет 78
+----- vrgrid collect (часть 3/10) -----
+часть 3/10, набор lowtf-core70: монет 7
+  vrgrid AVAXUSDT: дней 2199
+  vrgrid NEARUSDT: дней 2172
+  vrgrid GALAUSDT: дней 1839
+  vrgrid SUSHIUSDT: дней 2213
+  vrgrid COMPUSDT: дней 2284
+  vrgrid GRTUSDT: дней 2107
+  vrgrid SUIUSDT: дней 1247
+----- vrp collect (часть 3/10) -----
+часть 3/10, набор 1h-qualified: монет 73
+----- vrgrid collect (часть 4/10) -----
+часть 4/10, набор lowtf-core70: монет 6
+  vrgrid DOGEUSDT: дней 2274
+  vrgrid ALGOUSDT: дней 2298
+  vrgrid VETUSDT: дней 2416
+  vrgrid ICPUSDT: дней 1943
+  vrgrid RUNEUSDT: дней 2218
+  vrgrid SEIUSDT: дней 1141
+----- vrp collect (часть 4/10) -----
+часть 4/10, набор 1h-qualified: монет 72
+----- vrgrid collect (часть 5/10) -----
+часть 5/10, набор lowtf-core70: монет 7
+  vrgrid ETCUSDT: дней 2450
+  vrgrid SANDUSDT: дней 2070
+  vrgrid THETAUSDT: дней 2318
+  vrgrid SNXUSDT: дней 2239
+  vrgrid KAVAUSDT: дней 2256
+  vrgrid KSMUSDT: дней 2173
+  vrgrid 1000PEPEUSDT: дней 1245
+----- vrp collect (часть 5/10) -----
+часть 5/10, набор 1h-qualified: монет 83
+----- vrgrid collect (часть 6/10) -----
+часть 6/10, набор lowtf-core70: монет 8
+  vrgrid LINKUSDT: дней 2449
+  vrgrid APTUSDT: дней 1443
+  vrgrid MANAUSDT: дней 2021
+  vrgrid APEUSDT: дней 1659
+  vrgrid EGLDUSDT: дней 2208
+  vrgrid CRVUSDT: дней 2221
+  vrgrid IOTAUSDT: дней 2418
+  vrgrid WAVESUSDT: дней 2236
+----- vrp collect (часть 6/10) -----
+часть 6/10, набор 1h-qualified: монет 71
+----- vrgrid collect (часть 7/10) -----
+часть 7/10, набор lowtf-core70: монет 6
+  vrgrid BTCUSDT: дней 2465
+  vrgrid ADAUSDT: дней 2435
+  vrgrid DOTUSDT: дней 2231
+  vrgrid TRXUSDT: дней 2446
+  vrgrid MATICUSDT: дней 1421
+  vrgrid DASHUSDT: дней 2431
+----- vrp collect (часть 7/10) -----
+часть 7/10, набор 1h-qualified: монет 61
+----- vrgrid collect (часть 8/10) -----
+часть 8/10, набор lowtf-core70: монет 8
+  vrgrid ETHUSDT: дней 2465
+  vrgrid LTCUSDT: дней 2452
+  vrgrid ATOMUSDT: дней 2428
+  vrgrid XLMUSDT: дней 2441
+  vrgrid LDOUSDT: дней 1470
+  vrgrid WLDUSDT: дней 1165
+  vrgrid FETUSDT: дней 1353
+  vrgrid STXUSDT: дней 1318
+----- vrp collect (часть 8/10) -----
+часть 8/10, набор 1h-qualified: монет 75
+----- vrgrid collect (часть 9/10) -----
+часть 9/10, набор lowtf-core70: монет 7
+  vrgrid BCHUSDT: дней 2465
+  vrgrid INJUSDT: дней 1506
+  vrgrid AAVEUSDT: дней 2176
+  vrgrid UNIUSDT: дней 2204
+  vrgrid DYDXUSDT: дней 1847
+  vrgrid ENJUSDT: дней 2193
+  vrgrid IMXUSDT: дней 1688
+----- vrp collect (часть 9/10) -----
+часть 9/10, набор 1h-qualified: монет 83
