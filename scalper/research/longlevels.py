@@ -183,6 +183,11 @@ def report() -> None:
             continue
         x = pd.concat([pd.read_parquet(p) for p in parts], ignore_index=True)
         x["t"] = pd.to_datetime(x["t"], utc=True).dt.tz_localize(None)
+        odd = x[x.R.abs() > 20]
+        if len(odd):
+            print(f"  {tf}: сделок с |R| > 20 — {len(odd)} (монет {odd.symbol.nunique()}); худшие:")
+            for r in odd.reindex(odd.R.abs().sort_values(ascending=False).index).head(8).itertuples(index=False):
+                print(f"    {r.symbol} {r.t:%Y-%m-%d %H:%M} {r.mode} {r.level} сторона {r.side:+d}: {r.R:+.1f}R")
         for label, side in (("лонги", 1), ("шорты", -1)):
             print(f"\n  ===== {tf}, {label} =====")
             for name, z in variants(x[x.side == side]):
