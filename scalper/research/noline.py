@@ -64,7 +64,9 @@ def triggers(d: pd.DataFrame, a: np.ndarray, lines_only: bool = False) -> list[t
     return out
 
 
-def coin_trades(d: pd.DataFrame, liq: np.ndarray, sym: str, lines_only: bool = False) -> pd.DataFrame:
+def coin_trades(d: pd.DataFrame, liq: np.ndarray, sym: str, lines_only: bool = False,
+                min_aggr: float = 0.55) -> pd.DataFrame:
+    """Сделки правила бота; min_aggr — порог агрессоров (0 — без фильтра, research/aggr200.py)."""
     o, hi, lo, c = (d[k].to_numpy(dtype="float64") for k in ("open", "high", "low", "close"))
     f = d["funding"].to_numpy(dtype="float64") if "funding" in d else np.zeros(len(c))
     a = _atr(d).to_numpy()
@@ -79,7 +81,7 @@ def coin_trades(d: pd.DataFrame, liq: np.ndarray, sym: str, lines_only: bool = F
             continue
         aggr = buy[t] if side > 0 else 1 - buy[t]
         cl = loc[t] if side > 0 else 1 - loc[t]
-        if not (aggr >= 0.55 and cl >= 0.5):
+        if not (aggr >= min_aggr and cl >= 0.5):
             continue
         sw = sw_lo[t] if side > 0 else sw_hi[t]
         if sw < 0:
@@ -103,7 +105,8 @@ def coin_trades(d: pd.DataFrame, liq: np.ndarray, sym: str, lines_only: bool = F
             else:
                 r3, ex = two_targets(o, hi, lo, c, f, fill, side, px, stop, 3.0, 3.0, False, HOLD[TF], fee)
             rows.append({"symbol": sym, "trig": name, "t": d.index[t], "side": side, "entry": entry, "R3": r3,
-                         "risk_pct": risk / px, "fill_i": int(fill), "exit_i": int(ex), "px": px, "stop": stop})
+                         "risk_pct": risk / px, "fill_i": int(fill), "exit_i": int(ex), "px": px, "stop": stop,
+                         "aggr": float(aggr), "level": float(level)})
     return pd.DataFrame(rows)
 
 

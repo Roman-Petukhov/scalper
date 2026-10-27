@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"quarterly"}
+TASKS=${TASKS:-"aggr200"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -390,6 +390,13 @@ ema200_collect() {
   E200_TFS=15m python -m research.ema200 collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
 }
 ema200_report() { python -m research.ema200 report; }
+# EMA200 вместо фильтра агрессоров (лонг — пробой над EMA200, шорт — под): 4h ретест, 15m по рынку
+aggr200_collect() {
+  RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-qualified 15m-wide
+  A200_TFS=4h python -m research.aggr200 collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
+  A200_TFS=15m python -m research.aggr200 collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
+}
+aggr200_report() { python -m research.aggr200 report; }
 # Вход на откате 30 / 50% после длинной свечи пробоя и лестница риска на 15m в масштабе бота
 pullladder_collect() {
   RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-qualified 15m-wide
