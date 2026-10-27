@@ -32,7 +32,7 @@ import pandas as pd
 
 from .oos import PER_ALL, SECTORS
 from .ppr import day_t
-from .shard import all_parts, mine, part_path
+from .shard import all_parts, mine, part_path, shard_id
 from .tline import tf_frame
 
 EXTRA = {"RWA": ("ONDO", "OM", "POLYX", "PLUME", "CFG", "TRU", "PENDLE", "SYRUP", "USUAL"),
@@ -56,7 +56,10 @@ def sector_map() -> dict[str, str]:
 
 def collect(root: Path, syms: list[str]) -> None:
     rows = []
-    for s in mine(syms):
+    own = mine(syms)
+    if shard_id()[0] == 0:
+        own = sorted(set(own) | {"BTCUSDT", "ETHUSDT"})          # нужны рынку и ETF при любом разбиении
+    for s in own:
         try:
             d = tf_frame(root, s, "1d")
             if d is None or len(d) < 60:
@@ -74,7 +77,7 @@ def load_daily() -> tuple[pd.DataFrame, pd.DataFrame] | None:
     parts = all_parts("daily")
     if not parts:
         return None
-    x = pd.concat([pd.read_parquet(p) for p in parts], ignore_index=True)
+    x = pd.concat([pd.read_parquet(p) for p in parts], ignore_index=True).drop_duplicates(["symbol", "day"])
     x["day"] = pd.to_datetime(x["day"], utc=True).dt.tz_localize(None)
     close = x.pivot_table(index="day", columns="symbol", values="close").sort_index()
     qv = x.pivot_table(index="day", columns="symbol", values="qv").reindex_like(close)
@@ -161,6 +164,9 @@ def leadlag(idx: dict[str, pd.Series]) -> None:
             m = sec.loc[lo:hi]
             cs[p] = m[a].corr(m[b].shift(-1))
         pairs.append((a, b, cs))
+    if not pairs:
+        print("\n  --- S3: секторов меньше двух ---")
+        return
     top = sorted(pairs, key=lambda x: -abs(x[2]["is"] if np.isfinite(x[2]["is"]) else 0))[:3]
     print("\n  --- S3: опережение (сектор A сегодня → сектор B завтра, сверх среднего по секторам) ---")
     keep = []

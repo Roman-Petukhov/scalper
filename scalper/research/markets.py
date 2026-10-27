@@ -113,6 +113,8 @@ def etf_study(close: pd.DataFrame, alts: pd.Series) -> None:
             continue
         t0 = pd.Timestamp(day)
         px = close[sym].dropna()
+        if sym == "BTCUSDT" and "ETHUSDT" not in close.columns:
+            continue
         bench = close["ETHUSDT"].dropna() if sym == "BTCUSDT" else alt_idx
         cells = []
         for name, (a, b) in WINDOWS.items():
@@ -135,6 +137,9 @@ def report() -> None:
     close, qv = got
     r = close.pct_change().where(qv.rolling(30, min_periods=20).mean().shift(1) >= ADV_MIN)
     alts = r.drop(columns=["BTCUSDT", "ETHUSDT"], errors="ignore").mean(axis=1)
+    if "BTCUSDT" not in close.columns:
+        print("  markets: нет BTCUSDT в дневках")
+        return
     btc = close["BTCUSDT"].dropna()
     st = {k: fred(v) for k, v in SERIES.items()}
     print("  FRED: " + ", ".join(f"{k} {len(v)} дней" + (f" ({v.index.min():%Y-%m-%d} … {v.index.max():%Y-%m-%d})" if len(v) else "")
