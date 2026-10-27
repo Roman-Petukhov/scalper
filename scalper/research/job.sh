@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"causal nmfilter"}
+TASKS=${TASKS:-"squeezefuel"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -691,6 +691,12 @@ nmfilter_collect() {
   CRISK_TFS=4h python -m research.crisk collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
 }
 nmfilter_report() { python -m research.nmfilter report; }
+# Топливо сквиза: OI против спотового оборота и перекос толпы — анатомия пампов >= +50% за день и сделки
+squeezefuel_collect() {
+  RESEARCH_START=2022-01 python -m research.prepare 1h-qualified 1h-spot
+  python -m research.squeezefuel collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
+}
+squeezefuel_report() { python -m research.squeezefuel report; }
 
 case "$MODE" in
   collect|report) ;;
