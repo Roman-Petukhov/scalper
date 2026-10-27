@@ -52,3 +52,14 @@ def test_rows_on_random_walk_cover_modes_and_sides():
     x = pd.DataFrame(L.coin_rows(d, np.full(n, 1e9), "RW", "4h"))
     assert set(x["mode"]) == {"пробой", "отбой", "ложный пробой"} and set(x.side) == {1, -1}
     assert x.R.notna().all() and (x.R >= -1.5).all()
+
+
+def test_bounce_skips_a_gap_through_the_level_to_the_stop():
+    c = [10, 9, 8, 10, 12, 13, 12, 7.6, 10]                     # открытие 12, но закрытие 7.6: риск 0.1 ATR
+    o, hi, lo, cl = _ohlc(c)
+    o = o.copy()
+    o[7] = 7.6
+    hi[7], lo[7] = 7.7, 7.55
+    n = len(cl)
+    rows = L.bounce_rows(o, hi, lo, cl, np.zeros(n), np.ones(n), np.ones(n), np.full(n, 1e9), np.array([[2, 4]]), 1, 50)
+    assert rows == []

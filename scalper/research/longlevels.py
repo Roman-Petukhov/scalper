@@ -74,6 +74,8 @@ def bounce_rows(o, hi, lo, c, f, a, trend, liq, pts, side: int, hold: int) -> li
                     break
                 px = min(o[j], lv) if side > 0 else max(o[j], lv)
                 stop = lv - side * BOUNCE_STOP * a[j - 1]
+                if not (0.3 * a[j - 1] <= side * (px - stop) <= 4.0 * a[j - 1]):
+                    break                                        # гэп сквозь уровень к стопу — риск слишком мал
                 r = _trade(o, hi, lo, c, f, j, side, px, stop, MAKER, hold)
                 if np.isfinite(r):
                     out.append((j, r))
