@@ -129,6 +129,13 @@ BOOKS8 = (Book("15m 0.15% + 4h 2.4% (эталон)", r15=0.0015, r4h=0.024, **_S
           Book("15m 0.25% + 4h 3%", r15=0.0025, r4h=0.03, **_S8), Book("15m 0.35% + 4h 3%", r15=0.0035, r4h=0.03, **_S8),
           Book("15m 0.5% + 4h 3%", r15=0.005, r4h=0.03, **_S8), Book("15m 0.35% + 4h 4%", r15=0.0035, r4h=0.04, **_S8),
           Book("15m 0.5% + 4h 4%", r15=0.005, r4h=0.04, **_S8), Book("15m 1% + 4h 4%", r15=0.01, r4h=0.04, **_S8))
+# девятый заход — вопрос владельца «за сколько $3000 → $100 000 (×33)»: шанс дойти за 2 года и срок по путям бутстрепа,
+# по бэктесту и при вдвое меньшем ожидании на сделку (каждый R минус половина среднего своего ТФ — разброс тот же)
+BOOKS9 = (Book("B2: 15m 0.35% + 4h 3% (текущие)", r15=0.0035, r4h=0.03, **_S8),
+          Book("C1: 15m 0.35% + 4h 4%", r15=0.0035, r4h=0.04, **_S8),
+          Book("15m 0.5% + 4h 4%", r15=0.005, r4h=0.04, **_S8), Book("15m 1% + 4h 4%", r15=0.01, r4h=0.04, **_S8))
+GOAL, GOAL_YEARS = 100_000 / 3_000, 2.0
+EDGES = (1.0, 0.5)
 BOOKS = (Book("live"), Book("live, 15m <= 3", limit15=3), Book("live, 15m <= 5", limit15=5),
          Book("live, 15m <= 8", limit15=8), Book("live, риск <= 10%", heat=0.10), Book("live, риск <= 15%", heat=0.15),
          Book("live, риск <= 20%", heat=0.20), Book("умеренный", r15=0.005, r4h=0.01, limit15=3))
@@ -148,10 +155,10 @@ def load() -> pd.DataFrame | None:
 
 def simulate_book(z: pd.DataFrame, b: Book, R: np.ndarray | None = None) -> dict:
     """Один счёт на 15m и 4h; по закрытым сделкам, сложный процент."""
-    keep = (((z.tf == "4h") & (b.r4h > 0)) | ((z.tf == "15m") & (b.r15 > 0) & (z.slope_atr <= b.slope15) & ((b.sides15 == "both") | (z.side < 0))))
+    keep = keep_mask(z, b)
     if not keep.all():
-        z = z[keep.to_numpy()]
-        R = None if R is None else R[keep.to_numpy()]
+        z = z[keep]
+        R = None if R is None else R[keep]
     R = z.R.to_numpy() if R is None else R
     sq = (z["squeeze"].to_numpy() <= SQUEEZE_EDGE) if "squeeze" in z else np.zeros(len(z), bool)
     f = z.fill.to_numpy("datetime64[ns]").astype("int64")
@@ -271,6 +278,78 @@ def portfolio_report(z: pd.DataFrame, books: tuple[Book, ...] = BOOKS,
         print("  → ни один вариант не безопасен по заданному критерию")
 
 
+def keep_mask(z: pd.DataFrame, b: Book) -> np.ndarray:
+    return (((z.tf == "4h") & (b.r4h > 0)) | ((z.tf == "15m") & (b.r15 > 0) & (z.slope_atr <= b.slope15)
+                                               & ((b.sides15 == "both") | (z.side < 0)))).to_numpy()
+
+
+def haircut(z: pd.DataFrame, b: Book, edge: float) -> np.ndarray:
+    """R сделок с ожиданием × edge: из каждого R вычитается (1 − edge) × среднее R своего ТФ по сделкам книги."""
+    R = z.R.to_numpy().copy()
+    k = keep_mask(z, b)
+    for tf in ("15m", "4h"):
+        m = k & (z.tf == tf).to_numpy()
+        if m.any():
+            R[(z.tf == tf).to_numpy()] -= (1 - edge) * R[m].mean()
+    return R
+
+
+def goal_stats(curve: pd.Series, start: pd.Timestamp, goal: float, years: float) -> tuple[float, bool, float, float]:
+    """(счёт × через years лет, дошёл ли до goal за years лет, лет до goal или nan, просадка за years лет)."""
+    if curve.empty:
+        return 1.0, False, float("nan"), 0.0
+    end = start + pd.Timedelta(days=365.25 * years)
+    head = curve[curve.index <= end]
+    x = float(head.iloc[-1]) if len(head) else 1.0
+    hit = curve[curve >= goal]
+    t_goal = (hit.index[0] - start).days / 365.25 if len(hit) else float("nan")
+    eq = pd.concat([pd.Series([1.0], index=[start]), head])
+    dd = float((1 - eq / eq.cummax()).max())
+    return x, bool(len(hit) and hit.index[0] <= end), t_goal, dd
+
+
+def rolling_windows(curve: pd.Series, years: float) -> np.ndarray:
+    """Рост счёта за years лет из каждого месяца истории (старт — конец месяца)."""
+    m = curve.resample("ME").last().ffill()
+    k = int(round(12 * years))
+    return (m.shift(-k) / m).dropna().to_numpy() if len(m) > k else np.array([])
+
+
+def goal_report(z: pd.DataFrame, books: tuple[Book, ...] = BOOKS9, paths: int = 500) -> None:
+    print(f"\n  === ×{GOAL:.1f} ($3000 → $100 000): за {GOAL_YEARS:g} года и срок; {paths} путей бутстрепа недель ===")
+    rng = np.random.default_rng(29)
+    boots = [week_blocks(z, rng) for _ in range(paths)]
+    for b in books:
+        for edge in EDGES:
+            tag = "бэктест" if edge == 1.0 else f"ожидание ×{edge:g}"
+            s = simulate_book(z, b, haircut(z, b, edge))
+            win = rolling_windows(s["curve"], GOAL_YEARS)
+            hist = (f"история, окна {GOAL_YEARS:g} года из каждого месяца ({len(win)}): медиана ×{np.median(win):.1f}, "
+                    f"худшее ×{win.min():.2f}, лучшее ×{win.max():.0f}, дошли до ×{GOAL:.0f} {np.mean(win >= GOAL):.0%}"
+                    if len(win) else "история: окон нет")
+            res = [goal_stats(simulate_book(q, b, haircut(q, b, edge))["curve"], q.fill.min(), GOAL, GOAL_YEARS)
+                   for q in boots]
+            x2 = np.array([r[0] for r in res])
+            hit = np.array([r[1] for r in res])
+            tg = np.array([r[2] for r in res])
+            dd2 = np.array([r[3] for r in res])
+            reached = np.isfinite(tg)
+            t_med = f"{np.median(tg[reached]):.1f} года" if reached.mean() >= 0.5 else "больше половины путей не дошли"
+            print(f"    {b.name} — {tag}\n{'':6}за {GOAL_YEARS:g} года: счёт × 10-й процентиль {np.percentile(x2, 10):.2f}, "
+                  f"медиана {np.median(x2):.1f}, 90-й {np.percentile(x2, 90):.0f}; дошли до ×{GOAL:.0f} {hit.mean():.0%}; "
+                  f"меньше старта {np.mean(x2 < 1):.0%}; просадка > 50% за это время {np.mean(dd2 > 0.5):.0%}\n{'':6}"
+                  f"до ×{GOAL:.0f}: медиана {t_med}, дошли вообще (за всю длину пути) {reached.mean():.0%}\n{'':6}{hist}")
+
+
+def report9() -> None:
+    print("\n===== LIVEBOOK9: $3000 → $100 000 — шанс за 2 года и срок; бэктест и вдвое меньшее ожидание (500 путей) =====")
+    z = load()
+    if z is None:
+        print("  crisk: нет данных")
+        return
+    goal_report(z)
+
+
 def level_report(z: pd.DataFrame) -> list[str]:
     print("\n  === 2. Пробой линии вместе с горизонтальным уровнем (метка «+ уровень») ===")
     passed = []
@@ -388,4 +467,5 @@ def report3() -> None:
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     warnings.filterwarnings("ignore")
-    {"2": report2, "3": report3, "4": report4, "5": report5, "6": report6, "7": report7, "8": report8}.get((sys.argv[1:] or [""])[0], report)()
+    {"2": report2, "3": report3, "4": report4, "5": report5, "6": report6, "7": report7, "8": report8,
+     "9": report9}.get((sys.argv[1:] or [""])[0], report)()

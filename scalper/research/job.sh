@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"quarterly"}
+TASKS=${TASKS:-"livebook9"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -494,6 +494,8 @@ livebook7_collect() { livebook_collect; }
 livebook7_report() { python -m research.livebook 7; }
 livebook8_collect() { livebook_collect; }
 livebook8_report() { python -m research.livebook 8; }
+livebook9_collect() { livebook_collect; }
+livebook9_report() { python -m research.livebook 9; }
 # Выход по отрыву от EMA (Climax Extension Келла) на сделках бота; EMA-системы чемпионов (Унгер, Гаджала) и чистые EMA
 emaexit_collect() {
   RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-qualified 15m-wide

@@ -70,3 +70,26 @@ def test_book_without_4h_drops_4h_trades():
     z = _z([("15m", 0, 1, 1.0, 0.03), ("4h", 5, 1, 1.0, 0.03)])
     s = L.simulate_book(z, L.Book("b", r15=0.02, r4h=0.0, ladder_x=1.0, lev15=100))
     assert s["eq"] == pytest.approx(1.02)
+
+
+def test_haircut_halves_the_mean_per_timeframe_and_keeps_spread():
+    z = _z([("15m", 0, 1, 3.0, 0.03), ("15m", 2, 1, -1.0, 0.03), ("4h", 4, 1, 2.0, 0.03), ("4h", 6, 1, 0.0, 0.03)])
+    b = L.Book("b", r15=0.01, r4h=0.01, sides15="short", slope15=0.025)
+    R = L.haircut(z, b, 0.5)
+    assert R[:2].mean() == pytest.approx(0.5) and R[2:].mean() == pytest.approx(0.5)
+    assert R[0] - R[1] == pytest.approx(4.0) and np.array_equal(L.haircut(z, b, 1.0), z.R.to_numpy())
+
+
+def test_goal_stats_counts_the_hit_inside_the_window():
+    t0 = pd.Timestamp("2023-01-01")
+    curve = pd.Series([2.0, 0.9, 40.0, 50.0], index=[t0 + pd.Timedelta(days=d) for d in (100, 200, 600, 900)])
+    x, hit, years, dd = L.goal_stats(curve, t0, 33.3, 2.0)
+    assert x == 40.0 and hit and years == pytest.approx(600 / 365.25) and dd == pytest.approx(0.55)
+    assert not L.goal_stats(curve, t0, 45.0, 2.0)[1]
+
+
+def test_rolling_windows_measure_growth_from_each_month():
+    idx = pd.date_range("2022-01-15", periods=40, freq="MS") + pd.Timedelta(days=14)
+    curve = pd.Series(2.0 ** (np.arange(40) / 12), index=idx)
+    w = L.rolling_windows(curve, 2.0)
+    assert len(w) == 16 and np.allclose(w, 4.0)
