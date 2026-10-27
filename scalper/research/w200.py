@@ -256,7 +256,10 @@ def report() -> None:
         adv.index = c_end.index
         for h in sorted({*HS, *EV_HS}):
             alt[h] = alt_forward(c_end, adv, meta, h)
-        print(f"  альты: месяцев с корзиной {len(alt[12])} ({alt[12].index.min():%Y-%m} … {alt[12].index.max():%Y-%m})")
+        if len(alt[12]):
+            print(f"  альты: месяцев с корзиной {len(alt[12])} ({alt[12].index.min():%Y-%m} … {alt[12].index.max():%Y-%m})")
+        else:
+            print("  альты: корзин нет (мало монет)")
     else:
         print("  нет частей spotrev — альтов не будет")
     verdicts = []
