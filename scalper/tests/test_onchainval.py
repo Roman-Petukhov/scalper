@@ -26,3 +26,13 @@ def test_cheap_tercile_by_signal():
 def test_binance_symbol_mapping():
     assert O.binance_symbol("uni") == "UNIUSDT" and O.binance_symbol("ae_eth") is None
     assert O.binance_symbol("avaxc") == "AVAXUSDT"
+
+
+def test_nmfilter_tercile_uses_previous_month():
+    from research import nmfilter as N
+    months = pd.date_range("2024-01-01", periods=3, freq="MS")
+    cols = [f"C{i}USDT" for i in range(15)]
+    nm = pd.DataFrame(np.tile(np.arange(15.0), (3, 1)), index=months, columns=cols)
+    z = pd.DataFrame({"t": [pd.Timestamp("2024-02-10")] * 2, "symbol": ["C0USDT", "C14USDT"]})
+    t = N.tercile(nm, z)
+    assert t.iloc[0] == 2 and t.iloc[1] == 0               # мало адресов на доллар — дорогая

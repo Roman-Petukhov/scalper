@@ -22,6 +22,10 @@ M, G): средний результат после издержек > 0 в ка
 
     python -m research.causal collect --symbols <1h-qualified>
     python -m research.causal report
+
+Прогон 1 (40460869333): ни одна связка не окупила taker; у «часа после выплаты за толпу» до издержек +11.6 б.п. против
++1.1 у контроля. Прогон 2 (задан до запуска): плацебо — тот же знак ставки, час через 4 ч после выплаты (выплаты нет).
+Эффект выплаты — если «после выплаты» минус «плацебо» > 0 во всех периодах; справочно — maker 2 б.п. на вход и выход.
 """
 from __future__ import annotations
 
@@ -41,6 +45,7 @@ from .tline import tf_frame
 HIGH, LOW = 0.0003, 0.0001
 TAKER, MAKER = 5.5e-4, 2e-4
 GAP_MIN = 0.01
+PLACEBO = 4                       # час через 4 после выплаты — та же ставка, но без выплаты (прогон 2)
 SESSIONS = {"Азия 00–08": (0, 8), "Европа 08–14": (8, 14), "США 14–21": (14, 21), "вечер 21–24": (21, 24)}
 
 
@@ -52,8 +57,10 @@ def funding_rows(d: pd.DataFrame, sym: str) -> list[dict]:
     for i in np.flatnonzero(f != 0):
         if i < 1 or i >= len(c):
             continue
+        j = i + PLACEBO
+        plc = c[j] / o[j] - 1 if j < len(c) and f[j] == 0 else np.nan
         rows.append({"symbol": sym, "t": d.index[i], "rate": float(f[i]),
-                     "pre": c[i - 1] / o[i - 1] - 1, "post": c[i] / o[i] - 1})
+                     "pre": c[i - 1] / o[i - 1] - 1, "post": c[i] / o[i] - 1, "plc": plc})
     return rows
 
 
@@ -106,6 +113,19 @@ def report_funding(passed: list[str]) -> None:
     hi, lo = x[x.rate.abs() >= HIGH], x[x.rate.abs() < LOW]
     print(f"\n  --- F: выплата funding — выплат {len(x)}, с |ставкой| >= {HIGH:.2%}: {len(hi)} "
           f"(плюс {(hi.rate > 0).mean():.0%}), контроль < {LOW:.2%}: {len(lo)} ---")
+    if "plc" in x:
+        x["plc_r"] = -side * x["plc"]
+        hi = x[x.rate.abs() >= HIGH]
+        diff = hi.dropna(subset=["plc_r"])
+        cells = []
+        for p, (a, b) in PER_ALL.items():
+            m = diff[(diff.t >= a) & (diff.t < b)]
+            if len(m):
+                cells.append(f"{p} {(m.post_r - m.plc_r).mean() * 1e4:+.1f}")
+        print(f"    плацебо (прогон 2): час выплаты за толпу {diff.post_r.mean() * 1e4:+.1f} б.п. до издержек против часа "
+              f"через {PLACEBO} ч без выплаты {diff.plc_r.mean() * 1e4:+.1f} б.п.; разница по периодам: {'  '.join(cells)}")
+        _, mk = verdict(hi, "post_r", 2 * MAKER)
+        print(f"    час после выплаты за толпу, maker (справка):\n        {mk}")
     for col, name in (("pre_r", "час до выплаты против толпы"), ("post_r", "час после выплаты за толпу")):
         good, txt = verdict(hi, col, 2 * TAKER)
         print(f"    {name}: {'принято' if good else 'нет'}\n        {txt}")

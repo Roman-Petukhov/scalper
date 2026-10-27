@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"causal"}
+TASKS=${TASKS:-"causal nmfilter"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -685,6 +685,12 @@ causal_collect() {
   python -m research.causal collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
 }
 causal_report() { python -m research.causal report; }
+# Цена на активный адрес как фильтр шортов бота 4h
+nmfilter_collect() {
+  RESEARCH_START=2020-01 RESEARCH_METRICS=0 python -m research.prepare 1h-qualified
+  CRISK_TFS=4h python -m research.crisk collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
+}
+nmfilter_report() { python -m research.nmfilter report; }
 
 case "$MODE" in
   collect|report) ;;
