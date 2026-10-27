@@ -1,0 +1,82 @@
+----- fundscreen report (часть 0/10) -----
+
+===== FUNDSCREEN: недооценённая доля в растущем бизнесе без навеса предложения (DefiLlama + CoinGecko, на 2026-10-27) =====
+  dailyFees: протоколов 3084
+  dailyRevenue: протоколов 2725
+  dailyHoldersRevenue: протоколов 1250
+  поля протокола в обзоре: ['annualized1y', 'average1y', 'breakdown24h', 'breakdown30d', 'category', 'chains', 'defillamaId', 'displayName', 'id', 'logo', 'methodology', 'methodologyURL', 'module', 'monthlyAverage1y', 'name', 'protocolType', 'slug', 'total14dto7d', 'total1y', 'total24h', 'total30DaysAgo', 'total30d', 'total48hto24h', 'total60dto30d', 'total7DaysAgo', 'total7d', 'totalAllTime']
+  fundscreen: 400 https://api.llama.fi/summary/fees/astherus?dataType=dailyHoldersRevenue
+  fundscreen: 400 https://api.llama.fi/summary/fees/bonkfun?dataType=dailyHoldersRevenue
+  fundscreen: 400 https://api.llama.fi/summary/fees/cro-trade?dataType=dailyHoldersRevenue
+  fundscreen: 400 https://api.llama.fi/summary/fees/lyra?dataType=dailyHoldersRevenue
+  fundscreen: 400 https://api.llama.fi/summary/fees/maker?dataType=dailyHoldersRevenue
+  fundscreen: 400 https://api.llama.fi/summary/fees/marinade-finance?dataType=dailyHoldersRevenue
+  fundscreen: 400 https://api.llama.fi/summary/fees/origin-defi?dataType=dailyHoldersRevenue
+  fundscreen: 400 https://api.llama.fi/summary/fees/venus-finance?dataType=dailyHoldersRevenue
+  групп-бизнесов 2418, с выручкой держателям >= $50K за 30 дн. 98; с id CoinGecko 737
+  CoinGecko: монет с ценой 613 из 727
+  расписаний разлоков с id CoinGecko: 155
+
+  Правила: выручка держателям >= $50K / 30 дн., кап. >= $20M, оборот >= $1M / день, в обращении >= 50% FDV, разлок 12 мес. <= 10%. Прошли 31. Скор — дешевизна (FDV / выручка держателям) + рост (30 дн. к месяцу за год).
+
+  --- прошли отсев, лучшие 30 по скору ---
+монета             проект      категория   кап.    FDV в обр. разлок 12м выручка/год держателям/год FDV/держ. рост держ. цена 1г от ATH оборот/д
+   GMX         GMX Solana    Derivatives  88.1M  88.1M   100%          ?       60.6M          55.1M        2x       4.77    -22%   -91%     2.8M
+ STONK           StonkFun      Launchpad 106.6M 106.6M   100%          ?      118.6M          71.2M        1x       3.23       —   -66%    15.0M
+  BNKR              Bankr      Interface  30.4M  30.4M   100%          ?        6.9M           2.3M       13x      12.00    -47%   -75%     1.4M
+ ORBIO              Orbio      AI Agents  22.6M  22.6M   100%          ?        3.1M           1.6M       15x       7.49       —   -81%     1.6M
+  PONS            Pons V2      Launchpad 168.3M 168.3M   100%          ?       39.1M          50.4M        3x       2.11       —   -74%    22.3M
+   SSV        SSV Network   Staking Pool  35.2M  35.2M   100%          ?        3.6M           3.6M       10x       1.79    -57%   -96%     3.0M
+ USUAL         Usual USD0            RWA  21.0M  21.1M   100%          ?        3.9M           1.8M       12x       2.00    -67%   -99%     1.7M
+  ORCA           Orca DEX           Dexs 100.9M 124.4M    81%          ?       12.0M           4.4M       28x       2.10    +10%   -92%     8.1M
+   ORE       ORE Protocol Gamified Minin  83.4M  83.4M   100%          ?       47.5M          47.0M        2x       1.08   +112%   -89%     2.9M
+RENDER Render Network BME          DePIN 870.0M 894.7M    97%          ?        8.3M           7.8M      114x       3.46    -33%   -88%    38.2M
+  NEAR       NEAR Intents         Bridge   6.0B   6.0B   100%         0%       26.9M          25.9M      230x       3.56    +93%   -78%   505.3M
+   VVV             Venice           Farm   1.2B   2.1B    60%          ?       12.4M          12.4M      168x       3.14  +1400%   -26%    28.2M
+   UNI         Uniswap V4           Dexs   4.4B   6.3B    70%          ?       89.5M          89.5M       70x       1.49     +7%   -84%   296.1M
+   CVX     Convex Finance          Yield 217.0M 232.8M    93%          ?       11.4M          10.8M       22x       0.87     -3%   -96%     9.5M
+  CAKE PancakeSwap AMM V3           Dexs 669.8M 693.5M    97%          ?       49.0M          32.2M       22x       0.77    -26%   -95%    62.1M
+   APT              Aptos          Chain 605.5M 829.6M    73%         7%        1.7M           1.7M      497x       2.03    -80%   -97%    44.8M
+   CRV          Curve DEX           Dexs 530.0M 813.8M    65%          ?       23.8M          23.1M       35x       0.84    -41%   -98%    48.4M
+  NEAR               Near          Chain   6.0B   6.0B   100%         0%        1.8M           1.8M     3266x       2.10    +93%   -78%   505.3M
+  DYDX            dYdX V4    Derivatives  89.9M 101.8M    88%         0%        3.0M           3.0M       34x       0.65    -69%   -98%     3.7M
+   TRX               Tron          Chain  31.2B  31.2B   100%         2%      290.1M         290.1M      107x       0.85     +9%   -24%   302.0M
+  AVAX          Avalanche          Chain   3.9B   4.1B    94%         1%        4.6M           4.6M      896x       1.61    -57%   -94%   249.4M
+   DBR           deBridge         Bridge 100.5M 153.8M    65%          ?        5.3M           4.1M       37x       0.63    -43%   -72%     4.1M
+   SOL             Solana          Chain  59.4B  64.1B    93%         3%       36.6M          36.6M     1750x       1.36    -50%   -66%     2.4B
+  LINK  Chainlink Staking       Services   8.7B  11.4B    77%          ?       51.7M          51.7M      220x       0.87    -38%   -78%   285.3M
+   INJ          Injective          Chain 800.7M 800.7M   100%         0%        3.2M           3.2M      248x       0.92     -8%   -85%   120.7M
+   ICP                ICP          Chain   1.4B   1.4B   100%         0%        2.2M           2.2M      653x       1.06    -19%  -100%    37.3M
+   ETH           Ethereum          Chain 284.6B 284.6B   100%          ?       63.2M          63.2M     4506x       1.28    -44%   -53%     9.0B
+PENDLE          Pendle V2          Yield 342.2M 554.0M    62%          ?        5.5M           4.1M      136x       0.36    -42%   -74%    45.8M
+ SYRUP              Maple        Lending 206.6M 224.5M    92%          ?       15.3M           1.5M      146x       0.53    -55%   -73%     6.0M
+   BNB                BSC          Chain  97.5B  97.5B   100%         0%       17.5M          17.5M     5573x       1.04    -37%   -46%   860.4M
+
+  --- крупный бизнес, отсеянный правилами (топ-25 по выручке протокола) ---
+ монета                 проект      категория   кап.    FDV в обр. разлок 12м выручка/год держателям/год FDV/держ. рост держ. цена 1г от ATH оборот/д                                              почему
+   PUMP               PumpSwap           Dexs   1.9B   3.5B    56%        15%      825.8M         362.5M       10x       1.18     -8%   -52%   148.7M                                             разлоки
+   HYPE      Hyperliquid Perps    Derivatives  17.5B  75.0B    23%         0%      780.6M         780.6M       96x       1.12    +66%   -20%   760.6M                                    мало в обращении
+  CARDS        Collector Crypt   Physical TCG 265.9M 592.5M    45%          ?      233.1M           2.3M      258x      10.23   +131%   -22%     6.6M                                    мало в обращении
+   WLFI World Liberty Financia        Lending   1.7B   5.3B    32%          ?      145.3M              0         —          —    -64%   -84%    17.9M            нет выручки держателям, мало в обращении
+   AAVE                Aave V3        Lending   2.0B   2.1B    96%          ?       60.2M              0         —       0.00    -44%   -80%   251.4M                              нет выручки держателям
+    LIT          Lighter Perps    Derivatives 758.0M   3.0B    25%        55%       59.9M          33.9M       88x       1.06       —   -61%    76.8M                           мало в обращении, разлоки
+    JUP Jupiter Perpetual Exch    Derivatives 919.1M   1.9B    48%         0%       49.0M          24.5M       78x       0.65    -38%   -86%    49.7M                                    мало в обращении
+    LDO                   Lido Liquid Staking 304.9M 367.6M    83%          ?       37.6M              0         —       0.00    -61%   -95%    35.6M                              нет выручки держателям
+    RAY            Raydium AMM           Dexs 480.7M 988.2M    49%          ?       34.9M          21.5M       46x       1.17     -5%   -89%    26.3M                                    мало в обращении
+HLSCOPE        BlackRock BUIDL            RWA   4.2M   4.2M   100%          ?       32.2M              0         —          —     +5%    -2%        0 нет выручки держателям, мелкая/нет цены, неликвидна
+   PHAR           Pharaoh DLMM           Dexs   1.9M  26.7M     7%          ?       26.2M          26.1M        1x       2.14    +26%   -64%    56.7K       мелкая/нет цены, неликвидна, мало в обращении
+    POL                Polygon          Chain 957.2M 957.2M   100%          ?       26.2M              0         —          —    -55%   -93%    47.1M                              нет выручки держателям
+   EDGE               edgeX V2    Derivatives 116.6M 333.0M    35%        12%       20.1M           7.5M       44x       0.16       —   -78%     1.6M                           мало в обращении, разлоки
+     GP      Graphite Protocol      Launchpad  13.9M  22.7M    61%          ?       18.5M          96.1K      236x       0.61    -18%   -94%   141.9K нет выручки держателям, мелкая/нет цены, неликвидна
+   MASK               Nullmask        Privacy  21.3M  35.2M    60%          ?       13.1M              0         —          —       —   -40%     1.6M                              нет выручки держателям
+    COW                CoWSwap DEX Aggregator  72.1M 125.5M    57%         0%       12.4M              0         —          —    -48%   -94%     1.5M                              нет выручки держателям
+   GEOD                Geodnet         Oracle 113.0M 227.3M    50%          ?       11.9M           9.5M       24x       1.21    +86%   -35%   803.5K                        неликвидна, мало в обращении
+STOCKER             Stockereum      Launchpad 409.3K 409.3K   100%          ?       11.7M              0         —          —       —   -96%    60.8K нет выручки держателям, мелкая/нет цены, неликвидна
+    SPK  Spark Liquidity Layer Onchain Capita  62.6M 184.4M    34%         7%       10.2M           4.3M       43x       1.06    -53%   -90%     8.2M                                    мало в обращении
+    ATH                 Aethir Developer Tool 112.9M 235.5M    48%        30%        9.8M              0         —          —    -81%   -95%     8.5M   нет выручки держателям, мало в обращении, разлоки
+   RUNE          THORChain DEX           Dexs 205.9M 221.2M    93%         0%        8.1M         241.6K      916x       0.42    -31%   -97%    35.0M                              нет выручки держателям
+    ARB               Arbitrum          Chain   1.2B   1.7B    69%          ?        7.7M              0         —          —    -50%   -93%   126.2M                              нет выручки держателям
+     UP                  up v3           Dexs   3.9M  49.0M     8%          ?        7.6M           7.6M        6x       2.52       —   -90%     1.2M                   мелкая/нет цены, мало в обращении
+   NEST                nest CL           Dexs   4.6M  31.9M    14%          ?        7.0M           7.0M        5x       1.80       —   -62%   172.2K       мелкая/нет цены, неликвидна, мало в обращении
+   THOR               THORSwap DEX Aggregator  10.5M  10.5M   100%         0%        6.8M           5.1M        2x       1.42    -31%   -99%      322                         мелкая/нет цены, неликвидна
+частей с результатами: 0 файлов; collect: success
