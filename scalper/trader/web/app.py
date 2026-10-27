@@ -33,6 +33,7 @@ from ..application.liquidations import LiquidationWatcher
 from ..application.bridge import BridgeService
 from ..application.weather import WeatherService
 from ..application.screener import ScreenerService
+from ..application.sector_flow import SectorFlowService
 from ..application.theses import ThesesService
 from ..config import AppConfig
 from ..domain.execution import TradeStatus
@@ -153,6 +154,7 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
     fundamentals, cg_quotes, spot_weekly = DefiLlamaFundamentals(), CoinGeckoQuotes(api_key=cfg.coingecko_key), \
         BinanceSpotWeekly()
     screener = ScreenerService(fundamentals, cg_quotes, spot_weekly, store, notifier=notify, market=market)
+    sector_flow = SectorFlowService(market, store, notifier=notify)
     spot_prices = BinanceSpotPrices()
     writer = None
     if cfg.anthropic_key:
@@ -184,6 +186,7 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
             await dbreak.maybe_run()
             await weather.maybe_run()
             await screener.maybe_run()
+            await sector_flow.maybe_run()
             await theses.maybe_run()
             if bridge is not None:
                 await bridge.maybe_run()
@@ -583,7 +586,8 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
     def screener_view(request: Request, started: bool | None = None):
         return templates.TemplateResponse(request, "_screener.html", {
             "s": screener.current(), "error": screener.last_error, "running": screener.running,
-            "started": started, "every_h": int(screener.every.total_seconds() // 3600)})
+            "started": started, "every_h": int(screener.every.total_seconds() // 3600),
+            "flow": sector_flow.current(), "flow_error": sector_flow.last_error})
 
     @app.get("/screener", response_class=HTMLResponse)
     async def screener_card(request: Request):

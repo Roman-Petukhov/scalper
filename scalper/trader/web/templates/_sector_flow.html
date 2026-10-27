@@ -1,0 +1,39 @@
+{% if flow and flow.rows %}
+{% set top = flow.top %}
+<div class="card sf-card">
+  <div class="journal-head">
+    <h2>Куда заходят деньги · сектора</h2>
+    <span class="hint num" style="margin:0">по {{ flow.day }} · рынок за 7 дн. {{ '%+.1f%%' | format(flow.market_7d * 100) }}</span>
+  </div>
+  {% if top %}
+  <div class="scr-verdict sf-verdict">
+    <b>{{ top.name }}</b> <span class="hint num" style="margin:0">· {{ '%+.1f%%' | format(top.ret_7d * 100) }} сверх рынка,
+      оборот ×{{ '%.1f' | format(top.turnover) }} к обычному</span>
+    <p>Лидеры: {{ top.leaders | join(', ') }}. Сейчас здесь растут и цена, и оборот — деньги заходят. Это ориентир,
+      а не сигнал: на истории 2020–2026 такой выбор давал +1.2% в неделю сверх рынка, но в 2024–2025 был в минусе.</p>
+  </div>
+  {% else %}
+  <p class="hint">Ни в одном секторе сейчас не растут одновременно цена и оборот — явного притока нет.</p>
+  {% endif %}
+  <div class="scr-table num" role="table" aria-label="Сектора">
+    <div class="scr-row sf-row scr-th" role="row">
+      <span role="columnheader">Сектор</span>
+      <span role="columnheader" title="Доходность сектора за 7 дней сверх среднего альта">7 дн. к рынку</span>
+      <span role="columnheader" title="Оборот за 7 дней к среднему за 90, относительно того же у рынка">Оборот</span>
+      <span role="columnheader">Лидеры недели</span>
+    </div>
+    {% for x in flow.rows %}
+    <div class="scr-row sf-row{% if x.inflow %} sf-in{% endif %}" role="row">
+      <span role="cell" class="scr-coin"><span class="scr-name"><b>{{ x.name }}</b><small>{{ x.coins }} монет{% if x.inflow %} · приток{% endif %}</small></span></span>
+      <span role="cell" data-label="7 дн. к рынку" class="{{ 'up' if x.ret_7d > 0 else 'down' }}">{{ '%+.1f%%' | format(x.ret_7d * 100) }}</span>
+      <span role="cell" data-label="Оборот" class="{{ 'up' if x.turnover > 1 else '' }}">×{{ '%.2f' | format(x.turnover) }}</span>
+      <span role="cell" data-label="Лидеры">{{ x.leaders | join(', ') }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  <p class="hint">Порядок секторов от цикла к циклу разный (research/secorder.py): угадать следующий заранее не вышло ни по
+    лестнице «BTC → крупные → мелкие», ни по ширине пробоя. Здесь видно, где деньги уже сейчас. Пересчёт раз в 6 ч.</p>
+</div>
+{% elif flow_error %}
+<p class="err">Сектора не посчитались: {{ flow_error }}.</p>
+{% endif %}

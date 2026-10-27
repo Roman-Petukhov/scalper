@@ -576,3 +576,15 @@ dl.plan dd .sub { color: var(--muted); font-size: 12px; margin-left: 4px; white-
   .th-ind li { grid-template-columns: 18px 1fr; }
   .th-val { grid-column: 2; text-align: left; }
 }
+
+/* Сектора: куда заходят деньги */
+.sf-card { margin-bottom: 14px; }
+.sf-verdict { border-left-color: var(--long); }
+.sf-row { grid-template-columns: minmax(0, 1.6fr) repeat(2, minmax(0, 0.8fr)) minmax(0, 1.6fr); }
+.sf-row > span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sf-in { background: color-mix(in srgb, var(--long) 6%, transparent); }
+.sf-row .up { color: var(--long); }
+.sf-row .down { color: var(--short); }
+@media (max-width: 760px) {
+  .sf-row > span:last-child { white-space: normal; grid-column: 1 / -1; }
+}

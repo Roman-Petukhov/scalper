@@ -26,6 +26,7 @@
   <h2>Первый расчёт</h2>
   <p class="hint">Снимка ещё нет: скринер посчитает его в фоне в течение минуты после запуска панели или по кнопке выше.</p>
 </div>
+{% include "_sector_flow.html" %}
 {% else %}
 {% set r = s.regime %}
 <div class="card scr-regime scr-zone-{{ r.zone.value }}">
@@ -46,9 +47,11 @@
       <small>EMA200 {{ '{:,.0f}'.format(r.ema200).replace(',', ' ') }}</small></div>
   </div>
   {% endif %}
-  <p class="hint">Режим — ваше наблюдение (зона под EMA200, запуск над EMA50, откаты к EMA50); на истории BTC с 2014 года
-    оно проверяется (research/w200.py) — пока это подсказка, когда набирать, а не сигнал.</p>
+  <p class="hint">Проверено на BTC с 2014 и S&amp;P 500 с 1927 (research/w200.py, spx200.py): под EMA200 — зона накопления
+    на горизонт 2 года (дно не угадать, набирать частями); закрепление над EMA50 после неё — в плюсе через год в 77–100%
+    случаев. Перегрев (BTC выше 2.5 × EMA200) — худшая зона.</p>
 </div>
+{% include "_sector_flow.html" %}
 
 <div class="card scr-list">
   <div class="journal-head">
