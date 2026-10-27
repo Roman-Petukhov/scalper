@@ -33,6 +33,7 @@ from ..application.liquidations import LiquidationWatcher
 from ..application.bridge import BridgeService
 from ..application.weather import WeatherService
 from ..application.screener import ScreenerService
+from ..application.theses import ThesesService
 from ..config import AppConfig
 from ..domain.execution import TradeStatus
 from ..domain.journal import BACKTEST_DD_R, tf_stats
@@ -49,7 +50,7 @@ from ..infrastructure.bybit import (ALIAS_MAX_GAP, BrokerHolder, BybitBroker, By
 from ..infrastructure.charts import MatplotlibCharts
 from ..infrastructure.github_state import GitHubState
 from ..infrastructure.defillama import DefiLlamaStablecoins
-from ..infrastructure.fundamentals import BinanceSpotWeekly, CoinGeckoQuotes, DefiLlamaFundamentals
+from ..infrastructure.fundamentals import BinanceSpotPrices, BinanceSpotWeekly, CoinGeckoQuotes, DefiLlamaFundamentals
 from ..infrastructure.heartbeat import HttpHeartbeat
 from ..infrastructure.liquidations import stream as liquidation_stream
 from ..infrastructure.sentiment import MarketMood
@@ -152,6 +153,13 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
     fundamentals, cg_quotes, spot_weekly = DefiLlamaFundamentals(), CoinGeckoQuotes(api_key=cfg.coingecko_key), \
         BinanceSpotWeekly()
     screener = ScreenerService(fundamentals, cg_quotes, spot_weekly, store, notifier=notify, market=market)
+    spot_prices = BinanceSpotPrices()
+    writer = None
+    if cfg.anthropic_key:
+        from ..infrastructure.claude_theses import ClaudeThesesWriter
+        writer = ClaudeThesesWriter(cfg.anthropic_key, cfg.theses_model)
+    theses = ThesesService(writer, fundamentals, fundamentals, stables, spot_prices, store, screener.current,
+                           notifier=notify, panel_url=cfg.panel_url, model=cfg.theses_model)
     state_repo = GitHubState(cfg.bridge_token, cfg.bridge_repo, cfg.bridge_branch) if cfg.bridge_token else None
     bridge = BridgeService(state_repo, store, store, store, store, notify) if state_repo is not None else None
 
@@ -176,6 +184,7 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
             await dbreak.maybe_run()
             await weather.maybe_run()
             await screener.maybe_run()
+            await theses.maybe_run()
             if bridge is not None:
                 await bridge.maybe_run()
             liqs.save()
@@ -201,8 +210,10 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
             liqs.save()
         await holder.close()
         await stables.aclose()
-        for c in (fundamentals, cg_quotes, spot_weekly):
+        for c in (fundamentals, cg_quotes, spot_weekly, spot_prices):
             await c.aclose()
+        if writer is not None:
+            await writer.aclose()
         await mood.aclose()
         if state_repo is not None:
             await state_repo.aclose()
@@ -583,6 +594,21 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
     async def screener_run(request: Request):
         guard(request, mutate=True)
         return screener_view(request, started=screener.start())
+
+    def theses_view(request: Request, started: bool | None = None):
+        return templates.TemplateResponse(request, "_theses.html", {**theses.view(), "started": started})
+
+    @app.get("/theses", response_class=HTMLResponse)
+    async def theses_card(request: Request):
+        guard(request)
+        return theses_view(request)
+
+    @app.post("/theses/{kind}", response_class=HTMLResponse)
+    async def theses_run(request: Request, kind: str):
+        guard(request, mutate=True)
+        if kind not in ("report", "check", "readings"):
+            raise HTTPException(404, "нет такого действия")
+        return theses_view(request, started=theses.start(kind))
 
     @app.get("/dbreak", response_class=HTMLResponse)
     async def dbreak_card(request: Request):

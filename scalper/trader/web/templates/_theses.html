@@ -1,0 +1,149 @@
+{% set CAP = {'strong': 'выручка доходит', 'medium': 'частично', 'weak': 'слабо', 'none': 'не доходит'} %}
+{% set VERD = {'new': 'новый', 'kept': 'без изменений', 'strengthened': 'усилен', 'weakened': 'ослаб', 'killed': 'снят'} %}
+{% set CONF = {'high': 'уверенность высокая', 'medium': 'уверенность средняя', 'low': 'уверенность низкая'} %}
+{% set CHK = {'none': 'новостей нет', 'support': 'новости за', 'against': 'новости против', 'kill': 'условие отмены'} %}
+{% macro reading_value(r) -%}
+{%- if r.value is not none -%}{{ money(r.value) }}{%- else -%}—{%- endif -%}
+{%- endmacro %}
+{% macro reading_change(r) -%}
+{%- if r.change is none -%}копится история
+{%- elif r.kind == 'ratio' -%}×{{ '%.2f' | format(r.change) }} к среднему месяцу года
+{%- else -%}{{ '%+.1f%%' | format(r.change * 100) }} за 30 дн.{%- endif -%}
+{%- endmacro %}
+<div class="scr-head">
+  <span class="hint num" style="margin:0">
+    {% if report %}тезисы от {{ report.created_at.strftime('%d.%m.%Y') }}{% if report.cost_usd %} · расход ≈ ${{ '%.2f' | format(report.cost_usd) }}{% endif %} · {% endif %}
+    {% if readings_at %}индикаторы {{ readings_at | lt }}{% else %}индикаторы ещё не считались{% endif %}
+  </span>
+  <div class="th-actions">
+    {% if has_ai %}
+    <button type="button" class="btn small" hx-post="/theses/check" hx-target="#theses-body" hx-swap="innerHTML"
+            {% if running or not report %}disabled{% endif %} title="Поиск новостей за неделю по катализаторам и условиям отмены">
+      Сверить новости</button>
+    <button type="button" class="btn small primary" hx-post="/theses/report" hx-target="#theses-body" hx-swap="innerHTML"
+            hx-confirm="Полный пересчёт тезисов: ИИ с веб-поиском, 5–15 минут, ≈ $1–3 на ключе Anthropic. Запустить?"
+            {% if running %}disabled{% endif %}>
+      {% if running and job == 'report' %}<span class="spinner" aria-hidden="true"></span> Пишу тезисы…{% else %}Пересчитать тезисы{% endif %}</button>
+    {% else %}
+    <button type="button" class="btn small" hx-post="/theses/readings" hx-target="#theses-body" hx-swap="innerHTML"
+            {% if running %}disabled{% endif %}>Обновить индикаторы</button>
+    {% endif %}
+  </div>
+</div>
+{% if running %}
+<div hx-get="/theses" hx-trigger="every 15s" hx-target="#theses-body" hx-swap="innerHTML"></div>
+<p class="hint scr-note" aria-live="polite">
+  {% if job == 'report' %}ИИ ищет и читает источники, затем оформляет тезисы — обычно 5–15 минут. Можно закрыть страницу.
+  {% elif job == 'check' %}Ищу новости недели по катализаторам — 1–3 минуты.
+  {% else %}Обновляю индикаторы — около минуты.{% endif %}</p>
+{% elif started is sameas false %}
+<p class="hint scr-note" aria-live="polite">Уже идёт другой расчёт — дождитесь его.</p>
+{% endif %}
+{% if error %}<p class="err">Последний расчёт не удался: {{ error }}. Повторю через час.</p>{% endif %}
+
+{% if not has_ai %}
+<div class="card th-setup">
+  <h2>Нужен ключ Anthropic API</h2>
+  <p>Тезисы пишет ИИ-аналитик (Claude с веб-поиском). Добавьте в <code>deploy/.env</code> строку
+    <code>ANTHROPIC_API_KEY=sk-ant-…</code> (ключ — console.anthropic.com → API Keys) и перезапустите:
+    <code>docker compose up -d</code>. Расход — около $1–3 за ежемесячный пересчёт и центы за недельную сверку.</p>
+  <p class="hint">Индикаторы ниже считаются и без ключа. Первая ручная версия тезисов — в репозитории, <code>docs/theses.md</code>.</p>
+</div>
+{% endif %}
+
+{% if report %}
+<div class="card th-summary">
+  <div class="journal-head"><h2>Главное</h2><span class="hint num" style="margin:0">{{ report.theses | length }} тезисов · {{ report.model }}</span></div>
+  {% if report.summary %}<p class="th-lead">{{ report.summary }}</p>{% endif %}
+  {% if report.macro %}<p class="th-macro"><b>Фон:</b> {{ report.macro }}</p>{% endif %}
+  {% if check %}<p class="hint">Сверка новостей — {{ check.at[:10] | replace('-', '.') }}{% if check.cost_usd %} (≈ ${{ '%.2f' | format(check.cost_usd) }}){% endif %}.</p>{% endif %}
+</div>
+
+<div class="th-grid">
+{% for row in rows %}
+{% set t = row.t %}
+<article class="card th-card{% if t.risk %} th-risk{% endif %}{% if t.verdict == 'killed' %} th-killed{% endif %}">
+  <header class="th-top">
+    <h3>{{ t.title }}</h3>
+    <div class="th-badges">
+      <span class="badge th-st th-st-{{ row.status.value }}" title="Что говорят индикаторы тезиса">{{ row.status_text }}</span>
+      {% if t.risk %}<span class="badge short">риск</span>{% endif %}
+      <span class="badge">{{ VERD.get(t.verdict, t.verdict) }}</span>
+      <span class="badge" title="{{ CONF.get(t.confidence, '') }}">{{ t.horizon }}</span>
+    </div>
+  </header>
+  <p class="th-shift">{{ t.shift }}</p>
+  <div class="th-sec"><span class="th-label">Цепочка</span><p>{{ t.chain }}</p></div>
+
+  {% if t.beneficiaries %}
+  <div class="th-sec"><span class="th-label">Кто получает деньги</span>
+    <ul class="th-coins">
+    {% for b in t.beneficiaries %}
+      {% set p = perf.get(b.symbol) %}
+      <li class="th-coin th-cap-{{ b.capture }}">
+        <b>{{ b.symbol }}</b>
+        <span class="th-role">{{ b.role }}</span>
+        <small>{{ CAP.get(b.capture, b.capture) }} · {{ b.screener or 'нет в скринере' }}</small>
+        {% if p is not none %}<span class="num th-perf {{ 'up' if p > 0 else 'down' }}" title="С публикации, сверх BTC">{{ '%+.0f%%' | format(p * 100) }}</span>{% endif %}
+      </li>
+    {% endfor %}
+    </ul>
+  </div>
+  {% else %}
+  <div class="th-sec"><span class="th-label">Кто получает деньги</span><p class="hint" style="margin:0">Токена-получателя нет — следить за тезисом, не покупать.</p></div>
+  {% endif %}
+
+  {% if t.indicators %}
+  <div class="th-sec"><span class="th-label">Индикаторы</span>
+    <ul class="th-ind num">
+    {% for i in t.indicators %}
+      {% set r = readings.get(i.id) %}
+      <li>
+        <span class="th-dot th-dir-{{ i.direction }}" aria-hidden="true">{{ '↑' if i.direction == 'up' else '↓' }}</span>
+        <span>{{ r.title if r else i.id }}<small>{{ i.why }}</small></span>
+        <span class="th-val">{% if r %}{{ reading_value(r) }}<small>{{ reading_change(r) }}</small>{% else %}—{% endif %}</span>
+      </li>
+    {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% if t.catalysts %}
+  <div class="th-sec"><span class="th-label">Катализаторы</span>
+    <ul class="th-list">{% for c in t.catalysts %}<li>{{ c }}</li>{% endfor %}</ul></div>
+  {% endif %}
+  <div class="th-sec"><span class="th-label">Условие отмены</span><p>{{ t.kill }}</p></div>
+  <div class="th-sec"><span class="th-label">Учла ли цена</span><p>{{ t.priced_in }}</p></div>
+  {% if row.check and row.check.change != 'none' %}
+  <div class="th-news th-news-{{ row.check.change }}"><b>{{ CHK.get(row.check.change) }}:</b> {{ row.check.note }}
+    {% for s in row.check.sources[:3] %} <a href="{{ s.url }}" target="_blank" rel="noopener noreferrer">[{{ loop.index }}]</a>{% endfor %}</div>
+  {% endif %}
+  <details class="more th-src"><summary>Источники · {{ t.sources | length }}</summary>
+    <ol>{% for s in t.sources %}<li><a href="{{ s.url }}" target="_blank" rel="noopener noreferrer">{{ s.title or s.url }}</a></li>{% endfor %}</ol>
+  </details>
+</article>
+{% endfor %}
+</div>
+{% elif has_ai and not running %}
+<div class="card"><h2>Тезисов ещё нет</h2><p class="hint">Первый пересчёт запустится сам в течение минуты после старта панели или по кнопке выше.</p></div>
+{% endif %}
+
+{% if readings %}
+<details class="card scr-rules th-readings">
+  <summary><span>Индикаторы · {{ readings | length }}</span></summary>
+  <div class="scr-table num" role="table" aria-label="Индикаторы">
+  {% for r in readings.values() %}
+    <div class="scr-row th-rrow" role="row">
+      <span role="cell" class="scr-coin"><span class="scr-name"><b>{{ r.title }}</b><small>{{ r.id }}</small></span></span>
+      <span role="cell" data-label="Сейчас">{{ reading_value(r) }}</span>
+      <span role="cell" data-label="Изменение" class="{{ 'up' if r.change is not none and ((r.kind == 'ratio' and r.change >= 1.05) or (r.kind != 'ratio' and r.change >= 0.02)) else ('down' if r.change is not none and ((r.kind == 'ratio' and r.change <= 0.952) or (r.kind != 'ratio' and r.change <= -0.02)) else '') }}">{{ reading_change(r) }}</span>
+    </div>
+  {% endfor %}
+  </div>
+  <p class="hint">Комиссии и TVL по категориям — DefiLlama, стейблкоины — DefiLlama. TVL за 30 дней считается по собственной
+    истории панели: первые 30 дней после запуска изменения нет.</p>
+</details>
+{% endif %}
+<p class="hint th-foot">Тезисы — карта «куда смотреть», не сигнал на покупку. Статус «подтверждается» — индикаторы тезиса идут
+  в нужную сторону; «С публикации» у монет — бумажная проверка против BTC. Полный пересчёт — раз в 30 дней, сверка новостей — раз в 7 дней,
+  индикаторы — раз в сутки.</p>

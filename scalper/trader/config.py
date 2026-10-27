@@ -22,6 +22,8 @@ class AppConfig:
     bridge_repo: str = "Roman-Petukhov/scalper"
     bridge_branch: str = "bot-state"
     coingecko_key: str | None = None   # необязательно: демо-ключ CoinGecko для скринера (без него — общий лимит)
+    anthropic_key: str | None = None   # необязательно: ключ Anthropic API для вкладки «Тезисы» (без него — только индикаторы)
+    theses_model: str = "claude-opus-5-5"
 
     @staticmethod
     def from_env() -> AppConfig:
@@ -43,4 +45,6 @@ class AppConfig:
                          bridge_token=os.environ.get("BRIDGE_GITHUB_TOKEN") or None,
                          bridge_repo=os.environ.get("BRIDGE_REPO", "Roman-Petukhov/scalper"),
                          bridge_branch=os.environ.get("BRIDGE_BRANCH", "bot-state"),
-                         coingecko_key=os.environ.get("COINGECKO_API_KEY") or None)
+                         coingecko_key=os.environ.get("COINGECKO_API_KEY") or None,
+                         anthropic_key=os.environ.get("ANTHROPIC_API_KEY") or None,
+                         theses_model=os.environ.get("THESES_MODEL") or "claude-opus-5-5")

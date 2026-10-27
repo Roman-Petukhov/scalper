@@ -253,3 +253,21 @@ class KeyValueStore(Protocol):
     def kv_get(self, key: str) -> str | None: ...
 
     def kv_set(self, key: str, value: str) -> None: ...
+
+
+class ThesesWriter(Protocol):
+    """ИИ-аналитик: тезисы по контексту и JSON-схеме; недельная сверка новостей. Второе значение — расход."""
+
+    async def write(self, context: str, schema: dict) -> tuple[dict, object]: ...
+
+    async def check(self, context: str) -> tuple[dict, object]: ...
+
+
+class SpotPrices(Protocol):
+    async def prices(self, symbols: list[str]) -> dict[str, float]:
+        """Цена в USDT по тикеру (BTC → BTCUSDT); монет без пары в ответе нет."""
+
+
+class CategoryTvl(Protocol):
+    async def tvl_by_category(self) -> dict[str, float]:
+        """TVL протоколов DefiLlama по категориям, $."""

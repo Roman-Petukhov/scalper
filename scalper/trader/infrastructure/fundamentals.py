@@ -63,6 +63,19 @@ def parse_token_ids(protocols: object, chains: object) -> dict[str, str]:
     return out
 
 
+def parse_tvl_by_category(protocols: object) -> dict[str, float]:
+    """TVL по категориям протоколов DefiLlama (сети и CEX не считаем — у CEX «TVL» это резервы биржи)."""
+    out: dict[str, float] = {}
+    for p in protocols if isinstance(protocols, list) else []:
+        if not isinstance(p, dict):
+            continue
+        cat = str(p.get("category") or "")
+        if not cat or cat in ("CEX", "Chain"):
+            continue
+        out[cat] = out.get(cat, 0.0) + _num(p.get("tvl"))
+    return out
+
+
 def parse_schedule(raw: object) -> list[tuple[date, float]]:
     """Накопленный разлок по дням: сумма категорий (команда, фонды, экосистема…) с переносом последнего значения."""
     if not isinstance(raw, dict):
@@ -122,6 +135,7 @@ class DefiLlamaFundamentals:
         self.client = client or httpx.AsyncClient(timeout=90.0, headers=UA, follow_redirects=True)
         self.list_ttl_s = list_ttl_s
         self._emis_list: tuple[float, set[str]] | None = None
+        self._protos: tuple[float, object] | None = None
 
     async def _get(self, url: str, params: dict | None = None, quiet: tuple[int, ...] = ()) -> object | None:
         for attempt in range(4):
@@ -150,8 +164,17 @@ class DefiLlamaFundamentals:
             raise RuntimeError("DefiLlama: пустой обзор комиссий")
         return rows
 
+    async def _protocols(self) -> object:
+        now = time.monotonic()
+        if self._protos is None or now - self._protos[0] > 600:
+            self._protos = (now, await self._get(LLAMA + "/protocols"))
+        return self._protos[1]
+
     async def token_ids(self) -> dict[str, str]:
-        return parse_token_ids(await self._get(LLAMA + "/protocols"), await self._get(LLAMA + "/v2/chains"))
+        return parse_token_ids(await self._protocols(), await self._get(LLAMA + "/v2/chains"))
+
+    async def tvl_by_category(self) -> dict[str, float]:
+        return parse_tvl_by_category(await self._protocols())
 
     async def token_id(self, key: str) -> str | None:
         for path in (f"/summary/fees/{key}", f"/protocol/{key}"):
@@ -227,3 +250,29 @@ class BinanceSpotWeekly:
 
     async def aclose(self) -> None:
         await self.client.aclose()
+
+
+class BinanceSpotPrices:
+    """Последние цены всех USDT-пар спота Binance одним запросом: бумажная проверка тезисов."""
+
+    def __init__(self, client: httpx.AsyncClient | None = None) -> None:
+        self.client = client or httpx.AsyncClient(timeout=30.0, headers=UA)
+
+    async def prices(self, symbols: list[str]) -> dict[str, float]:
+        r = await self.client.get("https://api.binance.com/api/v3/ticker/price")
+        r.raise_for_status()
+        return parse_prices(r.json(), symbols)
+
+    async def aclose(self) -> None:
+        await self.client.aclose()
+
+
+def parse_prices(raw: object, symbols: list[str]) -> dict[str, float]:
+    """Тикер → цена в USDT для запрошенных монет (BTC → BTCUSDT); нет пары — монеты нет в ответе."""
+    book = {}
+    for x in raw if isinstance(raw, list) else []:
+        try:
+            book[str(x["symbol"])] = float(x["price"])
+        except (KeyError, TypeError, ValueError):
+            continue
+    return {s: book[f"{s}USDT"] for s in symbols if f"{s}USDT" in book and book[f"{s}USDT"] > 0}
