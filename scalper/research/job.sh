@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"placebo"}
+TASKS=${TASKS:-"fundscreen"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -712,6 +712,10 @@ placebo_collect() {
   python -m research.placebo collect --symbols "$(cat /tmp/syms_1h-qualified.txt)"
 }
 placebo_report() { python -m research.placebo report; }
+
+# Фундаментальный скринер на 1–2 года: выручка держателям, FDV, разлоки (DefiLlama + CoinGecko, только сегодня)
+fundscreen_collect() { :; }
+fundscreen_report() { python -m research.fundscreen; }
 
 case "$MODE" in
   collect|report) ;;
