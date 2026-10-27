@@ -54,8 +54,33 @@ def _csv(url: str) -> pd.DataFrame | None:
     return None
 
 
+DUKA_SYM = {"spx": ("USA500IDXUSD", (500.0, 20000.0)), "ndx": ("USATECHIDXUSD", (2000.0, 80000.0))}
+
+
+def duka_daily(key: str) -> pd.Series:
+    """Запасной источник 2: часовые свечи CFD Dukascopy (как tools/tradfi.py), закрытие часа 20:00 UTC — около
+    закрытия США; только будни. VIX у Dukascopy нет."""
+    if key not in DUKA_SYM:
+        return pd.Series(dtype="float64")
+    from tools.tradfi import _duka_month, _scale
+    sym, rng = DUKA_SYM[key]
+    end = pd.Timestamp.now(tz="UTC")
+    jobs = [(y, m) for y in range(2020, end.year + 1) for m in range(12)
+            if pd.Timestamp(year=y, month=m + 1, day=1, tz="UTC") < end]
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(3) as ex:
+        parts = [p for p in ex.map(lambda ym: _duka_month(sym, *ym), jobs) if p is not None and len(p)]
+    if not parts:
+        print(f"  markets: Dukascopy {sym} — нет данных", flush=True)
+        return pd.Series(dtype="float64")
+    df = _scale(pd.concat(parts).sort_index(), *rng)
+    df = df[~df.index.duplicated()]
+    at = df["close"][(df.index.hour == 20) & (df.index.dayofweek < 5)]
+    return pd.Series(at.to_numpy(), index=at.index.tz_localize(None).normalize())
+
+
 def fred(key: str) -> pd.Series:
-    """Дневной ряд: FRED, при отказе — Stooq (закрытие)."""
+    """Дневной ряд: FRED, при отказе — Stooq, затем Dukascopy (закрытие)."""
     df = _csv(FRED.format(s=SERIES[key]))
     if df is not None and df.shape[1] >= 2:
         s = pd.Series(pd.to_numeric(df.iloc[:, 1], errors="coerce").to_numpy(), index=pd.to_datetime(df.iloc[:, 0]))
@@ -64,8 +89,10 @@ def fred(key: str) -> pd.Series:
     df = _csv(STOOQ.format(s=STOOQ_SYM[key]))
     if df is not None and {"Date", "Close"} <= set(df.columns):
         s = pd.Series(pd.to_numeric(df["Close"], errors="coerce").to_numpy(), index=pd.to_datetime(df["Date"]))
-        return s.dropna()
-    return pd.Series(dtype="float64")
+        if s.notna().sum() > 100:
+            return s.dropna()
+    print(f"  markets: Stooq {STOOQ_SYM[key]} — нет данных, пробую Dukascopy", flush=True)
+    return duka_daily(key)
 
 
 def verdict(z: pd.DataFrame) -> tuple[bool, str]:
