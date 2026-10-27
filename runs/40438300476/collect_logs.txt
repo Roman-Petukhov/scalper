@@ -1,0 +1,31 @@
+----- dboost4 collect (часть 0/10) -----
+  extreg: стейблкоины 3255 дней (2017-11-29 00:00:00+00:00 … 2026-10-27 00:00:00+00:00), DVOL 2044 дней (2021-03-24 00:00:00+00:00 … 2026-10-27 00:00:00+00:00)
+cat: /tmp/syms_1h-qualified.txt: No such file or directory
+  dtrend: монет 0, с сделками бота 0
+----- dboost4 collect (часть 1/10) -----
+cat: /tmp/syms_1h-qualified.txt: No such file or directory
+  dtrend: монет 0, с сделками бота 0
+----- dboost4 collect (часть 2/10) -----
+cat: /tmp/syms_1h-qualified.txt: No such file or directory
+  dtrend: монет 0, с сделками бота 0
+----- dboost4 collect (часть 3/10) -----
+cat: /tmp/syms_1h-qualified.txt: No such file or directory
+  dtrend: монет 0, с сделками бота 0
+----- dboost4 collect (часть 4/10) -----
+cat: /tmp/syms_1h-qualified.txt: No such file or directory
+  dtrend: монет 0, с сделками бота 0
+----- dboost4 collect (часть 5/10) -----
+cat: /tmp/syms_1h-qualified.txt: No such file or directory
+  dtrend: монет 0, с сделками бота 0
+----- dboost4 collect (часть 6/10) -----
+cat: /tmp/syms_1h-qualified.txt: No such file or directory
+  dtrend: монет 0, с сделками бота 0
+----- dboost4 collect (часть 7/10) -----
+cat: /tmp/syms_1h-qualified.txt: No such file or directory
+  dtrend: монет 0, с сделками бота 0
+----- dboost4 collect (часть 8/10) -----
+cat: /tmp/syms_1h-qualified.txt: No such file or directory
+  dtrend: монет 0, с сделками бота 0
+----- dboost4 collect (часть 9/10) -----
+cat: /tmp/syms_1h-qualified.txt: No such file or directory
+  dtrend: монет 0, с сделками бота 0
