@@ -1,0 +1,70 @@
+----- squeezefuel collect (часть 0/10) -----
+часть 0/10, набор 1h-qualified: монет 63
+часть 0/10, набор 1h-spot: монет 45
+  squeezefuel: монет 62, со спотом 45
+----- sectors collect (часть 0/10) -----
+часть 0/10, набор 1h-all: монет 76
+  sectors: монет 71
+----- squeezefuel collect (часть 1/10) -----
+часть 1/10, набор 1h-qualified: монет 66
+часть 1/10, набор 1h-spot: монет 39
+  squeezefuel: монет 63, со спотом 38
+----- sectors collect (часть 1/10) -----
+часть 1/10, набор 1h-all: монет 84
+  sectors: монет 75
+----- squeezefuel collect (часть 2/10) -----
+часть 2/10, набор 1h-qualified: монет 78
+часть 2/10, набор 1h-spot: монет 45
+  squeezefuel: монет 76, со спотом 44
+----- sectors collect (часть 2/10) -----
+часть 2/10, набор 1h-all: монет 93
+  sectors: монет 87
+----- squeezefuel collect (часть 3/10) -----
+часть 3/10, набор 1h-qualified: монет 73
+часть 3/10, набор 1h-spot: монет 46
+  squeezefuel: монет 71, со спотом 45
+----- sectors collect (часть 3/10) -----
+часть 3/10, набор 1h-all: монет 94
+  sectors: монет 84
+----- squeezefuel collect (часть 4/10) -----
+часть 4/10, набор 1h-qualified: монет 72
+часть 4/10, набор 1h-spot: монет 44
+  squeezefuel: монет 72, со спотом 44
+----- sectors collect (часть 4/10) -----
+часть 4/10, набор 1h-all: монет 86
+  sectors: монет 82
+----- squeezefuel collect (часть 5/10) -----
+часть 5/10, набор 1h-qualified: монет 83
+часть 5/10, набор 1h-spot: монет 46
+  squeezefuel: монет 81, со спотом 46
+----- sectors collect (часть 5/10) -----
+часть 5/10, набор 1h-all: монет 100
+  sectors: монет 94
+----- squeezefuel collect (часть 6/10) -----
+часть 6/10, набор 1h-qualified: монет 71
+часть 6/10, набор 1h-spot: монет 49
+  squeezefuel: монет 69, со спотом 49
+----- sectors collect (часть 6/10) -----
+часть 6/10, набор 1h-all: монет 90
+  sectors: монет 80
+----- squeezefuel collect (часть 7/10) -----
+часть 7/10, набор 1h-qualified: монет 61
+часть 7/10, набор 1h-spot: монет 49
+  squeezefuel: монет 59, со спотом 47
+----- sectors collect (часть 7/10) -----
+часть 7/10, набор 1h-all: монет 80
+  sectors: монет 75
+----- squeezefuel collect (часть 8/10) -----
+часть 8/10, набор 1h-qualified: монет 75
+часть 8/10, набор 1h-spot: монет 45
+  squeezefuel: монет 75, со спотом 45
+----- sectors collect (часть 8/10) -----
+часть 8/10, набор 1h-all: монет 90
+  sectors: монет 85
+----- squeezefuel collect (часть 9/10) -----
+часть 9/10, набор 1h-qualified: монет 83
+часть 9/10, набор 1h-spot: монет 60
+  squeezefuel: монет 80, со спотом 59
+----- sectors collect (часть 9/10) -----
+часть 9/10, набор 1h-all: монет 107
+  sectors: монет 99
