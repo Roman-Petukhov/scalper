@@ -169,6 +169,11 @@ def momentum(ex: pd.DataFrame) -> pd.DataFrame:
     return np.log1p(ex.fillna(0.0)).rolling(SHORT, min_periods=6).sum().where(ex.notna())
 
 
+def gated_by(score: pd.DataFrame, mom: pd.DataFrame) -> pd.DataFrame:
+    """Балл только у секторов, которые сами в плюсе сверх рынка за 7 дней."""
+    return score.where((mom > 0).reindex_like(score).fillna(False))
+
+
 def composite(parts: list[pd.DataFrame], min_parts: int = 2) -> pd.DataFrame:
     """Среднее z-оценок по секторам за день; сектор без хотя бы min_parts признаков — NaN."""
     zs = []
@@ -295,10 +300,9 @@ def report() -> None:
     print(f"  монет {close.shape[1]} (с OI {int(got['oi'].notna().any().sum())}), секторов {len(sectors)}, "
           f"дни {close.index[0].date()} … {close.index[-1].date()}")
     passed: list[str] = []
-    pos = mom > 0
 
     def gated(score: pd.DataFrame) -> pd.DataFrame:
-        return score.where(pos.reindex_like(score).fillna(False))
+        return gated_by(score, mom)
 
     print("\n  --- P1: новые деньги в плечах (рост OI сектора) ---")
     p1 = sector_score(oi_growth(got["oi"]), live, sectors)
