@@ -37,6 +37,11 @@ class MarketData(Protocol):
         """Сумма ставок funding с выплатой в (start, end]."""
 
 
+class OpenInterestHistory(Protocol):
+    async def oi_daily(self, symbol: str, days: int) -> pd.Series:
+        """Открытый интерес в $ на конец каждого дня UTC (индекс — день), старые первыми; не больше 30 дней."""
+
+
 class SignalRepository(Protocol):
     def add(self, signal: Signal) -> Signal | None:
         """Сохранить; None — такой сигнал (монета, ТФ, свеча, сторона) уже есть."""

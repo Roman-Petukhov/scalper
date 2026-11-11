@@ -1,8 +1,10 @@
-"""Куда заходят деньги по секторам альтов: 7 дней сверх рынка и рост оборота сектора к его 90-дневному среднему.
+"""Куда заходят деньги по секторам альтов: сводный балл сектора и режим BTC.
 
-Исследование research/secorder.py (прогон 40518559504): «сектор, у которого одновременно растут оборот и цена» — лучший
-из проверенных признаков следующего сектора (+1.2% в неделю сверх рынка, t 1.8, минус в 2024–2025) — не принят как
-сигнал. Здесь — только ориентир «где сейчас деньги», не сигнал на покупку. Состав секторов — как в исследовании.
+Сводный балл — как в research/posflow.py (прогон 40542971766): среднее z-оценок по секторам четырёх признаков за 7 дней —
+доходность сверх рынка, оборот к своим 90 дням (сверх рынка), доля рыночных покупок к своим 90 дням, рост открытого
+интереса. Сектор с наибольшим баллом следующую неделю был лучше рынка на +2.0% (t 2.7; в неделях, когда BTC выше
+недельной EMA50, +2.95%, вне их — около нуля), но порог t >= 3 не пройден и VAL слабый. Поэтому здесь — ориентир и
+бумажная проверка вперёд (domain/sector_paper.py), а не сигнал. Состав секторов — как в исследовании.
 """
 from __future__ import annotations
 
@@ -10,6 +12,7 @@ import math
 from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime
 
+import numpy as np
 import pandas as pd
 
 SECTORS: dict[str, tuple[str, ...]] = {
@@ -50,6 +53,8 @@ SECTORS: dict[str, tuple[str, ...]] = {
 SHORT, LONG = 7, 90
 ADV_MIN = 5e6                   # ликвидная монета: средний оборот за 30 дней >= $5M, как в исследовании
 MIN_COINS = 3
+MIN_PARTS = 2                   # сводный балл — хотя бы по двум признакам
+EMA_WEEKS = 50
 
 
 def base_asset(symbol: str) -> str:
@@ -69,6 +74,9 @@ def sector_of(symbol: str) -> str | None:
     return None
 
 
+NAN = float("nan")
+
+
 @dataclass(frozen=True)
 class SectorRow:
     name: str
@@ -77,7 +85,14 @@ class SectorRow:
     turnover: float             # оборот за 7 дней к среднему за 90, деленный на то же у рынка (×)
     leaders: tuple[str, ...]    # три лучшие монеты сектора за 7 дней
     inflow: bool = False        # растут и цена, и оборот
-    top: bool = False           # среди inflow — с наибольшим ростом оборота
+    top: bool = False           # наибольший сводный балл
+    taker: float = NAN          # доля рыночных покупок за 7 дней к своим 90 сверх секторных монет (log-odds)
+    oi_7d: float = NAN          # рост открытого интереса за 7 дней сверх секторных монет (log)
+    score: float = NAN          # сводный балл: среднее z-оценок признаков по секторам
+    members: tuple[str, ...] = ()   # ликвидные монеты сектора — корзина для бумажной проверки
+
+
+OPTIONAL = ("taker", "oi_7d", "score")
 
 
 @dataclass(frozen=True)
@@ -88,34 +103,118 @@ class SectorFlow:
     market_7d: float
     coins: int = 0
     extra: dict = field(default_factory=dict)
+    bull: bool | None = None    # BTC выше недельной EMA50 (по закрытой неделе); None — мало истории
+    btc_ema: float | None = None    # закрытие BTC к недельной EMA50
 
     def to_json(self) -> dict:
         d = asdict(self)
         d["computed_at"] = self.computed_at.isoformat()
+        for r in d["rows"]:                             # NaN в JSON не по стандарту — храним null
+            for k in OPTIONAL:
+                if not math.isfinite(r[k]):
+                    r[k] = None
         return d
 
     @staticmethod
     def from_json(d: dict) -> SectorFlow:
-        return SectorFlow(computed_at=datetime.fromisoformat(d["computed_at"]), day=d["day"],
-                          rows=tuple(SectorRow(**{**r, "leaders": tuple(r["leaders"])}) for r in d["rows"]),
-                          market_7d=float(d["market_7d"]), coins=int(d.get("coins", 0)), extra=d.get("extra", {}))
+        rows = tuple(SectorRow(**{**r, "leaders": tuple(r["leaders"]), "members": tuple(r.get("members", ())),
+                                  **{k: NAN if r.get(k) is None else float(r[k]) for k in OPTIONAL}})
+                     for r in d["rows"])
+        return SectorFlow(computed_at=datetime.fromisoformat(d["computed_at"]), day=d["day"], rows=rows,
+                          market_7d=float(d["market_7d"]), coins=int(d.get("coins", 0)), extra=d.get("extra", {}),
+                          bull=d.get("bull"), btc_ema=d.get("btc_ema"))
 
     @property
     def top(self) -> SectorRow | None:
         return next((r for r in self.rows if r.top), None)
 
+    def best_by(self, key: str) -> SectorRow | None:
+        """Сектор с наибольшим значением признака (score / ret_7d); NaN не считается."""
+        ok = [r for r in self.rows if math.isfinite(getattr(r, key))]
+        return max(ok, key=lambda r: getattr(r, key)) if ok else None
+
 
 def _chain(r: pd.Series) -> float:
     r = r.dropna()
-    return float((1 + r).prod() - 1) if len(r) else float("nan")
+    return float((1 + r).prod() - 1) if len(r) else NAN
 
 
-def compute(bars: dict[str, pd.DataFrame], now: datetime) -> SectorFlow:
-    """bars — дневные свечи перпетуалов (close, quote_volume), индекс — день UTC. Рынок — все альты без BTC."""
+def btc_regime(close: pd.Series) -> tuple[bool | None, float | None]:
+    """BTC выше недельной EMA50 по последней ЗАКРЫТОЙ неделе (воскресенье UTC). Нужно >= 30 недель."""
+    c = close.dropna()
+    if c.empty:
+        return None, None
+    w = c.resample("W-SUN").last()
+    if c.index[-1].day_of_week != 6:                      # неделя не закрыта — её не берём
+        w = w.iloc[:-1]
+    ema = w.ewm(span=EMA_WEEKS, adjust=False, min_periods=30).mean()
+    if ema.empty or not math.isfinite(float(ema.iloc[-1])):
+        return None, None
+    ratio = float(w.iloc[-1] / ema.iloc[-1])
+    return ratio > 1, ratio
+
+
+def _relative(coin: pd.Series, groups: dict[str, list[str]]) -> dict[str, float]:
+    """Среднее признака монет сектора минус среднее по всем секторным монетам; < MIN_COINS значений — NaN."""
+    every = [c for cols in groups.values() for c in cols]
+    vals = coin.reindex(every).dropna()
+    base = float(vals.mean()) if len(vals) else NAN
+    out = {}
+    for name, cols in groups.items():
+        v = coin.reindex(cols).dropna()
+        out[name] = float(v.mean() - base) if len(v) >= MIN_COINS else NAN
+    return out
+
+
+def composite(features: dict[str, dict[str, float]]) -> dict[str, float]:
+    """features: признак → {сектор: значение}. Балл — среднее z-оценок по секторам, если признаков >= MIN_PARTS."""
+    names = sorted({s for f in features.values() for s in f})
+    zs: dict[str, list[float]] = {s: [] for s in names}
+    for f in features.values():
+        v = pd.Series(f, dtype="float64").reindex(names)
+        mu, sd = v.mean(), v.std()
+        if not (math.isfinite(sd) and sd > 0):
+            continue
+        for s, x in ((v - mu) / sd).items():
+            if math.isfinite(x):
+                zs[s].append(float(x))
+    return {s: (sum(z) / len(z) if len(z) >= MIN_PARTS else NAN) for s, z in zs.items()}
+
+
+def _taker_tilt(bars: dict[str, pd.DataFrame], cols: list[str]) -> pd.Series:
+    out = {}
+    for c in cols:
+        b = bars[c]
+        if "taker_buy_volume" not in b or "volume" not in b:
+            continue
+        share = (b["taker_buy_volume"] / b["volume"].where(b["volume"] > 0)).clip(0.01, 0.99)
+        lg = np.log(share / (1 - share)).dropna()
+        if len(lg) >= 60:
+            out[c] = float(lg.tail(SHORT).mean() - lg.tail(LONG).mean())
+    return pd.Series(out, dtype="float64")
+
+
+def _oi_growth(oi: dict[str, pd.Series], cols: list[str]) -> pd.Series:
+    out = {}
+    for c in cols:
+        s = oi.get(c)
+        if s is None:
+            continue
+        s = s.dropna()
+        s = s[s > 0]
+        if len(s) >= SHORT + 1:
+            out[c] = float(np.log(s.iloc[-1] / s.iloc[-1 - SHORT]))
+    return pd.Series(out, dtype="float64")
+
+
+def compute(bars: dict[str, pd.DataFrame], now: datetime, oi: dict[str, pd.Series] | None = None,
+            bull: bool | None = None, btc_ema: float | None = None) -> SectorFlow:
+    """bars — дневные свечи перпетуалов (close, quote_volume; для агрессоров — volume, taker_buy_volume), индекс — день
+    UTC; oi — открытый интерес ($) по дням. Рынок — все альты без BTC."""
     close = pd.DataFrame({s: b["close"] for s, b in bars.items() if len(b)}).sort_index()
     qv = pd.DataFrame({s: b["quote_volume"] for s, b in bars.items() if len(b)}).reindex_like(close)
     if close.empty or len(close) < SHORT + 1:
-        return SectorFlow(now, "", (), float("nan"))
+        return SectorFlow(now, "", (), NAN, bull=bull, btc_ema=btc_ema)
     r = close.pct_change()
     liquid = qv.rolling(30, min_periods=20).mean() >= ADV_MIN
     last7 = r.tail(SHORT).where(liquid.tail(SHORT))
@@ -123,32 +222,36 @@ def compute(bars: dict[str, pd.DataFrame], now: datetime) -> SectorFlow:
     mkt_daily = last7[alts].mean(axis=1)
     mkt7 = _chain(mkt_daily)
     tot = qv[alts].sum(axis=1)
-    m_ratio = tot.tail(SHORT).mean() / tot.tail(LONG).mean() if tot.tail(LONG).mean() > 0 else float("nan")
-    rows = []
-    for name in SECTORS:
-        cols = [c for c in alts if sector_of(c) == name and bool(liquid[c].iloc[-1])]
-        if len(cols) < MIN_COINS:
-            continue
-        sec7 = _chain(last7[cols].mean(axis=1))
+    m_ratio = tot.tail(SHORT).mean() / tot.tail(LONG).mean() if tot.tail(LONG).mean() > 0 else NAN
+    groups = {name: [c for c in alts if sector_of(c) == name and bool(liquid[c].iloc[-1])] for name in SECTORS}
+    groups = {k: v for k, v in groups.items() if len(v) >= MIN_COINS}
+    every = [c for cols in groups.values() for c in cols]
+    taker = _relative(_taker_tilt(bars, every), groups)
+    oi_g = _relative(_oi_growth(oi or {}, every), groups)
+    base: dict[str, dict] = {}
+    for name, cols in groups.items():
+        sec_daily = last7[cols].mean(axis=1)
+        sec7 = _chain(sec_daily)
         v = qv[cols].sum(axis=1)
-        ratio = (v.tail(SHORT).mean() / v.tail(LONG).mean()) / m_ratio if v.tail(LONG).mean() > 0 else float("nan")
+        ratio = (v.tail(SHORT).mean() / v.tail(LONG).mean()) / m_ratio if v.tail(LONG).mean() > 0 else NAN
         coin7 = ((1 + r[cols].tail(SHORT)).prod() - 1).sort_values(ascending=False)
-        lead = tuple(base_asset(s) for s in coin7.index[:3])
-        ex = sec7 - mkt7
-        rows.append(SectorRow(name, len(cols), float(ex), float(ratio), lead,
-                              inflow=bool(math.isfinite(ex) and math.isfinite(ratio) and ex > 0 and ratio > 1)))
-    rows.sort(key=lambda x: (not x.inflow, -(x.turnover if math.isfinite(x.turnover) else -1e9)))
-    if rows and rows[0].inflow:
+        mom = float(np.log1p((sec_daily - mkt_daily).dropna()).sum())
+        base[name] = {"cols": cols, "ex": float(sec7 - mkt7), "ratio": float(ratio), "mom": mom,
+                      "lead": tuple(base_asset(s) for s in coin7.index[:3])}
+    feats = {"mom": {k: b["mom"] for k, b in base.items()},
+             "att": {k: (math.log(b["ratio"]) if math.isfinite(b["ratio"]) and b["ratio"] > 0 else NAN)
+                     for k, b in base.items()},
+             "taker": taker, "oi": oi_g}
+    score = composite(feats)
+    rows = []
+    for name, b in base.items():
+        ex, ratio = b["ex"], b["ratio"]
+        rows.append(SectorRow(name, len(b["cols"]), ex, ratio, b["lead"],
+                              inflow=bool(math.isfinite(ex) and math.isfinite(ratio) and ex > 0 and ratio > 1),
+                              taker=taker.get(name, NAN), oi_7d=oi_g.get(name, NAN), score=score.get(name, NAN),
+                              members=tuple(b["cols"])))
+    rows.sort(key=lambda x: -(x.score if math.isfinite(x.score) else -1e9))
+    if rows and math.isfinite(rows[0].score):
         rows[0] = replace(rows[0], top=True)
-    return SectorFlow(now, str(close.index[-1].date()), tuple(rows), mkt7, coins=len(alts))
-
-
-def flow_changed(prev: SectorFlow | None, cur: SectorFlow) -> str | None:
-    """Текст уведомления, если сменился сектор, куда заходят деньги (или он появился)."""
-    a, b = (prev.top if prev else None), cur.top
-    if b is None or (a is not None and a.name == b.name):
-        return None
-    lead = ", ".join(b.leaders)
-    return (f"Деньги заходят в сектор «{b.name}»: {b.ret_7d:+.1%} сверх рынка за 7 дней, оборот ×{b.turnover:.1f} "
-            f"к обычному. Лидеры: {lead}. Это ориентир, не сигнал: в истории такой признак давал +1.2% в неделю "
-            f"и не прошёл проверку.")
+    return SectorFlow(now, str(close.index[-1].date()), tuple(rows), mkt7, coins=len(alts), bull=bull,
+                      btc_ema=btc_ema)

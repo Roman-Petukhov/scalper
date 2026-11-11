@@ -36,6 +36,17 @@ def is_crypto(info: dict) -> bool:
     return str(info.get("baseAsset", "")).upper() not in NON_CRYPTO_BASES
 
 
+def parse_oi(rows: object) -> pd.Series:
+    out = {}
+    for r in rows if isinstance(rows, list) else []:
+        try:
+            day = pd.Timestamp(int(r["timestamp"]) - 1, unit="ms", tz="UTC").floor("D")
+            out[day] = float(r["sumOpenInterestValue"])
+        except (KeyError, TypeError, ValueError):
+            continue
+    return pd.Series(out, dtype="float64").sort_index()
+
+
 class BinanceMarketData:
     def __init__(self, client: httpx.AsyncClient | None = None, universe_ttl_s: float = 3600.0) -> None:
         self.client = client or httpx.AsyncClient(base_url=BASE, timeout=20.0)
@@ -123,6 +134,12 @@ class BinanceMarketData:
         df = self._frame(rows)
         df = df[df["close_time"] < int(time.time() * 1000)]
         return df.drop(columns=["close_time"])
+
+    async def oi_daily(self, symbol: str, days: int) -> pd.Series:
+        """Открытый интерес ($) на конец дня UTC: снимок с меткой 00:00 следующего дня — это конец предыдущего."""
+        rows = await self._get("/futures/data/openInterestHist", {"symbol": symbol, "period": "1d",
+                                                                   "limit": max(1, min(days, 30))})
+        return parse_oi(rows)
 
     async def funding_sum(self, symbol: str, start: datetime, end: datetime) -> float:
         """Сумма ставок funding с выплатой в (start, end]: доля номинала, которую лонг заплатил (> 0) или получил."""

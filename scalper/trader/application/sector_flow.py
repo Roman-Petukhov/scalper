@@ -1,5 +1,6 @@
-"""Куда заходят деньги по секторам (domain/sector_flow.py) в фоне: дневки ликвидных перпетуалов Binance раз в EVERY,
-снимок в kv, уведомление при смене сектора, куда заходят деньги."""
+"""Сектора альтов (domain/sector_flow.py) в фоне: дневки ликвидных перпетуалов Binance и открытый интерес монет секторов
+раз в EVERY, режим BTC, снимок в kv. Бумажная проверка (domain/sector_paper.py): по понедельникам — выбор недели,
+через неделю — итог; уведомление раз в неделю."""
 from __future__ import annotations
 
 import asyncio
@@ -10,15 +11,18 @@ from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 
-from ..domain.sector_flow import LONG, SectorFlow, compute, flow_changed
-from .ports import KeyValueStore, MarketData, Notifier
+from ..domain.sector_flow import LONG, SHORT, SectorFlow, btc_regime, compute, sector_of
+from ..domain.sector_paper import PaperWeek, merge, picks, settle, week_text
+from .ports import KeyValueStore, MarketData, Notifier, OpenInterestHistory
 
 log = logging.getLogger(__name__)
 KEY = "sectorflow"
+PAPER_KEY = "sectorpaper"
 EVERY = timedelta(hours=6)
 RETRY = timedelta(minutes=30)
 UNIVERSE_MIN = 2e6                  # оборот за 24 ч: ниже — монета не влияет ни на сектор, ни на рынок
 PARALLEL = 6
+BTC_DAYS = 1000                     # недельная EMA50 — нужно >= 30 закрытых недель, берём с запасом
 
 
 def _utcnow() -> datetime:
@@ -27,8 +31,10 @@ def _utcnow() -> datetime:
 
 class SectorFlowService:
     def __init__(self, market: MarketData, store: KeyValueStore, notifier: Notifier | None = None,
-                 clock: Callable[[], datetime] = _utcnow, every: timedelta = EVERY) -> None:
+                 clock: Callable[[], datetime] = _utcnow, every: timedelta = EVERY,
+                 oi: OpenInterestHistory | None = None) -> None:
         self.market, self.store, self.notifier, self.clock, self.every = market, store, notifier, clock, every
+        self.oi = oi
         self._task: asyncio.Task | None = None
         self._tried: datetime | None = None
         self.last_error: str | None = None
@@ -42,6 +48,16 @@ class SectorFlowService:
         except (ValueError, KeyError, TypeError):
             log.exception("сектора: снимок не читается")
             return None
+
+    def paper(self) -> list[PaperWeek]:
+        raw = self.store.kv_get(PAPER_KEY)
+        if not raw:
+            return []
+        try:
+            return [PaperWeek.from_json(d) for d in json.loads(raw)]
+        except (ValueError, KeyError, TypeError):
+            log.exception("сектора: журнал бумажной проверки не читается")
+            return []
 
     @property
     def running(self) -> bool:
@@ -61,11 +77,14 @@ class SectorFlowService:
 
     async def _guarded(self) -> None:
         try:
-            prev = self.current()
-            flow = await self.run()
+            flow, bars = await self.run()
             self.store.kv_set(KEY, json.dumps(flow.to_json()))
             self.last_error = None
-            text = flow_changed(prev, flow)
+            weeks, closed = settle(self.paper(), bars)
+            weeks, added = merge(weeks, picks(flow))
+            if added or closed:
+                self.store.kv_set(PAPER_KEY, json.dumps([w.to_json() for w in weeks]))
+            text = week_text(added, closed, flow)
             if text and self.notifier is not None:
                 try:
                     await self.notifier.text(text)
@@ -75,23 +94,35 @@ class SectorFlowService:
             self.last_error = str(e)[:200]
             log.exception("сектора")
 
-    async def run(self) -> SectorFlow:
-        syms = await self.market.universe(UNIVERSE_MIN)
+    async def _gather(self, coro: Callable, keys: list[str]) -> dict:
         sem = asyncio.Semaphore(PARALLEL)
 
-        async def one(s: str) -> tuple[str, pd.DataFrame | None]:
+        async def one(s: str):
             async with sem:
                 try:
-                    return s, await self.market.daily_bars(s, LONG + 10)
+                    return s, await coro(s)
                 except Exception as e:
                     log.warning("сектора: %s — %s", s, e)
                     return s, None
 
-        got = await asyncio.gather(*(one(s) for s in syms))
-        bars = {s: b[["close", "quote_volume"]] for s, b in got if b is not None and len(b)}
+        return {s: v for s, v in await asyncio.gather(*(one(s) for s in keys)) if v is not None and len(v)}
+
+    async def run(self) -> tuple[SectorFlow, dict[str, pd.DataFrame]]:
+        syms = await self.market.universe(UNIVERSE_MIN)
+        bars = await self._gather(lambda s: self.market.daily_bars(s, LONG + 10), syms)
         if len(bars) < 20:
             raise RuntimeError(f"дневки загрузились у {len(bars)} монет")
-        flow = compute(bars, self.clock())
+        oi: dict[str, pd.Series] = {}
+        if self.oi is not None:
+            oi = await self._gather(lambda s: self.oi.oi_daily(s, SHORT + 3),        # type: ignore[union-attr]
+                                    [s for s in bars if sector_of(s) is not None and s != "BTCUSDT"])
+        bull, ratio = None, None
+        try:
+            btc = await self.market.daily_bars("BTCUSDT", BTC_DAYS)
+            bull, ratio = btc_regime(btc["close"])
+        except Exception as e:
+            log.warning("сектора: режим BTC — %s", e)
+        flow = compute(bars, self.clock(), oi=oi, bull=bull, btc_ema=ratio)
         if not flow.rows:
             raise RuntimeError("ни в одном секторе нет трёх ликвидных монет")
-        return flow
+        return flow, bars

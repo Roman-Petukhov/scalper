@@ -1,38 +1,102 @@
+{% macro pct(x, digits=1) -%}
+{%- if x is none or x != x -%}—{%- else -%}{{ ('%+.' ~ digits ~ 'f%%') | format(x * 100) }}{%- endif -%}
+{%- endmacro %}
+{% macro zval(x) -%}
+{%- if x is none or x != x -%}—{%- else -%}{{ '%+.2f' | format(x) }}{%- endif -%}
+{%- endmacro %}
 {% if flow and flow.rows %}
 {% set top = flow.top %}
 <div class="card sf-card">
   <div class="journal-head">
     <h2>Куда заходят деньги · сектора</h2>
-    <span class="hint num" style="margin:0">по {{ flow.day }} · рынок за 7 дн. {{ '%+.1f%%' | format(flow.market_7d * 100) }}</span>
+    <span class="hint num" style="margin:0">по {{ flow.day }} · рынок за 7 дн. {{ pct(flow.market_7d) }}</span>
   </div>
+  {% if flow.bull is not none %}
+  <p class="sf-regime {{ 'sf-bull' if flow.bull else 'sf-bear' }}">
+    {% if flow.bull %}<b>Бычий режим:</b> BTC выше недельной EMA50 ({{ '×%.2f' | format(flow.btc_ema) }}). На истории выбор
+      сектора работал именно в таких неделях: лидер по баллу давал +2.95% в неделю сверх рынка.
+    {% else %}<b>Режим не бычий:</b> BTC ниже недельной EMA50 ({{ '×%.2f' | format(flow.btc_ema) }}). В таких неделях выбор
+      сектора на истории перевеса не давал — около нуля.{% endif %}</p>
+  {% endif %}
   {% if top %}
   <div class="scr-verdict sf-verdict">
-    <b>{{ top.name }}</b> <span class="hint num" style="margin:0">· {{ '%+.1f%%' | format(top.ret_7d * 100) }} сверх рынка,
+    <b>{{ top.name }}</b> <span class="hint num" style="margin:0">· балл {{ zval(top.score) }} · {{ pct(top.ret_7d) }} сверх рынка,
       оборот ×{{ '%.1f' | format(top.turnover) }} к обычному</span>
-    <p>Лидеры: {{ top.leaders | join(', ') }}. Сейчас здесь растут и цена, и оборот — деньги заходят. Это ориентир,
-      а не сигнал: на истории 2020–2026 такой выбор давал +1.2% в неделю сверх рынка, но в 2024–2025 был в минусе.</p>
+    <p>Лидеры: {{ top.leaders | join(', ') }}. Здесь сильнее всего вместе растут цена, оборот, рыночные покупки и открытый
+      интерес. Это ориентир, а не сигнал: на 2020–2026 лидер по баллу давал +2.0% в неделю сверх рынка, но проверку
+      (t ≥ 3) не прошёл, а в 2024–2025 перевес почти пропадал. Ниже — проверка на неделях, которых бэктест не видел.</p>
   </div>
-  {% else %}
-  <p class="hint">Ни в одном секторе сейчас не растут одновременно цена и оборот — явного притока нет.</p>
   {% endif %}
   <div class="scr-table num" role="table" aria-label="Сектора">
     <div class="scr-row sf-row scr-th" role="row">
       <span role="columnheader">Сектор</span>
+      <span role="columnheader" title="Среднее z-оценок четырёх признаков по секторам">Балл</span>
       <span role="columnheader" title="Доходность сектора за 7 дней сверх среднего альта">7 дн. к рынку</span>
       <span role="columnheader" title="Оборот за 7 дней к среднему за 90, относительно того же у рынка">Оборот</span>
+      <span role="columnheader" title="Доля рыночных покупок за 7 дней к своей норме за 90, сверх других секторов">Покупки</span>
+      <span role="columnheader" title="Рост открытого интереса за 7 дней сверх других секторов">OI 7 дн.</span>
       <span role="columnheader">Лидеры недели</span>
     </div>
     {% for x in flow.rows %}
-    <div class="scr-row sf-row{% if x.inflow %} sf-in{% endif %}" role="row">
+    <div class="scr-row sf-row{% if x.top %} sf-in{% endif %}" role="row">
       <span role="cell" class="scr-coin"><span class="scr-name"><b>{{ x.name }}</b><small>{{ x.coins }} монет{% if x.inflow %} · приток{% endif %}</small></span></span>
-      <span role="cell" data-label="7 дн. к рынку" class="{{ 'up' if x.ret_7d > 0 else 'down' }}">{{ '%+.1f%%' | format(x.ret_7d * 100) }}</span>
+      <span role="cell" data-label="Балл" class="{{ 'up' if x.score > 0 else ('down' if x.score < 0 else '') }}">{{ zval(x.score) }}</span>
+      <span role="cell" data-label="7 дн. к рынку" class="{{ 'up' if x.ret_7d > 0 else 'down' }}">{{ pct(x.ret_7d) }}</span>
       <span role="cell" data-label="Оборот" class="{{ 'up' if x.turnover > 1 else '' }}">×{{ '%.2f' | format(x.turnover) }}</span>
+      <span role="cell" data-label="Покупки" class="{{ 'up' if x.taker > 0 else ('down' if x.taker < 0 else '') }}">{{ zval(x.taker) }}</span>
+      <span role="cell" data-label="OI 7 дн." class="{{ 'up' if x.oi_7d > 0 else ('down' if x.oi_7d < 0 else '') }}">{{ pct(x.oi_7d) }}</span>
       <span role="cell" data-label="Лидеры">{{ x.leaders | join(', ') }}</span>
     </div>
     {% endfor %}
   </div>
-  <p class="hint">Порядок секторов от цикла к циклу разный (research/secorder.py): угадать следующий заранее не вышло ни по
-    лестнице «BTC → крупные → мелкие», ни по ширине пробоя. Здесь видно, где деньги уже сейчас. Пересчёт раз в 6 ч.</p>
+
+  <div class="sf-paper">
+    <div class="journal-head"><h3>Бумажная проверка вперёд</h3>
+      <span class="hint num" style="margin:0">{% if paper_since %}с {{ paper_since }}{% else %}первая запись — в понедельник{% endif %}</span></div>
+    {% if paper_books and paper_books[0].all %}
+    <div class="sf-books">
+      {% for b in paper_books %}
+      <div class="sf-book">
+        <span class="th-label">{{ b.title }}</span>
+        {% if b.all %}
+        <b class="num {{ 'up' if b.all.mean > 0 else 'down' }}">{{ pct(b.all.mean, 2) }}</b><small> в неделю сверх рынка</small>
+        <small class="num">недель {{ b.all.weeks }}, в плюсе {{ b.all.wins }} · накоплено {{ pct(b.all.total) }}</small>
+        <small class="num">бычьи: {% if b.bull %}{{ b.bull.weeks }} нед., {{ pct(b.bull.mean, 2) }}{% else %}—{% endif %} ·
+          остальные: {% if b.bear %}{{ b.bear.weeks }} нед., {{ pct(b.bear.mean, 2) }}{% else %}—{% endif %}</small>
+        {% else %}<small>недель ещё нет</small>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% if paper_recent %}
+    <div class="scr-table num" role="table" aria-label="Недели бумажной проверки">
+      <div class="scr-row sf-prow scr-th" role="row">
+        <span role="columnheader">Неделя</span>
+        <span role="columnheader">Сводный балл</span>
+        <span role="columnheader">Лучший за 7 дн.</span>
+        <span role="columnheader">Режим</span>
+      </div>
+      {% for w in paper_recent %}
+      <div class="scr-row sf-prow" role="row">
+        <span role="cell">с {{ w.start[8:10] }}.{{ w.start[5:7] }}</span>
+        {% for k in ('score', 'momentum') %}
+        {% set p = w.get(k) %}
+        <span role="cell" data-label="{{ 'Сводный балл' if k == 'score' else 'Лучший за 7 дн.' }}">
+          {% if p %}{{ p.sector }} <span class="{{ 'up' if p.excess and p.excess > 0 else ('down' if p.settled else 'hint') }}">{% if p.settled %}{{ pct(p.excess) }}{% else %}идёт{% endif %}</span>{% else %}—{% endif %}</span>
+        {% endfor %}
+        {% set any = w.get('score') or w.get('momentum') %}
+        <span role="cell" data-label="Режим">{% if any.bull %}бычий{% elif any.bull is sameas false %}не бычий{% else %}—{% endif %}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="hint">Каждый понедельник панель записывает сектор с наибольшим баллом и, для сравнения, лучший сектор за 7 дней,
+      а через неделю — сколько они дали сверх рынка (после комиссий). Через 3–6 месяцев станет видно, держится ли перевес
+      на новых данных. Уведомление в Telegram — раз в неделю.</p>
+    {% endif %}
+  </div>
+  <p class="hint">Пересчёт раз в 6 ч. Порядок секторов от цикла к циклу разный (research/secorder.py), Upbit, фандинг и
+    позиции топ-трейдеров по секторам ничего не добавили (research/posflow.py).</p>
 </div>
 {% elif flow_error %}
 <p class="err">Сектора не посчитались: {{ flow_error }}.</p>

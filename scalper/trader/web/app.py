@@ -42,6 +42,7 @@ from ..domain.shadow import shadow_stats
 from ..domain.models import (DEFAULT_TF_PARAMS, HTF_CONFIRM, EntryPolicy, Mode, Settings, SideFilter, SignalStatus,
                              Sizing, Timeframe)
 from ..domain.screener import money
+from ..domain.sector_paper import KINDS as PAPER_KINDS, PaperWeek, stats as paper_stats
 from ..domain.sizing import exposure, risk_notes
 from ..domain.daily_break import RULES as DBREAK_RULES, book as dbreak_book
 from ..domain.trend import RULES as TREND_RULES, TrendDay
@@ -129,6 +130,17 @@ def trend_view(hist: list[TrendDay]) -> dict:
             if last.equity - last.pnl > 0 else 0.0, "dd": dd, "days": len(hist), "since": hist[0].day, "rows": rows}
 
 
+def paper_view(weeks: list[PaperWeek]) -> dict:
+    """Бумажная проверка секторов для карточки: итоги по видам (все недели и только бычьи) и последние недели."""
+    books = [{"kind": k, "title": t, "all": paper_stats(weeks, k), "bull": paper_stats(weeks, k, True),
+              "bear": paper_stats(weeks, k, False)} for k, t in PAPER_KINDS.items()]
+    by_start: dict[str, dict[str, PaperWeek]] = {}
+    for w in weeks:
+        by_start.setdefault(w.start, {})[w.kind] = w
+    recent = [{"start": st, **by_start[st]} for st in sorted(by_start, reverse=True)[:8]]
+    return {"paper_books": books, "paper_recent": recent, "paper_since": weeks[0].start if weeks else None}
+
+
 def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notifier | None = None,
                broker: Callable[[], Broker | None] | None = None) -> FastAPI:
     store = SqliteStore(cfg.data_dir / "trader.db")
@@ -154,7 +166,8 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
     fundamentals, cg_quotes, spot_weekly = DefiLlamaFundamentals(), CoinGeckoQuotes(api_key=cfg.coingecko_key), \
         BinanceSpotWeekly()
     screener = ScreenerService(fundamentals, cg_quotes, spot_weekly, store, notifier=notify, market=market)
-    sector_flow = SectorFlowService(market, store, notifier=notify)
+    sector_flow = SectorFlowService(market, store, notifier=notify,
+                                   oi=market if hasattr(market, "oi_daily") else None)
     spot_prices = BinanceSpotPrices()
     writer = None
     if cfg.anthropic_key:
@@ -587,7 +600,7 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         return templates.TemplateResponse(request, "_screener.html", {
             "s": screener.current(), "error": screener.last_error, "running": screener.running,
             "started": started, "every_h": int(screener.every.total_seconds() // 3600),
-            "flow": sector_flow.current(), "flow_error": sector_flow.last_error})
+            "flow": sector_flow.current(), "flow_error": sector_flow.last_error, **paper_view(sector_flow.paper())})
 
     @app.get("/screener", response_class=HTMLResponse)
     async def screener_card(request: Request):
