@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 import numpy as np
 import pandas as pd
 
-from trader.application.sector_flow import KEY, PAPER_KEY, SectorFlowService
+from trader.application.sector_flow import HIST_KEY, KEY, PAPER_KEY, SectorFlowService
 from trader.domain import sector_flow as D
 from trader.domain import sector_paper as P
 
@@ -74,6 +74,25 @@ def test_btc_regime_uses_closed_weeks():
     down = pd.Series(np.linspace(300, 100, len(idx)), index=idx)
     assert D.btc_regime(down)[0] is False
     assert D.btc_regime(up.tail(60)) == (None, None)
+
+
+def test_history_series_match_snapshot():
+    b = _bars(days=220)
+    rng = np.random.default_rng(1)
+    for x in b.values():                                                      # живые объёмы, как на рынке
+        x["quote_volume"] *= np.exp(np.cumsum(rng.normal(0, 0.05, len(x))))
+        x["volume"] = x["quote_volume"] / 100
+        x["taker_buy_volume"] = x["volume"] * np.clip(0.5 + rng.normal(0, 0.03, len(x)), 0.3, 0.7)
+    btc = pd.Series(np.linspace(100, 300, 800), index=pd.date_range(end="2026-10-25", periods=800, freq="D", tz="UTC"))
+    h = D.history(b, btc_close=btc)
+    f = D.compute(b, NOW)
+    assert len(h["days"]) == 90 and set(h["sectors"]) == {r.name for r in f.rows}
+    for r in f.rows:
+        s = h["sectors"][r.name]
+        assert abs(s["turnover"][-1] - r.turnover) < 1e-6 and abs(s["score"][-1] - r.score) < 0.15
+        assert all(len(v) == 90 for v in s.values())
+    assert h["bull"][-1] is True and json.dumps(h, allow_nan=False)
+    assert D.history({}) == {"days": [], "sectors": {}, "bull": []}
 
 
 def test_paper_pick_settle_and_stats():
@@ -152,6 +171,8 @@ def test_service_runs_saves_and_records_weekly_pick():
     asyncio.run(go())
     assert len(note.sent) == 1 and len(svc.paper()) == 2                # та же неделя — без повтора
     assert PAPER_KEY in store.kv
+    h = svc.history()
+    assert len(h["days"]) == 90 and h["days"][-1] == "2026-10-25" and "мемы" in h["sectors"]
 
 
 def test_service_too_few_coins_records_error():
@@ -179,4 +200,8 @@ def test_screener_tab_shows_sectors_and_paper(env):  # noqa: F811
     weeks, _ = P.settle(weeks, _bars(end="2026-11-01"))
     db.kv_set(PAPER_KEY, json.dumps([w.to_json() for w in weeks]))
     r = c.get("/screener").text
-    assert "Бумажная проверка вперёд" in r and "недель 1" in r and "с 26.10" in r
+    assert "Бумажная проверка вперёд" in r and "недель 1" in r and "с 26.10" in r and "data-sector-chart" in r
+    assert c.get("/api/sectors/history").json() == {"days": [], "sectors": {}, "bull": []}
+    from trader.application.sector_flow import HIST_KEY as HK
+    db.kv_set(HK, json.dumps(D.history(_bars(days=220))))
+    assert len(c.get("/api/sectors/history").json()["days"]) == 90

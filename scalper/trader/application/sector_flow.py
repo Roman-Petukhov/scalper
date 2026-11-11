@@ -11,13 +11,15 @@ from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 
-from ..domain.sector_flow import LONG, SHORT, SectorFlow, btc_regime, compute, sector_of
+from ..domain.sector_flow import BARS_FOR_HISTORY, SectorFlow, btc_regime, compute, history, sector_of
 from ..domain.sector_paper import PaperWeek, merge, picks, settle, week_text
 from .ports import KeyValueStore, MarketData, Notifier, OpenInterestHistory
 
 log = logging.getLogger(__name__)
 KEY = "sectorflow"
 PAPER_KEY = "sectorpaper"
+HIST_KEY = "sectorhist"
+OI_DAYS = 30                        # Binance отдаёт историю открытого интереса только за 30 дней
 EVERY = timedelta(hours=6)
 RETRY = timedelta(minutes=30)
 UNIVERSE_MIN = 2e6                  # оборот за 24 ч: ниже — монета не влияет ни на сектор, ни на рынок
@@ -49,6 +51,15 @@ class SectorFlowService:
             log.exception("сектора: снимок не читается")
             return None
 
+    def history(self) -> dict | None:
+        """Ряды для графиков секторов (domain.sector_flow.history) из последнего расчёта."""
+        raw = self.store.kv_get(HIST_KEY)
+        try:
+            return json.loads(raw) if raw else None
+        except ValueError:
+            log.exception("сектора: история не читается")
+            return None
+
     def paper(self) -> list[PaperWeek]:
         raw = self.store.kv_get(PAPER_KEY)
         if not raw:
@@ -77,8 +88,9 @@ class SectorFlowService:
 
     async def _guarded(self) -> None:
         try:
-            flow, bars = await self.run()
+            flow, bars, hist = await self.run()
             self.store.kv_set(KEY, json.dumps(flow.to_json()))
+            self.store.kv_set(HIST_KEY, json.dumps(hist))
             self.last_error = None
             weeks, closed = settle(self.paper(), bars)
             weeks, added = merge(weeks, picks(flow))
@@ -107,22 +119,22 @@ class SectorFlowService:
 
         return {s: v for s, v in await asyncio.gather(*(one(s) for s in keys)) if v is not None and len(v)}
 
-    async def run(self) -> tuple[SectorFlow, dict[str, pd.DataFrame]]:
+    async def run(self) -> tuple[SectorFlow, dict[str, pd.DataFrame], dict]:
         syms = await self.market.universe(UNIVERSE_MIN)
-        bars = await self._gather(lambda s: self.market.daily_bars(s, LONG + 10), syms)
+        bars = await self._gather(lambda s: self.market.daily_bars(s, BARS_FOR_HISTORY), syms)
         if len(bars) < 20:
             raise RuntimeError(f"дневки загрузились у {len(bars)} монет")
         oi: dict[str, pd.Series] = {}
         if self.oi is not None:
-            oi = await self._gather(lambda s: self.oi.oi_daily(s, SHORT + 3),        # type: ignore[union-attr]
+            oi = await self._gather(lambda s: self.oi.oi_daily(s, OI_DAYS),          # type: ignore[union-attr]
                                     [s for s in bars if sector_of(s) is not None and s != "BTCUSDT"])
-        bull, ratio = None, None
+        bull, ratio, btc_close = None, None, None
         try:
-            btc = await self.market.daily_bars("BTCUSDT", BTC_DAYS)
-            bull, ratio = btc_regime(btc["close"])
+            btc_close = (await self.market.daily_bars("BTCUSDT", BTC_DAYS))["close"]
+            bull, ratio = btc_regime(btc_close)
         except Exception as e:
             log.warning("сектора: режим BTC — %s", e)
         flow = compute(bars, self.clock(), oi=oi, bull=bull, btc_ema=ratio)
         if not flow.rows:
             raise RuntimeError("ни в одном секторе нет трёх ликвидных монет")
-        return flow, bars
+        return flow, bars, history(bars, oi=oi, btc_close=btc_close)

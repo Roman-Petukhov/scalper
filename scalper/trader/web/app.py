@@ -550,6 +550,12 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         return templates.TemplateResponse(request, "_scan_result.html", {"tf": tf, "rep": rep, "disabled": disabled},
                                           headers={"HX-Trigger": "feed-refresh"})
 
+    @app.get("/api/sectors/history")
+    async def sectors_history(request: Request) -> dict:
+        """Ряды для графиков секторов во вкладке «Скринер» (пересчёт раз в 6 ч)."""
+        guard(request)
+        return sector_flow.history() or {"days": [], "sectors": {}, "bull": []}
+
     @app.get("/api/chart/{signal_id}")
     async def live_chart(request: Request, signal_id: int) -> dict:
         """График сигнала: живой (свечи с текущей; панель опрашивает раз в несколько секунд) или архивный

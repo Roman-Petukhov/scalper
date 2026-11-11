@@ -27,6 +27,25 @@
       (t ≥ 3) не прошёл, а в 2024–2025 перевес почти пропадал. Ниже — проверка на неделях, которых бэктест не видел.</p>
   </div>
   {% endif %}
+  <div class="sfc" data-sector-chart data-default="{{ top.name if top else flow.rows[0].name }}">
+    <div class="sfc-bar">
+      <div class="sfc-chips" role="group" aria-label="Сектор">
+        {% for x in flow.rows %}<button type="button" class="chip" data-sector="{{ x.name }}" aria-pressed="false">{{ x.name }}</button>{% endfor %}
+      </div>
+      <div class="sfc-chips" role="group" aria-label="Метрики под графиком">
+        <button type="button" class="chip" data-metric="score" aria-pressed="false">Балл</button>
+        <button type="button" class="chip" data-metric="turnover" aria-pressed="false">Оборот</button>
+        <button type="button" class="chip" data-metric="taker" aria-pressed="false">Покупки</button>
+        <button type="button" class="chip" data-metric="oi" aria-pressed="false">OI</button>
+      </div>
+    </div>
+    <p class="sfc-legend num" aria-live="polite"></p>
+    <div class="sfc-box" role="img" aria-label="Сектор против рынка альтов за 90 дней и его метрики"></div>
+    <p class="hint sfc-note"></p>
+    <p class="hint sfc-help">Верхняя панель — накопленная доходность сектора сверх среднего альта за 90 дней, зелёная подложка —
+      недели, когда BTC выше недельной EMA50. Под ней — выбранные метрики (пунктир — норма). OI — только последние
+      ~3 недели: Binance хранит историю открытого интереса 30 дней.</p>
+  </div>
   <div class="scr-table num" role="table" aria-label="Сектора">
     <div class="scr-row sf-row scr-th" role="row">
       <span role="columnheader">Сектор</span>

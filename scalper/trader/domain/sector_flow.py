@@ -255,3 +255,111 @@ def compute(bars: dict[str, pd.DataFrame], now: datetime, oi: dict[str, pd.Serie
         rows[0] = replace(rows[0], top=True)
     return SectorFlow(now, str(close.index[-1].date()), tuple(rows), mkt7, coins=len(alts), bull=bull,
                       btc_ema=btc_ema)
+
+
+HISTORY_DAYS = 90
+BARS_FOR_HISTORY = LONG + HISTORY_DAYS + 20     # 90 дней графика + 90 на норму оборота и покупок
+
+
+def _none(v: float) -> float | None:
+    return round(float(v), 6) if v is not None and math.isfinite(v) else None
+
+
+def _zscore_mean(parts: list[pd.DataFrame]) -> pd.DataFrame:
+    """Сводный балл по дням: среднее z-оценок по секторам, если признаков >= MIN_PARTS (как composite())."""
+    zs = []
+    for p in parts:
+        mu, sd = p.mean(axis=1), p.std(axis=1)
+        zs.append(p.sub(mu, axis=0).div(sd.where(sd > 0), axis=0).to_numpy(dtype="float64"))
+    stack = np.stack(zs)
+    cnt = np.isfinite(stack).sum(axis=0)
+    total = np.nansum(stack, axis=0)
+    return pd.DataFrame(np.where(cnt >= MIN_PARTS, total / np.maximum(cnt, 1), np.nan),
+                        index=parts[0].index, columns=parts[0].columns)
+
+
+def _relative_frame(coin: pd.DataFrame, groups: dict[str, list[str]], live: pd.DataFrame) -> pd.DataFrame:
+    """По дням: среднее признака ликвидных монет сектора минус среднее по всем секторным; < MIN_COINS — NaN."""
+    every = sorted({c for cols in groups.values() for c in cols})
+    v = coin.reindex(columns=every).where(live.reindex(columns=every, fill_value=False))
+    base = v.mean(axis=1)
+    out = {}
+    for name, cols in groups.items():
+        n = v[cols].notna().sum(axis=1)
+        out[name] = (v[cols].mean(axis=1) - base).where(n >= MIN_COINS)
+    return pd.DataFrame(out, index=coin.index)
+
+
+def history(bars: dict[str, pd.DataFrame], oi: dict[str, pd.Series] | None = None,
+            btc_close: pd.Series | None = None, days: int = HISTORY_DAYS) -> dict:
+    """Ряды для графиков по секторам за последние `days` дней (те же определения, что в compute()):
+    index — накопленная доходность сектора сверх рынка альтов с начала окна, turnover — оборот 7/90 сверх рынка,
+    taker — доля рыночных покупок 7/90 сверх секторов, oi — рост OI за 7 дней сверх секторов (только последние
+    ~3 недели: Binance отдаёт историю OI за 30 дней), score — сводный балл; bull — режим BTC по дням."""
+    close = pd.DataFrame({s: b["close"] for s, b in bars.items() if len(b)}).sort_index()
+    if close.empty:
+        return {"days": [], "sectors": {}, "bull": []}
+    qv = pd.DataFrame({s: b["quote_volume"] for s, b in bars.items() if len(b)}).reindex_like(close)
+    r = close.pct_change()
+    liquid = qv.rolling(30, min_periods=20).mean() >= ADV_MIN
+    alts = [c for c in close.columns if c != "BTCUSDT"]
+    rl = r.where(liquid)
+    mkt = rl[alts].mean(axis=1)
+    groups = {name: [c for c in alts if sector_of(c) == name] for name in SECTORS}
+    groups = {k: v for k, v in groups.items() if v}
+    tot = qv[alts].sum(axis=1)
+    m_ratio = tot.rolling(SHORT, min_periods=6).mean() / tot.rolling(LONG, min_periods=60).mean()
+    ex, turn = {}, {}
+    for name, cols in groups.items():
+        n = rl[cols].notna().sum(axis=1)
+        ex[name] = (rl[cols].mean(axis=1) - mkt).where(n >= MIN_COINS)
+        v = qv[cols].where(liquid[cols]).sum(axis=1, min_count=1)
+        turn[name] = (v.rolling(SHORT, min_periods=6).mean() / v.rolling(LONG, min_periods=60).mean() / m_ratio) \
+            .where(n >= MIN_COINS)
+    ex_df, turn_df = pd.DataFrame(ex), pd.DataFrame(turn)
+    mom = np.log1p(ex_df).rolling(SHORT, min_periods=6).sum().where(ex_df.notna())
+    taker_coin = {}
+    for c in [c for cols in groups.values() for c in cols]:
+        b = bars[c]
+        if "taker_buy_volume" in b and "volume" in b:
+            share = (b["taker_buy_volume"] / b["volume"].where(b["volume"] > 0)).clip(0.01, 0.99)
+            lg = np.log(share / (1 - share))
+            taker_coin[c] = lg.rolling(SHORT, min_periods=6).mean() - lg.rolling(LONG, min_periods=60).mean()
+    taker = _relative_frame(pd.DataFrame(taker_coin).reindex(close.index), groups, liquid) if taker_coin else \
+        pd.DataFrame(np.nan, index=close.index, columns=list(groups))
+    oi_coin = {}
+    for c, s in (oi or {}).items():
+        s = s.dropna()
+        s = s[s > 0]
+        if len(s) > SHORT:
+            oi_coin[c] = np.log(s / s.shift(SHORT))
+    oi_df = _relative_frame(pd.DataFrame(oi_coin).reindex(close.index), groups, liquid) if oi_coin else \
+        pd.DataFrame(np.nan, index=close.index, columns=list(groups))
+    att = np.log(turn_df.where(turn_df > 0))
+    score = _zscore_mean([mom, att, taker.reindex_like(mom), oi_df.reindex_like(mom)])
+    win = close.index[-days:]
+    bull = pd.Series(np.nan, index=close.index)
+    if btc_close is not None and len(btc_close.dropna()):
+        c = btc_close.dropna()
+        c.index = pd.DatetimeIndex(c.index)
+        w = c.resample("W-SUN").last()
+        if c.index[-1].day_of_week != 6:
+            w = w.iloc[:-1]
+        ema = w.ewm(span=EMA_WEEKS, adjust=False, min_periods=30).mean()
+        flag = (w > ema).astype("float64").where(ema.notna())
+        bull = flag.reindex(close.index.union(flag.index)).ffill().reindex(close.index)
+    out_sectors = {}
+    for name in groups:
+        e = ex_df[name].reindex(win)
+        if e.notna().sum() < 10:
+            continue
+        idx = (1 + e.fillna(0.0)).cumprod() - 1
+        out_sectors[name] = {
+            "index": [_none(x) for x in idx.where(idx.index >= e.first_valid_index())],
+            "score": [_none(x) for x in score[name].reindex(win)] if name in score else [],
+            "turnover": [_none(x) for x in turn_df[name].reindex(win)],
+            "taker": [_none(x) for x in taker[name].reindex(win)] if name in taker else [],
+            "oi": [_none(x) for x in oi_df[name].reindex(win)] if name in oi_df else [],
+        }
+    return {"days": [d.strftime("%Y-%m-%d") for d in win], "sectors": out_sectors,
+            "bull": [None if not math.isfinite(x) else bool(x > 0.5) for x in bull.reindex(win)]}
