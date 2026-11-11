@@ -202,6 +202,5 @@ def test_screener_tab_shows_sectors_and_paper(env):  # noqa: F811
     r = c.get("/screener").text
     assert "Бумажная проверка вперёд" in r and "недель 1" in r and "с 26.10" in r and "data-sector-chart" in r
     assert c.get("/api/sectors/history").json() == {"days": [], "sectors": {}, "bull": []}
-    from trader.application.sector_flow import HIST_KEY as HK
-    db.kv_set(HK, json.dumps(D.history(_bars(days=220))))
+    db.kv_set(HIST_KEY, json.dumps(D.history(_bars(days=220))))
     assert len(c.get("/api/sectors/history").json()["days"]) == 90
