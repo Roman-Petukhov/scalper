@@ -116,9 +116,17 @@ jobs:
             ~/bn/cache
           key: binance-um-s${{ matrix.shard }}of10-${{ github.run_id }}-${{ github.run_attempt }}
       - uses: actions/upload-artifact@v4
+        id: upload
         if: always()
+        continue-on-error: true
         with:
           name: parts-${{ matrix.shard }}
+          path: out
+      - name: Upload again if the artifact service failed (a lost shard thins the report)
+        if: always() && steps.upload.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: parts-${{ matrix.shard }}-retry
           path: out
 
   report:
