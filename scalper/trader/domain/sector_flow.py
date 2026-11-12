@@ -53,6 +53,8 @@ SECTORS: dict[str, tuple[str, ...]] = {
 SHORT, LONG = 7, 90
 ADV_MIN = 5e6                   # ликвидная монета: средний оборот за 30 дней >= $5M, как в исследовании
 MIN_COINS = 3
+STABLE_DAYS = 28                # окно роста предложения стейблкоинов
+STABLE_MIN = 0.01               # приток: предложение за окно выросло больше чем на 1% (research/rotlead.py, G1)
 MIN_PARTS = 2                   # сводный балл — хотя бы по двум признакам
 EMA_WEEKS = 50
 
@@ -105,10 +107,18 @@ class SectorFlow:
     extra: dict = field(default_factory=dict)
     bull: bool | None = None    # BTC выше недельной EMA50 (по закрытой неделе); None — мало истории
     btc_ema: float | None = None    # закрытие BTC к недельной EMA50
+    stable_28d: float | None = None     # рост предложения долларовых стейблкоинов за 28 дней; None — нет данных
+
+    @property
+    def inflow(self) -> bool | None:
+        """В крипту заходят новые доллары: предложение стейблкоинов за 28 дней выросло больше чем на STABLE_MIN."""
+        return None if self.stable_28d is None else self.stable_28d > STABLE_MIN
 
     def to_json(self) -> dict:
         d = asdict(self)
         d["computed_at"] = self.computed_at.isoformat()
+        if d["stable_28d"] is not None and not math.isfinite(d["stable_28d"]):
+            d["stable_28d"] = None
         for r in d["rows"]:                             # NaN в JSON не по стандарту — храним null
             for k in OPTIONAL:
                 if not math.isfinite(r[k]):
@@ -122,7 +132,7 @@ class SectorFlow:
                      for r in d["rows"])
         return SectorFlow(computed_at=datetime.fromisoformat(d["computed_at"]), day=d["day"], rows=rows,
                           market_7d=float(d["market_7d"]), coins=int(d.get("coins", 0)), extra=d.get("extra", {}),
-                          bull=d.get("bull"), btc_ema=d.get("btc_ema"))
+                          bull=d.get("bull"), btc_ema=d.get("btc_ema"), stable_28d=d.get("stable_28d"))
 
     @property
     def top(self) -> SectorRow | None:
@@ -137,6 +147,22 @@ class SectorFlow:
 def _chain(r: pd.Series) -> float:
     r = r.dropna()
     return float((1 + r).prod() - 1) if len(r) else NAN
+
+
+def stable_growth(supply: pd.Series, day: str, days: int = STABLE_DAYS) -> float | None:
+    """Рост предложения стейблкоинов за days дней на конец дня day; None — нет ряда или он короче окна."""
+    if supply is None or not len(supply) or not day:
+        return None
+    s = supply.sort_index()
+    if getattr(s.index, "tz", None) is not None:
+        s.index = s.index.tz_localize(None)
+    s = s[s.index <= pd.Timestamp(day)].dropna()
+    if not len(s):
+        return None
+    before = s[s.index <= s.index[-1] - pd.Timedelta(days=days)]
+    if not len(before) or before.iloc[-1] <= 0 or s.iloc[-1] <= 0 or (s.index[-1] - before.index[-1]).days > days + 3:
+        return None
+    return float(s.iloc[-1] / before.iloc[-1] - 1)
 
 
 def btc_regime(close: pd.Series) -> tuple[bool | None, float | None]:
@@ -208,7 +234,7 @@ def _oi_growth(oi: dict[str, pd.Series], cols: list[str]) -> pd.Series:
 
 
 def compute(bars: dict[str, pd.DataFrame], now: datetime, oi: dict[str, pd.Series] | None = None,
-            bull: bool | None = None, btc_ema: float | None = None) -> SectorFlow:
+            bull: bool | None = None, btc_ema: float | None = None, stables: pd.Series | None = None) -> SectorFlow:
     """bars — дневные свечи перпетуалов (close, quote_volume; для агрессоров — volume, taker_buy_volume), индекс — день
     UTC; oi — открытый интерес ($) по дням. Рынок — все альты без BTC."""
     close = pd.DataFrame({s: b["close"] for s, b in bars.items() if len(b)}).sort_index()
@@ -253,8 +279,9 @@ def compute(bars: dict[str, pd.DataFrame], now: datetime, oi: dict[str, pd.Serie
     rows.sort(key=lambda x: -(x.score if math.isfinite(x.score) else -1e9))
     if rows and math.isfinite(rows[0].score):
         rows[0] = replace(rows[0], top=True)
-    return SectorFlow(now, str(close.index[-1].date()), tuple(rows), mkt7, coins=len(alts), bull=bull,
-                      btc_ema=btc_ema)
+    day = str(close.index[-1].date())
+    return SectorFlow(now, day, tuple(rows), mkt7, coins=len(alts), bull=bull, btc_ema=btc_ema,
+                      stable_28d=stable_growth(stables, day) if stables is not None else None)
 
 
 HISTORY_DAYS = 90

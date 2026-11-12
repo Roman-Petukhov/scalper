@@ -27,6 +27,7 @@ class PaperWeek:
     bull: bool | None           # режим BTC на воскресенье
     sector_ret: float | None = None
     market_ret: float | None = None
+    inflow: bool | None = None  # предложение стейблкоинов за 28 дней росло на воскресенье; None — нет данных
 
     @property
     def settled(self) -> bool:
@@ -65,7 +66,7 @@ def picks(flow: SectorFlow) -> list[PaperWeek]:
     for kind, key in (("score", "score"), ("momentum", "ret_7d")):
         row = flow.best_by(key)
         if row is not None and row.members:
-            out.append(PaperWeek(start, kind, row.name, row.members, flow.bull))
+            out.append(PaperWeek(start, kind, row.name, row.members, flow.bull, inflow=flow.inflow))
     return out
 
 
@@ -124,9 +125,11 @@ class PaperStats:
     wins: int
 
 
-def stats(weeks: list[PaperWeek], kind: str, bull: bool | None = None) -> PaperStats | None:
-    """По закрытым неделям вида; bull=True — только бычьи, False — только небычьи, None — все."""
-    xs = [w.excess for w in weeks if w.kind == kind and w.settled and (bull is None or w.bull is bull)]
+def stats(weeks: list[PaperWeek], kind: str, bull: bool | None = None, inflow: bool | None = None) -> PaperStats | None:
+    """По закрытым неделям вида; bull=True — только бычьи, False — только небычьи, None — все; inflow — так же по
+    притоку стейблкоинов."""
+    xs = [w.excess for w in weeks if w.kind == kind and w.settled and (bull is None or w.bull is bull)
+          and (inflow is None or w.inflow is inflow)]
     xs = [x for x in xs if x is not None and math.isfinite(x)]
     if not xs:
         return None
@@ -152,5 +155,8 @@ def week_text(added: list[PaperWeek], closed: list[PaperWeek], flow: SectorFlow)
                   else "BTC ниже недельной EMA50 — в истории в таком режиме перевеса не было" if pick.bull is False
                   else "режим BTC неизвестен")
         lead = f" Лидеры: {', '.join(row.leaders)}." if row is not None and row.leaders else ""
-        lines.append(f"Сектор недели (бумажно): «{pick.sector}».{lead} {regime}. Это проверка вперёд, не сигнал.")
+        money = ("; стейблкоины прибывают — в таких неделях выбор сектора на истории работал лучше всего" if pick.inflow
+                 else "; притока стейблкоинов нет — в таких неделях перевеса на истории не было" if pick.inflow is False
+                 else "")
+        lines.append(f"Сектор недели (бумажно): «{pick.sector}».{lead} {regime}{money}. Это проверка вперёд, не сигнал.")
     return "\n".join(lines) if lines else None

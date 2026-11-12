@@ -135,7 +135,8 @@ def trend_view(hist: list[TrendDay]) -> dict:
 def paper_view(weeks: list[PaperWeek]) -> dict:
     """Бумажная проверка секторов для карточки: итоги по видам (все недели и только бычьи) и последние недели."""
     books = [{"kind": k, "title": t, "all": paper_stats(weeks, k), "bull": paper_stats(weeks, k, True),
-              "bear": paper_stats(weeks, k, False)} for k, t in PAPER_KINDS.items()]
+              "bear": paper_stats(weeks, k, False), "inflow": paper_stats(weeks, k, inflow=True),
+              "dry": paper_stats(weeks, k, inflow=False)} for k, t in PAPER_KINDS.items()]
     by_start: dict[str, dict[str, PaperWeek]] = {}
     for w in weeks:
         by_start.setdefault(w.start, {})[w.kind] = w
@@ -169,7 +170,7 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         BinanceSpotWeekly()
     screener = ScreenerService(fundamentals, cg_quotes, spot_weekly, store, notifier=notify, market=market)
     sector_flow = SectorFlowService(market, store, notifier=notify,
-                                   oi=market if hasattr(market, "oi_daily") else None)
+                                   oi=market if hasattr(market, "oi_daily") else None, stables=stables)
     spot_prices = BinanceSpotPrices()
     onchain_src = CoinMetricsOnchain()
     onchain = OnchainValueService(onchain_src, store, market=market)

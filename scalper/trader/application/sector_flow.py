@@ -13,7 +13,7 @@ import pandas as pd
 
 from ..domain.sector_flow import BARS_FOR_HISTORY, SectorFlow, btc_regime, compute, history, sector_of
 from ..domain.sector_paper import PaperWeek, merge, picks, settle, week_text
-from .ports import KeyValueStore, MarketData, Notifier, OpenInterestHistory
+from .ports import KeyValueStore, MarketData, Notifier, OpenInterestHistory, StablecoinData
 
 log = logging.getLogger(__name__)
 KEY = "sectorflow"
@@ -34,9 +34,9 @@ def _utcnow() -> datetime:
 class SectorFlowService:
     def __init__(self, market: MarketData, store: KeyValueStore, notifier: Notifier | None = None,
                  clock: Callable[[], datetime] = _utcnow, every: timedelta = EVERY,
-                 oi: OpenInterestHistory | None = None) -> None:
+                 oi: OpenInterestHistory | None = None, stables: StablecoinData | None = None) -> None:
         self.market, self.store, self.notifier, self.clock, self.every = market, store, notifier, clock, every
-        self.oi = oi
+        self.oi, self.stables = oi, stables
         self._task: asyncio.Task | None = None
         self._tried: datetime | None = None
         self.last_error: str | None = None
@@ -134,7 +134,13 @@ class SectorFlowService:
             bull, ratio = btc_regime(btc_close)
         except Exception as e:
             log.warning("сектора: режим BTC — %s", e)
-        flow = compute(bars, self.clock(), oi=oi, bull=bull, btc_ema=ratio)
+        supply = None
+        if self.stables is not None:
+            try:
+                supply = await self.stables.supply()
+            except Exception as e:
+                log.warning("сектора: стейблкоины — %s", e)
+        flow = compute(bars, self.clock(), oi=oi, bull=bull, btc_ema=ratio, stables=supply)
         if not flow.rows:
             raise RuntimeError("ни в одном секторе нет трёх ликвидных монет")
         return flow, bars, history(bars, oi=oi, btc_close=btc_close)

@@ -18,6 +18,14 @@
     {% else %}<b>Режим не бычий:</b> BTC ниже недельной EMA50 ({{ '×%.2f' | format(flow.btc_ema) }}). В таких неделях выбор
       сектора на истории перевеса не давал — около нуля.{% endif %}</p>
   {% endif %}
+  {% if flow.inflow is not none %}
+  <p class="sf-regime {{ 'sf-bull' if flow.inflow else 'sf-bear' }}">
+    {% if flow.inflow %}<b>Новые деньги заходят:</b> предложение стейблкоинов за 28 дней {{ pct(flow.stable_28d) }}.
+      Это самый сильный из проверенных режимов: в таких неделях лидер по баллу давал +3.8% в неделю сверх рынка
+      (t 3.1, плацебо p 0.002){% if flow.bull %}, вместе с бычьим BTC — +4.3%{% endif %}.
+    {% else %}<b>Новых денег нет:</b> предложение стейблкоинов за 28 дней {{ pct(flow.stable_28d) }} (приток — больше +1%).
+      В таких неделях выбор сектора на истории был в минусе: −0.5% в неделю.{% endif %}</p>
+  {% endif %}
   {% if top %}
   <div class="scr-verdict sf-verdict">
     <b>{{ top.name }}</b> <span class="hint num" style="margin:0">· балл {{ zval(top.score) }} · {{ pct(top.ret_7d) }} сверх рынка,
@@ -82,6 +90,8 @@
         <small class="num">недель {{ b.all.weeks }}, в плюсе {{ b.all.wins }} · накоплено {{ pct(b.all.total) }}</small>
         <small class="num">бычьи: {% if b.bull %}{{ b.bull.weeks }} нед., {{ pct(b.bull.mean, 2) }}{% else %}—{% endif %} ·
           остальные: {% if b.bear %}{{ b.bear.weeks }} нед., {{ pct(b.bear.mean, 2) }}{% else %}—{% endif %}</small>
+        <small class="num">с притоком стейблкоинов: {% if b.inflow %}{{ b.inflow.weeks }} нед., {{ pct(b.inflow.mean, 2) }}{% else %}—{% endif %} ·
+          без: {% if b.dry %}{{ b.dry.weeks }} нед., {{ pct(b.dry.mean, 2) }}{% else %}—{% endif %}</small>
         {% else %}<small>недель ещё нет</small>{% endif %}
       </div>
       {% endfor %}
@@ -104,7 +114,7 @@
           {% if p %}{{ p.sector }} <span class="{{ 'up' if p.excess and p.excess > 0 else ('down' if p.settled else 'hint') }}">{% if p.settled %}{{ pct(p.excess) }}{% else %}идёт{% endif %}</span>{% else %}—{% endif %}</span>
         {% endfor %}
         {% set any = w.get('score') or w.get('momentum') %}
-        <span role="cell" data-label="Режим">{% if any.bull %}бычий{% elif any.bull is sameas false %}не бычий{% else %}—{% endif %}</span>
+        <span role="cell" data-label="Режим">{% if any.bull %}бычий{% elif any.bull is sameas false %}не бычий{% else %}—{% endif %}{% if any.inflow %} · приток{% elif any.inflow is sameas false %} · без притока{% endif %}</span>
       </div>
       {% endfor %}
     </div>
@@ -115,7 +125,8 @@
     {% endif %}
   </div>
   <p class="hint">Пересчёт раз в 6 ч. Порядок секторов от цикла к циклу разный (research/secorder.py), Upbit, фандинг и
-    позиции топ-трейдеров по секторам ничего не добавили (research/posflow.py).</p>
+    позиции топ-трейдеров по секторам ничего не добавили (research/posflow.py), как и соцсети, Coinbase и приток
+    стейблкоинов в отдельные сети (research/social.py, rotlead.py).</p>
 </div>
 {% elif flow_error %}
 <p class="err">Сектора не посчитались: {{ flow_error }}.</p>

@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 import numpy as np
 import pandas as pd
+from pytest import approx
 
 from trader.application.sector_flow import HIST_KEY, KEY, PAPER_KEY, SectorFlowService
 from trader.domain import sector_flow as D
@@ -204,3 +205,56 @@ def test_screener_tab_shows_sectors_and_paper(env):  # noqa: F811
     assert c.get("/api/sectors/history").json() == {"days": [], "sectors": {}, "bull": []}
     db.kv_set(HIST_KEY, json.dumps(D.history(_bars(days=220))))
     assert len(c.get("/api/sectors/history").json()["days"]) == 90
+
+
+def test_stablecoin_inflow_regime_in_flow_paper_and_card(env):  # noqa: F811
+    days = pd.date_range("2026-08-01", "2026-10-26", freq="D")
+    grow = pd.Series(np.linspace(300e9, 330e9, len(days)), index=days)
+    g = D.stable_growth(grow, "2026-10-25")
+    assert g == approx(grow["2026-10-25"] / grow["2026-09-27"] - 1) and g > D.STABLE_MIN
+    assert D.stable_growth(grow.iloc[-10:], "2026-10-25") is None            # ряд короче окна
+    assert D.stable_growth(pd.Series(dtype=float), "2026-10-25") is None and D.stable_growth(grow, "") is None
+    gap = grow.drop(grow.index[(grow.index > "2026-09-20") & (grow.index < "2026-10-10")])
+    assert D.stable_growth(gap, "2026-10-25") is None                        # дыра в ряду — не считаем
+    bars = _bars(end="2026-10-25")
+    flow = D.compute(bars, NOW, stables=grow)
+    flat = D.compute(bars, NOW, stables=pd.Series(300e9, index=days))
+    assert flow.inflow is True and flat.inflow is False and D.compute(bars, NOW).inflow is None
+    back = D.SectorFlow.from_json(json.loads(json.dumps(flow.to_json())))
+    assert back.stable_28d == approx(flow.stable_28d) and back.inflow is True
+    old = flow.to_json()
+    old.pop("stable_28d")
+    assert D.SectorFlow.from_json(old).inflow is None                         # снимок до обновления
+    picks = P.picks(flow)
+    assert picks and all(w.inflow is True for w in picks)
+    assert P.PaperWeek.from_json({k: v for k, v in picks[0].to_json().items() if k != "inflow"}).inflow is None
+    done = [P.replace(picks[0], sector_ret=0.05, market_ret=0.01),
+            P.replace(P.picks(flat)[0], start="2026-10-19", sector_ret=-0.02, market_ret=0.0)]
+    assert P.stats(done, "score", inflow=True).mean == approx(0.04 - P.COST)
+    assert P.stats(done, "score", inflow=False).weeks == 1 and P.stats(done, "score").weeks == 2
+    assert "стейблкоины прибывают" in P.week_text(picks, [], flow)
+    assert "притока стейблкоинов нет" in P.week_text(P.picks(flat), [], flat)
+
+    class _Stables:
+        async def supply(self):
+            return grow
+
+    store = _Store()
+    svc = SectorFlowService(_Market({**bars, **{f"Z{i}USDT": bars["XUSDT"] for i in range(15)}}), store,
+                            clock=lambda: NOW, stables=_Stables())
+
+    async def go():
+        await svc.maybe_run()
+        await svc._task
+    asyncio.run(go())
+    assert svc.current().inflow is True and all(w.inflow for w in svc.paper())
+    c, tmp = env
+    _login(c)
+    from trader.infrastructure.sqlite_repo import SqliteStore
+    db = SqliteStore(tmp / "trader.db")
+    db.kv_set(KEY, json.dumps(flow.to_json()))
+    db.kv_set(PAPER_KEY, json.dumps([w.to_json() for w in done]))
+    page = c.get("/screener").text
+    assert "Новые деньги заходят" in page and "с притоком стейблкоинов: 1 нед." in page and "· приток" in page
+    db.kv_set(KEY, json.dumps(flat.to_json()))
+    assert "Новых денег нет" in c.get("/screener").text
