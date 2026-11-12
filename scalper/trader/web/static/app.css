@@ -628,3 +628,33 @@ dl.plan dd .sub { color: var(--muted); font-size: 12px; margin-left: 4px; white-
 .ocv-sym .badge { font-size: 10.5px; padding: 0 6px; }
 .ocv-row .down { color: var(--short); }
 @media (max-width: 760px) { .ocv-cols { grid-template-columns: 1fr; } }
+
+/* Скринер: сортировка и график выручки */
+.scr-sort { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 2px 0 12px; }
+.scr-sort > .th-label { margin-right: 4px; }
+.scr-sort .chip { font-size: 12.5px; padding: 4px 10px; }
+.scr-dir { font-weight: 700; }
+.scr-rev-btn { justify-self: start; margin-top: 3px; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line);
+  background: transparent; color: var(--accent); font: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer;
+  transition: background .15s var(--ease), border-color .15s var(--ease), transform .1s var(--ease); }
+.scr-rev-btn:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.scr-rev-btn:active { transform: scale(.96); }
+.scr-rev-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.scr-rev-btn[aria-expanded="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.scr-chart { padding: 10px 2px 14px; border-bottom: 1px solid var(--line); display: grid; gap: 6px; }
+.scr-chart-key { display: flex; flex-wrap: wrap; gap: 14px; font-size: 11.5px; color: var(--muted); }
+.scr-chart-key span::before { content: ""; display: inline-block; width: 12px; margin-right: 6px; vertical-align: middle; }
+.scr-chart-key .k-h::before { height: 9px; background: var(--long); border-radius: 2px; }
+.scr-chart-key .k-r::before { border-top: 2px solid var(--accent); }
+.scr-chart-key .k-f::before { border-top: 1px dashed var(--muted); }
+.scr-chart-legend { margin: 0; font-size: 12px; min-height: 1.4em; }
+.scr-chart-box { height: 240px; }
+.scr-chart-note { margin: 0; }
+@media (max-width: 760px) { .scr-chart-box { height: 200px; } }
+.scr-row > span small.scr-wrap { white-space: normal; overflow: visible; }
+@media (max-width: 760px) {
+  .scr-sort { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-inline: -2px; padding: 2px; }
+  .scr-sort::-webkit-scrollbar { display: none; }
+  .scr-sort .chip { flex: none; }
+}
+.nw { white-space: nowrap; }

@@ -244,6 +244,9 @@ class FundamentalsData(Protocol):
     async def unlock_schedules(self, keys: set[str]) -> dict[str, list[tuple[date, float]]]:
         """Накопленный разлок по дням для бизнесов из keys, у которых есть расписание."""
 
+    async def revenue_history(self, groups: tuple[tuple[str, ...], ...]) -> dict[str, list[tuple[date, float]]]:
+        """Дневные комиссии, выручка и выручка держателям по виду данных, сложенные по бизнесам (ключ, версии…)."""
+
 
 class OnchainMetrics(Protocol):
     async def readings(self, days: int) -> list[Reading]:

@@ -9,8 +9,10 @@ import logging
 from collections.abc import Callable
 from datetime import date, datetime, timedelta, timezone
 
-from ..domain.screener import (Regime, Rules, Snapshot, Zone, alert_text, businesses, by_token, new_entries, regime,
-                               regime_changed, screen, unlock_share, with_first_seen)
+from dataclasses import replace
+
+from ..domain.screener import (Candidate, Regime, Rules, Snapshot, Zone, alert_text, businesses, by_token, new_entries,
+                               regime, regime_changed, revenue_chart, screen, unlock_share, with_first_seen)
 from .ports import FundamentalsData, KeyValueStore, MarketData, MarketQuotes, Notifier, WeeklyBars
 
 log = logging.getLogger(__name__)
@@ -18,6 +20,7 @@ KEY = "screener"
 SEEN_KEY = "screener:seen"          # gecko_id → [день, цена] первого попадания в список прошедших
 IDS_KEY = "screener:ids"            # найденные поштучно id CoinGecko (родители протоколов, сети)
 UNLOCK_KEY = "screener:unlocks"     # доли разлока за 12 мес. и день расчёта: расписания меняются редко
+REV_KEY = "screener:rev:"           # + id монеты: график выручки на день (DefiLlama обновляет раз в сутки)
 EVERY = timedelta(hours=6)
 RETRY = timedelta(minutes=30)
 LOOKUP_MAX = 40                     # поштучных запросов id за пересчёт
@@ -60,6 +63,30 @@ class ScreenerService:
     @property
     def running(self) -> bool:
         return self._task is not None and not self._task.done()
+
+    def candidate(self, gecko_id: str) -> Candidate | None:
+        s = self.current()
+        if s is None:
+            return None
+        return next((c for c in (*s.candidates, *s.rejected) if c.gecko_id == gecko_id), None)
+
+    async def revenue(self, gecko_id: str) -> dict | None:
+        """График выручки монеты из снимка (domain.screener.revenue_chart); монеты нет в снимке — None.
+        Готовый график хранится до конца дня UTC."""
+        c = self.candidate(gecko_id)
+        if c is None:
+            return None
+        today = self.clock().date()
+        keys = [list(g) for g in c.llama_keys]
+        cached = _load(self.store.kv_get(REV_KEY + gecko_id), {})
+        if cached.get("day") == today.isoformat() and cached.get("keys") == keys:
+            return cached["chart"]
+        head = {"symbol": c.symbol, "project": c.project}
+        if not keys:
+            return {**revenue_chart({}, today), **head, "note": "ключи DefiLlama появятся после следующего пересчёта"}
+        chart = {**revenue_chart(await self.source.revenue_history(c.llama_keys), today), **head}
+        self.store.kv_set(REV_KEY + gecko_id, json.dumps({"day": today.isoformat(), "keys": keys, "chart": chart}))
+        return chart
 
     def due(self, now: datetime) -> bool:
         if self.running or (self._tried is not None and now - self._tried < RETRY):
@@ -158,6 +185,11 @@ class ScreenerService:
             except Exception as e:
                 log.warning("скринер: список перпетуалов — %s", e)
         passed, rejected = screen(tok, quotes, unlocks, self.rules, perps)
+        groups: dict[str, list[tuple[str, ...]]] = {}
+        for k, g in sorted(gecko.items()):
+            groups.setdefault(g, []).append((k, *sorted(slugs.get(k, set()) - {k})))
+        passed = [replace(c, llama_keys=tuple(groups.get(c.gecko_id, ()))) for c in passed]
+        rejected = [replace(c, llama_keys=tuple(groups.get(c.gecko_id, ()))) for c in rejected]
         seen = {k: tuple(v) for k, v in _load(self.store.kv_get(SEEN_KEY), {}).items()}
         passed, seen = with_first_seen(passed, seen, now.date())
         self.store.kv_set(SEEN_KEY, json.dumps(seen))

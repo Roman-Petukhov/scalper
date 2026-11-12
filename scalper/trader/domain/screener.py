@@ -117,6 +117,9 @@ class Candidate:
     fees_wow: float | None = None        # комиссии за 7 дней к предыдущим 7
     mcap_to_fees: float | None = None    # капитализация к годовым комиссиям (как P/S)
     buyback_cover: float | None = None   # выручка держателям за год к разлокам за год в долларах
+    hr_12m: float = 0.0                  # выручка держателям за последние 12 месяцев фактически
+    rev_12m: float = 0.0                 # выручка протокола за последние 12 месяцев фактически
+    llama_keys: tuple[tuple[str, ...], ...] = ()   # бизнесы DefiLlama монеты: (ключ, версии…) — для графика выручки
 
     @property
     def passed(self) -> bool:
@@ -127,6 +130,14 @@ class Candidate:
         if self.first_price and self.price:
             return self.price / self.first_price - 1
         return None
+
+    def sort_values(self) -> dict[str, float | None]:
+        """Значения для сортировки таблицы в панели; нет значения или не число — None (такие строки — в конце)."""
+        raw = {"score": self.score, "hr_year": self.hr_year, "hr_12m": self.hr_12m, "rev_year": self.rev_year,
+               "mcap": self.mcap, "fdv_to_hr": self.fdv_to_hr, "mcap_to_fees": self.mcap_to_fees,
+               "hr_growth": self.hr_growth, "fees_mom": self.fees_mom, "buyback_cover": self.buyback_cover,
+               "chg_1y": self.chg_1y, "since_seen": self.since_seen}
+        return {k: (float(v) if _ok(v) else None) for k, v in raw.items()}
 
 
 class Zone(str, Enum):
@@ -231,6 +242,7 @@ def _cand_from(d: dict) -> Candidate:
     d = dict(d)
     d["reasons"], d["flags"] = tuple(d.get("reasons", ())), tuple(d.get("flags", ()))
     d["first_seen"] = date.fromisoformat(d["first_seen"]) if d.get("first_seen") else None
+    d["llama_keys"] = tuple(tuple(str(x) for x in g) for g in d.get("llama_keys", ()) if g)
     return Candidate(**d)
 
 
@@ -362,7 +374,8 @@ def evaluate(b: Business, q: Quote | None, unlock: float | None, rules: Rules, p
                      reasons=tuple(reasons), flags=tuple(flags), binance_perp=perp,
                      fees_mom=ratio(b.fees_30d, b.fees_prev30, FEES_FLOOR_30D),
                      fees_wow=ratio(b.fees_7d, b.fees_prev7, FEES_FLOOR_30D * 7 / 30),
-                     mcap_to_fees=mcap / fees_year if _ok(mcap) and fees_year > 0 else None, buyback_cover=cover)
+                     mcap_to_fees=mcap / fees_year if _ok(mcap) and fees_year > 0 else None, buyback_cover=cover,
+                     hr_12m=b.hr_1y, rev_12m=b.rev_1y)
 
 
 def _pct_rank(values: list[float | None], higher_better: bool) -> list[float]:
@@ -448,6 +461,49 @@ def regime(weekly: pd.DataFrame) -> Regime:
     week = idx.date() if hasattr(idx, "date") else None
     return Regime(week=week, close=float(c.iloc[-1]), ema50=float(e50.iloc[-1]), ema200=float(e200.iloc[-1]),
                   zone=z, weeks_in_zone=n)
+
+
+CHART_WEEKS_BELOW_DAYS = 270       # история короче — недели, иначе месяцы
+
+
+def revenue_chart(series: dict[str, list[tuple[date, float]]], today: date) -> dict:
+    """Комиссии, выручка и выручка держателям по месяцам (короткая история — по неделям) от первого дня с выручкой.
+    Последний период, который ещё не закончился, помечается partial_last."""
+    names = {FEES: "fees", REVENUE: "revenue", HOLDERS: "holders"}
+    daily = {}
+    for dt, key in names.items():
+        pts = [(d, v) for d, v in series.get(dt, []) if _ok(v)]
+        if pts:
+            s = pd.Series({pd.Timestamp(d): float(v) for d, v in pts}).sort_index()
+            daily[key] = s[~s.index.duplicated(keep="last")]
+    empty = {"unit": None, "periods": [], "fees": [], "revenue": [], "holders": [], "partial_last": False}
+    nonzero = [s[s > 0].index.min() for s in daily.values() if (s > 0).any()]
+    if not nonzero:
+        return empty
+    start = min(nonzero)
+    end = max(s.index.max() for s in daily.values())
+    unit = "month" if (end - start).days > CHART_WEEKS_BELOW_DAYS else "week"
+    rule = "MS" if unit == "month" else "W-MON"
+    out = dict(empty, unit=unit)
+    index = None
+    for key in names.values():
+        s = daily.get(key)
+        if s is None:
+            continue
+        s = s[s.index >= start]
+        agg = s.resample(rule, label="left", closed="left").sum(min_count=1) if unit == "week" else \
+            s.resample(rule).sum(min_count=1)
+        index = agg.index if index is None else index.union(agg.index)
+        daily[key] = agg
+    for key in names.values():
+        s = daily.get(key)
+        vals = s.reindex(index) if s is not None else pd.Series(float("nan"), index=index)
+        out[key] = [round(float(v), 2) if _ok(v) else None for v in vals]
+    out["periods"] = [t.date().isoformat() for t in index]
+    last = index[-1].date()
+    period_end = (index[-1] + (pd.offsets.MonthBegin(1) if unit == "month" else pd.Timedelta(days=7))).date()
+    out["partial_last"] = today < period_end and last <= today
+    return out
 
 
 def new_entries(prev: Snapshot | None, cur: Snapshot) -> list[Candidate]:

@@ -562,6 +562,19 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         guard(request)
         return sector_flow.history() or {"days": [], "sectors": {}, "bull": []}
 
+    @app.get("/api/screener/revenue/{gecko_id}")
+    async def screener_revenue(request: Request, gecko_id: str):
+        """Выручка монеты из скринера за всю историю по месяцам (по неделям, если история короче 9 месяцев)."""
+        guard(request)
+        try:
+            chart = await screener.revenue(gecko_id)
+        except Exception as e:
+            log.warning("скринер: график выручки %s — %s", gecko_id, e)
+            return JSONResponse({"error": "DefiLlama не ответил, попробуйте позже"}, status_code=502)
+        if chart is None:
+            raise HTTPException(404, "монеты нет в снимке скринера")
+        return chart
+
     @app.get("/api/chart/{signal_id}")
     async def live_chart(request: Request, signal_id: int) -> dict:
         """График сигнала: живой (свечи с текущей; панель опрашивает раз в несколько секунд) или архивный

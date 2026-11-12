@@ -256,3 +256,89 @@ def test_screener_tab_renders(env):  # noqa: F811
     assert "комиссии ×1.50" in r.text and "к комиссиям ×3" in r.text and "выкуп ×2.4<" in r.text
     assert "выкуп ×0.04 к разлокам" in r.text and "разлоки больше выкупа" not in a.flags
     assert c.post("/screener/run").status_code == 403         # без заголовка панели
+
+
+def _daily(start, days, value):
+    d0 = date.fromisoformat(start)
+    return [(date.fromordinal(d0.toordinal() + i), value) for i in range(days)]
+
+
+def test_revenue_chart_months_weeks_and_partial():
+    today = date(2026, 11, 12)
+    long = {S.FEES: _daily("2025-01-01", 680, 10.0), S.REVENUE: _daily("2025-01-01", 680, 4.0),
+            S.HOLDERS: [(d, 0.0) for d, _ in _daily("2024-12-01", 31, 0)] + _daily("2025-01-01", 680, 2.0)}
+    ch = S.revenue_chart(long, today)
+    assert ch["unit"] == "month" and ch["periods"][0] == "2025-01-01" and ch["periods"][-1] == "2026-11-01"
+    assert ch["fees"][0] == 310.0 and ch["holders"][0] == 62.0 and ch["partial_last"] is True
+    assert ch["holders"][-1] == 2.0 * 11                                    # 1…11 ноября — неполный месяц
+    short = {S.HOLDERS: _daily("2026-08-03", 70, 1.0)}                     # 03.08 — понедельник
+    w = S.revenue_chart(short, date(2026, 12, 31))
+    assert w["unit"] == "week" and w["periods"][0] == "2026-08-03" and w["holders"][0] == 7.0
+    assert w["fees"] == [None] * len(w["periods"]) and w["partial_last"] is False
+    assert S.revenue_chart({}, today)["unit"] is None
+    assert S.revenue_chart({S.FEES: _daily("2026-01-01", 30, 0.0)}, today)["periods"] == []
+    assert F.parse_chart({"totalDataChart": [[1767225600, 5], [1767312000, None], ["x"], [1767398400, "2.5"]]}) == \
+        [(date(2026, 1, 1), 5.0), (date(2026, 1, 2), 0.0), (date(2026, 1, 3), 2.5)]
+    assert F.parse_chart(None) == []
+
+
+def test_revenue_history_falls_back_to_versions_and_sums():
+    import httpx
+    seen = []
+
+    def handler(req):
+        slug = req.url.path.rsplit("/", 1)[1]
+        seen.append((slug, req.url.params["dataType"]))
+        if slug == "uniswap":
+            return httpx.Response(404)
+        pts = {"uniswap-v2": [[1767225600, 1]], "uniswap-v3": [[1767225600, 2], [1767312000, 3]], "lend": [[1767225600, 7]]}
+        return httpx.Response(200, json={"totalDataChart": pts.get(slug, [])})
+
+    src = F.DefiLlamaFundamentals(client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    got = asyncio.run(src.revenue_history((("uniswap", "uniswap-v2", "uniswap-v3"), ("lend",))))
+    assert got[S.FEES] == [(date(2026, 1, 1), 10.0), (date(2026, 1, 2), 3.0)] and set(got) == set(S.DATA_TYPES)
+    assert ("uniswap", S.HOLDERS) in seen and ("uniswap-v3", S.HOLDERS) in seen
+
+
+def test_sort_values_keys_and_revenue_endpoint(env):  # noqa: F811
+    c = S.evaluate(S.Business("u", "U", "Dexs", hr_30d=1e6, hr_1y=6e6, rev_30d=2e6, rev_1y=20e6, fees_30d=3e6),
+                   _q("u", "u", 100e6, 110e6), None, S.Rules())
+    v = c.sort_values()
+    assert v["hr_12m"] == 6e6 and v["since_seen"] is None and v["score"] is None and c.rev_12m == 20e6
+    c = S.replace(c, llama_keys=(("u", "u-v2", "u-v3"),))
+    assert S._cand_from(json.loads(json.dumps(S._cand_json(c)))).llama_keys == (("u", "u-v2", "u-v3"),)
+
+    class _Src:
+        calls = 0
+
+        async def revenue_history(self, groups):
+            _Src.calls += 1
+            assert groups == (("u", "u-v2", "u-v3"),)
+            return {S.HOLDERS: _daily("2025-01-01", 400, 1.0)}
+
+    store = _Store()
+    snap = S.replace(_snap([c]), rejected=(S.replace(c, gecko_id="old"),))
+    store.kv_set(KEY, json.dumps(snap.to_json()))
+    svc = ScreenerService(_Src(), None, None, store, clock=lambda: datetime(2026, 11, 12, tzinfo=timezone.utc))
+    ch = asyncio.run(svc.revenue("u"))
+    assert ch["unit"] == "month" and ch["symbol"] == "U" and asyncio.run(svc.revenue("u")) == ch and _Src.calls == 1
+    assert asyncio.run(svc.revenue("nope")) is None and asyncio.run(svc.revenue("old"))["unit"] == "month"
+    bare = S.replace(c, gecko_id="bare", llama_keys=())
+    store.kv_set(KEY, json.dumps(S.replace(snap, candidates=(bare,)).to_json()))
+    assert "следующего пересчёта" in asyncio.run(svc.revenue("bare"))["note"]
+
+    cl, tmp = env
+    assert cl.get("/api/screener/revenue/u", follow_redirects=False).status_code in (303, 401)
+    _login(cl)
+    from trader.infrastructure.sqlite_repo import SqliteStore
+    db = SqliteStore(tmp / "trader.db")
+    db.kv_set(KEY, json.dumps(snap.to_json()))
+    assert cl.get("/api/screener/revenue/nope").status_code == 404
+    today = datetime.now(timezone.utc).date().isoformat()
+    db.kv_set("screener:rev:u", json.dumps({"day": today, "keys": [["u", "u-v2", "u-v3"]], "chart": {"unit": "month",
+                                            "periods": ["2026-10-01"], "holders": [5.0], "revenue": [None], "fees": [None]}}))
+    r = cl.get("/api/screener/revenue/u")
+    assert r.status_code == 200 and r.json()["holders"] == [5.0]
+    page = cl.get("/screener").text
+    assert "data-scr-sort" in page and 'data-rev="u"' in page and "Годовая выручка держателям" in page
+    assert "за 12 мес. <span class=\"nw\">$6.0M" in page and "/год" in page and '"hr_12m": 6000000.0' in page

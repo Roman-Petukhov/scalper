@@ -65,6 +65,17 @@ def parse_token_ids(protocols: object, chains: object) -> dict[str, str]:
     return out
 
 
+def parse_chart(raw: object) -> list[tuple[date, float]]:
+    """totalDataChart из /summary/fees/{protocol}: [[unix-секунды, значение], …] → (день UTC, значение)."""
+    out = []
+    for x in (raw.get("totalDataChart") or []) if isinstance(raw, dict) else []:
+        try:
+            out.append((datetime.fromtimestamp(int(x[0]), tz=timezone.utc).date(), float(x[1] or 0.0)))
+        except (TypeError, ValueError, IndexError, OverflowError):
+            continue
+    return out
+
+
 def parse_tvl_by_category(protocols: object) -> dict[str, float]:
     """TVL по категориям протоколов DefiLlama (сети и CEX не считаем — у CEX «TVL» это резервы биржи)."""
     out: dict[str, float] = {}
@@ -185,6 +196,27 @@ class DefiLlamaFundamentals:
             if isinstance(raw, dict) and raw.get("gecko_id"):
                 return str(raw["gecko_id"])
         return None
+
+    async def _chart(self, key: str, data_type: str) -> list[tuple[date, float]]:
+        raw = await self._get(f"{LLAMA}/summary/fees/{key}", {"dataType": data_type,
+                                                              "excludeTotalDataChartBreakdown": "true"}, quiet=(400, 404))
+        return parse_chart(raw)
+
+    async def revenue_history(self, groups: tuple[tuple[str, ...], ...]) -> dict[str, list[tuple[date, float]]]:
+        """Дневные комиссии, выручка и выручка держателям, сложенные по бизнесам монеты. Бизнес — (ключ, версии…):
+        сначала ключ (родитель, например uniswap), пусто — сумма по версиям."""
+        out: dict[str, list[tuple[date, float]]] = {}
+        for dt in DATA_TYPES:
+            acc: dict[date, float] = {}
+            for group in groups:
+                pts = await self._chart(group[0], dt)
+                if not pts:
+                    for slug in group[1:]:
+                        pts += await self._chart(slug, dt)
+                for d, v in pts:
+                    acc[d] = acc.get(d, 0.0) + v
+            out[dt] = sorted(acc.items())
+        return out
 
     async def _emission_keys(self) -> set[str]:
         now = time.monotonic()
