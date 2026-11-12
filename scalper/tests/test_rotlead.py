@@ -96,3 +96,14 @@ def test_regime_flags_and_coinbase_parsing():
     assert R.alts_beat_btc(mkt, btc).iloc[-1]
     s = R.parse_candles([[1704153600, 9, 11, 10, 10.5, 2000.0], [1704067200, 9, 11, 10, 10.0, 1000.0], ["bad"]])
     assert list(s) == [10000.0, 21000.0] and R.parse_candles({"message": "NotFound"}).empty
+
+
+def test_stable_flag_and_placebo():
+    idx = pd.date_range("2024-01-01", periods=200, freq="D")
+    total = pd.Series(np.r_[np.full(100, 1e11), np.linspace(1e11, 1.2e11, 100)], index=idx)
+    f = R.stable_flag(total, 28, 0.01)
+    assert not f.iloc[:100].any() and f.iloc[-1]
+    mondays = idx[idx.day_of_week == 0]
+    z = pd.DataFrame({"t": mondays, "X": np.where(mondays > idx[140], 0.05, -0.01)})
+    p, m = R.placebo_p(z, f)
+    assert m > 0.03 and p < 0.01

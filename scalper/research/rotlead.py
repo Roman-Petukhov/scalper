@@ -52,6 +52,7 @@ from .flows import _get as get_json
 from .posflow import (LONG, SHORT, btc_bull, composite, gated_by, in_regime, load, momentum, oi_growth, sector_score,
                       taker_tilt, turnover_score, upbit_share_score)
 from .secorder import mondays, pick_weekly, sector_turnover, week_ret
+from .ppr import day_t
 from .sectors import COST, panel, sector_map
 from .shard import smoke
 
@@ -312,6 +313,51 @@ def spot_vs_perp(cb: pd.DataFrame, qv: pd.DataFrame, sectors: list[str]) -> pd.D
     return pd.DataFrame(out).reindex(qv.index)
 
 
+# --- N7: устойчивость режима G1 (прогон 43155792562: сводный | G1 прошёл с t 3.1 среди ~30 проверок) ---
+
+def stable_flag(total: pd.Series, look: int, thr: float) -> pd.Series:
+    return (np.log(total / total.shift(look)) > thr).fillna(False).astype(bool)
+
+
+def placebo_p(z: pd.DataFrame, flag: pd.Series, n: int = 2000, seed: int = 7) -> tuple[float, float]:
+    """Доля случайных наборов недель того же размера, чьё среднее не хуже отбора по флагу; и среднее отбора."""
+    if z.empty:
+        return float("nan"), float("nan")
+    picked = in_regime(z, flag)
+    k = len(picked)
+    if k < 10:
+        return float("nan"), float("nan")
+    x = z.X.to_numpy(dtype="float64")
+    rng = np.random.default_rng(seed)
+    means = np.array([x[rng.choice(len(x), k, replace=False)].mean() for _ in range(n)])
+    m = float(picked.X.mean())
+    return float((means >= m).mean()), m
+
+
+def robust_g1(z_c: pd.DataFrame, z_m: pd.DataFrame, total: pd.Series, r1: pd.Series) -> None:
+    print("\n  --- N7: устойчивость G1 (рост предложения стейблкоинов) ---")
+    print("    сетка (окно × порог): среднее сверх рынка в неделю, t, недель; без 2020–2021 — то же")
+    for look in (14, 28, 56):
+        cells = []
+        for thr in (0.0, 0.005, 0.01, 0.02, 0.03):
+            z = in_regime(z_c, stable_flag(total, look, thr))
+            late = z[z.t >= pd.Timestamp("2022-01-01")]
+            t_all = day_t(z, "X") if len(z) > 10 else float("nan")
+            t_late = day_t(late, "X") if len(late) > 10 else float("nan")
+            cells.append(f"{thr:.1%}: {z.X.mean():+.2%} t {t_all:.1f} ({len(z)}) | {late.X.mean():+.2%} t {t_late:.1f} "
+                         f"({len(late)})" if len(z) else f"{thr:.1%}: —")
+        print(f"    {look} дн.  " + "\n             ".join(cells))
+    flag = stable_flag(total, 28, STABLE_GROWTH)
+    out = in_regime(z_c, ~flag & total.shift(28).notna())
+    print(f"    вне G1 (для сравнения): {out.X.mean():+.2%} ({len(out)})" if len(out) else "    вне G1: —")
+    for name, z in (("сводный", z_c), ("лучший за 7 дн.", z_m)):
+        p, m = placebo_p(z, flag)
+        print(f"    плацебо — случайные недели того же числа, {name}: отбор {m:+.2%}, p = {p:.3f}")
+    late = z_c[z_c.t >= pd.Timestamp("2022-01-01")]
+    judge("сводный | G1, только 2022+", in_regime(late, flag), [], min_n=10)
+    judge("сводный | R1 и G1, только 2022+", in_regime(late, flag & r1), [], min_n=10)
+
+
 # --- отчёт ---
 
 def report() -> None:
@@ -388,6 +434,9 @@ def report() -> None:
         judge(f"сводный балл | {gname}", in_regime(z_c, flag), passed, min_n=10)
         judge(f"сводный балл | R1 и {gname}", in_regime(z_c, flag & r1), passed, min_n=10)
         judge(f"лучший за 7 дн. | {gname}", in_regime(z_m, flag), passed, min_n=10)
+
+    if total.notna().any():
+        robust_g1(z_c, z_m, total, r1)
 
     print("\n  --- N6: американский спот (Coinbase USD) ---")
     cb = coinbase_turnover(close.index[-1] + pd.Timedelta(days=1), set(sector_map()))
