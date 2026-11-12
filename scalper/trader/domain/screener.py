@@ -466,7 +466,7 @@ def regime_changed(prev: Snapshot | None, cur: Snapshot) -> bool:
 def money(x: float | None) -> str:
     if not _ok(x):
         return "—"
-    for k, s in ((1e9, "B"), (1e6, "M"), (1e3, "K")):
+    for k, s in ((1e12, "T"), (1e9, "B"), (1e6, "M"), (1e3, "K")):
         if abs(x) >= k:
             return f"${x / k:.1f}{s}"
     return f"${x:.0f}"

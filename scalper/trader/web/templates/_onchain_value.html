@@ -1,0 +1,26 @@
+{% if onchain and onchain.rows %}
+<details class="card scr-rules ocv">
+  <summary><span>Цена к активным адресам · дорогих {{ onchain.expensive | length }} из {{ onchain.rows | length }}</span></summary>
+  <p class="hint">Сколько долларов капитализации приходится на один активный адрес сети в день (среднее за 30 дней,
+    CoinMetrics). На истории дорогая треть отставала от BTC во всех периодах с 2022 года: за 6 месяцев −16%
+    (research/onchainval.py, t −2.0). Дешёвая треть BTC устойчиво не обгоняла, поэтому это флаг «осторожно» для дорогих,
+    а не список покупок. Мера грубая: адреса в разных сетях считаются по-разному.</p>
+  <div class="ocv-cols num">
+    {% for title, rows, cls in (('Дорогие — осторожно', onchain.expensive, 'down'), ('Дешёвые — справочно', onchain.cheap, '')) %}
+    <div class="ocv-col">
+      <span class="th-label">{{ title }}</span>
+      {% for x in rows[:12] %}
+      <div class="ocv-row">
+        <span class="ocv-sym"><b>{{ x.symbol }}</b>{% if x.perp %}<span class="badge" title="Есть перпетуал на Binance">перп</span>{% endif %}</span>
+        <span class="{{ cls }}" title="Капитализация на активный адрес в день">{{ money(x.cap_per_address) }}</span>
+        <small title="Капитализация · активных адресов в день">{{ money(x.cap) }} · {{ '{:,.0f}'.format(x.addresses).replace(',', ' ') }} адр.</small>
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+  <p class="hint num" style="margin-bottom:0">Обновление раз в сутки, по {{ onchain.computed_at | lt }} · монет в источнике {{ onchain.assets }}.</p>
+</details>
+{% elif onchain_error %}
+<p class="err">Цена к активным адресам не посчиталась: {{ onchain_error }}.</p>
+{% endif %}

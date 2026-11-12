@@ -9,6 +9,7 @@ from datetime import date, datetime
 
 from ..domain.execution import Account, ClosedPnl, Fill, HedgeLeg, Instrument, OrderRequest, Trade, TradeResult, TradeStatus
 from ..domain.journal import JournalEntry
+from ..domain.onchain_value import Reading
 from ..domain.models import Settings, Signal, SignalStatus, Timeframe
 from ..domain.daily_break import DailySetup
 from ..domain.trend import TrendDay
@@ -242,6 +243,11 @@ class FundamentalsData(Protocol):
 
     async def unlock_schedules(self, keys: set[str]) -> dict[str, list[tuple[date, float]]]:
         """Накопленный разлок по дням для бизнесов из keys, у которых есть расписание."""
+
+
+class OnchainMetrics(Protocol):
+    async def readings(self, days: int) -> list[Reading]:
+        """Средние активные адреса в день за days дней и последняя капитализация по монетам источника."""
 
 
 class MarketQuotes(Protocol):

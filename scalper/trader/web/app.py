@@ -34,6 +34,7 @@ from ..application.bridge import BridgeService
 from ..application.weather import WeatherService
 from ..application.screener import ScreenerService
 from ..application.sector_flow import SectorFlowService
+from ..application.onchain_value import OnchainValueService
 from ..application.theses import ThesesService
 from ..config import AppConfig
 from ..domain.execution import TradeStatus
@@ -50,6 +51,7 @@ from ..infrastructure.binance_data import BinanceMarketData
 from ..infrastructure.bybit import (ALIAS_MAX_GAP, BrokerHolder, BybitBroker, BybitCredentials, load_aliases,
                                     parse_symbol, save_aliases)
 from ..infrastructure.charts import MatplotlibCharts
+from ..infrastructure.coinmetrics import CoinMetricsOnchain
 from ..infrastructure.github_state import GitHubState
 from ..infrastructure.defillama import DefiLlamaStablecoins
 from ..infrastructure.fundamentals import BinanceSpotPrices, BinanceSpotWeekly, CoinGeckoQuotes, DefiLlamaFundamentals
@@ -169,6 +171,8 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
     sector_flow = SectorFlowService(market, store, notifier=notify,
                                    oi=market if hasattr(market, "oi_daily") else None)
     spot_prices = BinanceSpotPrices()
+    onchain_src = CoinMetricsOnchain()
+    onchain = OnchainValueService(onchain_src, store, market=market)
     writer = None
     if cfg.anthropic_key:
         from ..infrastructure.claude_theses import ClaudeThesesWriter
@@ -200,6 +204,7 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
             await weather.maybe_run()
             await screener.maybe_run()
             await sector_flow.maybe_run()
+            await onchain.maybe_run()
             await theses.maybe_run()
             if bridge is not None:
                 await bridge.maybe_run()
@@ -226,7 +231,7 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
             liqs.save()
         await holder.close()
         await stables.aclose()
-        for c in (fundamentals, cg_quotes, spot_weekly, spot_prices):
+        for c in (fundamentals, cg_quotes, spot_weekly, spot_prices, onchain_src):
             await c.aclose()
         if writer is not None:
             await writer.aclose()
@@ -606,7 +611,8 @@ def create_app(cfg: AppConfig, market: MarketData | None = None, notifier: Notif
         return templates.TemplateResponse(request, "_screener.html", {
             "s": screener.current(), "error": screener.last_error, "running": screener.running,
             "started": started, "every_h": int(screener.every.total_seconds() // 3600),
-            "flow": sector_flow.current(), "flow_error": sector_flow.last_error, **paper_view(sector_flow.paper())})
+            "flow": sector_flow.current(), "flow_error": sector_flow.last_error, **paper_view(sector_flow.paper()),
+            "onchain": onchain.current(), "onchain_error": onchain.last_error})
 
     @app.get("/screener", response_class=HTMLResponse)
     async def screener_card(request: Request):
