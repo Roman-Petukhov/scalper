@@ -4,7 +4,7 @@
 #   bash research/job.sh report    — сборка итогов из всех частей
 # TASKS — какие исследования гонять в этом прогоне (по порядку).
 set -euo pipefail
-TASKS=${TASKS:-"rotlead"}
+TASKS=${TASKS:-"dipstrength"}
 export TFUP_TFS=${TFUP_TFS:-4h,2h}
 export TL_TFS=${TL_TFS:-15m,2h,4h,6h,12h,1d} TL_CHARTS=${TL_CHARTS:-0}
 MODE=${1:-collect}
@@ -741,6 +741,9 @@ social_report() { python -m research.social report; }
 # Что ещё угадывает ротацию: стейблкоины по сетям, остаток без беты, внутри сектора, пробой силы, режимы, Coinbase
 rotlead_collect() { posflow_collect; }
 rotlead_report() { python -m research.rotlead; }
+# Сила в падении: монеты, державшиеся лучше рынка в коррекции, после разворота; цены — из частей posflow
+dipstrength_collect() { posflow_collect; }
+dipstrength_report() { python -m research.dipstrength; }
 
 case "$MODE" in
   collect|report) ;;
