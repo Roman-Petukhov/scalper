@@ -104,6 +104,6 @@ def test_stable_flag_and_placebo():
     f = R.stable_flag(total, 28, 0.01)
     assert not f.iloc[:100].any() and f.iloc[-1]
     mondays = idx[idx.day_of_week == 0]
-    z = pd.DataFrame({"t": mondays, "X": np.where(mondays > idx[140], 0.05, -0.01)})
+    z = pd.DataFrame({"t": mondays, "X": np.where(mondays > idx[106], 0.05, -0.01)})
     p, m = R.placebo_p(z, f)
     assert m > 0.03 and p < 0.01
