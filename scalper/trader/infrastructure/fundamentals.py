@@ -43,7 +43,9 @@ def parse_fee_rows(raw: object, data_type: str) -> list[FeeRow]:
         rows.append(FeeRow(group=group_key(slug, p.get("name"), p.get("parentProtocol")), slug=str(slug or ""),
                            name=str(p.get("displayName") or p.get("name") or slug or "?"),
                            category=str(p.get("category") or "—"), data_type=data_type,
-                           d30=_num(p.get("total30d")), y1=_num(p.get("total1y"))))
+                           d30=_num(p.get("total30d")), y1=_num(p.get("total1y")),
+                           p30=_num(p.get("total60dto30d")), d7=_num(p.get("total7d")),
+                           p7=_num(p.get("total14dto7d"))))
     return rows
 
 

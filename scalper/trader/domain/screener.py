@@ -31,6 +31,7 @@ LAUNCH_CLOSES = 2           # закрытий подряд над EMA50 пос�
 LAUNCH_WEEKS = 8            # сколько недель после запуска режим зовётся «запуск»
 TOUCH, FLOOR = 1.01, 0.97   # откат: минимум недели <= EMA50 × TOUCH, закрытие >= EMA50 × FLOOR
 SLOPE_WEEKS = 4
+FEES_FLOOR_30D = 30_000.0   # комиссии прошлого месяца меньше — рост «к прошлому периоду» не считаем
 
 
 @dataclass(frozen=True)
@@ -53,6 +54,9 @@ class FeeRow:
     data_type: str
     d30: float
     y1: float
+    p30: float = 0.0         # предыдущие 30 дней (с 60-го по 30-й день назад)
+    d7: float = 0.0
+    p7: float = 0.0          # предыдущие 7 дней
 
 
 @dataclass(frozen=True)
@@ -66,6 +70,9 @@ class Business:
     rev_1y: float = 0.0
     hr_30d: float = 0.0
     hr_1y: float = 0.0
+    fees_prev30: float = 0.0
+    fees_7d: float = 0.0
+    fees_prev7: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -106,6 +113,10 @@ class Candidate:
     binance_perp: bool = False
     first_seen: date | None = None
     first_price: float | None = None
+    fees_mom: float | None = None        # комиссии за 30 дней к предыдущим 30
+    fees_wow: float | None = None        # комиссии за 7 дней к предыдущим 7
+    mcap_to_fees: float | None = None    # капитализация к годовым комиссиям (как P/S)
+    buyback_cover: float | None = None   # выручка держателям за год к разлокам за год в долларах
 
     @property
     def passed(self) -> bool:
@@ -238,6 +249,8 @@ def businesses(rows: list[FeeRow]) -> dict[str, Business]:
         a = acc.setdefault(r.group, {})
         a[f"{r.data_type}_30"] = a.get(f"{r.data_type}_30", 0.0) + max(r.d30, 0.0)
         a[f"{r.data_type}_1y"] = a.get(f"{r.data_type}_1y", 0.0) + max(r.y1, 0.0)
+        for tag, v in (("p30", r.p30), ("7", r.d7), ("p7", r.p7)):
+            a[f"{r.data_type}_{tag}"] = a.get(f"{r.data_type}_{tag}", 0.0) + max(v, 0.0)
         if r.data_type == FEES and (r.group not in best or r.d30 > best[r.group][0]):
             best[r.group] = (r.d30, r.name, r.category)
         elif r.group not in best:
@@ -245,7 +258,9 @@ def businesses(rows: list[FeeRow]) -> dict[str, Business]:
     return {k: Business(key=k, name=best[k][1], category=best[k][2],
                         fees_30d=a.get(f"{FEES}_30", 0.0), fees_1y=a.get(f"{FEES}_1y", 0.0),
                         rev_30d=a.get(f"{REVENUE}_30", 0.0), rev_1y=a.get(f"{REVENUE}_1y", 0.0),
-                        hr_30d=a.get(f"{HOLDERS}_30", 0.0), hr_1y=a.get(f"{HOLDERS}_1y", 0.0))
+                        hr_30d=a.get(f"{HOLDERS}_30", 0.0), hr_1y=a.get(f"{HOLDERS}_1y", 0.0),
+                        fees_prev30=a.get(f"{FEES}_p30", 0.0), fees_7d=a.get(f"{FEES}_7", 0.0),
+                        fees_prev7=a.get(f"{FEES}_p7", 0.0))
             for k, a in acc.items()}
 
 
@@ -263,13 +278,28 @@ def by_token(biz: dict[str, Business], gecko: dict[str, str]) -> dict[str, Busin
         main = b if b.rev_30d > o.rev_30d else o
         out[g] = Business(key=g, name=main.name, category=main.category, fees_30d=o.fees_30d + b.fees_30d,
                           fees_1y=o.fees_1y + b.fees_1y, rev_30d=o.rev_30d + b.rev_30d, rev_1y=o.rev_1y + b.rev_1y,
-                          hr_30d=o.hr_30d + b.hr_30d, hr_1y=o.hr_1y + b.hr_1y)
+                          hr_30d=o.hr_30d + b.hr_30d, hr_1y=o.hr_1y + b.hr_1y,
+                          fees_prev30=o.fees_prev30 + b.fees_prev30, fees_7d=o.fees_7d + b.fees_7d,
+                          fees_prev7=o.fees_prev7 + b.fees_prev7)
     return out
 
 
 def growth(d30: float, y1: float) -> float | None:
     """Последние 30 дней к среднему месяцу за год; None — нет годовой истории."""
     return d30 / (y1 / 12.0) if y1 > 0 else None
+
+
+def ratio(now: float, before: float, floor: float = 0.0) -> float | None:
+    """Период к предыдущему такому же; None — прошлого периода нет или он меньше floor (рост с нуля — шум)."""
+    return now / before if before > floor and before > 0 else None
+
+
+def buyback_cover(hr_year: float, unlock_12m: float | None, mcap: float | None) -> float | None:
+    """Сколько долларов выручки держателям (выкуп, сжигание, раздача) приходится на доллар разлоков за год.
+    Разлок в долларах — доля от монет в обращении × капитализация. None — нет расписания или разлоков нет."""
+    if unlock_12m is None or not _ok(mcap) or unlock_12m <= 0 or mcap <= 0:
+        return None
+    return hr_year / (unlock_12m * mcap)
 
 
 def unlock_share(points: list[tuple[date, float]], today: date, days: int = 365) -> float | None:
@@ -319,13 +349,20 @@ def evaluate(b: Business, q: Quote | None, unlock: float | None, rules: Rules, p
     g = growth(b.hr_30d, b.hr_1y)
     if g is not None and g > 3:
         flags.append("всплеск выручки за месяц")
+    cover = buyback_cover(hr_year, unlock, mcap)
+    if cover is not None and cover < 1:
+        flags.append("разлоки больше выкупа")
+    fees_year = b.fees_30d * 365 / 30
     return Candidate(gecko_id=b.key, symbol=(q.symbol if q else "").upper(), project=b.name, category=b.category,
                      price=q.price if q else None, mcap=mcap, fdv=fdv, volume=q.volume if q else None,
-                     float_share=float_share, unlock_12m=unlock, fees_year=b.fees_30d * 365 / 30,
+                     float_share=float_share, unlock_12m=unlock, fees_year=fees_year,
                      rev_year=b.rev_30d * 365 / 30, hr_year=hr_year,
                      fdv_to_hr=fdv / hr_year if _ok(fdv) and hr_year > 0 else None, hr_growth=g,
                      chg_1y=q.chg_1y if q else None, ath_chg=q.ath_chg if q else None,
-                     reasons=tuple(reasons), flags=tuple(flags), binance_perp=perp)
+                     reasons=tuple(reasons), flags=tuple(flags), binance_perp=perp,
+                     fees_mom=ratio(b.fees_30d, b.fees_prev30, FEES_FLOOR_30D),
+                     fees_wow=ratio(b.fees_7d, b.fees_prev7, FEES_FLOOR_30D * 7 / 30),
+                     mcap_to_fees=mcap / fees_year if _ok(mcap) and fees_year > 0 else None, buyback_cover=cover)
 
 
 def _pct_rank(values: list[float | None], higher_better: bool) -> list[float]:

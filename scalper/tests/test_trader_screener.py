@@ -114,11 +114,39 @@ def test_alerts_new_top_entries_and_regime_change_and_json():
     assert back == cur
 
 
+def test_buyback_cover_fee_acceleration_and_price_to_fees():
+    assert S.buyback_cover(12e6, 0.10, 100e6) == pytest.approx(1.2)          # $12M выкупа на $10M разлоков
+    assert S.buyback_cover(12e6, None, 100e6) is None and S.buyback_cover(12e6, 0.0, 100e6) is None
+    assert S.ratio(3e6, 2e6) == 1.5 and S.ratio(3e6, 0.0) is None and S.ratio(3e6, 10_000, floor=30_000) is None
+    rows = [S.FeeRow("u", "u-v3", "U V3", "Dexs", S.FEES, 6e6, 48e6, p30=4e6, d7=1.5e6, p7=1.0e6),
+            S.FeeRow("u", "u-v2", "U V2", "Dexs", S.FEES, 3e6, 24e6, p30=2e6, d7=0.5e6, p7=1.0e6),
+            S.FeeRow("u", "u-v3", "U V3", "Dexs", S.HOLDERS, 1e6, 12e6)]
+    b = S.businesses(rows)["u"]
+    assert (b.fees_prev30, b.fees_7d, b.fees_prev7) == (6e6, 2e6, 2e6)
+    tok = S.by_token({"u": b, "u2": S.replace(b, key="u2", rev_30d=1.0)}, {"u": "uni", "u2": "uni"})["uni"]
+    assert tok.fees_prev30 == 12e6 and tok.fees_7d == 4e6
+    c = S.evaluate(b, _q("u", "u", 200e6, 220e6), 0.10, S.Rules())
+    assert c.fees_mom == pytest.approx(1.5) and c.fees_wow == pytest.approx(1.0)
+    assert c.mcap_to_fees == pytest.approx(200e6 / (9e6 * 365 / 30))
+    assert c.buyback_cover == pytest.approx(1e6 * 365 / 30 / 20e6) and "разлоки больше выкупа" in c.flags
+    rich = S.evaluate(b, _q("u", "u", 200e6, 220e6), 0.02, S.Rules())
+    assert rich.buyback_cover > 1 and "разлоки больше выкупа" not in rich.flags
+    old = S._cand_json(c)
+    for k in ("fees_mom", "fees_wow", "mcap_to_fees", "buyback_cover"):
+        old.pop(k)                                                             # снимок до обновления читается
+    assert S._cand_from(old).buyback_cover is None
+    assert S.evaluate(S.Business("n", "N", "Dexs", hr_30d=1e6, fees_30d=1e6), _q("n", "n", 1e8, 1e8), None,
+                      S.Rules()).fees_mom is None
+
+
 def test_parsers():
     raw = {"protocols": [{"name": "Uniswap V3", "slug": "uniswap-v3", "parentProtocol": "parent#uniswap",
                           "category": "Dexs", "total30d": 5, "total1y": None}, "мусор"]}
     rows = F.parse_fee_rows(raw, S.FEES)
     assert rows == [S.FeeRow("uniswap", "uniswap-v3", "Uniswap V3", "Dexs", S.FEES, 5.0, 0.0)]
+    more = F.parse_fee_rows({"protocols": [{"name": "X", "slug": "x", "total30d": 9, "total60dto30d": 6, "total7d": 3,
+                                            "total14dto7d": "2"}]}, S.FEES)[0]
+    assert (more.p30, more.d7, more.p7) == (6.0, 3.0, 2.0)
     ids = F.parse_token_ids([{"slug": "aave-v3", "name": "Aave V3", "parentProtocol": "parent#aave", "gecko_id": "aave"},
                              {"slug": "x", "gecko_id": None}], [{"name": "Near", "gecko_id": "near"}])
     assert ids == {"aave": "aave", "aave-v3": "aave", "near": "near"}
@@ -215,8 +243,8 @@ def test_screener_tab_renders(env):  # noqa: F811
     assert 'data-go="screener"' in page and 'id="screener-body"' in page
     r = c.get("/screener")
     assert r.status_code == 200 and "Первый расчёт" in r.text
-    a = S.evaluate(S.Business("lend-token", "Lend", "Lending", hr_30d=1e6, hr_1y=6e6, rev_30d=2e6),
-                   _q("lend-token", "lnd", 100e6, 110e6), None, S.Rules())
+    a = S.evaluate(S.Business("lend-token", "Lend", "Lending", hr_30d=1e6, hr_1y=6e6, rev_30d=2e6, fees_30d=3e6,
+                              fees_prev30=2e6), _q("lend-token", "lnd", 100e6, 110e6), 0.05, S.Rules())
     rej = S.evaluate(S.Business("pump", "PumpSwap", "Dexs", hr_30d=1e6, hr_1y=6e6, rev_30d=3e6),
                      _q("pump", "pump", 1.9e9, 3.5e9), 0.15, S.Rules())
     snap = _snap([a], S.Zone.ACCUMULATION)
@@ -225,4 +253,6 @@ def test_screener_tab_renders(env):  # noqa: F811
     SqliteStore(tmp / "trader.db").kv_set(KEY, json.dumps(snap.to_json()))
     r = c.get("/screener")
     assert "Зона накопления" in r.text and "LND" in r.text and "PUMP" in r.text and "разлоки" in r.text
+    assert "комиссии ×1.50" in r.text and "к комиссиям ×3" in r.text and "выкуп ×2.4<" in r.text
+    assert "выкуп ×0.04 к разлокам" in r.text and "разлоки больше выкупа" not in a.flags
     assert c.post("/screener/run").status_code == 403         # без заголовка панели

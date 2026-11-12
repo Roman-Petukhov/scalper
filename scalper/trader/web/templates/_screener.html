@@ -63,10 +63,10 @@
     <div class="scr-row scr-th" role="row">
       <span role="columnheader">Монета</span>
       <span role="columnheader" title="Капитализация / полная оценка (FDV)">Кап. / FDV</span>
-      <span role="columnheader" title="Доля монет в обращении и разлок за 12 месяцев">Обращение</span>
+      <span role="columnheader" title="Доля монет в обращении, разлок за 12 месяцев и сколько долларов выкупа приходится на доллар разлоков">Обращение</span>
       <span role="columnheader" title="Годовая выручка держателям по последним 30 дням: выкуп, сжигание, раздача">Держателям</span>
-      <span role="columnheader" title="FDV к годовой выручке держателям — как P/E">FDV / выр.</span>
-      <span role="columnheader" title="Выручка держателям за 30 дней к среднему месяцу года">Рост</span>
+      <span role="columnheader" title="FDV к годовой выручке держателям — как P/E; ниже — капитализация к годовым комиссиям, как P/S">FDV / выр.</span>
+      <span role="columnheader" title="Выручка держателям за 30 дней к среднему месяцу года; ниже — комиссии за 30 дней к предыдущим 30">Рост</span>
       <span role="columnheader" title="Цена за год и от исторического максимума">Цена</span>
       <span role="columnheader" title="Изменение цены с первого попадания в список — бумажная проверка">С попадания</span>
     </div>
@@ -79,11 +79,14 @@
           {% if c.flags %}<small class="scr-flags">{{ c.flags | join(' · ') }}</small>{% endif %}</span>
       </span>
       <span role="cell" data-label="Кап. / FDV">{{ money(c.mcap) }}<small>{{ money(c.fdv) }}</small></span>
-      <span role="cell" data-label="Обращение">{{ pct(c.float_share, False) }}<small>разлок {{ pct(c.unlock_12m, False) if c.unlock_12m is not none else '?' }}</small></span>
+      <span role="cell" data-label="Обращение">{{ pct(c.float_share, False) }}<small>разлок {{ pct(c.unlock_12m, False) if c.unlock_12m is not none else '?' }}</small>
+        {% if c.buyback_cover is not none %}<small class="{{ 'up' if c.buyback_cover >= 1 else 'down' }}" title="Выручка держателям за год к разлокам за год в долларах">выкуп ×{{ ('%.1f' if c.buyback_cover >= 1 else '%.2f') | format(c.buyback_cover) }}</small>{% endif %}</span>
       <span role="cell" data-label="Держателям">{{ money(c.hr_year) }}<small>выручка {{ money(c.rev_year) }}</small></span>
-      <span role="cell" data-label="FDV / выр.">{% if c.fdv_to_hr %}×{{ '%.0f' | format(c.fdv_to_hr) }}{% else %}—{% endif %}</span>
+      <span role="cell" data-label="FDV / выр.">{% if c.fdv_to_hr %}×{{ '%.0f' | format(c.fdv_to_hr) }}{% else %}—{% endif %}
+        {% if c.mcap_to_fees %}<small title="Капитализация к годовым комиссиям протокола — как P/S">к комиссиям ×{{ '%.0f' | format(c.mcap_to_fees) }}</small>{% endif %}</span>
       <span role="cell" data-label="Рост" class="{{ 'up' if (c.hr_growth or 0) >= 1.2 else ('down' if c.hr_growth is not none and c.hr_growth < 0.8 else '') }}">
-        {% if c.hr_growth is not none %}×{{ '%.1f' | format(c.hr_growth) }}{% else %}—{% endif %}</span>
+        {% if c.hr_growth is not none %}×{{ '%.1f' | format(c.hr_growth) }}{% else %}—{% endif %}
+        {% if c.fees_mom is not none %}<small class="{{ 'up' if c.fees_mom >= 1.2 else ('down' if c.fees_mom < 0.8 else '') }}" title="Комиссии протокола за 30 дней к предыдущим 30{% if c.fees_wow is not none %}; за 7 дней к предыдущим 7 — ×{{ '%.2f' | format(c.fees_wow) }}{% endif %}">комиссии ×{{ '%.2f' | format(c.fees_mom) }}</small>{% endif %}</span>
       <span role="cell" data-label="Цена">{{ pct_raw(c.chg_1y) }}<small>от ATH {{ pct_raw(c.ath_chg) }}</small></span>
       <span role="cell" data-label="С попадания" class="{{ 'up' if (c.since_seen or 0) > 0 else ('down' if (c.since_seen or 0) < 0 else '') }}">
         {{ pct(c.since_seen) }}<small>{% if c.first_seen %}с {{ c.first_seen.strftime('%d.%m.%y') }}{% endif %}</small></span>
@@ -105,7 +108,8 @@
     <div class="scr-row scr-row-rej" role="row">
       <span role="cell" class="scr-coin"><span class="scr-name"><b>{{ c.symbol or '?' }}</b><small>{{ c.project }} · {{ c.category }}</small></span></span>
       <span role="cell" data-label="Выручка">{{ money(c.rev_year) }}<small>держателям {{ money(c.hr_year) }}</small></span>
-      <span role="cell" data-label="Обращение">{{ pct(c.float_share, False) }}<small>разлок {{ pct(c.unlock_12m, False) if c.unlock_12m is not none else '?' }}</small></span>
+      <span role="cell" data-label="Обращение">{{ pct(c.float_share, False) }}<small>разлок {{ pct(c.unlock_12m, False) if c.unlock_12m is not none else '?' }}</small>
+        {% if c.buyback_cover is not none %}<small class="{{ 'up' if c.buyback_cover >= 1 else 'down' }}" title="Выручка держателям за год к разлокам за год в долларах">выкуп ×{{ ('%.1f' if c.buyback_cover >= 1 else '%.2f') | format(c.buyback_cover) }} к разлокам</small>{% endif %}</span>
       <span role="cell" data-label="Почему" class="scr-why">{{ c.reasons | join(', ') }}</span>
     </div>
     {% endfor %}
@@ -124,6 +128,10 @@
     <li><b>Торгуется и не новичок:</b> капитализация от {{ money(s.rules.mcap_min) }}, оборот от {{ money(s.rules.volume_min) }} в сутки,
       история цены не меньше года — свежие листинги в среднем отдают рост.</li>
     <li><b>Сортировка:</b> дешевле к выручке держателям и быстрее её рост — выше.</li>
+    <li><b>Справочно, в сортировку не входят:</b> «выкуп ×…» под обращением — сколько долларов выручки держателям приходится на
+      доллар разлоков за год (меньше ×1 — продавцов больше, чем выкупа; у JUP $26M выкупа против $70M разлоков
+      закончились −63%); «комиссии ×…» под ростом — комиссии за 30 дней к предыдущим 30: ускоряется ли бизнес сейчас; «к комиссиям» — капитализация к годовым
+      комиссиям. Сами по себе выкупы цену не держат: у 7 проектов из 9 не сработали (CryptoRank, 2025).</li>
   </ol>
   <p class="hint">Это список «куда смотреть», не сигнал на покупку: истории FDV и разлоков бесплатно нет, бэктеста нет.
     Проверка — столбец «С попадания»: бумажный счёт вперёд. Цены — CoinGecko ({{ s.priced }} монет), разлоки известны у {{ s.unlocks_known }}.
