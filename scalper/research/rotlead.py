@@ -336,11 +336,17 @@ def placebo_p(z: pd.DataFrame, flag: pd.Series, n: int = 2000, seed: int = 7) ->
 
 def robust_g1(z_c: pd.DataFrame, z_m: pd.DataFrame, total: pd.Series, r1: pd.Series) -> None:
     print("\n  --- N7: устойчивость G1 (рост предложения стейблкоинов) ---")
+    if z_c.empty:
+        print("    сделок нет")
+        return
     print("    сетка (окно × порог): среднее сверх рынка в неделю, t, недель; без 2020–2021 — то же")
     for look in (14, 28, 56):
         cells = []
         for thr in (0.0, 0.005, 0.01, 0.02, 0.03):
             z = in_regime(z_c, stable_flag(total, look, thr))
+            if z.empty:
+                cells.append(f"{thr:.1%}: —")
+                continue
             late = z[z.t >= pd.Timestamp("2022-01-01")]
             t_all = day_t(z, "X") if len(z) > 10 else float("nan")
             t_late = day_t(late, "X") if len(late) > 10 else float("nan")

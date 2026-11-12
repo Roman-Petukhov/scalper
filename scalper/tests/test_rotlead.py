@@ -107,3 +107,12 @@ def test_stable_flag_and_placebo():
     z = pd.DataFrame({"t": mondays, "X": np.where(mondays > idx[106], 0.05, -0.01)})
     p, m = R.placebo_p(z, f)
     assert m > 0.03 and p < 0.01
+
+
+def test_robust_g1_tolerates_no_trades(capsys):
+    idx = pd.date_range("2024-01-01", periods=60, freq="D")
+    total = pd.Series(1e11, index=idx)
+    R.robust_g1(pd.DataFrame(), pd.DataFrame(), total, pd.Series(True, index=idx))
+    z = pd.DataFrame({"t": [idx[7]], "X": [0.01]})
+    R.robust_g1(z, z, total, pd.Series(True, index=idx))
+    assert "N7" in capsys.readouterr().out
